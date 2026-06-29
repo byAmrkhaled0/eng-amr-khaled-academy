@@ -1,0 +1,36 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+    function userData() { return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data; }
+    function isStaff() { return signedIn() && userData().active != false && userData().role in ['admin','teacher','assistant']; }
+    function safeHomeworkFile() {
+      return request.resource.size <= 10 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*') || request.resource.contentType.matches('video/.*') || request.resource.contentType == 'application/pdf');
+    }
+    function safeTeacherFile() {
+      return request.resource.size <= 15 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*') || request.resource.contentType.matches('video/.*') || request.resource.contentType == 'application/pdf');
+    }
+
+    match /homework/{studentCode}/{fileName} {
+      allow read: if false;
+      allow create: if safeHomeworkFile();
+      allow update, delete: if false;
+    }
+
+    match /teacher-uploads/{fileName} {
+      allow read: if true;
+      allow create, update, delete: if isStaff() && safeTeacherFile();
+    }
+
+    match /public/uploads/{fileName} {
+      allow read: if true;
+      allow create, update, delete: if isStaff() && safeTeacherFile();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

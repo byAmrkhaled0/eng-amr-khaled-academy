@@ -1,0 +1,14 @@
+{
+  "name": "eng-amr-khaled-academy",
+  "version": "55.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node local-server.js",
+    "preview": "node local-server.js",
+    "build": "node scripts/build.js"
+  },
+  "engines": {
+    "node": "24.x"
+  },
+  "description": "Techno Minds academy website with polished mobile drawer icons, online lectures, programming, Python, AI learning, booking, materials, exams, and student follow-up."
+}

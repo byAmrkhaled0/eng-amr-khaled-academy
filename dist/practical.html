@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html data-theme="light" dir="rtl" lang="ar">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<link href="assets/technominds-logo.png?v=53" rel="icon" type="image/png"/>
+<link href="site.webmanifest?v=53" rel="manifest"/>
+<link href="assets/site.css?v=53" rel="stylesheet"/>
+<title>صفحة العملي وتشغيل Python | Techno Minds</title>
+
+<meta content="Python Playground عملي داخل Techno Minds: اكتب الكود، شغله، وشوف Output وErrors في تجربة قريبة من بيئة المطورين." name="description"/><meta content="Python playground, تشغيل كود, محرر Python, تعلم بايثون, Techno Minds" name="keywords"/><meta content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" name="robots"/><meta content="Eng. Amr Khaled" name="author"/><meta content="#050816" name="theme-color"/><link href="https://technominds-academy.vercel.app/practical.html" rel="canonical"/><meta content="ar_EG" property="og:locale"/><meta content="website" property="og:type"/><meta content="Techno Minds" property="og:site_name"/><meta content="صفحة العملي وتشغيل Python | Techno Minds" property="og:title"/><meta content="Python Playground عملي داخل Techno Minds: اكتب الكود، شغله، وشوف Output وErrors في تجربة قريبة من بيئة المطورين." property="og:description"/><meta content="https://technominds-academy.vercel.app/practical.html" property="og:url"/><meta content="https://technominds-academy.vercel.app/assets/technominds-logo.png?v=53" property="og:image"/><meta content="summary_large_image" name="twitter:card"/><meta content="صفحة العملي وتشغيل Python | Techno Minds" name="twitter:title"/><meta content="Python Playground عملي داخل Techno Minds: اكتب الكود، شغله، وشوف Output وErrors في تجربة قريبة من بيئة المطورين." name="twitter:description"/><meta content="https://technominds-academy.vercel.app/assets/technominds-logo.png?v=53" name="twitter:image"/><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "صفحة العملي وتشغيل Python | Techno Minds",
+  "description": "Python Playground عملي داخل Techno Minds: اكتب الكود، شغله، وشوف Output وErrors في تجربة قريبة من بيئة المطورين.",
+  "url": "https://technominds-academy.vercel.app/practical.html",
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "Techno Minds",
+    "url": "https://technominds-academy.vercel.app/"
+  }
+}</script></head>
+<body class="tm-inner-page tm-engineer-premium tm-practical-page" id="top">
+<header class="site-header tm-header">
+<div class="container navbar">
+<a aria-label="Techno Minds" class="logo" href="index.html#home">
+<img alt="Techno Minds logo" class="logo-img tm-main-logo" src="assets/technominds-logo.png?v=53"/>
+<span>Techno Minds <small>Python Lab</small></span>
+</a>
+<nav aria-label="روابط الموقع" class="navlinks">
+<a href="index.html#home">الرئيسية</a>
+<a href="index.html#course">الكورس</a>
+<a href="practical.html">العملي</a>
+<a href="learning-path.html">المسار</a>
+<a href="online-lectures.html">محاضرات الأونلاين</a>
+<a href="materials.html">Materials</a>
+<a href="exams.html">الامتحانات</a>
+<a href="parent.html">ولي الأمر</a>
+<a href="reviews.html">الريفيوهات</a>
+<a href="booking.html">الحجز</a>
+<a href="student.html">بوابة الطالب</a>
+</nav>
+<div class="header-actions">
+<button aria-label="تغيير الوضع" class="theme-toggle" id="themeToggle"></button>
+<button aria-label="فتح قائمة الصفحات" class="tm-mobile-menu-btn" onclick="toggleMobileMenu()" type="button"><span></span><span></span><span></span></button>
+</div>
+</div>
+</header>
+<div aria-hidden="true" class="tm-mobile-menu-backdrop" onclick="toggleMobileMenu(false)"></div>
+<aside aria-label="قائمة صفحات الهاتف" class="tm-mobile-drawer" id="tmMobileDrawer">
+  <div class="tm-mobile-drawer-head">
+    <div>
+      <b>Techno Minds</b>
+      <small>Programming &amp; AI</small>
+    </div>
+    <button aria-label="إغلاق القائمة" onclick="toggleMobileMenu(false)" type="button">×</button>
+  </div>
+  <nav class="tm-mobile-drawer-links">
+    <a href="index.html"><span data-icon="code"></span><b>الرئيسية</b><small>بداية الموقع والخدمات</small></a>
+    <a href="booking.html"><span data-icon="calendar"></span><b>الحجز</b><small>احجز مكانك في المجموعة</small></a>
+    <a href="online-lectures.html"><span data-icon="video"></span><b>محاضرات الأونلاين</b><small>دخول المحاضرات والمتابعة</small></a>
+    <a href="learning-path.html"><span data-icon="book-open"></span><b>المسار</b><small>خطة التعلم خطوة بخطوة</small></a>
+    <a href="practical.html"><span data-icon="sparkles"></span><b>العملي</b><small>اكتب وشغل كود Python</small></a>
+    <a href="materials.html"><span data-icon="book-open"></span><b>Materials</b><small>ملفات التدريب والواجبات</small></a>
+    <a href="exams.html"><span data-icon="clipboard"></span><b>الامتحانات</b><small>Coding Challenges والتقييم</small></a>
+    <a href="student.html"><span data-icon="user"></span><b>بوابة الطالب</b><small>نتائج وحضور وملفات</small></a>
+    <a href="parent.html"><span data-icon="users"></span><b>ولي الأمر</b><small>متابعة الطالب</small></a>
+    <a href="about.html"><span data-icon="award"></span><b>نبذة عن المهندس</b><small>الشهادات والخبرة</small></a>
+    <a href="questions.html"><span data-icon="help-circle"></span><b>الأسئلة</b><small>إجابات سريعة</small></a>
+  </nav>
+</aside>
+
+<main class="tm-session-main">
+<section class="section tight tm-code-playground tm-session-lab tm-practical-clean tm-vscode-pro-v41" id="playground">
+<div class="container">
+<div class="tm-session-titlebar tm-practical-headline">
+<div>
+<span class="kicker"><span data-icon="code"></span> Python Playground</span>
+<h1 class="section-title">Python Playground</h1>
+<p class="section-desc">اكتب الكود في الـ Editor على الشمال، وشوف الـ Output في الـ Terminal على اليمين.</p>
+</div>
+<div class="tm-lab-status-v41"><span></span> Pyodide Runner Ready</div>
+</div>
+<div class="tm-vscode-shell tm-clean-runner tm-vscode-shell-v41 tm-vscode-shell-v42">
+<div class="tm-vscode-topbar"><div class="tm-vscode-dots"><span></span><span></span><span></span></div><b>main.py</b><small>Techno Minds / Python Lab</small></div>
+<div aria-label="أزرار تشغيل الكود" class="tm-practical-actions-v42">
+<button class="btn primary" id="runPythonBtn" type="button"><span data-icon="sparkles"></span> Run Code</button>
+<button class="btn ghost" id="clearPythonBtn" type="button"><span data-icon="trash"></span> Clear</button>
+<button class="btn ghost" id="copyPythonBtn" type="button"><span data-icon="clipboard"></span> Copy</button>
+<button class="btn ghost" id="downloadPythonBtn" type="button"><span data-icon="download"></span> Download</button>
+</div>
+<div class="tm-vscode-body tm-clean-vscode-body tm-vscode-body-v41">
+<aside class="tm-vscode-sidebar-v41">
+<b>Explorer</b>
+<span class="active">main.py</span>
+<span>output.log</span>
+<span>errors.txt</span>
+</aside>
+<section class="tm-vscode-editor-wrap tm-editor-panel-v41">
+<div class="tm-vscode-tabs"><button class="active" type="button">main.py</button></div>
+<div class="tm-editor-with-lines-v41">
+<div class="tm-line-gutter-v41">1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12</div>
+<textarea autocapitalize="off" autocomplete="off" autocorrect="off" id="pythonEditor" placeholder="# اكتب كود Python هنا
+name = input('Your name: ')
+print('Hello', name)
+
+# جرّب تعمل برنامج صغير بنفسك" spellcheck="false"></textarea>
+</div>
+</section>
+<section class="tm-vscode-output-wrap tm-output-panel-v41">
+<div class="tm-vscode-panel-head"><b>Terminal / Output</b><small>Program result appears here.</small></div>
+<pre class="tm-output tm-vscode-output" data-tab-panel="output" id="pythonOutput">Output will appear here after running your code.</pre>
+<pre class="tm-output tm-vscode-output tm-error-panel" hidden="" id="pythonErrorOutput">Errors will appear here if the code has a problem.</pre>
+</section>
+</div>
+<div class="tm-vscode-footer-v41"><span>Python 3 Runtime</span><span>UTF-8</span><span>Ln 1, Col 1</span></div>
+</div>
+</div>
+</section>
+</main>
+<footer class="footer engineer-only-footer tm-footer">
+<div class="container engineer-only-wrap">
+<a class="engineer-only-name" href="https://amrkhaledabozeid.vercel.app/" rel="noreferrer" target="_blank"><span data-icon="code"></span><span class="credit-label">برمجة وتصميم</span><strong>المهندس عمرو خالد</strong></a>
+<a aria-label="رابط البورتفوليو" class="engineer-only-whatsapp" href="https://amrkhaledabozeid.vercel.app/" rel="noreferrer" target="_blank"><span data-icon="external-link"></span></a>
+</div>
+</footer>
+<button aria-label="فتح شات المساعدة" class="tm-floating-chat" onclick="toggleFaqBot()" type="button"><span aria-hidden="true" class="tm-chat-logo"><img alt="" src="assets/chat-robot.svg?v=53"/></span><span aria-hidden="true" class="tm-chat-pulse"></span></button>
+<a aria-label="العودة لأول الصفحة" class="tm-scroll-top-arrow" href="#top"><span aria-hidden="true" class="tm-arrow-icon"><svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 19V5"></path><path d="M5 12l7-7 7 7"></path></svg></span></a>
+<div aria-live="polite" class="tm-faq-bot-panel tm-global-chat-panel-v47" id="faqBotPanel">
+<div class="tm-faq-bot-head">
+<div><b>شات Techno Minds</b><small>مساعد سريع للطالب وولي الأمر</small></div>
+<button aria-label="إغلاق الشات" onclick="toggleFaqBot(false)" type="button">×</button>
+</div>
+<div class="tm-faq-bot-body">
+<div class="bot-message">أهلاً بيك 👋 اختار سؤال سريع أو افتح صفحة الأسئلة لو محتاج تفاصيل أكتر.</div>
+<details><summary>إزاي أحجز مكان في المجموعة؟</summary><p>اضغط على زر الحجز، اكتب بيانات الطالب، اختار المجموعة المناسبة، وبعدها هيتم التواصل معك لتأكيد التفاصيل.</p></details>
+<details><summary>هل التدريب عملي ولا شرح نظري؟</summary><p>التدريب عملي: الطالب يكتب الكود بنفسه، يشغل البرنامج، ويشوف الـ Output ويتابع الواجب والاختبار من حسابه.</p></details>
+<details><summary>هل ولي الأمر يقدر يتابع؟</summary><p>نعم، بوابة ولي الأمر بتعرض الحضور، حالة الدفع، النتائج، والملفات المتاحة بشكل مختصر وواضح.</p></details>
+<a class="btn primary tm-bot-whatsapp" href="questions.html"><span data-icon="help-circle"></span> صفحة الأسئلة</a>
+</div>
+</div>
+<div class="toast" id="toast"></div>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
+<script src="assets/firebase-config.js?v=53"></script>
+<script src="assets/firebase-sync.js?v=53"></script>
+<script src="assets/app.js?v=53"></script>
+</body>
+</html>

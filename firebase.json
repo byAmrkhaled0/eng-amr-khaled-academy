@@ -1,0 +1,41 @@
+{
+  "hosting": {
+    "public": "dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "**/*.@(js|css|png|jpg|jpeg|svg|webp)",
+        "headers": [
+          { "key": "Cache-Control", "value": "public,max-age=31536000,immutable" }
+        ]
+      },
+      {
+        "source": "**/*.html",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      }
+    ],
+    "rewrites": [
+      { "source": "/admin", "destination": "/teacher-login.html" },
+      { "source": "/booking", "destination": "/booking.html" },
+      { "source": "/student", "destination": "/student.html" },
+      { "source": "/parent", "destination": "/parent.html" },
+      { "source": "/practical", "destination": "/practical.html" },
+      { "source": "/exams", "destination": "/exams.html" },
+      { "source": "/materials", "destination": "/materials.html" },
+      { "source": "/reviews", "destination": "/reviews.html" }
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  }
+}

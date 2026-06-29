@@ -1,0 +1,120 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function userPath() { return /databases/$(database)/documents/users/$(request.auth.uid); }
+    function hasUserDoc() { return signedIn() && exists(userPath()); }
+    function userData() { return get(userPath()).data; }
+    function isActive() { return hasUserDoc() && userData().active != false; }
+    function isAdmin() { return isActive() && userData().role == 'admin'; }
+    function isTeacher() { return isActive() && userData().role in ['admin','teacher']; }
+    function isAssistant() { return isActive() && userData().role == 'assistant'; }
+    function isStaff() { return isTeacher() || isAssistant(); }
+    function strOk(v, n) { return v is string && v.size() <= n; }
+    function validCode(v) { return v is string && v.size() >= 3 && v.size() <= 40 && v.matches('^[A-Za-z0-9_-]+$'); }
+    function validPhone(v) { return v is string && v.matches('^[0-9+ ()-]{8,20}$'); }
+    function bookingFields() { return request.resource.data.keys().hasOnly(['id','code','studentCode','name','studentName','studentPhone','parentPhone','grade','month','group','groupId','groupName','groupSchedule','groupMode','notes','status','date','createdAt','updatedAt']); }
+    function reviewFields() { return request.resource.data.keys().hasOnly(['id','name','role','rating','text','date','approved','createdAt','updatedAt']); }
+    function attemptFields() { return request.resource.data.keys().hasOnly(['id','examId','examTitle','studentCode','studentName','grade','group','startedAt','submittedAt','score','autoScore','maxScore','mcqCount','essayCount','questionCount','correctCount','needsManualReview','status','answers','teacherCorrectedAt','teacherNotes','updatedAt','createdAt']); }
+    function homeworkFields() { return request.resource.data.keys().hasOnly(['studentCode','fileName','fileUrl','filePath','path','url','contentType','size','createdAt','updatedAt']); }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isStaff());
+      allow create: if signedIn() && request.auth.uid == userId && request.resource.data.role in ['student','parent'];
+      allow update, delete: if isAdmin();
+    }
+
+    match /settings/{docId} {
+      allow read: if docId != 'siteData' || isStaff();
+      allow write: if isStaff();
+    }
+
+    match /students/{id} {
+      allow read, create, update, delete: if isStaff();
+    }
+
+    match /student_portal/{studentCode} {
+      allow get: if validCode(studentCode);
+      allow list: if false;
+      allow create, update, delete: if isStaff();
+    }
+
+    match /parent_portal/{accessId} {
+      allow get: if accessId is string && accessId.size() <= 40;
+      allow list: if false;
+      allow create, update, delete: if isStaff();
+    }
+
+    match /bookings/{id} {
+      allow create: if bookingFields()
+        && validCode(request.resource.data.code)
+        && strOk(request.resource.data.name, 80)
+        && validPhone(request.resource.data.parentPhone)
+        && validPhone(request.resource.data.studentPhone);
+      allow get: if true;
+      allow list, update, delete: if isStaff();
+    }
+
+    match /reviews/{id} {
+      allow read: if true;
+      allow create: if reviewFields()
+        && strOk(request.resource.data.name, 60)
+        && strOk(request.resource.data.text, 600)
+        && request.resource.data.rating is string;
+      allow update, delete: if isStaff();
+    }
+
+    match /files/{id} { allow read: if true; allow write: if isStaff(); }
+    match /materials/{id} { allow read: if true; allow write: if isStaff(); }
+    match /questions/{id} { allow read: if true; allow write: if isStaff(); }
+    match /groups/{id} { allow read: if true; allow write: if isStaff(); }
+    match /assignments/{id} { allow read: if true; allow write: if isStaff(); }
+    match /exams/{id} { allow read: if true; allow write: if isStaff(); }
+
+    match /exam_submissions/{id} {
+      allow create: if attemptFields()
+        && validCode(request.resource.data.studentCode)
+        && strOk(request.resource.data.examId, 80)
+        && request.resource.data.answers is list;
+      allow read: if true;
+      allow update, delete: if isStaff();
+    }
+
+    match /exam_attempts/{id} {
+      allow create: if attemptFields()
+        && validCode(request.resource.data.studentCode)
+        && strOk(request.resource.data.examId, 80)
+        && request.resource.data.answers is list;
+      allow read, update, delete: if isStaff();
+    }
+
+
+
+    match /student_attempts/{studentCode} {
+      allow get: if validCode(studentCode);
+      allow list: if false;
+      allow create, update: if validCode(studentCode) && request.resource.data.keys().hasOnly(['studentCode','attempts','updatedAt']);
+      allow delete: if isStaff();
+    }
+
+    match /homework_submissions/{id} {
+      allow create: if homeworkFields()
+        && validCode(request.resource.data.studentCode)
+        && request.resource.data.size is number
+        && request.resource.data.size <= 10 * 1024 * 1024;
+      allow read, update, delete: if isStaff();
+    }
+
+    match /attendance/{id} {
+      allow read, create, update, delete: if isStaff();
+    }
+    match /recitations/{id} { allow read, write: if isStaff(); }
+    match /grades/{id} { allow read, write: if isStaff(); }
+    match /payments/{id} { allow read, write: if isStaff(); }
+    match /reports/{id} { allow read, write: if isStaff(); }
+    match /activityLog/{id} { allow read, write: if isStaff(); }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}

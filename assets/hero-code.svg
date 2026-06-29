@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 900">
+<defs>
+<linearGradient id="screen" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#111827"/><stop offset="1" stop-color="#020617"/></linearGradient>
+<linearGradient id="glow" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#14b8a6"/><stop offset=".55" stop-color="#8b5cf6"/><stop offset="1" stop-color="#22c55e"/></linearGradient>
+<filter id="shadow" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="36" stdDeviation="32" flood-color="#020617" flood-opacity=".35"/></filter>
+</defs>
+<rect width="900" height="900" rx="80" fill="#f8fafc"/>
+<circle cx="250" cy="180" r="150" fill="#14b8a6" opacity=".14"/>
+<circle cx="710" cy="260" r="180" fill="#8b5cf6" opacity=".16"/>
+<circle cx="500" cy="740" r="190" fill="#22c55e" opacity=".12"/>
+<g filter="url(#shadow)">
+<rect x="170" y="210" width="560" height="390" rx="42" fill="url(#screen)"/>
+<rect x="195" y="240" width="510" height="320" rx="24" fill="#0f172a" stroke="#334155" stroke-width="3"/>
+<circle cx="225" cy="265" r="8" fill="#ef4444"/><circle cx="250" cy="265" r="8" fill="#f59e0b"/><circle cx="275" cy="265" r="8" fill="#22c55e"/>
+<text x="450" y="390" text-anchor="middle" font-family="Arial, sans-serif" font-size="92" font-weight="900" fill="#e0f2fe">&lt;/&gt;</text>
+<rect x="250" y="440" width="175" height="16" rx="8" fill="#8b5cf6"/>
+<rect x="445" y="440" width="125" height="16" rx="8" fill="#a78bfa"/>
+<rect x="295" y="480" width="300" height="16" rx="8" fill="#22c55e" opacity=".88"/>
+<path d="M245 600h410l75 90H170z" fill="url(#glow)"/>
+<path d="M280 630h340l32 34H248z" fill="#0f172a" opacity=".45"/>
+</g>
+<g opacity=".85" stroke="url(#glow)" stroke-width="7" stroke-linecap="round" fill="none">
+<path d="M150 690c70-60 118-65 190-20"/><path d="M735 620c-62 50-126 52-192 7"/>
+<path d="M130 330h70M700 170h70M120 380h42M738 220h42"/>
+</g>
+<g font-family="Arial, sans-serif" font-weight="900">
+<text x="450" y="780" text-anchor="middle" font-size="62" fill="#0f172a">TechnoMinds</text>
+<text x="450" y="835" text-anchor="middle" font-size="38" fill="#1d4ed8">Programming • AI • Baccalaureate</text>
+</g>
+</svg>

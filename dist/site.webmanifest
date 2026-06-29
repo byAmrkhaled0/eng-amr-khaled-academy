@@ -1,0 +1,20 @@
+{
+  "name": "Techno Minds - Programming & AI Learning",
+  "short_name": "Techno Minds",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#050816",
+  "theme_color": "#2563eb",
+  "description": "Techno Minds لتعليم البرمجة والذكاء الاصطناعي وPython بتطبيق عملي ومتابعة واضحة.",
+  "icons": [
+    {
+      "src": "assets/technominds-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "dir": "rtl",
+  "lang": "ar-EG"
+}
