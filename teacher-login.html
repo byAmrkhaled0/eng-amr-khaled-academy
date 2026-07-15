@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html data-theme="dark" dir="rtl" lang="ar">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+
+<link href="assets/technominds-logo.png?v=56" rel="icon" type="image/png"/>
+<link href="assets/site.css?v=57" rel="stylesheet"/><link href="assets/future-theme.css?v=58" rel="stylesheet"/>
+<title>دخول الإدارة | Techno Minds</title>
+<meta content="صفحة دخول الإدارة الخاصة بإدارة مجموعات وطلاب Techno Minds." name="description"/><meta content="Techno Minds admin" name="keywords"/><meta content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" name="robots"/><meta content="Eng. Amr Khaled" name="author"/><meta content="#050816" name="theme-color"/><link href="https://technominds-academy.vercel.app/teacher-login.html" rel="canonical"/><meta content="ar_EG" property="og:locale"/><meta content="website" property="og:type"/><meta content="Techno Minds" property="og:site_name"/><meta content="دخول الإدارة | Techno Minds" property="og:title"/><meta content="صفحة دخول الإدارة الخاصة بإدارة مجموعات وطلاب Techno Minds." property="og:description"/><meta content="https://technominds-academy.vercel.app/teacher-login.html" property="og:url"/><meta content="https://technominds-academy.vercel.app/assets/technominds-logo.png?v=56" property="og:image"/><meta content="summary_large_image" name="twitter:card"/><meta content="دخول الإدارة | Techno Minds" name="twitter:title"/><meta content="صفحة دخول الإدارة الخاصة بإدارة مجموعات وطلاب Techno Minds." name="twitter:description"/><meta content="https://technominds-academy.vercel.app/assets/technominds-logo.png?v=56" name="twitter:image"/><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "دخول الإدارة | Techno Minds",
+  "description": "صفحة دخول الإدارة الخاصة بإدارة مجموعات وطلاب Techno Minds.",
+  "url": "https://technominds-academy.vercel.app/teacher-login.html",
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "Techno Minds",
+    "url": "https://technominds-academy.vercel.app/"
+  }
+}</script></head>
+<body class="tm-inner-page tm-engineer-premium admin-login-body" id="top">
+<main class="login-page admin-login-page">
+<form class="card login-card admin-login-card" id="adminLoginForm">
+<img alt="Techno Minds" class="admin-login-logo" src="assets/technominds-logo.png?v=56"/>
+<span class="kicker"><span data-icon="settings"></span> دخول خاص</span>
+<h1 class="section-title">لوحة إدارة Eng. Amr Khaled</h1>
+<p class="section-desc">الدخول مخصص للإدارة فقط.</p>
+<label>البريد الإلكتروني<input autocomplete="username" name="email" placeholder="example@email.com" required="" type="email"/></label>
+<label>كلمة المرور<input autocomplete="current-password" name="pass" placeholder="كلمة المرور" required="" type="password"/></label>
+<button class="btn primary" type="submit"><span data-icon="user-check"></span> دخول لوحة الإدارة</button>
+<p class="section-desc small-login-note" id="loginStatus"></p>
+<a class="btn ghost" href="index.html">رجوع للموقع</a>
+</form>
+</main>
+<a aria-label="العودة لأول الصفحة" class="tm-scroll-top-arrow" href="#top"><span aria-hidden="true" class="tm-arrow-icon"><svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 19V5"></path><path d="M5 12l7-7 7 7"></path></svg></span></a>
+<div aria-live="polite" class="tm-faq-bot-panel tm-global-chat-panel-v47" id="faqBotPanel">
+<div class="tm-faq-bot-head">
+<div><b>شات Techno Minds</b><small>مساعد سريع للطالب وولي الأمر</small></div>
+<button aria-label="إغلاق الشات" onclick="toggleFaqBot(false)" type="button">×</button>
+</div>
+<div class="tm-faq-bot-body">
+<div class="bot-message">أهلاً بيك 👋 اختار سؤال سريع أو افتح صفحة الأسئلة لو محتاج تفاصيل أكتر.</div>
+<details><summary>إزاي أحجز مكان في المجموعة؟</summary><p>اضغط على زر الحجز، اكتب بيانات الطالب، اختار المجموعة المناسبة، وبعدها هيتم التواصل معك لتأكيد التفاصيل.</p></details>
+<details><summary>هل التدريب عملي ولا شرح نظري؟</summary><p>التدريب عملي: الطالب يكتب الكود بنفسه، يشغل البرنامج، ويشوف الـ Output ويتابع الواجب والاختبار من حسابه.</p></details>
+<details><summary>هل ولي الأمر يقدر يتابع؟</summary><p>نعم، بوابة ولي الأمر بتعرض الحضور، حالة الدفع، النتائج، والملفات المتاحة بشكل مختصر وواضح.</p></details>
+<a class="btn primary tm-bot-whatsapp" href="questions.html"><span data-icon="help-circle"></span> صفحة الأسئلة</a>
+</div>
+</div>
+<div class="toast" id="toast"></div>
+<script src="assets/vendor/firebase-app-compat.js?v=56"></script>
+<script src="assets/vendor/firebase-auth-compat.js?v=56"></script>
+<script src="assets/vendor/firebase-firestore-compat.js?v=56"></script>
+<script src="assets/vendor/firebase-storage-compat.js?v=56"></script>
+<script src="assets/firebase-config.js?v=56"></script>
+<script src="assets/firebase-sync.js?v=56"></script>
+<script src="assets/app.js?v=56"></script>
+<script>
+const statusBox = document.getElementById('loginStatus');
+document.getElementById('adminLoginForm').addEventListener('submit', async function(e){
+  e.preventDefault();
+  const email = this.email.value.trim();
+  const pass = this.pass.value;
+  if(!window.MFCloud?.ready || !window.MFCloud.signIn){
+    toast('Firebase غير مفعل أو لم يتم تحميله');
+    return;
+  }
+  try{
+    statusBox.textContent = 'جاري التحقق من الصلاحية...';
+    await window.MFCloud.signIn(email, pass);
+    const profile = await window.MFCloud.getCurrentStaffProfile();
+    if(!profile?.allowed){
+      await window.MFCloud.signOut?.();
+      statusBox.textContent = 'هذا الحساب غير مصرح له بدخول لوحة الإدارة.';
+      toast('غير مصرح لك بالدخول');
+      return;
+    }
+    location.href = 'admin.html';
+  }catch(err){
+    console.error('Admin login error:', err);
+    const code = err && err.code ? err.code : '';
+    let msg = window.MFCloud?.arabicError?.(err, 'تعذر تسجيل الدخول. راجع بيانات الحساب وصلاحيته.')?.message || 'تعذر تسجيل الدخول. راجع بيانات الحساب وصلاحيته.';
+    if(code.includes('auth/user-not-found')) msg = 'الحساب غير موجود في Firebase Authentication.';
+    else if(code.includes('permission-denied')) msg = 'الحساب موجود لكنه لا يملك صلاحية دخول لوحة الإدارة.';
+    statusBox.textContent = msg;
+    toast(msg);
+  }
+});
+</script>
+<script defer src="assets/pwa.js?v=56"></script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+{
+  "name": "eng-amr-khaled-academy",
+  "version": "58.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node local-server.js",
+    "preview": "node local-server.js",
+    "bundle": "node scripts/bundle.js",
+    "verify": "node scripts/verify.js",
+    "test": "npm run bundle && npm run verify && npm --prefix functions test",
+    "build": "npm run bundle && node scripts/build.js && npm run verify:dist",
+    "verify:dist": "node scripts/verify.js --dist"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "description": "Techno Minds academy website with secure Firebase Functions, mobile-first portals, online lectures, programming, Python, AI learning, exams, and student follow-up.",
+  "dependencies": {
+    "@codemirror/lang-cpp": "^6.0.3",
+    "@codemirror/lang-java": "^6.0.2",
+    "@codemirror/lang-javascript": "^6.2.4",
+    "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/commands": "^6.8.1",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/theme-one-dark": "^6.1.3",
+    "@codemirror/view": "^6.38.1",
+    "codemirror": "^6.0.2",
+    "firebase": "^11.10.0",
+    "jsqr": "^1.4.0",
+    "qrcode-generator": "^2.0.4"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.6"
+  }
+}

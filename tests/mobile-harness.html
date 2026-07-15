@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Techno Minds Mobile QA</title><style>body{font-family:system-ui;margin:0;background:#111827;color:white}h1{padding:12px;margin:0}.frames{display:flex;gap:16px;align-items:start;overflow:auto;padding:16px}.case{display:grid;gap:6px}.case b{text-align:center}.case iframe{height:780px;border:2px solid #38bdf8;border-radius:12px;background:white}</style></head>
+<body><h1>Mobile QA Harness</h1><div class="frames" id="frames"></div><script>
+const params=new URLSearchParams(location.search);const page=(params.get('page')||'index.html').replace(/[^a-z0-9_.-]/gi,'');
+document.getElementById('frames').innerHTML=[320,360,390,430].map(width=>`<div class="case"><b>${width}px</b><iframe title="${width}px" width="${width}" src="../${page}?mobileQa=${width}"></iframe></div>`).join('');
+</script></body></html>

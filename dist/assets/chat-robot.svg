@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Techno Minds chat robot">
+  <defs>
+    <linearGradient id="a" x1="34" y1="22" x2="224" y2="226" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="0.48" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#a855f7"/>
+    </linearGradient>
+    <linearGradient id="b" x1="74" y1="52" x2="184" y2="194" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e0f2fe"/>
+      <stop offset="1" stop-color="#67e8f9"/>
+    </linearGradient>
+    <filter id="shadow" x="-35%" y="-35%" width="170%" height="170%">
+      <feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#020617" flood-opacity=".35"/>
+    </filter>
+  </defs>
+  <rect width="256" height="256" rx="64" fill="#050816"/>
+  <circle cx="64" cy="58" r="42" fill="#38bdf8" opacity=".14"/>
+  <circle cx="202" cy="198" r="52" fill="#a855f7" opacity=".17"/>
+  <path d="M42 194c35-18 63-18 96 0 28 15 53 17 80 3" fill="none" stroke="#22d3ee" stroke-width="5" opacity=".28"/>
+  <g filter="url(#shadow)">
+    <path d="M77 86c19-31 63-43 98-28 37 17 57 58 43 96-15 43-60 67-102 55-37-11-63-45-63-84 0-15 7-29 24-39Z" fill="url(#b)"/>
+    <path d="M74 86c-27 20-38 56-28 91" fill="none" stroke="url(#a)" stroke-width="15" stroke-linecap="round"/>
+    <path d="M103 55c21-9 45-9 66 1" fill="none" stroke="#38bdf8" stroke-width="10" stroke-linecap="round"/>
+    <path d="M183 68c23 17 35 43 34 71" fill="none" stroke="#a855f7" stroke-width="10" stroke-linecap="round"/>
+    <path d="M91 105c23-14 57-15 87 0" fill="none" stroke="#0f172a" stroke-width="10" stroke-linecap="round" opacity=".85"/>
+    <circle cx="105" cy="128" r="11" fill="#0f172a"/>
+    <circle cx="162" cy="128" r="11" fill="#0f172a"/>
+    <circle cx="105" cy="128" r="4" fill="#67e8f9"/>
+    <circle cx="162" cy="128" r="4" fill="#67e8f9"/>
+    <path d="M106 162c18 13 39 13 57 0" fill="none" stroke="#0f172a" stroke-width="8" stroke-linecap="round"/>
+    <path d="M202 134h18c11 0 19 8 19 19v8" fill="none" stroke="#38bdf8" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="239" cy="168" r="9" fill="#22c55e" stroke="#e0f2fe" stroke-width="4"/>
+    <path d="M95 208v18M131 216v18M166 208v18" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/>
+  </g>
+</svg>

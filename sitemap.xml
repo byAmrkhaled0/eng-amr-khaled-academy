@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://technominds-academy.vercel.app/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://technominds-academy.vercel.app/services.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://technominds-academy.vercel.app/materials.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://technominds-academy.vercel.app/questions.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://technominds-academy.vercel.app/exams.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://technominds-academy.vercel.app/student.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://technominds-academy.vercel.app/parent.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://technominds-academy.vercel.app/practical.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://technominds-academy.vercel.app/learning-path.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://technominds-academy.vercel.app/reviews.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://technominds-academy.vercel.app/booking.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://technominds-academy.vercel.app/about.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+<url><loc>https://technominds-academy.vercel.app/online-lectures.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+</urlset>

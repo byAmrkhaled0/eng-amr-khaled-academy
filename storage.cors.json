@@ -1,0 +1,8 @@
+[
+  {
+    "origin": ["*"],
+    "method": ["GET", "HEAD", "PUT"],
+    "responseHeader": ["Content-Type", "x-goog-meta-firebaseStorageDownloadTokens"],
+    "maxAgeSeconds": 3600
+  }
+]

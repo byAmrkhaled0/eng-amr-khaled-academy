@@ -1,0 +1,38 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+    function userPath() { return /databases/(default)/documents/users/$(request.auth.uid); }
+    function isStaff() {
+      return signedIn()
+        && firestore.exists(userPath())
+        && firestore.get(userPath()).data.active != false
+        && firestore.get(userPath()).data.role in ['admin', 'teacher', 'assistant'];
+    }
+    function teacherFileIsSafe() {
+      return request.resource.size <= 15 * 1024 * 1024
+        && (request.resource.contentType.matches('image/(jpeg|png|webp)')
+          || request.resource.contentType == 'application/pdf'
+          || request.resource.contentType.matches('video/.*')
+          || request.resource.contentType.matches('text/.*'));
+    }
+
+    // Homework upload is performed only with a short-lived signed URL issued by prepareHomeworkUpload.
+    match /homework/{studentCode}/{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    match /teacher-uploads/{allPaths=**} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
+    match /public/uploads/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}
