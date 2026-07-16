@@ -89,6 +89,11 @@
       approveBooking:callable('approveBooking'),
       rejectBooking:callable('rejectBooking'),
       registerTeacherPushToken:callable('registerTeacherPushToken'),
+      unregisterTeacherPushToken:callable('unregisterTeacherPushToken'),
+      createPaymentTransaction:callable('createPaymentTransaction'),
+      editPaymentTransaction:callable('editPaymentTransaction'),
+      cancelPaymentTransaction:callable('cancelPaymentTransaction'),
+      migrateLegacyPayments:callable('migrateLegacyPayments'),
       getBookingStatus:callable('getBookingStatus'),
       createReview:callable('createReview'),
       recordClassProgress:callable('recordClassProgress'),
@@ -99,6 +104,7 @@
       createStudentAccess:callable('createStudentAccess'),
       prepareHomeworkUpload:callable('prepareHomeworkUpload'),
       registerHomeworkSubmission:callable('registerHomeworkSubmission'),
+      submitAssignmentAnswer:callable('submitAssignmentAnswer'),
       createBackupNow:callable('createBackupNow'),
       listAutomaticBackups:callable('listAutomaticBackups'),
       getBackupDownloadUrl:callable('getBackupDownloadUrl'),
@@ -110,6 +116,21 @@
       submitCodeExecution:callable('submitCodeExecution'),
       getCodeExecutionResult:callable('getCodeExecutionResult')
     };
+
+    let firebaseMessagingPromise=null;
+    async function loadFirebaseMessaging(){
+      if(typeof firebase.messaging==='function')return true;
+      if(firebaseMessagingPromise)return firebaseMessagingPromise;
+      firebaseMessagingPromise=new Promise((resolve,reject)=>{
+        const script=document.createElement('script');
+        script.async=true;
+        script.src='https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging-compat.js';
+        script.onload=()=>typeof firebase.messaging==='function'?resolve(true):reject(new Error('MESSAGING_UNAVAILABLE'));
+        script.onerror=()=>reject(new Error('MESSAGING_LOAD_FAILED'));
+        document.head.appendChild(script);
+      }).catch(error=>{firebaseMessagingPromise=null;throw error;});
+      return firebaseMessagingPromise;
+    }
 
     function randomCode(prefix){
       const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -406,14 +427,14 @@
       const studentRef=db.collection('students').doc(cleanDocId(studentCode));
       const studentSnap=await studentRef.get();
       const student=studentSnap.exists?studentSnap.data():normalizedStudent({...studentInput,studentCode});
-      const relatedCollections=['attendance','grades','recitations','homework_submissions','exam_attempts'];
+      const relatedCollections=['attendance','grades','recitations','homework_submissions','exam_attempts','monthly_payments','payment_transactions'];
       const relatedSnaps=await Promise.all(relatedCollections.map(collection=>db.collection(collection).where('studentCode','==',studentCode).get()));
       const attemptsParent=db.collection('student_attempts').doc(cleanDocId(studentCode));
       const [attemptsSummary,attemptsChildren]=await Promise.all([attemptsParent.get(),attemptsParent.collection('attempts').get()]);
       const related={};
       relatedCollections.forEach((collection,index)=>{related[collection]=relatedSnaps[index].docs.map(doc=>({id:doc.id,data:doc.data()}));});
       const backup={
-        schemaVersion:56,backupType:'student-before-delete',deletedAt:nowIso(),
+        schemaVersion:60,backupType:'student-before-delete',deletedAt:nowIso(),
         deletedBy:{uid:profile.uid,email:profile.email||'',role:profile.role},
         student:{id:studentCode,data:student},related,
         studentAttempts:{summary:attemptsSummary.exists?attemptsSummary.data():null,attempts:attemptsChildren.docs.map(doc=>({id:doc.id,data:doc.data()}))}
@@ -497,7 +518,37 @@
       subscribeToBookings:handler=>db.collection('bookings').orderBy('createdAt','desc').limit(100).onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>console.warn('booking-listener',error)),
       subscribeToGroups:handler=>db.collection('groups').onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>console.warn('group-listener',error)),
       subscribeToStudents:handler=>db.collection('students').limit(3000).onSnapshot(snap=>handler(snap.docs.map(doc=>normalizedStudent({id:doc.id,...doc.data()})),snap.docChanges()),error=>console.warn('student-listener',error)),
-      registerTeacherPushToken:async()=>{if(!cfg.messagingVapidKey||!firebase.messaging||!calls.registerTeacherPushToken)throw new Error('VAPID_KEY_REQUIRED');const registration=await navigator.serviceWorker.ready;const token=await firebase.messaging().getToken({vapidKey:cfg.messagingVapidKey,serviceWorkerRegistration:registration});if(!token)throw new Error('TOKEN_UNAVAILABLE');return calls.registerTeacherPushToken({token,userAgent:navigator.userAgent});},
+      subscribeMonthlyPayments:handler=>db.collection('monthly_payments').orderBy('updatedAt','desc').limit(5000).onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>handler(null,[],error)),
+      subscribePaymentTransactions:handler=>db.collection('payment_transactions').orderBy('paymentDate','desc').limit(5000).onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>handler(null,[],error)),
+      getStudentPaymentHistory:async code=>{
+        const normalized=normalizeCode(code);
+        const [summaries,transactions]=await Promise.all([
+          db.collection('monthly_payments').where('studentCode','==',normalized).limit(120).get(),
+          db.collection('payment_transactions').where('studentCode','==',normalized).limit(250).get()
+        ]);
+        return {summaries:summaries.docs.map(doc=>({id:doc.id,...doc.data()})),transactions:transactions.docs.map(doc=>({id:doc.id,...doc.data()}))};
+      },
+      createPaymentTransaction:payload=>{if(!calls.createPaymentTransaction)throw new Error('Payment service unavailable');return calls.createPaymentTransaction(payload);},
+      editPaymentTransaction:payload=>{if(!calls.editPaymentTransaction)throw new Error('Payment edit service unavailable');return calls.editPaymentTransaction(payload);},
+      cancelPaymentTransaction:(transactionId,reason)=>{if(!calls.cancelPaymentTransaction)throw new Error('Payment cancellation service unavailable');return calls.cancelPaymentTransaction({transactionId,reason});},
+      migrateLegacyPayments:()=>{if(!calls.migrateLegacyPayments)throw new Error('Payment migration service unavailable');return calls.migrateLegacyPayments({confirmation:'MIGRATE-PAYMENTS-V60.6'});},
+      registerTeacherPushToken:async()=>{
+        if(!cfg.messagingVapidKey||!calls.registerTeacherPushToken)throw new Error('VAPID_KEY_REQUIRED');
+        if(!('serviceWorker' in navigator))throw new Error('SERVICE_WORKER_UNAVAILABLE');
+        await loadFirebaseMessaging();
+        const registration=await navigator.serviceWorker.register('/service-worker.js',{scope:'/',updateViaCache:'none'});
+        await navigator.serviceWorker.ready;
+        const token=await firebase.messaging().getToken({vapidKey:cfg.messagingVapidKey,serviceWorkerRegistration:registration});
+        if(!token)throw new Error('TOKEN_UNAVAILABLE');
+        try{localStorage.setItem('tm-staff-fcm-token',token);}catch(_){}
+        return calls.registerTeacherPushToken({token,userAgent:navigator.userAgent});
+      },
+      unregisterTeacherPushToken:async()=>{
+        let token='';try{token=localStorage.getItem('tm-staff-fcm-token')||'';}catch(_){}
+        if(token&&calls.unregisterTeacherPushToken)await calls.unregisterTeacherPushToken({token}).catch(()=>null);
+        try{localStorage.removeItem('tm-staff-fcm-token');}catch(_){}
+        return {unregistered:!!token};
+      },
       getBookingStatus:async code=>{
         const normalized=normalizeCode(code);
         if(calls.getBookingStatus){try{return await calls.getBookingStatus({code:normalized});}catch(error){
@@ -531,11 +582,18 @@
       getStudentResources:async code=>{
         const payload={code:normalizeCode(code)};
         try{return await retryTransient(()=>sameOriginCallable('/api/resources/student',payload),2);}
-        catch(error){if(!transientFirebaseError(error)||!calls.getStudentResources)throw error;return retryTransient(()=>calls.getStudentResources(payload),1);}
+        catch(hostingError){
+          // Local previews and older Hosting releases may not have the rewrite
+          // yet. Always try the callable SDK before declaring the service off.
+          if(!calls.getStudentResources)throw hostingError;
+          try{return await retryTransient(()=>calls.getStudentResources(payload),1);}
+          catch(callableError){callableError.hostingError=hostingError;throw callableError;}
+        }
       },
       getPublicLeaderboard:grade=>calls.getPublicLeaderboard?calls.getPublicLeaderboard({grade:String(grade||'').trim()}):Promise.resolve([]),
       getParentStudent:code=>{if(!calls.getPortalStudent)throw new Error('Secure parent portal function is unavailable');return retryTransient(()=>calls.getPortalStudent({code:normalizeCode(code),mode:'parent'}),1);},
       uploadHomework:async(file,studentCode)=>{const normalized=normalizeCode(studentCode);if(!calls.prepareHomeworkUpload||!calls.registerHomeworkSubmission)throw new Error('Secure homework function is unavailable');const permit=await calls.prepareHomeworkUpload({studentCode:normalized,fileName:file.name,size:file.size,contentType:file.type});const uploaded=await upload(file,`homework/${cleanDocId(normalized)}/${permit.uploadId}`,permit.safeName,true);await calls.registerHomeworkSubmission({studentCode:normalized,uploadId:permit.uploadId,...uploaded,fileName:file.name});return uploaded;},
+      submitAssignmentAnswer:payload=>{if(!calls.submitAssignmentAnswer)throw new Error('Assignment answer service unavailable');return calls.submitAssignmentAnswer({...payload,studentCode:normalizeCode(payload?.studentCode)});},
       uploadAttachment:(file,folder)=>upload(file,folder||'teacher-uploads'),logActivity,
       reportClientError:payload=>calls.reportClientError?calls.reportClientError(payload):Promise.resolve(null),
       deleteDocument:async(collection,id)=>{if(collection&&id)await db.collection(collection).doc(cleanDocId(id)).delete();},
@@ -553,14 +611,15 @@
         const oldId=cleanDocId(normalizeCode(oldCode)),newId=cleanDocId(normalizeCode(newCode));if(!oldId||!newId||oldId===newId)return;
         const profile=await getCurrentStaffProfile();if(!profile?.allowed)throw new Error('Not authorized');
         const oldAttempts=db.collection('student_attempts').doc(oldId),newAttempts=db.collection('student_attempts').doc(newId);
-        const [summary,summaryDocs,attempts,grades,attendance,homeworks,recitations]=await Promise.all([
+        const [summary,summaryDocs,attempts,grades,attendance,homeworks,recitations,monthlyPayments,paymentTransactions]=await Promise.all([
           oldAttempts.get().catch(()=>null),oldAttempts.collection('attempts').get().catch(()=>null),db.collection('exam_attempts').where('studentCode','==',normalizeCode(oldCode)).get().catch(()=>null),
           db.collection('grades').where('studentCode','==',normalizeCode(oldCode)).get().catch(()=>null),db.collection('attendance').where('studentCode','==',normalizeCode(oldCode)).get().catch(()=>null),
-          db.collection('homework_submissions').where('studentCode','==',normalizeCode(oldCode)).get().catch(()=>null),db.collection('recitations').where('studentCode','==',normalizeCode(oldCode)).get().catch(()=>null)
+          db.collection('homework_submissions').where('studentCode','==',normalizeCode(oldCode)).get().catch(()=>null),db.collection('recitations').where('studentCode','==',normalizeCode(oldCode)).get().catch(()=>null),
+          db.collection('monthly_payments').where('studentCode','==',normalizeCode(oldCode)).get().catch(()=>null),db.collection('payment_transactions').where('studentCode','==',normalizeCode(oldCode)).get().catch(()=>null)
         ]);
         const ops=[];if(summary?.exists)ops.push(batch=>batch.set(newAttempts,{...summary.data(),studentCode:normalizeCode(newCode),updatedAt:serverTime()},{merge:true}));
         summaryDocs?.forEach(doc=>{ops.push(batch=>batch.set(newAttempts.collection('attempts').doc(doc.id),{...doc.data(),studentCode:normalizeCode(newCode)},{merge:true}));ops.push(batch=>batch.delete(doc.ref));});if(summary?.exists)ops.push(batch=>batch.delete(summary.ref));
-        [attempts,grades,attendance,homeworks,recitations].forEach(snap=>snap?.forEach(doc=>ops.push(batch=>batch.update(doc.ref,{studentCode:normalizeCode(newCode),updatedAt:serverTime()}))));
+        [attempts,grades,attendance,homeworks,recitations,monthlyPayments,paymentTransactions].forEach(snap=>snap?.forEach(doc=>ops.push(batch=>batch.update(doc.ref,{studentCode:normalizeCode(newCode),updatedAt:serverTime()}))));
         ops.push(batch=>batch.delete(db.collection('students').doc(oldId)));ops.push(batch=>batch.delete(db.collection('student_portal').doc(oldId)));ops.push(batch=>batch.delete(db.collection('parent_portal').doc(oldId)));ops.push(batch=>batch.delete(db.collection('payments').doc(oldId)));if(student)pushStudentOps(ops,student);await commitOperations(ops);
       },
       getActivityLog:async(limit=50)=>{const snap=await db.collection('activityLog').orderBy('createdAt','desc').limit(Math.min(Number(limit)||50,200)).get();return snap.docs.map(doc=>({id:doc.id,...doc.data()}));},
@@ -570,7 +629,7 @@
       createBackupNow:()=>{if(!calls.createBackupNow)throw new Error('Backup function unavailable');return calls.createBackupNow({});},
       listAutomaticBackups:()=>{if(!calls.listAutomaticBackups)throw new Error('Backup function unavailable');return calls.listAutomaticBackups({});},
       getBackupDownloadUrl:name=>{if(!calls.getBackupDownloadUrl)throw new Error('Backup function unavailable');return calls.getBackupDownloadUrl({name});},
-      restoreAutomaticBackup:name=>{if(!calls.restoreAutomaticBackup)throw new Error('Restore function unavailable');return calls.restoreAutomaticBackup({name,confirmation:'RESTORE-V54'});},
+      restoreAutomaticBackup:name=>{if(!calls.restoreAutomaticBackup)throw new Error('Restore function unavailable');return calls.restoreAutomaticBackup({name,confirmation:'RESTORE-V60.6'});},
       deleteWhere
     };
   }catch(error){console.error(error);window.MFCloud={ready:false,error};}

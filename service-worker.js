@@ -1,4 +1,4 @@
-const CACHE_NAME = "technominds-v60-5-0-production";
+const CACHE_NAME = "technominds-v60-6-2-production";
 const APP_SHELL = [
   "/", "/index.html", "/student.html", "/exams.html", "/materials.html", "/questions.html",
   "/learning-path.html", "/about.html", "/practical.html", "/parent.html", "/reviews.html", "/privacy.html",
@@ -7,16 +7,35 @@ const APP_SHELL = [
   "/assets/firebase-config.js", "/assets/v53-upgrades.js",
   "/assets/v56-fixes.js",
   "/assets/technominds-logo.png", "/assets/technominds-logo.webp",
-  "/assets/amr-khaled-profile.jpeg", "/site.webmanifest"
+  "/assets/amr-khaled-profile.webp", "/site.webmanifest"
 ];
 
-// Booking updates are delivered through the authenticated Firestore listener
-// while the admin workspace is open. Keeping the PWA worker dependency-free
-// avoids a blocked third-party import from breaking offline startup on phones.
+// Background FCM uses the browser's standard Push API with no external worker
+// imports, so a third-party CDN/CORS failure cannot break the PWA worker.
+self.addEventListener('push', event => {
+  let payload={};
+  try{payload=event.data?event.data.json():{};}catch(_){payload={data:{body:event.data?.text?.()||''}};}
+  const data=payload.data||{},notification=payload.notification||payload.webpush?.notification||{};
+  const title=notification.title||data.title||'Techno Minds';
+  const options={
+    body:notification.body||data.body||'يوجد تحديث جديد في لوحة الإدارة.',
+    icon:notification.icon||'/assets/technominds-logo.png',
+    badge:notification.badge||'/assets/technominds-logo.png',
+    tag:notification.tag||`technominds-${data.type||'update'}-${data.bookingCode||''}`,
+    renotify:false,
+    data:{url:notification.data?.url||data.url||'/teacher-login.html?section=bookings'}
+  };
+  event.waitUntil(self.registration.showNotification(title,options));
+});
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  event.waitUntil(clients.openWindow(event.notification.data?.url || '/teacher-login.html?section=bookings'));
+  const target=new URL(event.notification.data?.url||'/teacher-login.html?section=bookings',self.location.origin).href;
+  event.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(windows=>{
+    const existing=windows.find(client=>client.url.startsWith(self.location.origin));
+    if(existing){existing.navigate(target);return existing.focus();}
+    return clients.openWindow(target);
+  }));
 });
 
 self.addEventListener("install", event => {

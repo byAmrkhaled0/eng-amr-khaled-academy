@@ -1,59 +1,112 @@
-# نشر Techno Minds V60.5.0
+# نشر Techno Minds V60.6.2 على Windows
 
-## أسهل طريقة على Windows
+هذه النسخة لا ترفع إلى GitHub تلقائيًا، ولا تحذف Functions أو Indexes قديمة تلقائيًا. النشر لا يبدأ إلا عندما تشغّل السكربت بنفسك.
 
-1. فك الضغط بالكامل في مجلد جديد.
-2. ثبّت Node.js 22 LTS وFirebase CLI.
-3. افتح PowerShell داخل مجلد المشروع وسجّل الدخول:
+## 1) المتطلبات
+
+- Windows PowerShell 5.1 أو أحدث.
+- Node.js 22 LTS.
+- Firebase CLI حديث: `npm install -g firebase-tools`.
+- صلاحية على مشروع `eng-amr-khaled-academy`.
 
 ```powershell
 firebase login
+node --version
+firebase --version
 ```
 
-4. شغّل الملف:
+## 2) الإعدادات الخارجية قبل النشر
+
+راجع `functions/.env.example`. لا تضع التوكن داخل ملفات الواجهة. عند استخدام Judge0 مدفوع أو مستضاف ذاتيًا، يوضع التوكن في `functions/.env` المحلي فقط.
+
+لتنبيهات الحجوزات وهي مغلقة:
+
+1. افتح Firebase Console > Project settings > Cloud Messaging.
+2. أنشئ Web Push certificate.
+3. انسخ المفتاح العام إلى `messagingVapidKey` داخل `assets/firebase-config.js`.
+4. المفتاح العام ليس سرًا؛ لا تنسخ أي Service Account أو Server key إلى الواجهة.
+
+## 3) الفحص قبل النشر
+
+```powershell
+npm test
+npm run build
+npm run verify:dist
+npm --prefix functions ci
+npm --prefix functions run lint
+```
+
+## 4) النشر الكامل
+
+من CMD أو PowerShell:
 
 ```powershell
 .\DEPLOY-WINDOWS.cmd
 ```
 
-السكربت يختار مشروع `eng-amr-khaled-academy`، يفحص المشروع، يبني الموقع، ينشئ `functions/.env` من القالب الآمن عند الحاجة، ويثبت حزم Functions. بعد نشر Functions يشغّل اختبارًا فعليًا لاتصال Firestore وخدمات الحجز وبوابة الطالب والإدارة، ثم ينفذ برنامج JavaScript تجريبي كاملًا عبر Judge0. بعد نجاح الاختبارات ينشر القواعد والفهارس وStorage وHosting، وإذا كان المجلد مربوطًا بـ GitHub يدفع التغييرات إلى الفرع `main`.
+يضبط السكربت `FUNCTIONS_DISCOVERY_TIMEOUT=120`، ثم يفحص ويبني المشروع، وينشر كل Function منفردة، ثم Rules وStorage وIndexes وHosting، وأخيرًا يفحص الموقع المنشور. نشر كل Function منفردة يمنع Firebase CLI من حذف دوال قديمة غير موجودة في هذه النسخة، ويجعل اسم الدالة الفاشلة ظاهرًا.
 
-ملفا النشر يضبطان `FUNCTIONS_DISCOVERY_TIMEOUT=120` تلقائيًا لتجنب توقف Firebase بعد 10 ثوانٍ أثناء تحليل 28 دالة على Windows.
-
-## ربط النسخة بالريبو
-
-لو المجلد المفكوك غير مربوط بـ GitHub، شغّل:
+إذا توقف النشر أو ضغطت Ctrl+C، لن تظهر رسالة نجاح. بعد إصلاح السبب:
 
 ```powershell
-.\prepare-github-folder.ps1
-cd ..\Techno-Minds-v60.5.0-GitHub
-npm run deploy:production
+.\DEPLOY-WINDOWS.cmd -Resume
 ```
 
-الريبو الافتراضي:
+يسجل السكربت الخطوات المكتملة في `.deploy-state.txt` ويكمل من الخطوة الفاشلة. الملف محلي ومضاف إلى `.gitignore`.
 
-```text
-https://github.com/byAmrkhaled0/eng-amr-khaled-academy.git
-```
+عند خطوة Indexes، إذا عرض Firebase فهارس قديمة للحذف اختر `No`. السكربت لا يستخدم `--force`.
 
-## الروابط المهمة
-
-- لوحة الإدارة: `/teacher-login.html`
-- معمل تشغيل الأكواد: `/practical.html`
-- المسار التعليمي: `/learning-path.html`
-- عن المهندس والشهادات: `/about.html`
-- الموقع الرئيسي: `/index.html`
-
-## دخول المالك
-
-سجّل الدخول من صفحة الإدارة بالبريد الموجود في Firebase Authentication. الإصدار الحالي يسمح للحسابين `amr@gmail.com` و`amrk78420@gmail.com` بإصلاح مستند المستخدم وتفعيل دور `admin` تلقائيًا عبر Function آمنة بعد نشر Functions.
-
-## أوامر الفحص اليدوي
+## 5) نشر الواجهة فقط
 
 ```powershell
-npm test
-npm run build
-npm --prefix functions run lint
+.\DEPLOY-HOSTING-ONLY.cmd
 ```
 
-مهم: انشر Firebase Functions والقواعد، وليس Vercel وحده، لأن الحجز والإدارة وتشغيل الأكواد تعتمد على الخادم. المعمل مفتوح للزوار لكن التنفيذ محدود زمنيًا وبالحجم ومن خلال Judge0؛ الإنتاج الكثيف يحتاج خدمة Judge0 مستقرة أو مستضافة ذاتيًا.
+هذا الأمر لا يغير Functions أو Rules أو Indexes أو GitHub.
+
+## 6) الفحص بعد النشر
+
+فحص الصفحات وHealth وFirestore والخدمات وقائمة لغات Judge0:
+
+```powershell
+.\CHECK-SITE.cmd
+```
+
+فحص تشغيل JavaScript وPython وC++ وJava وC# فعليًا عبر Judge0:
+
+```powershell
+.\CHECK-SITE.cmd -FullCodeRunner
+```
+
+نجاح الاختبار الكامل مشروط بأن يكون Judge0 متاحًا وحصته وإعداداته صالحة وقت الفحص.
+
+## 7) ترحيل المدفوعات القديمة
+
+بعد نشر Functions وRules وIndexes وتسجيل الدخول كـ`admin`:
+
+1. افتح «المدفوعات».
+2. تأكد من أسعار الكورسات.
+3. اضغط «ترحيل paid/paymentAmount».
+4. وافق على إنشاء النسخة الاحتياطية والترحيل.
+
+العملية آمنة عند التكرار، ولا تحذف مجموعة `payments` ولا حقول الطالب القديمة. راجع `PAYMENT_MIGRATION_V60.6_AR.md`.
+
+## 8) تجهيز GitHub محليًا
+
+شغّل الملف التالي حتى لو كان الملف Downloaded وغير موقع:
+
+```powershell
+.\PREPARE-GITHUB.cmd
+```
+
+ينشئ/يستخدم Clone محليًا وينسخ المصدر مع استبعاد `node_modules` و`dist` و`.env`. لا ينفذ Commit أو Push. بعد المراجعة:
+
+```powershell
+cd ..\Techno-Minds-v60.6.2-GitHub
+git status --short
+git add -A
+git commit -m "Techno Minds V60.6.2"
+git push origin main
+```
+
+لا تنفذ أوامر Git الأخيرة إلا بعد مراجعة التغييرات بنفسك.

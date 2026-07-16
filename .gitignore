@@ -8,6 +8,8 @@ functions/.env
 functions/.env.*
 .firebase/
 .vercel/
+.deploy-state.txt
+.deploy-success
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

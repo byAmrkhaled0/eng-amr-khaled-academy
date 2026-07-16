@@ -11,7 +11,7 @@ var LAST_EXAM_CODE_KEY = 'mf_last_exam_code';
 var EXAM_DRAFT_PREFIX = 'mf_exam_draft_v2_';
 var PENDING_BOOKING_REQUEST_KEY = 'mf_pending_booking_request_v1';
 var cloudSaveTimer = null;
-var MF_ASSET_VERSION = '60.5.0';
+var MF_ASSET_VERSION = '60.6.2';
 var mfLazyScriptPromises = Object.create(null);
 var publicScheduleUnsubscribe = null;
 
@@ -96,6 +96,7 @@ function safeStorageGet(key){try{return localStorage.getItem(key)||'';}catch(e){
 function safeStorageSet(key,value){try{localStorage.setItem(key,String(value??''));return true;}catch(e){return false;}}
 function safeStorageRemove(key){try{localStorage.removeItem(key);}catch(e){}}
 function formatPortalDate(value){if(!value)return '-'; try{return new Date(value).toLocaleDateString('ar-EG',{year:'numeric',month:'short',day:'numeric'});}catch(e){return String(value);}}
+function formatPortalMoney(value){const number=Number(value);return `${new Intl.NumberFormat('ar-EG',{maximumFractionDigits:2}).format(Number.isFinite(number)?number:0)} ج.م`;}
 function scoreLabel(score){const n=Number(score); if(Number.isNaN(n)) return 'بانتظار التصحيح'; return n>=90?'ممتاز':n>=75?'جيد جدًا':n>=60?'جيد':'يحتاج متابعة';}
 function scoreClass(score){const n=Number(score); if(Number.isNaN(n)) return 'warn'; return n>=75?'good':n>=60?'warn':'danger';}
 function getSiteBase(){return (appData.settings?.siteUrl || DEFAULT_SITE_URL || location.origin).replace(/\/$/,'');}
@@ -369,6 +370,19 @@ function makeQR(value){
   m.forEach((row,y)=>row.forEach((dark,x)=>{if(dark) rects+=`<rect x="${(x+border)*cell}" y="${(y+border)*cell}" width="${cell}" height="${cell}"/>`;}));
   return `<div class="qr-card real-qr-svg" title="${esc(text)}"><svg viewBox="0 0 ${total*cell} ${total*cell}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="QR ${esc(text)}"><rect width="100%" height="100%" fill="#fff"/><g fill="#0d1730">${rects}</g></svg></div>`;
 }
+function studentAssignmentCard(assignment,studentCode,isParent=false,submission=null){
+  const type=['mcq','code','text','file'].includes(assignment.type)?assignment.type:'text';
+  const typeName={mcq:'واجب اختياري',code:'واجب كود',text:'واجب كتابي',file:'ملف واجب'}[type];
+  const due=assignment.dueDate?`آخر موعد: ${esc(assignment.dueDate)}`:'بدون موعد نهائي';
+  const choices=Array.isArray(assignment.choices)?assignment.choices:[];
+  let answer='';
+  if(!isParent&&type==='mcq')answer=`<div class="assignment-choices">${choices.map((choice,index)=>`<label><input type="radio" name="selectedOption" value="${index}" required><span>${esc(choice)}</span></label>`).join('')}</div>`;
+  if(!isParent&&type==='code')answer=`<label class="assignment-code-answer"><span>كودك — ${esc(assignment.language||'code')}</span><textarea name="answer" dir="ltr" rows="9" maxlength="20000" required spellcheck="false">${esc(assignment.starterCode||'')}</textarea></label>`;
+  if(!isParent&&type==='text')answer='<label class="assignment-text-answer"><span>إجابتك</span><textarea name="answer" rows="5" maxlength="5000" required placeholder="اكتب إجابة الواجب هنا"></textarea></label>';
+  const download=assignment.fileUrl?`<a class="btn ghost assignment-download" href="${esc(assignment.fileUrl)}" target="_blank" rel="noopener noreferrer"><span data-icon="book-open"></span> فتح ${esc(assignment.fileName||'ملف الواجب')}</a>`:'';
+  const form=!isParent&&type!=='file'?`<form class="assignment-answer-form" data-student-code="${esc(studentCode)}" data-assignment-id="${esc(assignment.id)}" data-assignment-type="${esc(type)}">${answer}<div class="assignment-submit-row"><span class="assignment-form-state" aria-live="polite">${submission?'تم التسليم من قبل — يمكنك التعديل وإعادة التسليم.':''}</span><button class="btn primary" type="submit"><span data-icon="upload"></span> ${submission?'إعادة التسليم':'تسليم الواجب'}</button></div></form>`:'';
+  return `<article class="student-assignment-card"><div class="student-assignment-head"><div><span class="record-eyebrow">${typeName}</span><h4>${esc(assignment.title||'واجب جديد')}</h4></div><span class="badge ${submission?'good':'warn'}">${submission?'تم التسليم':'مطلوب'}</span></div><p>${esc(assignment.description||'')}</p><small>${due}</small>${download}${form}${isParent?'<p class="assignment-parent-note">يستطيع الطالب تسليم الواجب من بوابة الطالب.</p>':''}</article>`;
+}
 function studentProfileHTML(raw, isParent=false){
   const st=normalizedStudent(raw); const c=calcStudent(st);
   const pending=/انتظار|قيد التسجيل/.test(String(st.approvalStatus||''));
@@ -376,7 +390,9 @@ function studentProfileHTML(raw, isParent=false){
   const grades=[...(st.grades||[]),...attempts].slice().reverse();
   const attendance=getAttendanceRows(st);
   const homeworks=(st.homeworks||[]).slice().reverse();
+  const assignments=(st.assignments||[]).slice().sort((a,b)=>String(b.createdAt||b.dueDate||'').localeCompare(String(a.createdAt||a.dueDate||'')));
   const recitations=(st.recitations||[]).slice().reverse();
+  const monthlyPayments=(st.monthlyPayments||[]).slice().reverse();
   const initials=String(st.name||'ط').trim().split(/\s+/).slice(0,2).map(x=>x[0]||'').join('');
   const gradeCards=grades.length?grades.slice(0,12).map(g=>{
     const hasScore=g.score!==null&&g.score!==undefined&&g.score!=='';
@@ -384,7 +400,10 @@ function studentProfileHTML(raw, isParent=false){
   }).join(''):'<div class="portal-empty"><span class="iconbox" data-icon="bar-chart"></span><h3>لا توجد درجات بعد</h3><p>ستظهر نتائج الاختبارات هنا فور تسجيلها.</p></div>';
   const attendanceCards=attendance.length?attendance.slice(0,14).map(r=>`<article class="student-record-card"><div><span class="record-eyebrow">${esc(formatTime12(r.time)||'موعد الحصة')}</span><h4>${esc(r.date||'-')}</h4><small>${esc(r.group||st.group||'-')}</small></div><span class="badge ${statusClass(r.status)}">${arStatus(r.status)}</span></article>`).join(''):'<div class="portal-empty"><span class="iconbox" data-icon="calendar"></span><h3>لا توجد سجلات حضور</h3><p>يضيف المدرس سجل الحضور، وسيظهر هنا تلقائيًا.</p></div>';
   const homeworkCards=homeworks.length?homeworks.slice(0,12).map(h=>`<article class="student-record-card"><div><span class="record-eyebrow">واجب دراسي</span><h4>${esc(h.title||h.homeworkTitle||'واجب')}</h4><small>${esc(h.notes||formatPortalDate(h.date||h.submittedAt)||'')}</small></div><span class="badge ${classRecordComplete(h)?'good':'warn'}">${esc(h.status||(classRecordComplete(h)?'تم عمل الواجب':'قيد المتابعة'))}</span></article>`).join(''):'<div class="portal-empty"><span class="iconbox" data-icon="file-text"></span><h3>لا توجد واجبات مسجلة</h3><p>يمكنك رفع ملف الواجب من الزر الموجود بالأسفل.</p></div>';
+  const submissionByAssignment=new Map(homeworks.filter(row=>row.assignmentId).map(row=>[String(row.assignmentId),row]));
+  const assignmentCards=assignments.length?assignments.map(assignment=>studentAssignmentCard(assignment,st.studentCode,isParent,submissionByAssignment.get(String(assignment.id)))).join(''):st.assignmentLoadError?'<div class="portal-empty portal-assignment-error"><span class="iconbox" data-icon="alert-circle"></span><h3>تعذّر تحميل الواجبات</h3><p>نسخة Firebase Functions الخاصة بالواجبات غير متاحة حاليًا. أبلغ المدرس أو حاول بعد قليل.</p></div>':'<div class="portal-empty"><span class="iconbox" data-icon="file-text"></span><h3>لا يوجد واجب جديد لصفك</h3><p>عندما ينشر المدرس الواجب سيظهر هنا تلقائيًا.</p></div>';
   const recitationCards=recitations.length?recitations.slice(0,12).map(r=>`<article class="student-record-card"><div><span class="record-eyebrow">متابعة التطبيق العملي</span><h4>${esc(r.title||'تطبيق عملي الحصة')}</h4><small>${esc(formatPortalDate(r.date||r.createdAt))}</small></div><span class="badge ${classRecordComplete(r)?'good':'warn'}">${esc(r.status||(classRecordComplete(r)?'تم التطبيق العملي':'قيد المتابعة'))}</span></article>`).join(''):'<div class="portal-empty"><span class="iconbox" data-icon="book-open"></span><h3>لا يوجد تطبيق عملي مسجل</h3><p>عندما يعلّم المدرس على التطبيق العملي سيظهر هنا تلقائيًا.</p></div>';
+  const paymentCards=monthlyPayments.length?monthlyPayments.slice(0,24).map(row=>{const status=row.status==='paid'?'مدفوع بالكامل':row.status==='partial'?'دفع جزئي':'لم يدفع',badge=row.status==='paid'?'good':row.status==='partial'?'warn':'danger';return `<article class="student-record-card"><div><span class="record-eyebrow">${esc(row.academicYear||'-')} · ${esc(row.course||st.grade||'-')}</span><h4>${esc(row.month||'-')}</h4><small>المطلوب ${esc(formatPortalMoney(row.expectedAmount))} · المدفوع ${esc(formatPortalMoney(row.paidAmount))} · المتبقي ${esc(formatPortalMoney(row.remainingAmount))}</small></div><span class="badge ${badge}">${status}</span></article>`;}).join(''):'<div class="portal-empty"><span class="iconbox" data-icon="clipboard"></span><h3>لا توجد دفعات شهرية مسجلة</h3><p>ستظهر هنا كل دفعة شهرية فور تسجيلها من الإدارة.</p></div>';
   return `<div class="student-app-dashboard">
     ${pending?`<section class="portal-pending-banner"><span data-icon="calendar"></span><div><b>قيد التسجيل — في انتظار موافقة المدرس</b><small>بياناتك اتسجلت وتقدر تدخل بنفس الكود في أي وقت. الحضور والدرجات هتظهر تلقائيًا بعد الاعتماد.</small></div></section>`:''}
     <section class="student-app-header">
@@ -405,6 +424,7 @@ function studentProfileHTML(raw, isParent=false){
       <button type="button" data-student-tab="attendance"><span data-icon="calendar"></span><span>الحضور</span></button>
       <button type="button" data-student-tab="recitation"><span data-icon="book-open"></span><span>التطبيق العملي</span></button>
       <button type="button" data-student-tab="homework"><span data-icon="file-text"></span><span>الواجبات</span></button>
+      <button type="button" data-student-tab="payments"><span data-icon="database"></span><span>المدفوعات</span></button>
     </nav>
     <section class="student-tab-panel show" data-student-panel="overview">
       <div class="student-overview-grid">
@@ -417,7 +437,8 @@ function studentProfileHTML(raw, isParent=false){
     <section class="student-tab-panel" data-student-panel="grades"><div class="student-panel-title"><div><span class="kicker"><span data-icon="bar-chart"></span> النتائج</span><h3>درجات الاختبارات</h3></div><span class="badge">${grades.length} نتيجة</span></div><div class="student-record-list">${gradeCards}</div></section>
     <section class="student-tab-panel" data-student-panel="attendance"><div class="student-panel-title"><div><span class="kicker"><span data-icon="calendar"></span> المتابعة</span><h3>سجل الحضور والغياب</h3></div><span class="badge good">${c.present} حضور</span></div><div class="attendance-mini-kpis"><span><b>${c.totalAttendance}</b> إجمالي</span><span><b>${c.present}</b> حاضر</span><span><b>${c.absent}</b> غائب</span></div><div class="student-record-list">${attendanceCards}</div></section>
     <section class="student-tab-panel" data-student-panel="recitation"><div class="student-panel-title"><div><span class="kicker"><span data-icon="book-open"></span> التطبيق العملي</span><h3>سجل تطبيق عملي الطالب</h3></div><span class="badge good">${c.recitationCount} مرة</span></div><div class="student-record-list">${recitationCards}</div></section>
-    <section class="student-tab-panel" data-student-panel="homework"><div class="student-panel-title"><div><span class="kicker"><span data-icon="file-text"></span> الواجبات</span><h3>واجبات الطالب</h3></div></div><div class="student-record-list">${homeworkCards}</div><form class="homework-upload-form student-upload-card" data-student-code="${esc(st.studentCode)}"><label><span data-icon="upload"></span><span><b>ارفع الواجب</b><small>صورة أو PDF بحد أقصى 10MB</small></span><input type="file" name="file" accept="image/*,application/pdf"></label><button class="btn primary" type="submit"><span data-icon="upload"></span> رفع الملف</button></form></section>
+    <section class="student-tab-panel" data-student-panel="homework"><div class="student-panel-title"><div><span class="kicker"><span data-icon="file-text"></span> الواجبات</span><h3>الواجب المنشور لصفك</h3></div><span class="badge warn">${assignments.length} واجب</span></div><div class="student-assignment-list">${assignmentCards}</div><details class="student-homework-history"><summary>سجل الواجبات السابقة</summary><div class="student-record-list">${homeworkCards}</div></details>${isParent?'':`<form class="homework-upload-form student-upload-card" data-student-code="${esc(st.studentCode)}"><label><span data-icon="upload"></span><span><b>رفع ملف واجب إضافي</b><small>صورة أو PDF بحد أقصى 10MB</small></span><input type="file" name="file" accept="image/*,application/pdf"></label><button class="btn primary" type="submit"><span data-icon="upload"></span> رفع الملف</button></form>`}</section>
+    <section class="student-tab-panel" data-student-panel="payments"><div class="student-panel-title"><div><span class="kicker"><span data-icon="database"></span> السجل المالي</span><h3>تاريخ الدفعات الشهرية</h3></div><span class="badge">${monthlyPayments.length} شهر</span></div><div class="student-record-list">${paymentCards}</div></section>
   </div>`;
 }
 function bindStudentDashboard(){
@@ -438,6 +459,16 @@ async function loadStudentForPortal(code){
   if(cached&&Date.now()-cached.time<120000)return cached.student;
   if(window.MFCloud?.ready && window.MFCloud.getStudentByCode){
     const student=await window.MFCloud.getStudentByCode(code);
+    // A partially deployed Firebase backend can still return the old portal
+    // payload without the assignments field. Try the secure resources endpoint
+    // once and show its failure instead of pretending the grade has no homework.
+    if(student&&!Array.isArray(student.assignments)&&window.MFCloud.getStudentResources){
+      try{
+        const resources=await window.MFCloud.getStudentResources(code);
+        student.assignments=Array.isArray(resources?.assignments)?resources.assignments:[];
+        if(resources?.student?.grade)student.grade=resources.student.grade;
+      }catch(error){student.assignments=[];student.assignmentLoadError=String(error?.code||error?.message||'assignment-service-unavailable');}
+    }
     if(student)portalStudentCache.set(key,{student,time:Date.now()});
     return student;
   }
@@ -666,7 +697,10 @@ window.closeParentQrScanner = async function(){
   const v=document.getElementById('parentQrVideo'); if(v?.srcObject) v.srcObject.getTracks().forEach(t=>t.stop());
   const modal=document.getElementById('parentQrModal'); if(modal) modal.hidden=true;
 };
-function bindHomeworkForms(){document.querySelectorAll('.homework-upload-form').forEach(form=>{form.onsubmit=async event=>{event.preventDefault();const input=form.querySelector('input[type=file]'),button=form.querySelector('button[type=submit]'),file=input?.files?.[0],code=form.dataset.studentCode;if(!file)return toast('اختار ملف الواجب أولًا');if(file.size>10*1024*1024)return toast('حجم الملف أكبر من 10MB');button?.classList.add('is-loading');if(button)button.disabled=true;try{if(!window.MFCloud?.uploadHomework)throw new Error('Homework upload service unavailable');await window.MFCloud.uploadHomework(file,code);if(input)input.value='';toast('تم رفع الواجب بنجاح');}catch(error){toast(firebaseFriendlyError(error,'تعذر رفع الواجب. الملف لم يُسجل ويمكنك المحاولة مرة أخرى.'));}finally{button?.classList.remove('is-loading');if(button)button.disabled=false;}};});}
+function bindHomeworkForms(){
+  document.querySelectorAll('.assignment-answer-form').forEach(form=>{form.onsubmit=async event=>{event.preventDefault();const button=form.querySelector('button[type=submit]'),state=form.querySelector('.assignment-form-state'),type=form.dataset.assignmentType,payload={studentCode:form.dataset.studentCode,assignmentId:form.dataset.assignmentId,type};if(type==='mcq')payload.selectedOption=Number(new FormData(form).get('selectedOption'));else payload.answer=String(new FormData(form).get('answer')||'').trim();if(type!=='mcq'&&!payload.answer)return toast('اكتب إجابة الواجب أولًا');button?.classList.add('is-loading');if(button)button.disabled=true;if(state)state.textContent='جارٍ التسليم…';try{if(!window.MFCloud?.submitAssignmentAnswer)throw new Error('Assignment answer service unavailable');const result=await window.MFCloud.submitAssignmentAnswer(payload);const message=result?.correct===true?'إجابة صحيحة — تم تسليم الواجب':result?.correct===false?'تم التسليم — راجع إجابتك':'تم تسليم الواجب بنجاح';if(state){state.textContent=message;state.classList.add('success');}button.innerHTML='<span data-icon="user-check"></span> إعادة التسليم';hydrateIcons();toast(message);}catch(error){const message=firebaseFriendlyError(error,'تعذر تسليم الواجب. لم يتم حفظ الإجابة.');if(state)state.textContent=message;toast(message);}finally{button?.classList.remove('is-loading');if(button)button.disabled=false;}};});
+  document.querySelectorAll('.homework-upload-form').forEach(form=>{form.onsubmit=async event=>{event.preventDefault();const input=form.querySelector('input[type=file]'),button=form.querySelector('button[type=submit]'),file=input?.files?.[0],code=form.dataset.studentCode;if(!file)return toast('اختار ملف الواجب أولًا');if(file.size>10*1024*1024)return toast('حجم الملف أكبر من 10MB');button?.classList.add('is-loading');if(button)button.disabled=true;try{if(!window.MFCloud?.uploadHomework)throw new Error('Homework upload service unavailable');await window.MFCloud.uploadHomework(file,code);if(input)input.value='';toast('تم رفع الواجب بنجاح');}catch(error){toast(firebaseFriendlyError(error,'تعذر رفع الواجب. الملف لم يُسجل ويمكنك المحاولة مرة أخرى.'));}finally{button?.classList.remove('is-loading');if(button)button.disabled=false;}};});
+}
 function setupBookingSteps(form){if(!form)return;const steps=[...form.querySelectorAll('[data-booking-step]')],indicators=[...form.querySelectorAll('[data-booking-indicator]')];const show=number=>{steps.forEach(step=>step.classList.toggle('active',Number(step.dataset.bookingStep)===number));indicators.forEach(item=>{const value=Number(item.dataset.bookingIndicator);item.classList.toggle('active',value===number);item.classList.toggle('done',value<number);});};form.querySelector('[data-booking-next]')?.addEventListener('click',()=>{const first=steps[0],required=[...first.querySelectorAll('[required]')];for(const input of required){if(!input.checkValidity()){input.reportValidity();return;}}show(2);steps[1]?.scrollIntoView({behavior:'smooth',block:'center'});});form.querySelector('[data-booking-back]')?.addEventListener('click',()=>show(1));form.addEventListener('booking-success',()=>{show(3);form.scrollIntoView({behavior:'smooth',block:'center'});});show(1);}
 function setupBooking(){
   const form=document.getElementById('bookingForm');

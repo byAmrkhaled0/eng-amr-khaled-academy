@@ -78,7 +78,8 @@ service cloud.firestore {
     match /materials/{id} { allow read: if isStaff(); allow write: if isTeacher(); }
     match /questions/{id} { allow read: if isStaff(); allow write: if isTeacher(); }
     match /groups/{id} { allow read: if true; allow write: if isTeacher(); }
-    match /assignments/{id} { allow read: if true; allow write: if isTeacher(); }
+    // Assignments are returned only after validating the student code/track.
+    match /assignments/{id} { allow read, write: if isTeacher(); }
     match /exams/{id} { allow read, write: if isTeacher(); }
 
     match /exam_sessions/{id} { allow read, write: if false; }
@@ -122,6 +123,11 @@ service cloud.firestore {
     }
     match /grades/{id} { allow read: if isStaff(); allow create, update, delete: if isTeacher(); }
     match /payments/{id} { allow read, create, update: if isStaff(); allow delete: if isTeacher(); }
+    // The monthly ledger is written only through validated Cloud Functions.
+    // Staff may read it for the cashbox; edits/cancellations remain server-side
+    // so an immutable audit trail and idempotency checks cannot be bypassed.
+    match /monthly_payments/{id} { allow read: if isStaff(); allow write: if false; }
+    match /payment_transactions/{id} { allow read: if isStaff(); allow write: if false; }
     match /reports/{id} { allow read, create, update: if isStaff(); allow delete: if isTeacher(); }
     match /activityLog/{id} { allow read, create: if isStaff(); allow update, delete: if isAdmin(); }
     match /client_errors/{id} { allow read, delete: if isTeacher(); allow create, update: if false; }
@@ -138,6 +144,7 @@ service cloud.firestore {
     match /_rate_limits/{id} { allow read, write: if false; }
     match /_booking_requests/{id} { allow read, write: if false; }
     match /_homework_upload_tokens/{id} { allow read, write: if false; }
+    match /_payment_dedup/{id} { allow read, write: if false; }
     match /deleted_students/{id} { allow read, write: if false; }
     match /backup_runs/{id} { allow read, write: if false; }
     match /staff_push_tokens/{id} { allow read, write: if false; }

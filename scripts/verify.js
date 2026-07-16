@@ -7,11 +7,12 @@ const { spawnSync } = require('child_process');
 const root = path.resolve(__dirname, '..');
 const requiredFiles = [
   'index.html', 'student.html', 'parent.html', 'exams.html', 'teacher-login.html', 'learning-path.html', 'about.html',
-  'assets/app.js', 'assets/admin.js', 'assets/v53-upgrades.js', 'assets/v55-admin.js', 'assets/v55.css', 'assets/v56-fixes.js', 'assets/v56.css', 'assets/amr-khaled-profile.jpeg',
+  'assets/app.js', 'assets/admin.js', 'assets/v53-upgrades.js', 'assets/v55-admin.js', 'assets/v55.css', 'assets/v56-fixes.js', 'assets/v56.css', 'assets/amr-khaled-profile.jpeg', 'assets/amr-khaled-profile.webp',
   'assets/firebase-sync.js', 'assets/firebase-config.js', 'assets/technominds-logo.png',
   'firestore.rules', 'storage.rules', 'firestore.indexes.json', 'firebase.json',
   'functions/index.js', 'functions/package.json', 'service-worker.js', 'site.webmanifest', 'teacher.webmanifest', 'offline.html',
-  'practical.html', 'assets/practical.js', 'assets/v60-technominds.css'
+  'practical.html', 'assets/practical.js', 'assets/v60-technominds.css', 'assets/v60-payments.js', 'assets/v60-admin-workflow.js', 'functions/payment-domain.js',
+  'check-deployment.ps1', 'deploy-hosting-only.ps1', 'DEPLOY-HOSTING-ONLY.cmd', 'CHECK-SITE.cmd', 'PREPARE-GITHUB.cmd'
 ];
 
 const failures = [];
@@ -26,8 +27,8 @@ if (!failures.length) ok('Required files exist');
 
 const jsFiles = [
   'assets/app.js', 'assets/admin.js', 'assets/v53-upgrades.js', 'assets/v55-admin.js', 'assets/v56-fixes.js',
-  'assets/firebase-sync.js', 'assets/firebase-config.js', 'assets/practical.js',
-  'functions/index.js', 'local-server.js', 'scripts/build.js'
+  'assets/firebase-sync.js', 'assets/firebase-config.js', 'assets/practical.js', 'assets/v60-payments.js', 'assets/v60-admin-workflow.js',
+  'functions/index.js', 'functions/payment-domain.js', 'local-server.js', 'scripts/build.js', 'scripts/verify-dist.js', 'scripts/payment-domain.test.js'
 ];
 for (const relative of jsFiles) {
   const result = spawnSync(process.execPath, ['--check', path.join(root, relative)], { encoding: 'utf8' });
@@ -138,6 +139,7 @@ if (!failures.some(x => x.startsWith('Missing callable') || x.includes('Schedule
 }
 
 const adminSourceCode = read('assets/admin.js');
+const adminWorkflowSource = read('assets/v60-admin-workflow.js');
 const appSourceCode = read('assets/app.js');
 const fixesSourceCode = read('assets/v56-fixes.js');
 if (!adminSourceCode.includes("loadSiteData({fast:true})") || !adminSourceCode.includes('hydrateAdminRecords')) fail('Staged admin loading is missing');
@@ -174,7 +176,7 @@ if (manifest.display !== 'standalone' || manifest.scope !== '/' || !Array.isArra
 if (!manifest.icons.some(icon => String(icon.purpose || '').includes('maskable') && icon.sizes === '512x512')) fail('Maskable PWA icon is missing');
 const sw = read('service-worker.js');
 const appShellSource = sw.slice(0,sw.indexOf('];')+2);
-if (!/technominds-v60-5-0-production/.test(sw) || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes('/practical.html') || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell is incomplete');
+if (!/technominds-v60-6-2-production/.test(sw) || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes('/practical.html') || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell is incomplete');
 if (/assets\/vendor|assets\/admin\.js|teacher-login\.html/.test(appShellSource) || !sw.includes('event.waitUntil(network.catch')) fail('Large admin assets are still precached or repeat-visit caching is missing');
 if (!read('index.html').includes('<script defer src="https://www.gstatic.com/firebasejs/')) fail('Firebase scripts are not downloaded in parallel with deferred execution');
 const upgrade = read('assets/v53-upgrades.js');
@@ -215,9 +217,10 @@ if (!upgrade.includes('tm-robot-icon') || !upgrade.includes('مين هو الم�
 if (!read('about.html').includes('https://amrkhaledabozeid.vercel.app/') || !read('about.html').includes('https://github.com/byAmrkhaled0') || !read('about.html').includes('professional-badges')) fail('About portfolio, social links, or skill badges are incomplete');
 if (!read('assets/admin.js').includes('admin-command-header') || !read('assets/admin.js').includes('adminBookingAlertCount') || !read('assets/admin.js').includes('حفظ التغييرات') || !read('assets/admin.js').includes('معاينة الموقع') || read('teacher-login.html').includes('<header class="site-header"') || !read('assets/v56-fixes.js').includes('openStudentGroupManager')) fail('Dedicated admin header or group manager is incomplete');
 if (!read('assets/v55-admin.js').includes('coursePrices') || !read('assets/v55-admin.js').includes('paymentCollected') || !read('assets/v55-admin.js').includes('paymentAmount') || !read('assets/firebase-sync.js').includes('saveSettings:async')) fail('Course prices, payment totals, or focused Firebase payment saving are incomplete');
-if (!read('assets/practical.js').includes('runJavascriptFallback') || !read('deploy-production.ps1').includes('getCodeLanguages') || !read('deploy-production.ps1').includes('TECHNO_MINDS_OK')) fail('Code runner fallback or deployed execution smoke test is incomplete');
+const deploymentChecks = read('deploy-production.ps1') + '\n' + read('check-deployment.ps1');
+if (!read('assets/practical.js').includes('runJavascriptFallback') || !deploymentChecks.includes('getCodeLanguages') || !deploymentChecks.includes('TM_JS_OK')) fail('Code runner fallback or deployed execution smoke test is incomplete');
 if (!functionsSource.includes('wait=false') || !functionsSource.includes('judge0-poll-') || !functionsSource.includes('fields=stdout,time,memory')) fail('Judge0 asynchronous submission and polling support is incomplete');
-if (!functionsSource.includes('exports.getPlatformHealth = onCall') || !read('deploy-production.ps1').includes('/api/health') || !read('deploy-production.ps1').includes('services.booking')) fail('Post-deploy Firebase, booking, and portal health check is incomplete');
+if (!functionsSource.includes('exports.getPlatformHealth = onCall') || !deploymentChecks.includes('/api/health') || !deploymentChecks.includes('services.booking')) fail('Post-deploy Firebase, booking, and portal health check is incomplete');
 const deployScript = read('deploy-production.ps1');
 if (deployScript.includes('ValueFromRemainingArguments') || !deployScript.includes('Get-Command npm.cmd') || !deployScript.includes('-Executable $NpmExecutable -ArgumentList @("test")')) fail('Windows PowerShell command invocation is not explicit or npm.cmd-safe');
 if (!deployScript.includes('FUNCTIONS_DISCOVERY_TIMEOUT = "120"') || !read('DEPLOY-WINDOWS.cmd').includes('FUNCTIONS_DISCOVERY_TIMEOUT=120')) fail('Firebase Functions discovery timeout is not protected on Windows');
@@ -226,6 +229,9 @@ if (!functionsSource.includes('exports.getStudentResources = onCall') || !fireba
 if (!read('materials.html').includes('studentResourceCodeForm') || !read('questions.html').includes('studentResourceCodeForm') || !appSourceCode.includes('setupStudentResourcesPage')) fail('Student code gates for lectures or questions are incomplete');
 if (!rules.includes('match /materials/{id} { allow read: if isStaff();') || !rules.includes('match /questions/{id} { allow read: if isStaff();')) fail('Lecture or question collections are still publicly readable');
 if (!adminSourceCode.includes('admin-brand-logo') || !adminSourceCode.includes('admin-mobile-logo')) fail('Techno Minds logo is missing from the administration workspace');
+if (!adminSourceCode.includes('admin-hero-theme-icon') || /admin-sidebar-footer[\s\S]{0,500}themeToggleAdmin/.test(adminSourceCode)) fail('Administration theme icon is not isolated in the top hero');
+if (!read('teacher-login.html').includes('v60-admin-workflow.js') || !adminWorkflowSource.includes('renderExamsV6061') || !adminWorkflowSource.includes('assignmentFormV6061')) fail('Organized exam or grade-assignment administration is missing');
+if (!functionsSource.includes('Reconcile it') || !functionsSource.includes('Do not turn a Firebase/index failure') || !appSourceCode.includes('assignmentLoadError') || !appSourceCode.includes('getStudentResources(code)')) fail('Assignment grade reconciliation or partial-backend failure handling is missing');
 if (!read('index.html').includes('Eng. Amr Khaled') || !appSourceCode.includes('أولى ثانوي برمجة')) fail('English teacher name or the First Secondary programming track is missing');
 if (fs.existsSync(path.join(root,'services.html')) || read('scripts/build.js').includes("'services.html'") || appSourceCode.includes("['services.html'")) fail('The removed services page is still shipped or linked');
 if (!read('teacher-login.html').includes('adminPasswordReset') || !adminSourceCode.includes('sendPasswordReset(email)')) fail('Administration password-reset recovery is missing');
@@ -237,6 +243,32 @@ for (const feature of ['importStudentsFile', 'exportStudentsCSV', 'exportAttenda
 }
 if (!adminSource.includes('المدفوعات') || adminSource.includes('بوابة دفع')) fail('Center subscription wording is incomplete');
 if (!failures.some(x => x.includes('Admin v54 feature') || x.includes('subscription wording'))) ok('Academic-year, export, error-monitoring, and center-subscription checks passed');
+
+const monthlyPaymentSource = read('assets/v60-payments.js');
+for (const callable of ['createPaymentTransaction','editPaymentTransaction','cancelPaymentTransaction','migrateLegacyPayments']) {
+  if (!functionsSource.includes(`exports.${callable} = onCall`) || !firebaseSyncSource.includes(`${callable}:callable('${callable}')`)) fail(`Monthly payment callable is incomplete: ${callable}`);
+}
+if (!monthlyPaymentSource.includes('paymentPartialCount') || !monthlyPaymentSource.includes('exportMonthlyPaymentsExcel') || !monthlyPaymentSource.includes('runLegacyPaymentMigration')) fail('Monthly cashbox totals, Excel export, or legacy migration UI is incomplete');
+if (!monthlyPaymentSource.includes('installV606PaymentHandlers') || !monthlyPaymentSource.includes('window.setPaid=(code,value)=>value?window.markStudentPaid') || !monthlyPaymentSource.includes('window.markStudentPaid=async function')) fail('One-tap payment override is not safely isolated');
+if (!functionsSource.includes("db.collection('_payment_dedup')") || !functionsSource.includes("createPlatformBackup('pre-payment-migration'") || !functionsSource.includes('legacyRowsPreserved: true')) fail('Payment idempotency, pre-migration backup, or legacy preservation is incomplete');
+if (!rules.includes('match /monthly_payments/{id}') || !rules.includes('match /payment_transactions/{id}') || !rules.includes('allow write: if false;')) fail('Monthly payment ledger rules are not server-write-only');
+if (!read('firestore.indexes.json').includes('payment_transactions') || !read('firestore.indexes.json').includes('_payment_dedup')) fail('Payment indexes or deduplication TTL are missing');
+if (!appSourceCode.includes('data-student-tab="payments"') || !functionsSource.includes('monthlyPayments:')) fail('Student payment history is missing from the student file');
+if (!failures.some(x => x.includes('Monthly payment') || x.includes('Payment idempotency') || x.includes('payment ledger') || x.includes('Student payment history'))) ok('Monthly payment ledger, migration, cashbox, and student history checks passed');
+
+if (!functionsSource.includes('exports.submitAssignmentAnswer = onCall') || !firebaseSyncSource.includes("submitAssignmentAnswer:callable('submitAssignmentAnswer')") || !appSourceCode.includes('assignment-answer-form')) fail('Secure student assignment submission flow is incomplete');
+if (!functionsSource.includes('publicAssignmentPayload') || functionsSource.includes('correctIndex: data.correctIndex') || !rules.includes('match /assignments/{id} { allow read, write: if isTeacher(); }')) fail('Assignment answers or grade targeting are not protected');
+if (!adminWorkflowSource.includes("type==='mcq'") || !adminWorkflowSource.includes("type==='code'") || !adminWorkflowSource.includes("adminData.assignments.push")) fail('Multiple-choice and code assignment publishing is incomplete');
+if (!failures.some(x => x.includes('assignment'))) ok('Grade assignments and secure student submission checks passed');
+
+if (!firebaseSyncSource.includes('firebase-messaging-compat.js') || !firebaseSyncSource.includes('loadFirebaseMessaging') || !sw.includes("self.addEventListener('push'") || sw.includes('importScripts(')) fail('Lazy Firebase Messaging or dependency-free background Push is incomplete');
+if (!functionsSource.includes('exports.unregisterTeacherPushToken') || !functionsSource.includes('invalid-registration-token') || !rules.includes('match /staff_push_tokens/{id}')) fail('Push token registration lifecycle or server-only token rules are incomplete');
+if (!failures.some(x => x.includes('Messaging') || x.includes('Push token'))) ok('Background booking Push and token lifecycle checks passed');
+
+if (!deployScript.includes('functions:$FunctionName') || !deployScript.includes('.deploy-state.txt') || !read('DEPLOY-WINDOWS.cmd').includes('.deploy-success')) fail('Resumable per-Function Windows deployment is incomplete');
+if (deployScript.includes('@("push"') || deployScript.includes('git push') || !read('prepare-github-folder.ps1').toLowerCase().includes('nothing was pushed')) fail('Deployment still pushes GitHub automatically or Git preparation is unclear');
+if (!read('deploy-hosting-only.ps1').includes('deploy --only hosting') || !read('check-deployment.ps1').includes('FullCodeRunner')) fail('Hosting-only deployment or post-deployment check script is incomplete');
+if (!failures.some(x => x.includes('Windows deployment') || x.includes('pushes GitHub') || x.includes('Hosting-only'))) ok('Resumable Windows, hosting-only, and post-deployment scripts passed');
 
 if (failures.length) {
   console.error('\nVerification failed:');

@@ -216,6 +216,7 @@ function updateAdminBookingBadge(){
 }
 window.goAdminSection=function(id){
   if(!adminSections.some(([sectionId])=>sectionId===id))return;
+  if(currentSection==='payments'&&id!=='payments')window.stopMonthlyPaymentListeners?.();
   currentSection=id;
   syncAdminChrome();
   setAdminDrawer(false);
@@ -241,7 +242,6 @@ function renderAdmin(){
       <div class="admin-nav">${adminSections.map(([id,ic,name])=>`<button type="button" data-admin-nav="${id}" class="${id===currentSection?'active':''}"><span data-icon="${ic}"></span><span>${name}</span></button>`).join('')}</div>
       <div class="admin-sidebar-footer">
         <span class="admin-live-state"><i></i> متصل مباشرة بالموقع</span>
-        <button class="btn ghost admin-theme-button" id="themeToggleAdmin" type="button" aria-label="تغيير الوضع"></button>
         <button class="btn dark" type="button" onclick="adminLogout()">تسجيل الخروج</button>
       </div>
     </aside>
@@ -258,6 +258,7 @@ function renderAdmin(){
           <p>مرحبًا ${safe(currentStaff?.name||'م. عمرو خالد')} — التغييرات متصلة بالموقع مباشرة.</p>
         </div>
         <div class="header-actions admin-command-actions">
+          <button class="admin-hero-theme-icon" id="themeToggleAdmin" type="button" aria-label="تغيير الوضع" title="تغيير الوضع"></button>
           <button class="btn ghost admin-booking-alert" id="adminBookingAlertButton" type="button" onclick="enableBookingNotifications()"><span data-icon="calendar"></span><span>تنبيهات الحجز</span><b id="adminBookingAlertCount" class="admin-alert-count" hidden>0</b></button>
           <button class="btn primary" id="adminSaveButton" type="button" onclick="forceFirestoreSync()"><span data-icon="refresh-cw"></span><span class="admin-save-label">حفظ التغييرات</span></button>
           <button class="btn ghost" type="button" onclick="location.href='index.html'"><span data-icon="external-link"></span><span>معاينة الموقع</span></button>
@@ -279,7 +280,7 @@ function renderAdmin(){
   startAdminLiveData();
 }
 
-window.enableBookingNotifications=async function(){if(!('Notification' in window))return aToast('المتصفح لا يدعم إشعارات الهاتف');const permission=await Notification.requestPermission();if(permission!=='granted')return aToast('اسمح بالإشعارات من إعدادات المتصفح');localStorage.setItem('mf-booking-notifications','1');startBookingNotifications();try{await window.MFCloud?.registerTeacherPushToken?.();aToast('تم تفعيل التنبيهات حتى عند إغلاق اللوحة');}catch(error){aToast('تم تفعيل تنبيهات الحجوزات أثناء فتح لوحة الإدارة');}};
+window.enableBookingNotifications=async function(){if(!('Notification' in window))return aToast('المتصفح لا يدعم إشعارات الهاتف');if(!confirm('سيطلب المتصفح إذنًا لإظهار تنبيه عند وصول حجز جديد، حتى لو كانت اللوحة مغلقة. متابعة؟'))return;const permission=await Notification.requestPermission();if(permission!=='granted')return aToast('لم يتم منح إذن الإشعارات. يمكنك تغييره من إعدادات الموقع');localStorage.setItem('mf-booking-notifications','1');startBookingNotifications();try{await window.MFCloud?.registerTeacherPushToken?.();aToast('تم تفعيل تنبيهات الحجز في الخلفية');}catch(error){const raw=`${error?.code||''} ${error?.message||''}`;aToast(/VAPID_KEY_REQUIRED/.test(raw)?'يلزم إضافة مفتاح Web Push العام في firebase-config.js أولًا':'التنبيهات داخل اللوحة تعمل، وتعذر تفعيل Push في الخلفية');}};
 function startBookingNotifications(){if(bookingNotificationUnsubscribe||!window.MFCloud?.subscribeToBookings)return;bookingNotificationUnsubscribe=window.MFCloud.subscribeToBookings((rows,changes)=>{adminData.bookings=rows.filter(row=>{const code=String(row.code||row.id||'');return !bookingActionPending.has(code)&&!acceptedBookingCodes.has(code);});saveData(adminData);updateAdminBookingBadge();if(bookingListenerReady){changes.filter(change=>change.type==='added').forEach(change=>{const b=change.doc.data();const code=String(b.code||change.doc.id||'');if(bookingActionPending.has(code)||acceptedBookingCodes.has(code))return;aToast(`حجز جديد: ${b.name||b.studentName||'طالب جديد'}`);if('Notification' in window&&Notification.permission==='granted'&&localStorage.getItem('mf-booking-notifications')==='1'){const n=new Notification('حجز طالب جديد',{body:`${b.name||b.studentName||''} · ${b.grade||''} · ${b.group||''}`,icon:'assets/technominds-logo.png',tag:`booking-${code}`});n.onclick=()=>{window.focus();goAdminSection('bookings');};}});}bookingListenerReady=true;if(currentSection==='bookings'&&!bookingActionPending.size)renderBookings();});}
 
 function adminCanRefreshLiveSection(){const active=document.activeElement;return !(active instanceof HTMLElement&&active.closest('form,.admin-action-modal,.issued-codes-modal'));}
@@ -308,7 +309,7 @@ function bindNav(){
     window.__adminEscapeBound=true;
   }
 }
-window.adminLogout=async function(){try{bookingNotificationUnsubscribe?.();adminGroupsUnsubscribe?.();adminStudentsUnsubscribe?.();await window.MFCloud?.signOut?.();}catch(e){} location.reload();};
+window.adminLogout=async function(){try{bookingNotificationUnsubscribe?.();adminGroupsUnsubscribe?.();adminStudentsUnsubscribe?.();window.stopMonthlyPaymentListeners?.();await window.MFCloud?.unregisterTeacherPushToken?.();await window.MFCloud?.signOut?.();}catch(e){} location.reload();};
 window.forceFirestoreSync=async function(){const button=document.getElementById('adminSaveButton'),label=button?.querySelector('.admin-save-label');if(button?.disabled)return;try{if(!window.MFCloud?.saveSiteData)throw new Error('Sync service unavailable');if(button)button.disabled=true;if(label)label.textContent='جارٍ الحفظ…';await window.MFCloud.saveSiteData(adminData);saveData(adminData);if(label)label.textContent='تم الحفظ';aToast('تم حفظ جميع التغييرات');setTimeout(()=>{if(label)label.textContent='حفظ التغييرات';},1600);}catch(error){if(label)label.textContent='إعادة المحاولة';aToast(adminActionErrorMessage(error,'تعذر حفظ التغييرات.'));}finally{if(button)button.disabled=false;}};
 
 function stats(){fresh(); const today=isoDateAdmin(); const att=(adminData.students||[]).filter(s=>(s.attendance||[]).some(a=>String(a.date)===today&&a.status==='present')).length; const bookings=adminData.bookings.filter(b=>!String(b.status||'').includes('تم القبول')).length; return {students:adminData.students.length,bookings,unpaid:adminData.students.filter(s=>!s.paid).length,att};}
@@ -330,7 +331,7 @@ window.moveStudentToGroup=function(code){
 window.closeStudentGroupMove=function(){document.getElementById('studentGroupMoveModal')?.classList.remove('show');};
 window.confirmStudentGroupMove=async function(code){const student=adminData.students.find(item=>stCode(item)===String(code)),select=document.getElementById('studentGroupMoveSelect');if(!student||!select)return;const group=(adminData.groups||[]).find(item=>String(item.id)===String(select.value));Object.assign(student,{group:group?.name||'',groupId:group?.id||'',scheduleId:group?.id||'',scheduleDays:group?.days||'',scheduleStartTime:group?.startTime||'',scheduleEndTime:group?.endTime||'',groupAssignmentPending:!group});try{await window.MFCloud?.saveStudent?.(student);persist(group?'تم نقل الطالب إلى المجموعة':'تم حفظ الطالب بدون مجموعة');closeStudentGroupMove();renderStudents();}catch(error){aToast(adminActionErrorMessage(error,'تعذر حفظ المجموعة الجديدة.'));}};
 window.deleteStudent=async function(code){code=String(code||'');if(studentDeletionPending.has(code)||!confirm('سيتم إنشاء نسخة استرجاع ثم حذف الطالب وكل بياناته. متابعة؟'))return;const student=adminData.students.find(s=>stCode(s)===code);studentDeletionPending.add(code);try{const result=await window.MFCloud?.deleteStudentSafely?.(student||{studentCode:code});if(!result?.ok)throw new Error('تعذر تأكيد الحذف');adminData.students=adminData.students.filter(s=>stCode(s)!==code);saveData(adminData);aToast(result.backupMode==='browser'?'تم تنزيل نسخة استرجاع وحذف الطالب':'تم حفظ نسخة استرجاع وحذف الطالب');renderStudents();}catch(error){aToast(adminActionErrorMessage(error,'تعذر حذف الطالب بأمان، ولم يتم حذفه من القائمة.'));}finally{studentDeletionPending.delete(code);}};
-window.printStudentReport=function(code){const s=adminData.students.find(x=>stCode(x)===code); if(!s)return; const w=window.open('','_blank'); w.document.write(`<html dir="rtl"><head><title>تقرير ${safe(stName(s))}</title><link rel="stylesheet" href="assets/site.css"></head><body><main class="section"><div class="container">${studentProfileHTML(normalizeStudent(s),true)}</div></main></body></html>`); w.document.close();};
+window.printStudentReport=async function(code){const s=adminData.students.find(x=>stCode(x)===code);if(!s)return;let enriched=normalizeStudent(s);try{const history=await window.MFCloud?.getStudentPaymentHistory?.(code);if(history)enriched={...enriched,monthlyPayments:history.summaries||[],paymentTransactions:history.transactions||[]};}catch(error){aToast('تعذر تحميل سجل الدفع؛ سيتم فتح باقي ملف الطالب');}const w=window.open('','_blank');if(!w)return aToast('اسمح بفتح النافذة لعرض ملف الطالب');w.document.write(`<html dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>تقرير ${safe(stName(s))}</title><link rel="stylesheet" href="assets/site.css"><link rel="stylesheet" href="assets/v60-technominds.css"></head><body><main class="section"><div class="container">${studentProfileHTML(enriched,true)}</div></main></body></html>`);w.document.close();};
 window.sendParentMonthlyReport=function(code){const s=adminData.students.find(x=>stCode(x)===code); if(!s)return aToast('لم يتم العثور على الطالب'); const phone=adminWhatsAppPhone(s.parentPhone); if(!phone)return aToast('رقم ولي الأمر غير موجود'); window.open(whatsappLink(phone, monthlyReportTextForStudent(s)),'_blank');};
 window.copyParentMonthlyReport=function(code){const s=adminData.students.find(x=>stCode(x)===code); if(!s)return aToast('لم يتم العثور على الطالب'); navigator.clipboard?.writeText(monthlyReportTextForStudent(s)).then(()=>aToast('تم نسخ التقرير')).catch(()=>aToast('تعذر النسخ'));};
 

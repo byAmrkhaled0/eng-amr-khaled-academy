@@ -1,6 +1,6 @@
 {
   "name": "techno-minds-platform",
-  "version": "60.5.0",
+  "version": "60.6.2",
   "private": true,
   "scripts": {
     "dev": "node local-server.js",
@@ -9,10 +9,13 @@
     "firebase:rules": "firebase deploy --only firestore:rules,firestore:indexes,storage",
     "firebase:functions": "firebase deploy --only functions",
     "firebase:hosting": "npm run build && firebase deploy --only hosting",
-    "test": "node scripts/verify.js",
+    "test": "node scripts/verify.js && node scripts/payment-domain.test.js",
+    "verify:dist": "node scripts/verify-dist.js",
     "firebase:deploy:backend": "firebase deploy --only firestore:rules,firestore:indexes,storage,functions",
     "firebase:deploy:all": "npm run test && npm run build && firebase deploy --only firestore:rules,firestore:indexes,storage,functions,hosting",
-    "deploy:production": "powershell -ExecutionPolicy Bypass -File ./deploy-production.ps1"
+    "deploy:production": "powershell -ExecutionPolicy Bypass -File ./deploy-production.ps1",
+    "deploy:hosting": "powershell -ExecutionPolicy Bypass -File ./deploy-hosting-only.ps1",
+    "check:site": "powershell -ExecutionPolicy Bypass -File ./check-deployment.ps1"
   },
   "engines": {
     "node": "22.x"
