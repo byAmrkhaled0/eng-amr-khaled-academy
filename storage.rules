@@ -1,0 +1,81 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+    function hasUserDoc() {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid));
+    }
+    function userData() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+    function isStaff() {
+      return hasUserDoc()
+        && userData().active != false
+        && userData().role in ['admin', 'teacher', 'assistant'];
+    }
+    function isTeacher() {
+      return hasUserDoc()
+        && userData().active != false
+        && userData().role in ['admin', 'teacher'];
+    }
+    function validCode(value) {
+      return value.size() >= 6
+        && value.size() <= 40
+        && value.matches('^[A-Za-z0-9_-]+$');
+    }
+    function safeHomeworkFile() {
+      return request.resource != null
+        && request.resource.size > 0
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType is string
+        && (
+          request.resource.contentType.matches('image/(jpeg|png|webp)')
+          || request.resource.contentType == 'application/pdf'
+        );
+    }
+    function safeTeacherFile() {
+      return request.resource != null
+        && request.resource.size > 0
+        && request.resource.size <= 15 * 1024 * 1024
+        && request.resource.contentType is string
+        && (
+          request.resource.contentType.matches('image/(jpeg|png|webp)')
+          || request.resource.contentType == 'application/pdf'
+        );
+    }
+
+    match /homework/{studentCode}/{uploadId}/{fileName} {
+      allow read: if isStaff();
+      allow create: if validCode(studentCode)
+        && uploadId.size() == 36
+        && fileName.size() <= 220
+        && firestore.exists(/databases/(default)/documents/_homework_upload_tokens/$(uploadId))
+        && firestore.get(/databases/(default)/documents/_homework_upload_tokens/$(uploadId)).data.studentCode == studentCode
+        && firestore.get(/databases/(default)/documents/_homework_upload_tokens/$(uploadId)).data.safeName == fileName
+        && firestore.get(/databases/(default)/documents/_homework_upload_tokens/$(uploadId)).data.size == request.resource.size
+        && firestore.get(/databases/(default)/documents/_homework_upload_tokens/$(uploadId)).data.contentType == request.resource.contentType
+        && firestore.get(/databases/(default)/documents/_homework_upload_tokens/$(uploadId)).data.expiresAt > request.time
+        && safeHomeworkFile();
+      allow update: if false;
+      allow delete: if isTeacher();
+    }
+
+    match /teacher-uploads/{fileName} {
+      allow read: if true;
+      allow create, update: if isStaff() && fileName.size() <= 220 && safeTeacherFile();
+      allow delete: if isTeacher();
+    }
+
+    match /public/uploads/{fileName} {
+      allow read: if true;
+      allow create, update: if isStaff() && fileName.size() <= 220 && safeTeacherFile();
+      allow delete: if isTeacher();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

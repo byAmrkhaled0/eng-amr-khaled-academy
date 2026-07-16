@@ -1,0 +1,144 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function userPath() { return /databases/$(database)/documents/users/$(request.auth.uid); }
+    function hasUserDoc() { return signedIn() && exists(userPath()); }
+    function userData() { return get(userPath()).data; }
+    function isActive() { return hasUserDoc() && userData().active != false; }
+    function isAdmin() { return isActive() && userData().role == 'admin'; }
+    function isTeacher() { return isActive() && userData().role in ['admin', 'teacher']; }
+    function isAssistant() { return isActive() && userData().role == 'assistant'; }
+    function isStaff() { return isTeacher() || isAssistant(); }
+    function validCode(value) {
+      return value is string && value.size() >= 6 && value.size() <= 40
+        && value.matches('^[A-Za-z0-9_-]+$');
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isTeacher());
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Only the small public settings document can be read without login.
+    match /settings/platform { allow read: if true; allow write: if isTeacher(); }
+    match /settings/{docId} { allow read, write: if isTeacher(); }
+
+    match /students/{studentCode} {
+      allow read: if isStaff();
+      allow create: if isStaff() && validCode(studentCode)
+        && request.resource.data.studentCode == studentCode
+        && validCode(request.resource.data.parentCode);
+      allow update: if isTeacher() || (isAssistant()
+        && request.resource.data.studentCode == resource.data.studentCode
+        && request.resource.data.parentCode == resource.data.parentCode
+        && request.resource.data.active == resource.data.active);
+      allow delete: if isTeacher();
+    }
+    match /student_portal/{studentCode} {
+      allow read: if isStaff();
+      allow create: if isStaff() && request.resource.data.studentCode == studentCode;
+      allow update: if isTeacher() || (isAssistant()
+        && request.resource.data.studentCode == resource.data.studentCode
+        && request.resource.data.parentCode == resource.data.parentCode
+        && request.resource.data.active == resource.data.active);
+      allow delete: if isTeacher();
+    }
+    match /parent_portal/{parentCode} {
+      allow read: if isStaff();
+      allow create: if isStaff() && request.resource.data.parentCode == parentCode;
+      allow update: if isTeacher() || (isAssistant()
+        && request.resource.data.studentCode == resource.data.studentCode
+        && request.resource.data.parentCode == resource.data.parentCode
+        && request.resource.data.active == resource.data.active);
+      allow delete: if isTeacher();
+    }
+
+    // Public writes are intentionally closed. Cloud Functions validate and rate-limit them.
+    match /bookings/{bookingCode} {
+      allow create: if false;
+      allow read, update: if isStaff();
+      allow delete: if isTeacher();
+    }
+    match /booking_status/{bookingCode} {
+      // Status lookup is server-only through a rate-limited callable function.
+      allow read, create: if false;
+      allow update: if isStaff();
+      allow delete: if isTeacher();
+    }
+    match /reviews/{reviewId} {
+      allow read: if resource.data.approved == true || isStaff();
+      allow create: if false;
+      allow update, delete: if isTeacher();
+    }
+
+    match /materials/{id} { allow read: if true; allow write: if isTeacher(); }
+    match /questions/{id} { allow read: if true; allow write: if isTeacher(); }
+    match /groups/{id} { allow read: if true; allow write: if isTeacher(); }
+    match /assignments/{id} { allow read: if true; allow write: if isTeacher(); }
+    match /exams/{id} { allow read, write: if isTeacher(); }
+
+    match /exam_sessions/{id} { allow read, write: if false; }
+    match /exam_locks/{id} { allow read, write: if false; }
+    match /code_execution_runs/{id} { allow read, write: if false; }
+    match /exam_attempts/{id} {
+      allow read: if isStaff();
+      allow create: if false;
+      allow update, delete: if isTeacher();
+    }
+    match /student_attempts/{studentCode} {
+      allow read: if isStaff();
+      allow create, update, delete: if isTeacher();
+    }
+    match /student_attempts/{studentCode}/attempts/{attemptId} {
+      allow read: if isStaff();
+      allow create, update, delete: if isTeacher();
+    }
+    match /homework_submissions/{id} {
+      allow read: if isStaff();
+      // Student uploads are still server-only. A signed-in staff account may
+      // create only the small class-check record produced by the lesson UI.
+      allow create: if isStaff()
+        && request.resource.data.method == 'teacher_class_check'
+        && request.resource.data.type == 'homework'
+        && request.resource.data.completed == true
+        && request.resource.data.approved == true
+        && validCode(request.resource.data.studentCode)
+        && exists(/databases/$(database)/documents/students/$(request.resource.data.studentCode))
+        && get(/databases/$(database)/documents/students/$(request.resource.data.studentCode)).data.active != false;
+      allow update: if isStaff();
+      allow delete: if isTeacher()
+        || (isAssistant() && resource.data.method == 'teacher_class_check');
+    }
+
+    match /attendance/{id} { allow read, create, update: if isStaff(); allow delete: if isTeacher(); }
+    match /recitations/{id} {
+      allow read, create, update: if isStaff();
+      allow delete: if isTeacher()
+        || (isAssistant() && resource.data.method == 'teacher_class_check');
+    }
+    match /grades/{id} { allow read: if isStaff(); allow create, update, delete: if isTeacher(); }
+    match /payments/{id} { allow read, create, update: if isStaff(); allow delete: if isTeacher(); }
+    match /reports/{id} { allow read, create, update: if isStaff(); allow delete: if isTeacher(); }
+    match /activityLog/{id} { allow read, create: if isStaff(); allow update, delete: if isAdmin(); }
+    match /client_errors/{id} { allow read, delete: if isTeacher(); allow create, update: if false; }
+
+    // Staff activity writes bump this small server-only marker so the public
+    // monthly leaderboard is recalculated immediately without disabling cache.
+    match /_system/leaderboard {
+      allow read: if false;
+      allow create, update: if isStaff();
+      allow delete: if isTeacher();
+    }
+
+    // Server-only operational collections.
+    match /_rate_limits/{id} { allow read, write: if false; }
+    match /_booking_requests/{id} { allow read, write: if false; }
+    match /_homework_upload_tokens/{id} { allow read, write: if false; }
+    match /deleted_students/{id} { allow read, write: if false; }
+    match /backup_runs/{id} { allow read, write: if false; }
+    match /staff_push_tokens/{id} { allow read, write: if false; }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
