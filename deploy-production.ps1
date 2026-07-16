@@ -102,7 +102,7 @@ $GitExecutable = (Get-Command git).Source
 Invoke-Checked -Executable $GitExecutable -ArgumentList @("add", "-A")
 $changes = git status --porcelain
 if ($changes) {
-  Invoke-Checked -Executable $GitExecutable -ArgumentList @("commit", "-m", "Techno Minds platform V60.3.0")
+  Invoke-Checked -Executable $GitExecutable -ArgumentList @("commit", "-m", "Techno Minds platform V60.3.1")
   Invoke-Checked -Executable $GitExecutable -ArgumentList @("push", "origin", "main")
 } else {
   Write-Host "No Git changes to push." -ForegroundColor Yellow

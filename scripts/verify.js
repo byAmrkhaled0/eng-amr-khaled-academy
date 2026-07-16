@@ -88,7 +88,9 @@ if (!failures.some(x => x.includes('App Check/reCAPTCHA'))) ok('App Check and re
 
 const syncSource = read('assets/firebase-sync.js');
 if (/createBookingDirect|createReviewDirect/.test(syncSource)) fail('A public direct-write fallback still exists for booking or reviews');
-if (!syncSource.includes("throw new Error('Secure booking function is unavailable')") || !syncSource.includes("throw new Error('Secure review function is unavailable')")) {
+const bookingUsesSecureFunction = syncSource.includes("sameOriginCallable('/api/booking/create'") &&
+  read('firebase.json').includes('/api/booking/create') && read('vercel.json').includes('/api/booking/create');
+if (!bookingUsesSecureFunction || !syncSource.includes("throw new Error('Secure review function is unavailable')")) {
   fail('Booking/review Cloud Function enforcement is missing');
 }
 if (!syncSource.includes("doc('platform')") || syncSource.includes("legacySiteDoc.set")) {
@@ -122,7 +124,8 @@ for (const name of mfCloudUses) {
 if (!functionsSource.includes('exports.scheduledPlatformBackup = onSchedule')) fail('Scheduled daily backup export is missing');
 if (!functionsSource.includes('exports.notifyStaffOnBookingCreated = onDocumentCreated')) fail('Asynchronous booking notification trigger is missing');
 if (!read('practical.html').includes('id="codeEditor"') || !read('assets/practical.js').includes("publicCallable('submitCodeExecution'") || !read('assets/practical.js').includes("'/api/code'") || read('practical.html').includes('codeStudentCode') || read('practical.html').includes('firebase-functions-compat.js') || !functionsSource.includes("rateLimitPublic('code-run-public'")) fail('Public practical code editor is incomplete or still loads the full Firebase bundle');
-if (!read('firebase.json').includes('/api/code/submitCodeExecution') || !read('vercel.json').includes('/api/code/submitCodeExecution')) fail('Same-origin code runner rewrites are missing from Firebase or Vercel');
+if (!read('firebase.json').includes('/api/code/submitCodeExecution') || !read('vercel.json').includes('/api/code/submitCodeExecution') || !read('firebase.json').includes('/api/code/getCodeExecutionResult') || !read('vercel.json').includes('/api/code/getCodeExecutionResult')) fail('Same-origin code runner rewrites are missing from Firebase or Vercel');
+if (!functionsSource.includes('poll.status === 400') || !functionsSource.includes('wait=true') || !functionsSource.includes('judge0-sync-')) fail('Judge0 poll-400 recovery is incomplete');
 if (!read('firestore.rules').includes('match /code_execution_runs/{id}') || !read('firestore.rules').includes('allow read, write: if false;')) fail('Code execution records are not server-only');
 if (!functionsSource.includes("db.collection('_booking_requests')") || !functionsSource.includes('requestId')) fail('Idempotent booking request protection is missing');
 if (!functionsSource.includes("db.collection('_homework_upload_tokens')") || !read('storage.rules').includes('_homework_upload_tokens')) fail('One-time homework upload authorization is missing');
@@ -171,7 +174,7 @@ if (manifest.display !== 'standalone' || manifest.scope !== '/' || !Array.isArra
 if (!manifest.icons.some(icon => String(icon.purpose || '').includes('maskable') && icon.sizes === '512x512')) fail('Maskable PWA icon is missing');
 const sw = read('service-worker.js');
 const appShellSource = sw.slice(0,sw.indexOf('];')+2);
-if (!/technominds-v60-3-0-production/.test(sw) || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes('/practical.html') || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell is incomplete');
+if (!/technominds-v60-3-1-production/.test(sw) || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes('/practical.html') || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell is incomplete');
 if (/assets\/vendor|assets\/admin\.js|teacher-login\.html/.test(appShellSource) || !sw.includes('event.waitUntil(network.catch')) fail('Large admin assets are still precached or repeat-visit caching is missing');
 if (!read('index.html').includes('<script defer src="https://www.gstatic.com/firebasejs/')) fail('Firebase scripts are not downloaded in parallel with deferred execution');
 const upgrade = read('assets/v53-upgrades.js');

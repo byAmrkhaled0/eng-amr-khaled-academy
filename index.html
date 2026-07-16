@@ -15,10 +15,10 @@
 <link href="assets/technominds-logo.png" rel="icon" type="image/png"/>
 <link href="assets/technominds-logo.png" rel="apple-touch-icon"/>
 <link href="site.webmanifest" rel="manifest"/>
-<link href="assets/site.css?v=60.3.0" rel="stylesheet"/>
-<link href="assets/v55.css?v=60.3.0" rel="stylesheet"/>
-<link href="assets/v56.css?v=60.3.0" rel="stylesheet"/>
-<link href="assets/v60-technominds.css?v=60.3.0" rel="stylesheet"/>
+<link href="assets/site.css?v=60.3.1" rel="stylesheet"/>
+<link href="assets/v55.css?v=60.3.1" rel="stylesheet"/>
+<link href="assets/v56.css?v=60.3.1" rel="stylesheet"/>
+<link href="assets/v60-technominds.css?v=60.3.1" rel="stylesheet"/>
 </head>
 <body id="top">
 <header class="site-header">
@@ -95,6 +95,7 @@
 <div class="field"><label>الترم</label><select id="bookingTerm" name="term" required=""></select></div>
 <div class="field booking-group-picker"><label>المجموعة والموعد <small>(اختياري)</small></label><span class="booking-live-label" id="bookingSchedulesLive"><i></i> جاري قراءة المواعيد من لوحة الإدارة…</span><div class="group-search-wrap"><span data-icon="search"></span><input id="bookingGroupSearch" type="search" placeholder="اكتب اسم المجموعة أو اليوم" autocomplete="off"/></div><select id="bookingGroup" name="group"><option value="">التسجيل بدون مجموعة — أحددها لاحقًا</option></select><input id="bookingScheduleId" name="scheduleId" type="hidden"/><small class="field-hint" id="bookingGroupHint">تقدر تختار موعدًا من لوحة المواعيد أو تكمل الحجز بدون مجموعة.</small></div>
 <div class="field" style="grid-column:1/-1"><label>ملاحظات</label><textarea name="notes" placeholder="أي تفاصيل مهمة عن الطالب أو المستوى"></textarea></div>
+<div class="booking-submit-status" id="bookingSubmitStatus" role="status" aria-live="polite" hidden></div>
 <div class="booking-step-actions"><button class="btn ghost" type="button" data-booking-back>رجوع</button><button class="btn primary" type="submit"><span data-icon="send"></span> تأكيد الحجز وإظهار الكود الموحّد</button></div>
 </div>
 <div class="booking-step booking-result-step" data-booking-step="3">
@@ -179,10 +180,10 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-functions-compat.js"></script>
-<script defer src="assets/firebase-config.js?v=60.3.0"></script>
-<script defer src="assets/firebase-sync.js?v=60.3.0"></script>
-<script defer src="assets/app.js?v=60.3.0"></script>
-<script defer src="assets/v53-upgrades.js?v=60.3.0"></script>
-<script defer src="assets/v56-fixes.js?v=60.3.0"></script>
+<script defer src="assets/firebase-config.js?v=60.3.1"></script>
+<script defer src="assets/firebase-sync.js?v=60.3.1"></script>
+<script defer src="assets/app.js?v=60.3.1"></script>
+<script defer src="assets/v53-upgrades.js?v=60.3.1"></script>
+<script defer src="assets/v56-fixes.js?v=60.3.1"></script>
 </body>
 </html>

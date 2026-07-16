@@ -32,6 +32,45 @@
       };
     };
 
+    // Public actions use a Hosting rewrite first. This keeps booking on the
+    // same origin as the page and avoids ISP/DNS/CORS failures when a browser
+    // cannot reach cloudfunctions.net directly. The Firebase SDK callable is
+    // retained only as a transparent fallback for temporary Hosting errors.
+    const localHosts=new Set(['localhost','127.0.0.1','0.0.0.0']);
+    const publicApiOrigin=localHosts.has(globalThis.location?.hostname)?'https://eng-amr-khaled-academy.web.app':'';
+    const apiError=(payload,status)=>{
+      const details=payload?.error||{};
+      const error=new Error(details.message||`HTTP ${status}`);
+      error.code=`functions/${String(details.status||status||'internal').toLowerCase().replace(/_/g,'-')}`;
+      error.httpStatus=status;
+      return error;
+    };
+    const sameOriginCallable=async(path,payload,timeoutMs=35000)=>{
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),timeoutMs);
+      try{
+        const response=await fetch(`${publicApiOrigin}${path}`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Accept':'application/json'},
+          body:JSON.stringify({data:payload||{}}),
+          signal:controller.signal,
+          cache:'no-store',
+          credentials:'omit'
+        });
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok||data.error)throw apiError(data,response.status);
+        if(data.result===undefined&&data.data===undefined)throw apiError({error:{message:'Invalid callable response',status:'INTERNAL'}},response.status);
+        return data.result??data.data;
+      }catch(error){
+        if(error?.name==='AbortError'){
+          const timeoutError=new Error('Request timeout');
+          timeoutError.code='functions/deadline-exceeded';
+          throw timeoutError;
+        }
+        throw error;
+      }finally{clearTimeout(timer);}
+    };
+
     const transientFirebaseError=error=>/unavailable|internal|network|deadline-exceeded|fetch|timeout/i.test(`${error?.code||''} ${error?.message||''}`);
     const retryTransient=async(operation,retries=1)=>{
       let lastError;
@@ -442,8 +481,12 @@
         return createStudentAccessDirect(student);
       },
       createBooking:async booking=>{
-        if(!calls.createBooking)throw new Error('Secure booking function is unavailable');
-        return retryTransient(()=>calls.createBooking(booking),1);
+        try{
+          return await retryTransient(()=>sameOriginCallable('/api/booking/create',booking),2);
+        }catch(error){
+          if(!transientFirebaseError(error)||!calls.createBooking)throw error;
+          return retryTransient(()=>calls.createBooking(booking),1);
+        }
       },
       approveBooking:async code=>{
         if(!calls.approveBooking)throw new Error('Secure booking approval function is unavailable');

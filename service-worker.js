@@ -1,4 +1,4 @@
-const CACHE_NAME = "technominds-v60-3-0-production";
+const CACHE_NAME = "technominds-v60-3-1-production";
 const APP_SHELL = [
   "/", "/index.html", "/student.html", "/exams.html", "/materials.html",
   "/learning-path.html", "/about.html", "/practical.html", "/parent.html", "/reviews.html", "/privacy.html",

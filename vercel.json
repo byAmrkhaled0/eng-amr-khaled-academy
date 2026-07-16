@@ -10,12 +10,20 @@
       "destination": "https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/getPlatformHealth"
     },
     {
+      "source": "/api/booking/create",
+      "destination": "https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/createBooking"
+    },
+    {
       "source": "/api/code/getCodeLanguages",
       "destination": "https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/getCodeLanguages"
     },
     {
       "source": "/api/code/submitCodeExecution",
       "destination": "https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/submitCodeExecution"
+    },
+    {
+      "source": "/api/code/getCodeExecutionResult",
+      "destination": "https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/getCodeExecutionResult"
     }
   ],
   "headers": [

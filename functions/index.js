@@ -1484,7 +1484,7 @@ exports.getPlatformHealth = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 15 }, 
   ]);
   return {
     status: 'ok',
-    version: '60.3.0',
+    version: '60.3.1',
     firestore: true,
     services: {
       booking: true,
@@ -1515,6 +1515,16 @@ exports.submitCodeExecution = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 30, 
   const judge0Base = config.baseUrl.replace(/\/+$/, '');
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 25000);
+  const submissionBody = {
+    language_id: language.judge0Id,
+    source_code: sourceCode,
+    stdin,
+    cpu_time_limit: config.cpuSeconds,
+    wall_time_limit: config.wallSeconds,
+    memory_limit: config.memoryKb,
+    enable_network: false,
+    max_file_size: 1024
+  };
   let response;
   let data;
   try {
@@ -1523,16 +1533,7 @@ exports.submitCodeExecution = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 30, 
     // the lab works with both managed and self-hosted Judge0 deployments.
     response = await fetch(`${judge0Base}/submissions?base64_encoded=false&wait=false`, {
       method: 'POST', headers, signal: controller.signal,
-      body: JSON.stringify({
-        language_id: language.judge0Id,
-        source_code: sourceCode,
-        stdin,
-        cpu_time_limit: config.cpuSeconds,
-        wall_time_limit: config.wallSeconds,
-        memory_limit: config.memoryKb,
-        enable_network: false,
-        max_file_size: 1024
-      })
+      body: JSON.stringify(submissionBody)
     });
     if (!response.ok) throw new Error(`judge0-submit-${response.status}`);
     data = await response.json();
@@ -1540,18 +1541,45 @@ exports.submitCodeExecution = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 30, 
     if (submissionToken && (!data.status || Number(data.status.id || 0) <= 2)) {
       for (let attempt = 0; attempt < 40; attempt += 1) {
         await new Promise(resolve => setTimeout(resolve, 450));
-        const poll = await fetch(`${judge0Base}/submissions/${encodeURIComponent(submissionToken)}?base64_encoded=false&fields=stdout,time,memory,stderr,compile_output,message,status,exit_code`, {
+        const resultUrl = `${judge0Base}/submissions/${encodeURIComponent(submissionToken)}?base64_encoded=false`;
+        let poll = await fetch(`${resultUrl}&fields=stdout,time,memory,stderr,compile_output,message,status,exit_code`, {
           method: 'GET', headers, signal: controller.signal
         });
-        if (!poll.ok) throw new Error(`judge0-poll-${poll.status}`);
+        // Some Judge0 gateways intermittently return 400 while a new token is
+        // propagating, or reject the optional fields list. Retry the plain
+        // result route before treating the public lab as unavailable.
+        if (poll.status === 400) poll = await fetch(resultUrl, { method: 'GET', headers, signal: controller.signal });
+        if (!poll.ok) {
+          if ([400, 404, 408, 409, 425, 429, 500, 502, 503, 504].includes(poll.status) && attempt < 8) continue;
+          throw new Error(`judge0-poll-${poll.status}`);
+        }
         data = await poll.json();
         if (Number(data.status?.id || 0) > 2) break;
       }
     }
     if (!data.status || Number(data.status.id || 0) <= 2) throw new Error('judge0-timeout');
   } catch (error) {
-    const message = String(error?.message || '');
-    throw new HttpsError('unavailable', error?.name === 'AbortError' || /timeout/.test(message) ? 'انتهت مهلة تشغيل الكود.' : `خدمة تشغيل الأكواد غير متاحة حاليًا${/judge0-(?:submit|poll)-\d+/.test(message) ? ` (${message.replace('judge0-', '')})` : ''}.`);
+    let message = String(error?.message || '');
+    // A synchronous retry is safe here because submitted programs run in an
+    // isolated sandbox with networking disabled. It covers Judge0 providers
+    // whose asynchronous token endpoint is temporarily inconsistent.
+    if (error?.name !== 'AbortError' && /judge0-poll-(?:400|404|408|409|425|429|5\d\d)/.test(message)) {
+      try {
+        const fallback = await fetch(`${judge0Base}/submissions?base64_encoded=false&wait=true`, {
+          method: 'POST', headers, signal: controller.signal, body: JSON.stringify(submissionBody)
+        });
+        if (!fallback.ok) throw new Error(`judge0-sync-${fallback.status}`);
+        data = await fallback.json();
+        if (!data.status || Number(data.status.id || 0) <= 2) throw new Error('judge0-sync-timeout');
+        message = '';
+      } catch (fallbackError) {
+        error = fallbackError;
+        message = String(fallbackError?.message || '');
+      }
+    }
+    if (message) {
+      throw new HttpsError('unavailable', error?.name === 'AbortError' || /timeout/.test(message) ? 'انتهت مهلة تشغيل الكود.' : `خدمة تشغيل الأكواد غير متاحة حاليًا${/judge0-(?:submit|poll|sync)-\d+/.test(message) ? ` (${message.replace('judge0-', '')})` : ''}.`);
+    }
   } finally { clearTimeout(timeout); }
   const runId = crypto.randomUUID();
   const result = {

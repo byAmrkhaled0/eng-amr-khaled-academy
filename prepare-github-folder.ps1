@@ -1,6 +1,6 @@
 param(
   [string]$RepositoryUrl = "https://github.com/byAmrkhaled0/eng-amr-khaled-academy.git",
-  [string]$TargetFolder = "Techno-Minds-v60.3.0-GitHub"
+  [string]$TargetFolder = "Techno-Minds-v60.3.1-GitHub"
 )
 
 $ErrorActionPreference = "Stop"
@@ -30,7 +30,7 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw "Git is missin
 $GitExecutable = (Get-Command git).Source
 Invoke-Checked -Executable $GitExecutable -ArgumentList @("clone", $RepositoryUrl, $TargetRoot)
 
-Write-Host "Replacing repository files with Techno Minds V60.3.0 while preserving .git..." -ForegroundColor Cyan
+Write-Host "Replacing repository files with Techno Minds V60.3.1 while preserving .git..." -ForegroundColor Cyan
 Get-ChildItem -LiteralPath $TargetRoot -Force |
   Where-Object { $_.Name -ne ".git" } |
   Remove-Item -Recurse -Force

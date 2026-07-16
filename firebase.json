@@ -27,6 +27,14 @@
         }
       },
       {
+        "source": "/api/booking/create",
+        "function": {
+          "functionId": "createBooking",
+          "region": "europe-west1",
+          "pinTag": true
+        }
+      },
+      {
         "source": "/api/code/getCodeLanguages",
         "function": {
           "functionId": "getCodeLanguages",
@@ -38,6 +46,14 @@
         "source": "/api/code/submitCodeExecution",
         "function": {
           "functionId": "submitCodeExecution",
+          "region": "europe-west1",
+          "pinTag": true
+        }
+      },
+      {
+        "source": "/api/code/getCodeExecutionResult",
+        "function": {
+          "functionId": "getCodeExecutionResult",
           "region": "europe-west1",
           "pinTag": true
         }

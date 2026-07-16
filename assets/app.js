@@ -11,7 +11,7 @@ var LAST_EXAM_CODE_KEY = 'mf_last_exam_code';
 var EXAM_DRAFT_PREFIX = 'mf_exam_draft_v2_';
 var PENDING_BOOKING_REQUEST_KEY = 'mf_pending_booking_request_v1';
 var cloudSaveTimer = null;
-var MF_ASSET_VERSION = '60.3.0';
+var MF_ASSET_VERSION = '60.3.1';
 var mfLazyScriptPromises = Object.create(null);
 var publicScheduleUnsubscribe = null;
 
@@ -682,7 +682,10 @@ function setupBooking(){
       b.scheduleId=selectedSchedule?.dataset?.scheduleId||'';
       b.group=selectedSchedule?.value||b.group||'';
       b.academicYear=typeof currentAcademicContext==='function'?currentAcademicContext().academicYear:'';
-      if(!window.MFCloud?.ready || !window.MFCloud?.createBooking) return toast('خدمة الحجز غير متاحة حاليًا. حاول لاحقًا.');
+      const statusBox=document.getElementById('bookingSubmitStatus');
+      const showStatus=(message,type='info')=>{if(!statusBox)return;if(!message){statusBox.hidden=true;statusBox.textContent='';statusBox.className='booking-submit-status';return;}statusBox.hidden=false;statusBox.textContent=message;statusBox.className=`booking-submit-status ${type}`;};
+      if(!window.MFCloud?.ready || !window.MFCloud?.createBooking){showStatus('الاتصال بالحجز لم يكتمل. تأكد من الإنترنت ثم اضغط تأكيد مرة أخرى.','error');return toast('الاتصال بالحجز لم يكتمل.');}
+      showStatus('جاري تسجيل الحجز وتأمين الكود… لا تغلق الصفحة.','loading');
       button?.classList.add('is-loading'); if(button)button.disabled=true;
       try{
         b.requestId=bookingRequestId(b);
@@ -693,10 +696,14 @@ function setupBooking(){
         renderBookingSuccess(b);
         form.dispatchEvent(new Event('booking-success'));
         toast('تم تسجيل الحجز بنجاح — الحالة: قيد التسجيل');
+        showStatus('تم تسجيل الحجز بنجاح. احتفظ بالكود الظاهر أمامك.','success');
         clearBookingRequest();
         form.reset(); fillSelects();
       }catch(err){
-        console.error(err); toast(firebaseFriendlyError(err,'تعذر إرسال الحجز. حاول مرة أخرى بعد قليل.'));
+        console.error(err);
+        const message=firebaseFriendlyError(err,'لم يكتمل الحجز. بياناتك ما زالت موجودة؛ اضغط تأكيد مرة أخرى.');
+        showStatus(message,'error');
+        toast(message);
       }finally{button?.classList.remove('is-loading');if(button)button.disabled=false;}
     });
   }

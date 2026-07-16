@@ -60,7 +60,7 @@ body{background:radial-gradient(circle at 7% 6%,rgba(34,211,238,.08),transparent
 }
 @media (prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 
-/* V60.3.0 — original programmer-first visual identity. */
+/* V60.3.1 — original programmer-first visual identity. */
 :root{
   --primary:#246bfd;--primary-2:#00c2ff;--gold:#8b5cf6;--bg:#f4f7ff;--card:#fff;
   --text:#0a1830;--muted:#60708d;--border:#d8e2f3;--tm-neon:#17e7c0;
@@ -96,7 +96,7 @@ body{position:relative;background-image:linear-gradient(rgba(36,107,253,.035) 1p
   body{background-attachment:scroll;padding-bottom:86px}.mobile-bottom{display:grid!important}.teacher-frame{display:block!important;min-height:390px!important}.teacher-photo{height:390px!important;margin-top:8px}.teacher-photo img{object-position:center 60%!important}.floating-card{display:none!important}.teacher-frame:before{top:8px;inset-inline-end:4px}.hero:before{display:none}.hero-grid{display:grid!important}.booking-clean-layout{display:grid!important}.booking-status-grid,.certificate-grid,.about-method-grid,.about-values{grid-template-columns:1fr}.booking-status-console{padding:17px}.path-hero,.about-hero{padding:34px 0 24px}.path-hero h1,.about-hero h1{font-size:clamp(2.15rem,10vw,3.3rem)}.path-hero-grid,.about-hero-grid{gap:25px}.code-window pre{padding:18px;font-size:12px}.path-stage{grid-template-columns:52px 1fr;padding:16px;gap:10px}.path-timeline:before{inset-inline-start:26px}.path-stage>b{width:42px;height:42px}.path-stage ul{display:grid}.lesson-loop{padding:18px}.lesson-loop-grid{grid-template-columns:1fr}.about-photo{max-width:100%}.certificate-card figcaption{display:grid;text-align:center}.certificate-card figcaption span{text-align:center}.admin-action-dialog{padding:22px 16px}.logo-mark{width:48px!important;height:44px!important;min-width:48px!important}.tm-code-toolbar input{display:none}
 }
 
-/* V60.3.0 — unified navigation, clean portrait and mobile-first flows. */
+/* V60.3.1 — unified navigation, clean portrait and mobile-first flows. */
 body:not(.admin-dashboard-active){padding-top:74px}
 .site-header{position:fixed!important;top:0!important;inset-inline:0!important;width:100%!important;margin:0!important;z-index:3500!important}
 .site-header .navbar{display:flex!important;align-items:center!important;gap:12px!important;height:74px!important;min-height:74px!important}
@@ -198,3 +198,7 @@ body:not(.admin-dashboard-active){padding-top:74px}
   .tm-code-editor textarea{min-height:52vh!important;line-height:1.75!important}
   .admin-section .section-title{font-size:1.65rem!important}
 }
+.booking-submit-status{grid-column:1/-1;border:1px solid #b8d4ff;border-radius:14px;padding:12px 14px;background:#eef6ff;color:#123b70;font-weight:800;line-height:1.7}
+.booking-submit-status.loading{background:#f0f7ff;border-color:#8cbcff}
+.booking-submit-status.success{background:#ecfdf3;border-color:#75d69c;color:#126b38}
+.booking-submit-status.error{background:#fff3f2;border-color:#f4a09a;color:#9f241d}
