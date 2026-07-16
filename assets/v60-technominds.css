@@ -60,7 +60,7 @@ body{background:radial-gradient(circle at 7% 6%,rgba(34,211,238,.08),transparent
 }
 @media (prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 
-/* V60.3.1 — original programmer-first visual identity. */
+/* V60.5.0 — original programmer-first visual identity. */
 :root{
   --primary:#246bfd;--primary-2:#00c2ff;--gold:#8b5cf6;--bg:#f4f7ff;--card:#fff;
   --text:#0a1830;--muted:#60708d;--border:#d8e2f3;--tm-neon:#17e7c0;
@@ -96,7 +96,7 @@ body{position:relative;background-image:linear-gradient(rgba(36,107,253,.035) 1p
   body{background-attachment:scroll;padding-bottom:86px}.mobile-bottom{display:grid!important}.teacher-frame{display:block!important;min-height:390px!important}.teacher-photo{height:390px!important;margin-top:8px}.teacher-photo img{object-position:center 60%!important}.floating-card{display:none!important}.teacher-frame:before{top:8px;inset-inline-end:4px}.hero:before{display:none}.hero-grid{display:grid!important}.booking-clean-layout{display:grid!important}.booking-status-grid,.certificate-grid,.about-method-grid,.about-values{grid-template-columns:1fr}.booking-status-console{padding:17px}.path-hero,.about-hero{padding:34px 0 24px}.path-hero h1,.about-hero h1{font-size:clamp(2.15rem,10vw,3.3rem)}.path-hero-grid,.about-hero-grid{gap:25px}.code-window pre{padding:18px;font-size:12px}.path-stage{grid-template-columns:52px 1fr;padding:16px;gap:10px}.path-timeline:before{inset-inline-start:26px}.path-stage>b{width:42px;height:42px}.path-stage ul{display:grid}.lesson-loop{padding:18px}.lesson-loop-grid{grid-template-columns:1fr}.about-photo{max-width:100%}.certificate-card figcaption{display:grid;text-align:center}.certificate-card figcaption span{text-align:center}.admin-action-dialog{padding:22px 16px}.logo-mark{width:48px!important;height:44px!important;min-width:48px!important}.tm-code-toolbar input{display:none}
 }
 
-/* V60.3.1 — unified navigation, clean portrait and mobile-first flows. */
+/* V60.5.0 — unified navigation, clean portrait and mobile-first flows. */
 body:not(.admin-dashboard-active){padding-top:74px}
 .site-header{position:fixed!important;top:0!important;inset-inline:0!important;width:100%!important;margin:0!important;z-index:3500!important}
 .site-header .navbar{display:flex!important;align-items:center!important;gap:12px!important;height:74px!important;min-height:74px!important}
@@ -202,3 +202,67 @@ body:not(.admin-dashboard-active){padding-top:74px}
 .booking-submit-status.loading{background:#f0f7ff;border-color:#8cbcff}
 .booking-submit-status.success{background:#ecfdf3;border-color:#75d69c;color:#126b38}
 .booking-submit-status.error{background:#fff3f2;border-color:#f4a09a;color:#9f241d}
+
+/* V60.5 — dedicated administration command header and financial dashboard. */
+.admin-command-header{position:sticky!important;top:12px;z-index:34;display:flex!important;align-items:center;justify-content:space-between;gap:18px;margin-bottom:16px!important;background:color-mix(in srgb,var(--card) 92%,transparent)!important;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.admin-command-header .admin-welcome h1{font-size:1.35rem;margin:2px 0;color:var(--text)}
+.admin-command-header .admin-command-actions{display:flex!important;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.admin-command-header .btn{position:relative;min-height:44px;white-space:nowrap}
+.admin-booking-alert.has-alerts{border-color:#f3ae3d!important;background:#fff8e8!important;color:#714900!important}
+.admin-alert-count{position:absolute;inset-inline-start:-6px;top:-8px;display:grid;place-items:center;min-width:23px;height:23px;padding:0 5px;border:2px solid var(--card);border-radius:999px;background:#e43e54;color:#fff;font-size:.68rem;box-shadow:0 5px 15px rgba(228,62,84,.3)}
+.admin-alert-count[hidden]{display:none!important}
+
+.payment-financial-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.payment-financial-kpis article{position:relative;overflow:hidden;display:grid;gap:3px;padding:18px;border:1px solid var(--border);border-radius:19px;background:var(--card);box-shadow:0 10px 28px rgba(28,71,136,.07)}
+.payment-financial-kpis article:after{content:"";position:absolute;inset-inline-end:-28px;bottom:-36px;width:110px;height:110px;border-radius:50%;background:color-mix(in srgb,var(--primary) 10%,transparent)}
+.payment-financial-kpis small{color:var(--muted);font-weight:850}.payment-financial-kpis b{position:relative;z-index:1;font-size:clamp(1.45rem,3vw,2.1rem);color:var(--text)}
+.payment-financial-kpis span{color:var(--muted);font-size:.76rem;font-weight:800}.payment-financial-kpis .collected{border-color:#9fdfca;background:linear-gradient(135deg,#f0fff9,var(--card))}.payment-financial-kpis .collected b{color:#087c66}.payment-financial-kpis .remaining{border-color:#f5d18d;background:linear-gradient(135deg,#fff9ed,var(--card))}.payment-financial-kpis .remaining b{color:#a26308}
+.course-price-editor{margin-bottom:14px}.course-price-editor>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;list-style:none}.course-price-editor>summary::-webkit-details-marker{display:none}.course-price-editor>summary>span:first-child{display:grid;gap:3px}.course-price-editor>summary small{color:var(--muted)}
+.course-price-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:16px 0}.course-price-grid>label{display:grid;gap:7px;padding:11px;border:1px solid var(--border);border-radius:14px;background:var(--bg);font-size:.78rem;font-weight:850}.course-price-grid>label>div{display:flex;align-items:center;gap:7px}.course-price-grid input{width:100%;min-width:0;min-height:43px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--card);color:var(--text);font-weight:900}.course-price-grid small{white-space:nowrap;color:var(--muted)}
+.payment-panel .payment-toolbar{grid-template-columns:minmax(220px,1fr) minmax(170px,220px) minmax(150px,190px)}.payment-filter-note{margin:-2px 0 12px;color:var(--muted);font-size:.72rem;font-weight:750}.payment-student-info>span{margin-top:3px;color:var(--muted);font-size:.68rem}.payment-student-info>span strong{color:var(--text)}.payment-student-row.is-saving{opacity:.7;pointer-events:none}.payment-actions button:disabled{opacity:.48;cursor:not-allowed}
+
+@media(max-width:980px){
+  .admin-command-header{top:8px;padding:9px!important}.admin-command-header .admin-welcome{display:none}.admin-command-header .admin-command-actions{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;gap:6px}.admin-command-header .admin-command-actions .btn{display:flex!important;justify-content:center;min-width:0;padding:8px;font-size:.7rem}.admin-command-header .admin-command-actions .btn span:last-child{overflow:hidden;text-overflow:ellipsis}
+  .course-price-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.payment-panel .payment-toolbar{grid-template-columns:1fr 1fr}.payment-panel .payment-toolbar input{grid-column:1/-1}
+}
+@media(max-width:600px){
+  .admin-command-header{border-radius:15px!important;margin-bottom:10px!important}.admin-command-header .admin-command-actions .btn{min-height:42px;font-size:.62rem;gap:4px}.admin-command-header .admin-command-actions svg{width:16px;height:16px}.admin-alert-count{min-width:20px;height:20px;font-size:.58rem}
+  .payment-financial-kpis{grid-template-columns:1fr 1fr;gap:8px}.payment-financial-kpis article{padding:13px;border-radius:15px}.payment-financial-kpis .collected{grid-column:1/-1}.payment-financial-kpis b{font-size:1.45rem}.course-price-grid{grid-template-columns:1fr}.payment-panel .payment-toolbar{grid-template-columns:1fr}.payment-panel .payment-toolbar>*{grid-column:1}.payment-student-row{grid-template-columns:auto 1fr auto!important}.payment-student-info{min-width:0}.payment-student-info small{overflow-wrap:anywhere}.payment-actions{grid-column:1/-1!important}.payment-actions button{flex:1}
+}
+
+/* Secure student-track lectures and question bank */
+.student-resources-hero{padding:72px 0 46px;background:radial-gradient(circle at 12% 12%,rgba(14,165,233,.14),transparent 30%),radial-gradient(circle at 88% 8%,rgba(99,102,241,.12),transparent 32%),linear-gradient(180deg,#f8fbff,#fff)}
+.student-resource-access-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(320px,.75fr);gap:28px;align-items:center}
+.student-resource-code-card{max-width:520px;width:100%;justify-self:end;padding:26px;display:grid;gap:13px;border:1px solid rgba(21,94,239,.2);box-shadow:0 20px 60px rgba(15,53,99,.12)}
+.student-resource-code-card>.iconbox{width:54px;height:54px;background:linear-gradient(135deg,#155eef,#7c3aed);color:#fff}
+.student-resource-code-card h2,.student-resource-code-card p{margin:0}
+.student-resource-code-card .compact-option{padding:10px 12px;min-height:auto}
+.resource-access-message{padding:11px 13px;border-radius:12px;background:#f1f6ff;color:#294867;font-size:.92rem;line-height:1.65}
+.resource-access-message.loading{background:#eef6ff;color:#155eef}
+.resource-access-message.error{background:#fff1f0;color:#a12620;border:1px solid #ffc5c0}
+.student-track-content{min-height:360px}
+.student-resource-summary{display:flex;align-items:center;gap:14px;margin-bottom:24px;padding:18px 20px;border:1px solid rgba(21,94,239,.18);border-radius:20px;background:linear-gradient(135deg,#f5f9ff,#fff);box-shadow:0 12px 34px rgba(17,53,91,.08)}
+.student-resource-summary .student-avatar{flex:0 0 auto}
+.student-resource-summary>div{min-width:0;flex:1}
+.student-resource-summary h2,.student-resource-summary p{margin:2px 0}
+.student-resource-summary code{display:inline-block;margin-top:5px;padding:4px 9px;border-radius:8px;background:#e6efff;color:#164fae;font-weight:900}
+.resource-meta-badges{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+.badge.soft{background:#f2f5fb;color:#4b617b}
+.student-track-resource{display:flex;flex-direction:column;gap:10px;min-height:240px}
+.student-track-resource .attach-preview{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:14px}
+.student-track-resource>.btn{margin-top:auto}
+.resource-answer{margin-top:auto;border-top:1px solid rgba(20,55,90,.12);padding-top:10px}
+.resource-answer summary{cursor:pointer;color:#155eef;font-weight:900;list-style:none}
+.resource-answer summary::-webkit-details-marker{display:none}
+.resource-answer summary:after{content:' +';font-size:1.1em}
+.resource-answer[open] summary:after{content:' −'}
+.resource-answer .written-box{margin-top:10px;white-space:pre-wrap;line-height:1.8}
+
+@media(max-width:760px){
+  .student-resources-hero{padding:36px 0 28px}
+  .student-resource-access-grid{grid-template-columns:1fr;gap:18px}
+  .student-resource-code-card{justify-self:stretch;padding:20px}
+  .student-resource-summary{align-items:flex-start;flex-wrap:wrap;padding:15px}
+  .student-resource-summary .small-btn{width:100%;margin-top:4px}
+  .student-track-resource{min-height:auto}
+}

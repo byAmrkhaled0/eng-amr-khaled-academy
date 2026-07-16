@@ -35,6 +35,14 @@
         }
       },
       {
+        "source": "/api/resources/student",
+        "function": {
+          "functionId": "getStudentResources",
+          "region": "europe-west1",
+          "pinTag": true
+        }
+      },
+      {
         "source": "/api/code/getCodeLanguages",
         "function": {
           "functionId": "getCodeLanguages",

@@ -1,4 +1,4 @@
-# نشر Techno Minds V60.3.1
+# نشر Techno Minds V60.5.0
 
 ## أسهل طريقة على Windows
 
@@ -26,7 +26,7 @@ firebase login
 
 ```powershell
 .\prepare-github-folder.ps1
-cd ..\Techno-Minds-v60.3.1-GitHub
+cd ..\Techno-Minds-v60.5.0-GitHub
 npm run deploy:production
 ```
 

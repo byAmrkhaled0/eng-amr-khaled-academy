@@ -68,8 +68,8 @@ $HealthResponse = Invoke-RestMethod -Method Post -Uri $HealthUrl -ContentType "a
 if ($HealthResponse.result.status -ne "ok" -or -not $HealthResponse.result.firestore) {
   throw "Firebase health check failed. Functions or Firestore is not connected."
 }
-if (-not $HealthResponse.result.services.booking -or -not $HealthResponse.result.services.studentPortal -or -not $HealthResponse.result.services.administration) {
-  throw "Booking, student portal, or administration capability check failed."
+if (-not $HealthResponse.result.services.booking -or -not $HealthResponse.result.services.studentPortal -or -not $HealthResponse.result.services.administration -or -not $HealthResponse.result.services.studentResources) {
+  throw "Booking, student portal, learning resources, or administration capability check failed."
 }
 $CodeRunnerUrl = "https://eng-amr-khaled-academy.web.app/api/code/getCodeLanguages"
 $CodeRunnerResponse = Invoke-RestMethod -Method Post -Uri $CodeRunnerUrl -ContentType "application/json" -Body '{"data":{}}' -TimeoutSec 45
@@ -102,7 +102,7 @@ $GitExecutable = (Get-Command git).Source
 Invoke-Checked -Executable $GitExecutable -ArgumentList @("add", "-A")
 $changes = git status --porcelain
 if ($changes) {
-  Invoke-Checked -Executable $GitExecutable -ArgumentList @("commit", "-m", "Techno Minds platform V60.3.1")
+  Invoke-Checked -Executable $GitExecutable -ArgumentList @("commit", "-m", "Techno Minds platform V60.5.0")
   Invoke-Checked -Executable $GitExecutable -ArgumentList @("push", "origin", "main")
 } else {
   Write-Host "No Git changes to push." -ForegroundColor Yellow

@@ -202,6 +202,17 @@ function syncAdminChrome(){
   document.querySelectorAll('[data-admin-nav]').forEach(btn=>btn.classList.toggle('active',btn.dataset.adminNav===currentSection));
   const label=document.getElementById('adminCurrentSectionLabel');
   if(label) label.textContent=adminSectionName(currentSection);
+  const desktopLabel=document.getElementById('adminDesktopSectionLabel');
+  if(desktopLabel)desktopLabel.textContent=adminSectionName(currentSection);
+  updateAdminBookingBadge();
+}
+function pendingBookingCount(){return (adminData.bookings||[]).filter(item=>!String(item.status||'').includes('تم القبول')&&!String(item.status||'').includes('مرفوض')).length;}
+function updateAdminBookingBadge(){
+  const count=pendingBookingCount();
+  const badge=document.getElementById('adminBookingAlertCount');
+  if(badge){badge.textContent=String(count);badge.hidden=count===0;}
+  const button=document.getElementById('adminBookingAlertButton');
+  if(button)button.classList.toggle('has-alerts',count>0);
 }
 window.goAdminSection=function(id){
   if(!adminSections.some(([sectionId])=>sectionId===id))return;
@@ -230,9 +241,6 @@ function renderAdmin(){
       <div class="admin-nav">${adminSections.map(([id,ic,name])=>`<button type="button" data-admin-nav="${id}" class="${id===currentSection?'active':''}"><span data-icon="${ic}"></span><span>${name}</span></button>`).join('')}</div>
       <div class="admin-sidebar-footer">
         <span class="admin-live-state"><i></i> متصل مباشرة بالموقع</span>
-        <button class="btn ghost" type="button" onclick="enableBookingNotifications()"><span data-icon="calendar"></span> تنبيهات الحجز</button>
-        <button class="btn ghost" type="button" onclick="forceFirestoreSync()"><span data-icon="refresh-cw"></span> حفظ التغييرات</button>
-        <button class="btn ghost" type="button" onclick="location.href='index.html'"><span data-icon="external-link"></span> معاينة الموقع</button>
         <button class="btn ghost admin-theme-button" id="themeToggleAdmin" type="button" aria-label="تغيير الوضع"></button>
         <button class="btn dark" type="button" onclick="adminLogout()">تسجيل الخروج</button>
       </div>
@@ -242,6 +250,18 @@ function renderAdmin(){
         <button class="admin-menu-button" type="button" aria-label="فتح قائمة لوحة التحكم" onclick="toggleAdminDrawer(true)"><span aria-hidden="true">☰</span></button>
         <div class="admin-mobile-brand"><img class="admin-mobile-logo" src="assets/technominds-logo.webp" alt="Techno Minds"><span><small>لوحة Techno Minds</small><strong id="adminCurrentSectionLabel">${safe(adminSectionName(currentSection))}</strong></span></div>
         <button class="admin-mobile-home" type="button" aria-label="معاينة الموقع" onclick="location.href='index.html'"><span data-icon="external-link"></span></button>
+      </header>
+      <header class="admin-top admin-command-header" aria-label="أوامر لوحة الإدارة">
+        <div class="admin-welcome">
+          <span class="kicker">لوحة الإدارة</span>
+          <h1 id="adminDesktopSectionLabel">${safe(adminSectionName(currentSection))}</h1>
+          <p>مرحبًا ${safe(currentStaff?.name||'م. عمرو خالد')} — التغييرات متصلة بالموقع مباشرة.</p>
+        </div>
+        <div class="header-actions admin-command-actions">
+          <button class="btn ghost admin-booking-alert" id="adminBookingAlertButton" type="button" onclick="enableBookingNotifications()"><span data-icon="calendar"></span><span>تنبيهات الحجز</span><b id="adminBookingAlertCount" class="admin-alert-count" hidden>0</b></button>
+          <button class="btn primary" id="adminSaveButton" type="button" onclick="forceFirestoreSync()"><span data-icon="refresh-cw"></span><span class="admin-save-label">حفظ التغييرات</span></button>
+          <button class="btn ghost" type="button" onclick="location.href='index.html'"><span data-icon="external-link"></span><span>معاينة الموقع</span></button>
+        </div>
       </header>
       <div id="adminContent"></div>
     </main>
@@ -260,7 +280,7 @@ function renderAdmin(){
 }
 
 window.enableBookingNotifications=async function(){if(!('Notification' in window))return aToast('المتصفح لا يدعم إشعارات الهاتف');const permission=await Notification.requestPermission();if(permission!=='granted')return aToast('اسمح بالإشعارات من إعدادات المتصفح');localStorage.setItem('mf-booking-notifications','1');startBookingNotifications();try{await window.MFCloud?.registerTeacherPushToken?.();aToast('تم تفعيل التنبيهات حتى عند إغلاق اللوحة');}catch(error){aToast('تم تفعيل تنبيهات الحجوزات أثناء فتح لوحة الإدارة');}};
-function startBookingNotifications(){if(bookingNotificationUnsubscribe||!window.MFCloud?.subscribeToBookings)return;bookingNotificationUnsubscribe=window.MFCloud.subscribeToBookings((rows,changes)=>{adminData.bookings=rows.filter(row=>{const code=String(row.code||row.id||'');return !bookingActionPending.has(code)&&!acceptedBookingCodes.has(code);});saveData(adminData);if(bookingListenerReady){changes.filter(change=>change.type==='added').forEach(change=>{const b=change.doc.data();const code=String(b.code||change.doc.id||'');if(bookingActionPending.has(code)||acceptedBookingCodes.has(code))return;aToast(`حجز جديد: ${b.name||b.studentName||'طالب جديد'}`);if('Notification' in window&&Notification.permission==='granted'&&localStorage.getItem('mf-booking-notifications')==='1'){const n=new Notification('حجز طالب جديد',{body:`${b.name||b.studentName||''} · ${b.grade||''} · ${b.group||''}`,icon:'assets/technominds-logo.png',tag:`booking-${code}`});n.onclick=()=>{window.focus();goAdminSection('bookings');};}});}bookingListenerReady=true;if(currentSection==='bookings'&&!bookingActionPending.size)renderBookings();});}
+function startBookingNotifications(){if(bookingNotificationUnsubscribe||!window.MFCloud?.subscribeToBookings)return;bookingNotificationUnsubscribe=window.MFCloud.subscribeToBookings((rows,changes)=>{adminData.bookings=rows.filter(row=>{const code=String(row.code||row.id||'');return !bookingActionPending.has(code)&&!acceptedBookingCodes.has(code);});saveData(adminData);updateAdminBookingBadge();if(bookingListenerReady){changes.filter(change=>change.type==='added').forEach(change=>{const b=change.doc.data();const code=String(b.code||change.doc.id||'');if(bookingActionPending.has(code)||acceptedBookingCodes.has(code))return;aToast(`حجز جديد: ${b.name||b.studentName||'طالب جديد'}`);if('Notification' in window&&Notification.permission==='granted'&&localStorage.getItem('mf-booking-notifications')==='1'){const n=new Notification('حجز طالب جديد',{body:`${b.name||b.studentName||''} · ${b.grade||''} · ${b.group||''}`,icon:'assets/technominds-logo.png',tag:`booking-${code}`});n.onclick=()=>{window.focus();goAdminSection('bookings');};}});}bookingListenerReady=true;if(currentSection==='bookings'&&!bookingActionPending.size)renderBookings();});}
 
 function adminCanRefreshLiveSection(){const active=document.activeElement;return !(active instanceof HTMLElement&&active.closest('form,.admin-action-modal,.issued-codes-modal'));}
 function startAdminLiveData(){
@@ -275,7 +295,7 @@ function startAdminLiveData(){
       const previous=new Map((adminData.students||[]).map(student=>[stCode(student),student]));
       adminData.students=(rows||[]).map(row=>{const old=previous.get(stCode(row))||{};return {...old,...row,attendance:old.attendance||[],grades:old.grades||[],homeworks:old.homeworks||[],recitations:old.recitations||[]};});
       saveData(adminData);
-      if((currentSection==='overview'||currentSection==='students')&&adminCanRefreshLiveSection())renderSection();
+      if((currentSection==='overview'||currentSection==='students'||currentSection==='payments')&&adminCanRefreshLiveSection())renderSection();
     });
   }
 }
@@ -289,7 +309,7 @@ function bindNav(){
   }
 }
 window.adminLogout=async function(){try{bookingNotificationUnsubscribe?.();adminGroupsUnsubscribe?.();adminStudentsUnsubscribe?.();await window.MFCloud?.signOut?.();}catch(e){} location.reload();};
-window.forceFirestoreSync=async function(){try{if(!window.MFCloud?.saveSiteData)throw new Error('Sync service unavailable');await window.MFCloud.saveSiteData(adminData);saveData(adminData);aToast('تم حفظ جميع التغييرات');}catch(error){aToast(adminActionErrorMessage(error,'تعذر حفظ التغييرات.'));}};
+window.forceFirestoreSync=async function(){const button=document.getElementById('adminSaveButton'),label=button?.querySelector('.admin-save-label');if(button?.disabled)return;try{if(!window.MFCloud?.saveSiteData)throw new Error('Sync service unavailable');if(button)button.disabled=true;if(label)label.textContent='جارٍ الحفظ…';await window.MFCloud.saveSiteData(adminData);saveData(adminData);if(label)label.textContent='تم الحفظ';aToast('تم حفظ جميع التغييرات');setTimeout(()=>{if(label)label.textContent='حفظ التغييرات';},1600);}catch(error){if(label)label.textContent='إعادة المحاولة';aToast(adminActionErrorMessage(error,'تعذر حفظ التغييرات.'));}finally{if(button)button.disabled=false;}};
 
 function stats(){fresh(); const today=isoDateAdmin(); const att=(adminData.students||[]).filter(s=>(s.attendance||[]).some(a=>String(a.date)===today&&a.status==='present')).length; const bookings=adminData.bookings.filter(b=>!String(b.status||'').includes('تم القبول')).length; return {students:adminData.students.length,bookings,unpaid:adminData.students.filter(s=>!s.paid).length,att};}
 function renderOverview(){const s=stats(); content(`<div class="section-head"><div><span class="kicker"><span data-icon="bar-chart"></span> ملخص المنصة</span><h2 class="section-title">جاهزية الموقع للتشغيل الحقيقي</h2><p class="section-desc">كل بيانات الطلاب والحضور محفوظة ومتاحة لفريق العمل حسب الصلاحيات.</p></div></div><div class="grid grid-4"><div class="card"><h3>الطلاب</h3><b class="big-num">${s.students}</b></div><div class="card"><h3>الحجوزات</h3><b class="big-num">${s.bookings}</b></div><div class="card"><h3>غير مشترك</h3><b class="big-num">${s.unpaid}</b></div><div class="card"><h3>حضور اليوم</h3><b class="big-num">${s.att}</b></div></div><div class="card" style="margin-top:18px"><h3>اختصارات سريعة</h3><div class="admin-task-grid-v37"><button class="btn primary" onclick="goAdminSection('attendance')"><span data-icon="qr"></span> فتح ماسح QR</button><button class="btn ghost" onclick="goAdminSection('students')"><span data-icon="users"></span> إدارة الطلاب</button><button class="btn ghost" onclick="goAdminSection('bookings')"><span data-icon="calendar"></span> مراجعة الحجوزات</button></div></div>`);}
@@ -376,6 +396,7 @@ window.approveBooking=async function(code){
   card?.classList.add('is-processing');
   card?.querySelectorAll('button').forEach(button=>button.disabled=true);
   adminData.bookings=adminData.bookings.filter(item=>String(item.code||item.id)!==code);
+  updateAdminBookingBadge();
   saveData(adminData);
   requestAnimationFrame(()=>{card?.remove();const count=document.querySelector('.booking-admin-summary .big-num');if(count)count.textContent=String(pendingBookings().length);});
   try{
@@ -390,10 +411,10 @@ window.approveBooking=async function(code){
     aToast(`تم قبول ${student.name||'الطالب'} ونقله إلى قائمة الطلاب`);
     showIssuedCodes(student,'تم قبول الحجز وإصدار الكود الموحّد');
     return true;
-  }catch(error){adminData.bookings.unshift(b);saveData(adminData);renderBookings();const raw=String(error?.code||'')+' '+String(error?.message||'');const message=/unauthenticated/i.test(raw)?'انتهت جلسة الدخول. سجّل دخول المدرس من جديد.':/permission-denied/i.test(raw)?'حساب المدرس غير مفعّل أو لا يملك صلاحية القبول.':/not-found/i.test(raw)?'الحجز غير موجود أو تم التعامل معه بالفعل.':/internal|unavailable|function.*unavailable/i.test(raw)?'خدمة قبول الحجز غير متاحة حاليًا.':(error?.message?.split(':').pop()?.trim()||'تعذر قبول الحجز.');aToast(message);return false;}
+  }catch(error){adminData.bookings.unshift(b);updateAdminBookingBadge();saveData(adminData);renderBookings();const raw=String(error?.code||'')+' '+String(error?.message||'');const message=/unauthenticated/i.test(raw)?'انتهت جلسة الدخول. سجّل دخول المدرس من جديد.':/permission-denied/i.test(raw)?'حساب المدرس غير مفعّل أو لا يملك صلاحية القبول.':/not-found/i.test(raw)?'الحجز غير موجود أو تم التعامل معه بالفعل.':/internal|unavailable|function.*unavailable/i.test(raw)?'خدمة قبول الحجز غير متاحة حاليًا.':(error?.message?.split(':').pop()?.trim()||'تعذر قبول الحجز.');aToast(message);return false;}
   finally{bookingActionPending.delete(code);}
 };
-window.deleteBooking=async function(code){if(!confirm('رفض الحجز وإيقاف الأكواد التي صدرت له؟'))return;try{await window.MFCloud?.rejectBooking?.(code);adminData.bookings=adminData.bookings.filter(b=>String(b.code||b.id)!==String(code));saveData(adminData);aToast('تم رفض الحجز وإيقاف الأكواد');deferAdminRender(renderBookings);}catch(error){const raw=String(error?.code||'')+' '+String(error?.message||'');const message=/unauthenticated/i.test(raw)?'انتهت جلسة الدخول. سجّل الدخول من جديد.':/permission-denied/i.test(raw)?'الحساب لا يملك صلاحية رفض الحجوزات.':/not-found/i.test(raw)?'الحجز غير موجود أو تم التعامل معه بالفعل.':/internal|unavailable|function.*unavailable/i.test(raw)?'خدمة رفض الحجز غير متاحة حاليًا.':(error?.message?.split(':').pop()?.trim()||'تعذر رفض الحجز.');aToast(message);}};
+window.deleteBooking=async function(code){if(!confirm('رفض الحجز وإيقاف الأكواد التي صدرت له؟'))return;try{await window.MFCloud?.rejectBooking?.(code);adminData.bookings=adminData.bookings.filter(b=>String(b.code||b.id)!==String(code));updateAdminBookingBadge();saveData(adminData);aToast('تم رفض الحجز وإيقاف الأكواد');deferAdminRender(renderBookings);}catch(error){const raw=String(error?.code||'')+' '+String(error?.message||'');const message=/unauthenticated/i.test(raw)?'انتهت جلسة الدخول. سجّل الدخول من جديد.':/permission-denied/i.test(raw)?'الحساب لا يملك صلاحية رفض الحجوزات.':/not-found/i.test(raw)?'الحجز غير موجود أو تم التعامل معه بالفعل.':/internal|unavailable|function.*unavailable/i.test(raw)?'خدمة رفض الحجز غير متاحة حاليًا.':(error?.message?.split(':').pop()?.trim()||'تعذر رفض الحجز.');aToast(message);}};
 
 function findAttendance(st,date){return (st.attendance||[]).find(a=>String(a.date)===date);}
 function classProgressRows(st,type){return type==='recitation'?(st.recitations||[]):(st.homeworks||[]);}

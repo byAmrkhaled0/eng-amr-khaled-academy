@@ -73,8 +73,10 @@ service cloud.firestore {
       allow update, delete: if isTeacher();
     }
 
-    match /materials/{id} { allow read: if true; allow write: if isTeacher(); }
-    match /questions/{id} { allow read: if true; allow write: if isTeacher(); }
+    // Student learning content is returned only by the rate-limited
+    // getStudentResources Function after validating the student's code/track.
+    match /materials/{id} { allow read: if isStaff(); allow write: if isTeacher(); }
+    match /questions/{id} { allow read: if isStaff(); allow write: if isTeacher(); }
     match /groups/{id} { allow read: if true; allow write: if isTeacher(); }
     match /assignments/{id} { allow read: if true; allow write: if isTeacher(); }
     match /exams/{id} { allow read, write: if isTeacher(); }

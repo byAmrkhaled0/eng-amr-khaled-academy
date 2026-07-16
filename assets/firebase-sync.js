@@ -83,6 +83,7 @@
 
     const calls={
       getPortalStudent:callable('getPortalStudent'),
+      getStudentResources:callable('getStudentResources'),
       getPublicLeaderboard:callable('getPublicLeaderboard'),
       createBooking:callable('createBooking'),
       approveBooking:callable('approveBooking'),
@@ -133,7 +134,7 @@
         ...s,id:code,code,studentCode:code,parentCode:normalizeCode(s.parentCode||''),
         name:s.studentName||s.name||'',studentName:s.studentName||s.name||'',
         studentPhone:digits(s.studentPhone),parentPhone:digits(s.parentPhone),grade:s.grade||'',month:s.month||'',group:s.group||'',
-        academicYear:s.academicYear||'',term:s.term||'',paid:s.paid===true,paymentDate:s.paymentDate||'',notes:s.notes||'',active:s.active!==false,
+        academicYear:s.academicYear||'',term:s.term||'',paid:s.paid===true,paymentDate:s.paymentDate||'',paymentAmount:Number(s.paymentAmount||0),paymentCourse:s.paymentCourse||'',notes:s.notes||'',active:s.active!==false,
         attendance:Array.isArray(s.attendance)?s.attendance:[],grades:Array.isArray(s.grades)?s.grades:[],
         homeworks:Array.isArray(s.homeworks)?s.homeworks:[],recitations:Array.isArray(s.recitations)?s.recitations:[]
       };
@@ -152,7 +153,7 @@
       return {
         studentCode:s.studentCode,code:s.studentCode,parentCode:s.parentCode,name:s.name,studentName:s.studentName,
         studentPhone:s.studentPhone,parentPhone:s.parentPhone,grade:s.grade,month:s.month,group:s.group,
-        academicYear:s.academicYear,term:s.term,paid:s.paid,paymentDate:s.paymentDate,notes:s.notes,active:s.active
+        academicYear:s.academicYear,term:s.term,paid:s.paid,paymentDate:s.paymentDate,paymentAmount:s.paymentAmount,paymentCourse:s.paymentCourse,notes:s.notes,active:s.active
       };
     }
 
@@ -194,7 +195,7 @@
       const portal=studentProfile(s);
       if(changed(`student_portal/${id}`,portal))ops.push(batch=>batch.set(db.collection('student_portal').doc(id),{...portal,updatedAt:serverTime()},{merge:true}));
       if(s.parentCode&&changed(`parent_portal/${cleanDocId(s.parentCode)}`,portal))ops.push(batch=>batch.set(db.collection('parent_portal').doc(cleanDocId(s.parentCode)),{...portal,updatedAt:serverTime()},{merge:true}));
-      const payment={studentId:id,studentCode:s.studentCode,studentName:s.studentName,grade:s.grade,group:s.group,academicYear:s.academicYear,term:s.term,paid:s.paid,paymentDate:s.paymentDate||''};
+      const payment={studentId:id,studentCode:s.studentCode,studentName:s.studentName,grade:s.grade,group:s.group,academicYear:s.academicYear,term:s.term,paid:s.paid,paymentDate:s.paymentDate||'',paymentAmount:s.paymentAmount,paymentCourse:s.paymentCourse||s.grade};
       if(changed(`payments/${id}`,payment))ops.push(batch=>batch.set(db.collection('payments').doc(id),{...payment,updatedAt:serverTime()},{merge:true}));
 
       if(includeRecords){
@@ -268,15 +269,14 @@
     async function loadPublicCollections(){
       const page=(globalThis.location?.pathname?.split('/').pop()||'index.html').toLowerCase();
       const home=page===''||page==='index.html';
-      const resources=page==='materials.html'||page==='questions.html';
       const reviewsPage=page==='reviews.html';
       // Mobile visitors should not download every public collection on every
       // page. The booking page needs schedules and reviews; resource pages
       // fetch their own content; portals use secure callable responses.
       const [materials,questions,reviews,groups,assignments,settings]=await Promise.all([
-        resources?getDocs('materials').catch(()=>[]):[],resources?getDocs('questions').catch(()=>[]):[],
+        [],[],
         (home||reviewsPage)?getApprovedReviews().catch(()=>[]):[],home?getDocs('groups').catch(()=>[]):[],
-        resources?getDocs('assignments').catch(()=>[]):[],getSettings().catch(()=>({}))
+        [],getSettings().catch(()=>({}))
       ]);
       return {students:[],bookings:[],materials,questions,exams:[],reviews,groups,assignments,examAttempts:[],grades:[],settings};
     }
@@ -288,7 +288,7 @@
         getDocs('payments',3000).catch(()=>[]),getSettings().catch(()=>({}))
       ]);
       const normalized=students.map(normalizedStudent);const map=new Map(normalized.map(st=>[st.studentCode,st]));
-      payments.forEach(row=>{const st=map.get(normalizeCode(row.studentCode||row.studentId||''));if(st){st.paid=row.paid===true;st.paymentDate=row.paymentDate||st.paymentDate;}});
+      payments.forEach(row=>{const st=map.get(normalizeCode(row.studentCode||row.studentId||''));if(st){st.paid=row.paid===true;st.paymentDate=row.paymentDate||st.paymentDate;st.paymentAmount=Number(row.paymentAmount??st.paymentAmount??0);st.paymentCourse=row.paymentCourse||st.paymentCourse||st.grade;}});
       normalized.forEach(st=>{
         const id=cleanDocId(st.studentCode);seedFingerprint('students',id,studentProfile(st));seedFingerprint('student_portal',id,studentProfile(st));
         if(st.parentCode)seedFingerprint('parent_portal',cleanDocId(st.parentCode),studentProfile(st));
@@ -471,6 +471,7 @@
       },
       loadStaffRecords:async()=>{const profile=await getCurrentStaffProfile();if(!profile?.allowed)throw new Error('Not authorized');return loadStaffRecordCollections();},
       saveSiteData:async(payload,options={})=>syncPayloadToCollections(payload,options),
+      saveSettings:async settings=>{const profile=await getCurrentStaffProfile();if(!profile?.allowed||!['admin','teacher'].includes(profile.role))throw new Error('Not authorized');await platformSettingsDoc.set({...settings,schemaVersion:55,updatedAt:serverTime()},{merge:true});seedFingerprint('settings','platform',settings);},
       saveStudent:async student=>{const ops=[];pushStudentOps(ops,student);await commitOperations(ops);},
       saveGroup:async group=>{const id=cleanDocId(group?.id||'');if(!id)throw new Error('Invalid group');const profile=await getCurrentStaffProfile();if(!profile?.allowed||!['admin','teacher'].includes(profile.role))throw new Error('Not authorized');await db.collection('groups').doc(id).set({...group,id,updatedAt:serverTime()},{merge:true});return {...group,id};},
       deleteGroup:async id=>{const profile=await getCurrentStaffProfile();if(!profile?.allowed||!['admin','teacher'].includes(profile.role))throw new Error('Not authorized');await db.collection('groups').doc(cleanDocId(id)).delete();},
@@ -527,6 +528,11 @@
       },
       upsertAttendance,getAttendanceForDate,
       getStudentByCode:code=>{if(!calls.getPortalStudent)throw new Error('Secure student portal function is unavailable');return retryTransient(()=>calls.getPortalStudent({code:normalizeCode(code),mode:'student'}),1);},
+      getStudentResources:async code=>{
+        const payload={code:normalizeCode(code)};
+        try{return await retryTransient(()=>sameOriginCallable('/api/resources/student',payload),2);}
+        catch(error){if(!transientFirebaseError(error)||!calls.getStudentResources)throw error;return retryTransient(()=>calls.getStudentResources(payload),1);}
+      },
       getPublicLeaderboard:grade=>calls.getPublicLeaderboard?calls.getPublicLeaderboard({grade:String(grade||'').trim()}):Promise.resolve([]),
       getParentStudent:code=>{if(!calls.getPortalStudent)throw new Error('Secure parent portal function is unavailable');return retryTransient(()=>calls.getPortalStudent({code:normalizeCode(code),mode:'parent'}),1);},
       uploadHomework:async(file,studentCode)=>{const normalized=normalizeCode(studentCode);if(!calls.prepareHomeworkUpload||!calls.registerHomeworkSubmission)throw new Error('Secure homework function is unavailable');const permit=await calls.prepareHomeworkUpload({studentCode:normalized,fileName:file.name,size:file.size,contentType:file.type});const uploaded=await upload(file,`homework/${cleanDocId(normalized)}/${permit.uploadId}`,permit.safeName,true);await calls.registerHomeworkSubmission({studentCode:normalized,uploadId:permit.uploadId,...uploaded,fileName:file.name});return uploaded;},

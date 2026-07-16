@@ -3,13 +3,61 @@
   function applyV55Admin(){
   if(typeof adminSections==='undefined')return;
 
-  const paymentRows=()=>{
-    const query=normalizeText(document.getElementById('paymentSearch')?.value||'');
-    const grade=document.getElementById('paymentGrade')?.value||'all';
-    return (adminData.students||[]).map(normalizeStudent).filter(st=>(grade==='all'||st.grade===grade)&&(!query||normalizeText(`${st.name} ${st.studentCode} ${st.parentPhone}`).includes(query)));
+  const paymentActionPending=new Set();
+  const paymentPrices=()=>adminData.settings?.coursePrices&&typeof adminData.settings.coursePrices==='object'?adminData.settings.coursePrices:{};
+  const paymentNumber=value=>{const number=Number(value);return Number.isFinite(number)&&number>=0?number:0;};
+  const paymentMoney=value=>`${new Intl.NumberFormat('ar-EG',{maximumFractionDigits:2}).format(paymentNumber(value))} ج.م`;
+  const downloadPaymentCSV=(filename,headers,rows)=>{const cell=value=>`"${String(value??'').replace(/"/g,'""')}"`,csv='\ufeff'+[headers,...rows].map(row=>row.map(cell).join(',')).join('\n'),url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download=filename;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+  const coursePriceFor=student=>paymentNumber(paymentPrices()[String(student?.grade||'')]);
+  const paidAmountFor=student=>{
+    const saved=paymentNumber(student?.paymentAmount);
+    return saved>0?saved:coursePriceFor(student);
   };
-  window.refreshPaymentRows=function(){const box=document.getElementById('paymentRows');if(!box)return;const rows=paymentRows();box.innerHTML=rows.map(st=>`<article class="payment-student-row ${st.paid?'is-paid':'is-unpaid'}"><span class="student-avatar">${safe(String(st.name||'ط').charAt(0))}</span><div><b>${safe(st.name)}</b><small>${safe(st.studentCode)} · ${safe(st.grade||'-')} · ${safe(st.group||'-')} · ${safe(st.month||'-')}</small></div><span class="badge ${st.paid?'good':'warn'}">${st.paid?'تم الدفع':'لم يدفع'}</span><div class="payment-actions"><button class="small-btn primary" onclick="setPaid('${safe(st.studentCode)}',true)">تم الدفع</button><button class="small-btn danger" onclick="setPaid('${safe(st.studentCode)}',false)">لم يدفع</button></div></article>`).join('')||'<p class="section-desc">لا يوجد طلاب مطابقون للبحث.</p>';};
-  renderPayments=function(){fresh();const students=(adminData.students||[]).map(normalizeStudent),paid=students.filter(st=>st.paid).length;content(`<div class="section-head compact-admin-head"><div><span class="kicker"><span data-icon="database"></span> الدفع</span><h2 class="section-title">متابعة دفع الطلاب</h2><p class="section-desc">سجّل حالة الطالب بضغطة واحدة.</p></div><button class="btn ghost" onclick="exportCenterSubscriptionsCSV()">تصدير CSV</button></div><div class="payment-kpis"><article><b>${students.length}</b><small>كل الطلاب</small></article><article class="paid"><b>${paid}</b><small>تم الدفع</small></article><article class="unpaid"><b>${students.length-paid}</b><small>لم يدفع</small></article></div><div class="card payment-panel"><div class="payment-toolbar"><input id="paymentSearch" placeholder="بحث بالاسم أو الكود" oninput="refreshPaymentRows()"><select id="paymentGrade" onchange="refreshPaymentRows()"><option value="all">كل المسارات</option>${GRADES.map(g=>`<option>${safe(g)}</option>`).join('')}</select></div><div id="paymentRows" class="payment-student-list"></div></div>`);refreshPaymentRows();};
+  const paymentFilters=()=>({
+    query:normalizeText(document.getElementById('paymentSearch')?.value||''),
+    grade:document.getElementById('paymentGrade')?.value||'all',
+    month:document.getElementById('paymentMonth')?.value||'all'
+  });
+  const paymentRows=(includeSearch=true)=>{
+    const {query,grade,month}=paymentFilters();
+    return (adminData.students||[]).map(normalizeStudent).filter(st=>st.active!==false&&(grade==='all'||st.grade===grade)&&(month==='all'||st.month===month)&&(!includeSearch||!query||normalizeText(`${st.name} ${st.studentCode} ${st.parentPhone}`).includes(query)));
+  };
+  const paymentSummary=()=>{
+    const rows=paymentRows(false),paidRows=rows.filter(student=>student.paid),expected=rows.reduce((total,student)=>total+coursePriceFor(student),0),collected=paidRows.reduce((total,student)=>total+paidAmountFor(student),0);
+    return {students:rows.length,paid:paidRows.length,unpaid:rows.length-paidRows.length,expected,collected,remaining:Math.max(0,expected-collected)};
+  };
+  window.refreshPaymentDashboard=function(){
+    const summary=paymentSummary();
+    const values={paymentStudentCount:summary.students,paymentPaidCount:summary.paid,paymentUnpaidCount:summary.unpaid,paymentCollected:paymentMoney(summary.collected),paymentExpected:paymentMoney(summary.expected),paymentRemaining:paymentMoney(summary.remaining)};
+    Object.entries(values).forEach(([id,value])=>{const element=document.getElementById(id);if(element)element.textContent=String(value);});
+  };
+  window.refreshPaymentRows=function(){
+    const box=document.getElementById('paymentRows');if(!box)return;const rows=paymentRows();
+    box.innerHTML=rows.map(st=>{const pending=paymentActionPending.has(st.studentCode),price=coursePriceFor(st),amount=st.paid?paidAmountFor(st):0;return `<article class="payment-student-row ${st.paid?'is-paid':'is-unpaid'} ${pending?'is-saving':''}"><span class="student-avatar">${safe(String(st.name||'ط').charAt(0))}</span><div class="payment-student-info"><b>${safe(st.name)}</b><small>${safe(st.studentCode)} · ${safe(st.grade||'-')} · ${safe(st.group||'-')} · ${safe(st.month||'-')}</small><span>سعر الكورس: <strong>${safe(paymentMoney(price))}</strong>${st.paid?` · المحصّل: <strong>${safe(paymentMoney(amount))}</strong>`:''}</span></div><span class="badge ${st.paid?'good':'warn'}">${pending?'جارٍ الحفظ':st.paid?'تم الدفع':'لم يدفع'}</span><div class="payment-actions"><button class="small-btn primary" type="button" ${pending||st.paid?'disabled':''} onclick="setPaid('${safe(st.studentCode)}',true)">تسجيل الدفع</button><button class="small-btn danger" type="button" ${pending||!st.paid?'disabled':''} onclick="setPaid('${safe(st.studentCode)}',false)">إلغاء الدفع</button></div></article>`;}).join('')||'<div class="empty-state"><h3>لا يوجد طلاب مطابقون</h3><p>غيّر البحث أو الفلاتر ثم حاول مرة أخرى.</p></div>';
+    refreshPaymentDashboard();
+  };
+  window.saveCoursePrices=async function(){
+    const button=document.getElementById('saveCoursePricesButton');if(button?.disabled)return;
+    const previous={...(adminData.settings?.coursePrices||{})},next={};
+    document.querySelectorAll('[data-course-price]').forEach(input=>{next[input.dataset.coursePrice]=paymentNumber(String(input.value||'').replace(/[^0-9.]/g,''));});
+    adminData.settings={...(adminData.settings||{}),coursePrices:next};saveData(adminData);
+    try{if(button)button.disabled=true;if(window.MFCloud?.saveSettings)await window.MFCloud.saveSettings(adminData.settings);else await saveAdminDataNow();aToast('تم حفظ أسعار الصفوف والكورسات');refreshPaymentRows();}
+    catch(error){adminData.settings={...(adminData.settings||{}),coursePrices:previous};saveData(adminData);aToast(adminActionErrorMessage(error,'تعذر حفظ أسعار الكورسات.'));refreshPaymentRows();}
+    finally{if(button)button.disabled=false;}
+  };
+  window.setPaid=async function(code,value){
+    const student=adminData.students.find(item=>stCode(item)===code);if(!student)return aToast('الطالب غير موجود');if(paymentActionPending.has(code))return;
+    const hadAmount=Object.prototype.hasOwnProperty.call(student,'paymentAmount'),previous={paid:student.paid,paymentDate:student.paymentDate,paymentAmount:student.paymentAmount,paymentCourse:student.paymentCourse};
+    student.paid=value;student.paymentDate=value?isoDateAdmin():'';student.paymentAmount=value?coursePriceFor(student):0;student.paymentCourse=value?student.grade:'';paymentActionPending.add(code);saveData(adminData);refreshPaymentRows();
+    try{if(!window.MFCloud?.saveStudent)throw new Error('Student service unavailable');await window.MFCloud.saveStudent(student);aToast(value?`تم تسجيل ${paymentMoney(student.paymentAmount)} للطالب`:'تم إلغاء حالة الدفع');}
+    catch(error){student.paid=previous.paid;student.paymentDate=previous.paymentDate;student.paymentCourse=previous.paymentCourse;if(hadAmount)student.paymentAmount=previous.paymentAmount;else delete student.paymentAmount;saveData(adminData);aToast(adminActionErrorMessage(error,'تعذر تحديث حالة الدفع.'));}
+    finally{paymentActionPending.delete(code);refreshPaymentRows();}
+  };
+  window.exportCenterSubscriptionsCSV=function(){const rows=(adminData.students||[]).map(normalizeStudent).map(student=>[student.studentCode,student.name,student.grade,student.group,student.month,coursePriceFor(student),student.paid?'تم الدفع':'لم يدفع',student.paid?paidAmountFor(student):0,student.paymentDate||'']);downloadPaymentCSV('techno-minds-payments.csv',['كود الطالب','الاسم','المسار','المجموعة','الشهر','سعر الكورس','الحالة','المبلغ المحصل','تاريخ الدفع'],rows);};
+  renderPayments=function(){
+    fresh();const prices=paymentPrices();
+    content(`<div class="section-head compact-admin-head"><div><span class="kicker"><span data-icon="database"></span> المدفوعات</span><h2 class="section-title">الخزنة ومتابعة دفع الطلاب</h2><p class="section-desc">حدد سعر كل صف مرة واحدة، وكل طالب تسجله «دفع» يُضاف سعر كورسه تلقائيًا للإجمالي.</p></div><button class="btn ghost" type="button" onclick="exportCenterSubscriptionsCSV()"><span data-icon="download"></span> تصدير CSV</button></div><div class="payment-financial-kpis"><article class="collected"><small>المبلغ الموجود معك</small><b id="paymentCollected">0 ج.م</b><span id="paymentPaidCount">0</span> طالب دفع</article><article><small>الإجمالي المتوقع</small><b id="paymentExpected">0 ج.م</b><span id="paymentStudentCount">0</span> طالب</article><article class="remaining"><small>المبلغ المتبقي</small><b id="paymentRemaining">0 ج.م</b><span id="paymentUnpaidCount">0</span> طالب لم يدفع</article></div><details class="card course-price-editor"><summary><span><b>أسعار الصفوف والكورسات</b><small>اضغط لتحديد أو تعديل سعر كل مسار</small></span><span data-icon="settings"></span></summary><div class="course-price-grid">${GRADES.map(grade=>`<label><span>${safe(grade)}</span><div><input type="number" min="0" step="1" inputmode="numeric" data-digits-only data-course-price="${safe(grade)}" value="${safe(paymentNumber(prices[grade]))}" aria-label="سعر ${safe(grade)}"><small>جنيه</small></div></label>`).join('')}</div><button class="btn primary" id="saveCoursePricesButton" type="button" onclick="saveCoursePrices()"><span data-icon="save"></span> حفظ الأسعار</button></details><div class="card payment-panel"><div class="payment-toolbar"><input id="paymentSearch" type="search" placeholder="بحث بالاسم أو الكود" oninput="refreshPaymentRows()"><select id="paymentGrade" onchange="refreshPaymentRows()"><option value="all">كل المسارات</option>${GRADES.map(grade=>`<option>${safe(grade)}</option>`).join('')}</select><select id="paymentMonth" onchange="refreshPaymentRows()"><option value="all">كل الشهور</option>${MONTHS.map(month=>`<option>${safe(month)}</option>`).join('')}</select></div><p class="payment-filter-note">الأرقام بالأعلى تتحدث فورًا حسب المسار والشهر المحددين.</p><div id="paymentRows" class="payment-student-list"></div></div>`);refreshPaymentRows();hydrateIcons();
+  };
 
   renderReviewsAdmin=function(){fresh();const rows=(adminData.reviews||[]).slice().reverse(),pending=rows.filter(row=>row.approved===false).length;content(`<div class="section-head compact-admin-head"><div><span class="kicker"><span data-icon="star"></span> التقييمات</span><h2 class="section-title">تقييمات الطلاب</h2><p class="section-desc">راجع التقييم وانشره أو احذفه بسرعة.</p></div><span class="badge ${pending?'warn':'good'}">${pending} بانتظار المراجعة</span></div><div class="review-admin-list">${rows.map(row=>`<article class="card review-admin-item"><div class="review-admin-top"><div><b>${safe(row.name)}</b><small>${safe(row.role||'طالب')}</small></div><div class="review-stars">${'★'.repeat(Math.max(1,Math.min(5,Number(row.rating||5))))}</div></div><p>${safe(row.text||'')}</p><div class="review-admin-actions"><span class="badge ${row.approved!==false?'good':'warn'}">${row.approved!==false?'منشور':'ينتظر النشر'}</span>${row.approved===false?`<button class="small-btn primary" onclick="approveReview('${safe(row.id)}')">نشر</button>`:''}<button class="small-btn danger" onclick="deleteItem('reviews','${safe(row.id)}')">حذف</button></div></article>`).join('')||'<div class="card"><p class="section-desc">لا توجد تقييمات بعد.</p></div>'}</div>`);};
 

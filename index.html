@@ -15,10 +15,10 @@
 <link href="assets/technominds-logo.png" rel="icon" type="image/png"/>
 <link href="assets/technominds-logo.png" rel="apple-touch-icon"/>
 <link href="site.webmanifest" rel="manifest"/>
-<link href="assets/site.css?v=60.3.1" rel="stylesheet"/>
-<link href="assets/v55.css?v=60.3.1" rel="stylesheet"/>
-<link href="assets/v56.css?v=60.3.1" rel="stylesheet"/>
-<link href="assets/v60-technominds.css?v=60.3.1" rel="stylesheet"/>
+<link href="assets/site.css?v=60.5.0" rel="stylesheet"/>
+<link href="assets/v55.css?v=60.5.0" rel="stylesheet"/>
+<link href="assets/v56.css?v=60.5.0" rel="stylesheet"/>
+<link href="assets/v60-technominds.css?v=60.5.0" rel="stylesheet"/>
 </head>
 <body id="top">
 <header class="site-header">
@@ -35,7 +35,7 @@
 <a href="index.html#booking">الحجز</a>
 <a href="parent.html">ولي الأمر</a>
 <a href="student.html">بوابة الطالب</a>
-<a href="materials.html">التدريبات والأسئلة</a>
+<a href="materials.html">المحاضرات</a><a href="questions.html">الأسئلة</a>
 <a href="exams.html">الاختبارات</a>
 </nav>
 <div class="header-actions">
@@ -85,8 +85,8 @@
 <div class="booking-steps" aria-label="خطوات الحجز"><span class="active" data-booking-indicator="1"><b>1</b><small>بيانات الطالب</small></span><i></i><span data-booking-indicator="2"><b>2</b><small>المجموعة والموعد</small></span><i></i><span data-booking-indicator="3"><b>3</b><small>استلام الكود</small></span></div>
 <div class="booking-step active" data-booking-step="1">
 <div class="field"><label>اسم الطالب</label><input name="name" placeholder="اكتب اسم الطالب" required=""/></div>
-<div class="field"><label>رقم الطالب</label><input name="studentPhone" placeholder="مثال: 010xxxxxxxx" inputmode="tel" required=""/></div>
-<div class="field"><label>رقم ولي الأمر</label><input name="parentPhone" placeholder="اكتب الرقم بالعربي أو الإنجليزي" inputmode="tel" required=""/><small class="field-hint">ينفع نفس رقم الطالب، وينفع تكرار نفس رقم ولي الأمر لأكثر من ابن.</small></div>
+<div class="field"><label>رقم الطالب</label><input name="studentPhone" placeholder="مثال: 010xxxxxxxx" inputmode="tel" data-digits-only required=""/></div>
+<div class="field"><label>رقم ولي الأمر</label><input name="parentPhone" placeholder="اكتب الرقم بالعربي أو الإنجليزي" inputmode="tel" data-digits-only required=""/><small class="field-hint">ينفع نفس رقم الطالب، وينفع تكرار نفس رقم ولي الأمر لأكثر من ابن.</small></div>
 <button class="btn primary booking-next" type="button" data-booking-next><span data-icon="external-link"></span> التالي: اختار الموعد</button>
 </div>
 <div class="booking-step" data-booking-step="2">
@@ -180,10 +180,10 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-functions-compat.js"></script>
-<script defer src="assets/firebase-config.js?v=60.3.1"></script>
-<script defer src="assets/firebase-sync.js?v=60.3.1"></script>
-<script defer src="assets/app.js?v=60.3.1"></script>
-<script defer src="assets/v53-upgrades.js?v=60.3.1"></script>
-<script defer src="assets/v56-fixes.js?v=60.3.1"></script>
+<script defer src="assets/firebase-config.js?v=60.5.0"></script>
+<script defer src="assets/firebase-sync.js?v=60.5.0"></script>
+<script defer src="assets/app.js?v=60.5.0"></script>
+<script defer src="assets/v53-upgrades.js?v=60.5.0"></script>
+<script defer src="assets/v56-fixes.js?v=60.5.0"></script>
 </body>
 </html>

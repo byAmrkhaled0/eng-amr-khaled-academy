@@ -14,6 +14,10 @@
       "destination": "https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/createBooking"
     },
     {
+      "source": "/api/resources/student",
+      "destination": "https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/getStudentResources"
+    },
+    {
       "source": "/api/code/getCodeLanguages",
       "destination": "https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/getCodeLanguages"
     },

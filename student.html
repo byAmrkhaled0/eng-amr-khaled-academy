@@ -13,12 +13,12 @@
 <link href="assets/technominds-logo.png" rel="icon" type="image/png"/>
 <link href="assets/technominds-logo.png" rel="apple-touch-icon"/>
 <link href="site.webmanifest" rel="manifest"/>
-<link href="assets/site.css?v=60.3.1" rel="stylesheet"/>
-<link href="assets/v55.css?v=60.3.1" rel="stylesheet"/>
-<link href="assets/v56.css?v=60.3.1" rel="stylesheet"/>
+<link href="assets/site.css?v=60.5.0" rel="stylesheet"/>
+<link href="assets/v55.css?v=60.5.0" rel="stylesheet"/>
+<link href="assets/v56.css?v=60.5.0" rel="stylesheet"/>
 <title>بوابة الطالب | م. عمرو خالد</title>
 <meta content="بوابة الطالب الخاصة بم. عمرو خالد للبرمجة لعرض الملف الدراسي بكود الطالب فقط." name="description"/>
-<link href="assets/v60-technominds.css?v=60.3.1" rel="stylesheet"/>
+<link href="assets/v60-technominds.css?v=60.5.0" rel="stylesheet"/>
 </head>
 <body id="top">
 <header class="site-header">
@@ -31,7 +31,7 @@
 <a href="index.html#booking">الحجز</a>
 <a href="parent.html">ولي الأمر</a>
 <a href="student.html">بوابة الطالب</a>
-<a href="materials.html">التدريبات والأسئلة</a>
+<a href="materials.html">المحاضرات</a><a href="questions.html">الأسئلة</a>
 <a href="exams.html">الاختبارات</a>
 </nav>
 <div class="header-actions"><button aria-label="تغيير الوضع" class="theme-toggle" id="themeToggle"></button></div>
@@ -46,7 +46,7 @@
 <p>اكتب كود الطالب أو امسح QR لعرض بياناتك بشكل منظم: الحضور، التطبيق العملي، الدرجات، الواجبات، حالة الدفع، وجدول المجموعة.</p>
 </div>
 <form class="card parent-search-v29 student-search-v32" id="studentSearchForm">
-<div class="field portal-code-field"><label for="studentQuery">كود الطالب</label><div class="code-input-wrap"><span data-icon="user"></span><input id="studentQuery" name="query" placeholder="اكتب كود الطالب كما يظهر في لوحة الإدارة" inputmode="text" maxlength="40" autocomplete="off" spellcheck="false" enterkeyhint="go" required=""/></div><small>يقبل الكود الموحّد الجديد والأكواد القديمة. لا يتم حفظه على الجهاز.</small></div>
+<div class="field portal-code-field"><label for="studentQuery">كود الطالب</label><div class="code-input-wrap"><span data-icon="user"></span><input id="studentQuery" name="query" placeholder="اكتب كود الطالب الرقمي" inputmode="numeric" data-digits-only maxlength="12" autocomplete="off" spellcheck="false" enterkeyhint="go" required=""/></div><small>اكتب أرقام الكود فقط كما تظهر في لوحة الإدارة.</small></div>
 <div class="student-search-actions-v29">
 <button class="btn primary" type="submit"><span data-icon="search"></span> عرض الملف</button>
 <button class="btn ghost" onclick="startStudentScanner()" type="button"><span data-icon="qr"></span> مسح QR</button>
@@ -92,10 +92,10 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-functions-compat.js"></script>
-<script defer src="assets/firebase-config.js?v=60.3.1"></script>
-<script defer src="assets/firebase-sync.js?v=60.3.1"></script>
-<script defer src="assets/app.js?v=60.3.1"></script>
-<script defer src="assets/v53-upgrades.js?v=60.3.1"></script>
-<script defer src="assets/v56-fixes.js?v=60.3.1"></script>
+<script defer src="assets/firebase-config.js?v=60.5.0"></script>
+<script defer src="assets/firebase-sync.js?v=60.5.0"></script>
+<script defer src="assets/app.js?v=60.5.0"></script>
+<script defer src="assets/v53-upgrades.js?v=60.5.0"></script>
+<script defer src="assets/v56-fixes.js?v=60.5.0"></script>
 </body>
 </html>

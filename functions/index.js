@@ -411,6 +411,53 @@ exports.getPortalStudent = onCall(CALLABLE_OPTIONS, async request => {
   return portalResponse(found.data, attempts, records);
 });
 
+function studentResourcePayload(doc, kind) {
+  const data = doc.data() || {};
+  const fileUrl = safePublicUrl(data.fileUrl || data.url);
+  return {
+    id: text(data.id || doc.id, 120),
+    kind,
+    title: text(data.title, 200),
+    desc: text(data.desc || data.description, 1200),
+    content: text(data.content, 4000),
+    answer: kind === 'question' ? text(data.answer, 4000) : '',
+    grade: text(data.grade, 80),
+    unit: text(data.unit, 120),
+    lecture: text(data.lecture, 120),
+    fileUrl,
+    fileName: text(data.fileName, 220),
+    fileType: text(data.fileType || data.type, 100)
+  };
+}
+
+exports.getStudentResources = onCall(CALLABLE_OPTIONS, async request => {
+  const code = normalizeCode(request.data && request.data.code);
+  await rateLimitPublic('student-resources', code, request, 15, 60, 60 * 1000);
+  const found = await getStudentPortalByCode(code);
+  const studentCode = normalizeCode(found.data.studentCode || found.data.code || code);
+  const grade = text(found.data.grade, 80);
+  if (!grade) throw new HttpsError('failed-precondition', 'مسار الطالب غير محدد. تواصل مع الإدارة لتحديد المسار أولًا.');
+  const allowedGrades = [...new Set([grade, 'كل المسارات'])];
+  const [materialsSnap, questionsSnap] = await Promise.all([
+    db.collection('materials').where('grade', 'in', allowedGrades).limit(250).get(),
+    db.collection('questions').where('grade', 'in', allowedGrades).limit(250).get()
+  ]);
+  const visible = doc => {
+    const data = doc.data() || {};
+    return data.active !== false && data.published !== false && data.status !== 'مسودة';
+  };
+  return {
+    student: {
+      studentCode,
+      name: text(found.data.studentName || found.data.name, 100),
+      grade,
+      group: text(found.data.group, 100)
+    },
+    materials: materialsSnap.docs.filter(visible).map(doc => studentResourcePayload(doc, 'material')),
+    questions: questionsSnap.docs.filter(visible).map(doc => studentResourcePayload(doc, 'question'))
+  };
+});
+
 const leaderboardStateRef = db.collection('_system').doc('leaderboard');
 let leaderboardCache = { expiresAt: 0, version: -1, rows: [] };
 
@@ -1484,13 +1531,14 @@ exports.getPlatformHealth = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 15 }, 
   ]);
   return {
     status: 'ok',
-    version: '60.3.1',
+    version: '60.5.0',
     firestore: true,
     services: {
       booking: true,
       studentPortal: true,
       administration: true,
-      codeRunner: true
+      codeRunner: true,
+      studentResources: true
     }
   };
 });

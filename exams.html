@@ -13,12 +13,12 @@
 <link href="assets/technominds-logo.png" rel="icon" type="image/png"/>
 <link href="assets/technominds-logo.png" rel="apple-touch-icon"/>
 <link href="site.webmanifest" rel="manifest"/>
-<link href="assets/site.css?v=60.3.1" rel="stylesheet"/>
-<link href="assets/v55.css?v=60.3.1" rel="stylesheet"/>
-<link href="assets/v56.css?v=60.3.1" rel="stylesheet"/>
+<link href="assets/site.css?v=60.5.0" rel="stylesheet"/>
+<link href="assets/v55.css?v=60.5.0" rel="stylesheet"/>
+<link href="assets/v56.css?v=60.5.0" rel="stylesheet"/>
 <title>الاختبارات الشهرية | م. عمرو خالد</title>
 <meta content="اختبارات شهرية بوقت وعدّاد ودرجات تظهر للطالب بالكود." name="description"/>
-<link href="assets/v60-technominds.css?v=60.3.1" rel="stylesheet"/>
+<link href="assets/v60-technominds.css?v=60.5.0" rel="stylesheet"/>
 </head>
 <body id="top">
 <header class="site-header">
@@ -31,7 +31,7 @@
 <a href="index.html#booking">الحجز</a>
 <a href="parent.html">ولي الأمر</a>
 <a href="student.html">بوابة الطالب</a>
-<a href="materials.html">التدريبات والأسئلة</a>
+<a href="materials.html">المحاضرات</a><a href="questions.html">الأسئلة</a>
 <a href="exams.html">الاختبارات</a>
 </nav>
 <div class="header-actions"><button aria-label="تغيير الوضع" class="theme-toggle" id="themeToggle"></button></div>
@@ -48,7 +48,7 @@
 <section class="section tight">
 <div class="container portal-shell">
 <form class="card" id="examCodeForm">
-<div class="field portal-code-field"><label for="examStudentCode">كود الطالب</label><div class="code-input-wrap"><span data-icon="user"></span><input id="examStudentCode" name="query" placeholder="اكتب كود الطالب كما يظهر في لوحة الإدارة" inputmode="text" maxlength="40" autocomplete="off" spellcheck="false" enterkeyhint="go" required=""/></div><small>يقبل الكود الموحّد الجديد والأكواد القديمة لعرض اختبارات المسار.</small></div><label class="remember-code"><input type="checkbox" name="rememberCode"/> <span>حفظ الكود على هذا الجهاز</span></label>
+<div class="field portal-code-field"><label for="examStudentCode">كود الطالب</label><div class="code-input-wrap"><span data-icon="user"></span><input id="examStudentCode" name="query" placeholder="اكتب كود الطالب الرقمي" inputmode="numeric" data-digits-only maxlength="12" autocomplete="off" spellcheck="false" enterkeyhint="go" required=""/></div><small>اكتب أرقام الكود فقط لعرض اختبارات المسار.</small></div><label class="remember-code"><input type="checkbox" name="rememberCode"/> <span>حفظ الكود على هذا الجهاز</span></label>
 <button class="btn primary portal-submit-btn" style="margin-top:14px"><span data-icon="search"></span> عرض اختباراتي</button>
 </form>
 <div class="card result-box" id="examStudentResult" aria-live="polite"><div class="portal-empty"><span class="iconbox" data-icon="clipboard"></span><h3>اختباراتك في انتظارك</h3><p>اكتب كود الطالب بالأعلى لعرض الاختبارات المتاحة والنتائج.</p></div></div>
@@ -80,10 +80,10 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-functions-compat.js"></script>
-<script defer src="assets/firebase-config.js?v=60.3.1"></script>
-<script defer src="assets/firebase-sync.js?v=60.3.1"></script>
-<script defer src="assets/app.js?v=60.3.1"></script>
-<script defer src="assets/v53-upgrades.js?v=60.3.1"></script>
-<script defer src="assets/v56-fixes.js?v=60.3.1"></script>
+<script defer src="assets/firebase-config.js?v=60.5.0"></script>
+<script defer src="assets/firebase-sync.js?v=60.5.0"></script>
+<script defer src="assets/app.js?v=60.5.0"></script>
+<script defer src="assets/v53-upgrades.js?v=60.5.0"></script>
+<script defer src="assets/v56-fixes.js?v=60.5.0"></script>
 </body>
 </html>

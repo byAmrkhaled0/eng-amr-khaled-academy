@@ -51,10 +51,9 @@
   }
 
   function installAdminDrawerActions(){
-    const sidebar=document.getElementById('adminSidebar'),footer=sidebar?.querySelector('.admin-sidebar-footer');
-    if(!sidebar||!footer||footer.querySelector('.v56-admin-drawer-actions'))return;
-    footer.insertAdjacentHTML('afterbegin','<div class="v56-admin-drawer-actions"><button type="button" onclick="enableBookingNotifications()"><span data-icon="calendar"></span> تنبيهات الحجز</button><button type="button" onclick="forceFirestoreSync()"><span data-icon="refresh-cw"></span> حفظ التغييرات</button><button type="button" class="danger" onclick="adminLogout()"><span data-icon="external-link"></span> تسجيل الخروج</button></div>');
-    if(typeof hydrateIcons==='function')hydrateIcons();
+    // V60.5 restores these actions to the dedicated administration header.
+    // Remove a cached legacy drawer block instead of creating duplicate buttons.
+    document.querySelector('.v56-admin-drawer-actions')?.remove();
   }
 
   let adminStudentRows=[];
@@ -163,7 +162,7 @@
     installCleanScrollTop();
     installPublicMobileMenu();
     setTimeout(()=>{applyAdminStudentList();installStudentPageEnhancement();installAdminDrawerActions();},30);
-    const adminMenuObserver=new MutationObserver(()=>{removeLegacyMobileBars();installAdminDrawerActions();if(document.querySelector('.v56-admin-drawer-actions'))adminMenuObserver.disconnect();});
+    const adminMenuObserver=new MutationObserver(()=>{removeLegacyMobileBars();installAdminDrawerActions();if(document.querySelector('.admin-command-header'))adminMenuObserver.disconnect();});
     adminMenuObserver.observe(document.body,{childList:true,subtree:true});
     document.addEventListener('click',closeOpenMenus);
   });

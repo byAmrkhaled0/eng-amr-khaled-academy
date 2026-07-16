@@ -13,14 +13,14 @@
 <link href="assets/technominds-logo.png" rel="icon" type="image/png"/>
 <link href="assets/technominds-logo.png" rel="apple-touch-icon"/>
 <link href="site.webmanifest" rel="manifest"/>
-<link href="assets/site.css?v=60.3.1" rel="stylesheet"/>
-<link href="assets/v55.css?v=60.3.1" rel="stylesheet"/>
-<link href="assets/v56.css?v=60.3.1" rel="stylesheet"/>
-<title>التدريبات والتحديات البرمجية | م. عمرو خالد</title>
-<meta content="تدريبات برمجة وبنك أسئلة في صفحة واحدة حسب المسار والوحدة، مع ملفات PDF وصور وإجابات نموذجية." name="description"/>
-<link href="assets/v60-technominds.css?v=60.3.1" rel="stylesheet"/>
+<link href="assets/site.css?v=60.5.0" rel="stylesheet"/>
+<link href="assets/v55.css?v=60.5.0" rel="stylesheet"/>
+<link href="assets/v56.css?v=60.5.0" rel="stylesheet"/>
+<title>محاضرات مسار الطالب | Techno Minds</title>
+<meta content="محاضرات وملفات مراجعة خاصة بمسار الطالب، تظهر بأمان بعد إدخال كود الطالب." name="description"/>
+<link href="assets/v60-technominds.css?v=60.5.0" rel="stylesheet"/>
 </head>
-<body id="top">
+<body id="top" data-resource-mode="materials">
 <header class="site-header">
 <div class="container navbar">
 <a aria-label="م. عمرو خالد" class="logo" href="index.html"><span class="logo-mark" data-icon="atom"></span><span>Techno Minds <small>Programming &amp; AI</small></span></a>
@@ -31,39 +31,29 @@
 <a href="index.html#booking">الحجز</a>
 <a href="parent.html">ولي الأمر</a>
 <a href="student.html">بوابة الطالب</a>
-<a href="materials.html">التدريبات والأسئلة</a>
+<a href="materials.html">المحاضرات</a><a href="questions.html">الأسئلة</a>
 <a href="exams.html">الاختبارات</a>
 </nav>
 <div class="header-actions"><button aria-label="تغيير الوضع" class="theme-toggle" id="themeToggle"></button></div>
 </div>
 </header>
 <main>
-<section class="page-hero resources-hero-v31">
-<div class="container resources-hero-grid-v31">
-<div>
-<span class="kicker"><span data-icon="book-open"></span> التدريبات والتحديات البرمجية</span>
-<h1 class="hero-title">تدريبات وأسئلة البرمجة في صفحة واحدة</h1>
-<p class="hero-sub">صفحة واحدة منظمة للملفات، الملخصات، الأسئلة، والإجابات النموذجية حسب المسار التعليمي.</p>
-<div id="materialsFilters" class="resources-filter-v31"></div>
-<div id="questionsFilters" style="display:none"></div>
-</div>
-<div class="resources-quick-card-v31">
-<span class="iconbox" data-icon="help-circle"></span>
-<h3>اختار المسار وشوف كل المحتوى</h3>
-<p>التدريبات والأسئلة بتتفلتر مع بعض عشان الطالب يراجع ويحَل في نفس المكان بدون تنقل كتير.</p>
-</div>
+<section class="page-hero student-resources-hero">
+<div class="container student-resource-access-grid">
+<div><span class="kicker"><span data-icon="book-open"></span> محاضرات Techno Minds</span><h1 class="hero-title">محاضرات وملفات <span>مسارك فقط</span></h1><p class="hero-sub">اكتب كود الطالب، وهتظهر لك المحاضرات والملخصات الخاصة بالمسار المسجل عليه مباشرة.</p></div>
+<form class="card student-resource-code-card" id="studentResourceCodeForm">
+<span class="iconbox" data-icon="user-check"></span><h2>دخول الطالب</h2><p>استخدم نفس الكود الموجود في بوابة الطالب.</p>
+<label class="field"><span>كود الطالب</span><input name="query" inputmode="numeric" data-digits-only autocomplete="one-time-code" placeholder="اكتب الكود الموحّد" required></label>
+<label class="option-card compact-option"><input type="checkbox" name="rememberCode" checked> حفظ الكود على هذا الجهاز</label>
+<button class="btn primary full-width" type="submit"><span data-icon="book-open"></span> فتح محاضرات مساري</button>
+<div class="resource-access-message" id="resourceAccessMessage" role="status" aria-live="polite">اكتب كود الطالب لفتح محتوى مساره.</div>
+</form>
 </div>
 </section>
-<section class="section tight resources-combined-v31">
+<section class="section tight student-track-content">
 <div class="container">
-<div class="resource-section-head-v31">
-<div><span class="kicker"><span data-icon="book-open"></span> التدريبات والملخصات</span><h2>ملفات شرح ومراجعة</h2></div>
-</div>
-<div class="grid grid-3 resources-grid-v31" id="materialsPageGrid"></div>
-<div class="resource-section-head-v31 questions-head-v31">
-<div><span class="kicker"><span data-icon="help-circle"></span> التحديات البرمجية</span><h2>أسئلة تدريبية بإجابات نموذجية</h2></div>
-</div>
-<div class="grid grid-3 resources-grid-v31" id="questionsPageGrid"></div>
+<div class="student-resource-summary" id="resourceStudentSummary" hidden></div>
+<div id="studentResourcesContent" hidden><div class="resource-section-head-v31"><div><span class="kicker"><span data-icon="book-open"></span> محتوى المسار</span><h2>المحاضرات والملخصات</h2><p>كل الملفات المعروضة مرتبطة بالمسار المسجل على كود الطالب.</p></div><a class="btn ghost" href="questions.html" data-resource-cross-link><span data-icon="help-circle"></span> أسئلة المسار</a></div><div class="grid grid-3 resources-grid-v31" id="materialsPageGrid"></div></div>
 </div>
 </section>
 </main>
@@ -91,10 +81,10 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-functions-compat.js"></script>
-<script defer src="assets/firebase-config.js?v=60.3.1"></script>
-<script defer src="assets/firebase-sync.js?v=60.3.1"></script>
-<script defer src="assets/app.js?v=60.3.1"></script>
-<script defer src="assets/v53-upgrades.js?v=60.3.1"></script>
-<script defer src="assets/v56-fixes.js?v=60.3.1"></script>
+<script defer src="assets/firebase-config.js?v=60.5.0"></script>
+<script defer src="assets/firebase-sync.js?v=60.5.0"></script>
+<script defer src="assets/app.js?v=60.5.0"></script>
+<script defer src="assets/v53-upgrades.js?v=60.5.0"></script>
+<script defer src="assets/v56-fixes.js?v=60.5.0"></script>
 </body>
 </html>
