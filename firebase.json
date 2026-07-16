@@ -19,6 +19,30 @@
     ],
     "rewrites": [
       {
+        "source": "/api/health",
+        "function": {
+          "functionId": "getPlatformHealth",
+          "region": "europe-west1",
+          "pinTag": true
+        }
+      },
+      {
+        "source": "/api/code/getCodeLanguages",
+        "function": {
+          "functionId": "getCodeLanguages",
+          "region": "europe-west1",
+          "pinTag": true
+        }
+      },
+      {
+        "source": "/api/code/submitCodeExecution",
+        "function": {
+          "functionId": "submitCodeExecution",
+          "region": "europe-west1",
+          "pinTag": true
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

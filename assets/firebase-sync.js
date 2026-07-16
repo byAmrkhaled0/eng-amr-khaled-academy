@@ -451,6 +451,8 @@
       },
       rejectBooking:async code=>{if(!calls.rejectBooking)throw new Error('Secure booking rejection function is unavailable');return calls.rejectBooking({code:normalizeCode(code)});},
       subscribeToBookings:handler=>db.collection('bookings').orderBy('createdAt','desc').limit(100).onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>console.warn('booking-listener',error)),
+      subscribeToGroups:handler=>db.collection('groups').onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>console.warn('group-listener',error)),
+      subscribeToStudents:handler=>db.collection('students').limit(3000).onSnapshot(snap=>handler(snap.docs.map(doc=>normalizedStudent({id:doc.id,...doc.data()})),snap.docChanges()),error=>console.warn('student-listener',error)),
       registerTeacherPushToken:async()=>{if(!cfg.messagingVapidKey||!firebase.messaging||!calls.registerTeacherPushToken)throw new Error('VAPID_KEY_REQUIRED');const registration=await navigator.serviceWorker.ready;const token=await firebase.messaging().getToken({vapidKey:cfg.messagingVapidKey,serviceWorkerRegistration:registration});if(!token)throw new Error('TOKEN_UNAVAILABLE');return calls.registerTeacherPushToken({token,userAgent:navigator.userAgent});},
       getBookingStatus:async code=>{
         const normalized=normalizeCode(code);

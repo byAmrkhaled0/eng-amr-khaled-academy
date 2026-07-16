@@ -43,7 +43,6 @@ function serve(port) {
   });
   server.listen(port, '127.0.0.1', () => {
     console.log(`موقع م. عمرو خالد يعمل الآن: http://127.0.0.1:${port}`);
-    console.log(`صفحة الخدمات: http://127.0.0.1:${port}/services.html`);
     console.log(`صفحة التدريبات والتحديات البرمجية: http://127.0.0.1:${port}/materials.html`);
     console.log(`صفحة الاختبارات: http://127.0.0.1:${port}/exams.html`);
     console.log(`بوابة الطالب: http://127.0.0.1:${port}/student.html`);

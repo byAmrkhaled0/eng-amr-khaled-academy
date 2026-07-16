@@ -1,7 +1,7 @@
 var DEFAULT_SITE_URL = 'https://eng-amr-khaled-academy.vercel.app';
 var TEACHER_WHATSAPP = '201008454029';
 var ENGINEER_WHATSAPP = '201008454029';
-var GRADES = ['تانية ثانوي بكالوريا','تانية ثانوي عام','مبتدئين برمجة','أساسيات Python','تطبيقات ومراجعة'];
+var GRADES = ['أولى ثانوي برمجة','تانية ثانوي بكالوريا','تانية ثانوي عام','مبتدئين برمجة','أساسيات Python','تطبيقات ومراجعة'];
 var MONTHS = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 var STORAGE_KEY = 'technominds_academy_v60_data';
 var OLD_STORAGE_KEY = 'mf_science_v11_data';
@@ -11,8 +11,9 @@ var LAST_EXAM_CODE_KEY = 'mf_last_exam_code';
 var EXAM_DRAFT_PREFIX = 'mf_exam_draft_v2_';
 var PENDING_BOOKING_REQUEST_KEY = 'mf_pending_booking_request_v1';
 var cloudSaveTimer = null;
-var MF_ASSET_VERSION = '60.2.1';
+var MF_ASSET_VERSION = '60.3.0';
 var mfLazyScriptPromises = Object.create(null);
+var publicScheduleUnsubscribe = null;
 
 function loadLazyScript(key, source, readyCheck){
   if(typeof readyCheck==='function'&&readyCheck())return Promise.resolve(true);
@@ -158,10 +159,21 @@ async function initFirebaseData(){
   // and was a major source of freezes on the teacher page.
   if(isStaffWorkspace())return;
   if(!window.MFCloud?.ready || !window.MFCloud.loadSiteData) return;
+  startPublicScheduleSync();
   try{
     const cloudData = await window.MFCloud.loadSiteData();
     if(cloudData){ appData = mergeData(cloudData); saveData(appData); refreshActiveViews(); }
   }catch(e){ appDataLoadFailed=true; refreshActiveViews(); }
+}
+function startPublicScheduleSync(){
+  if(publicScheduleUnsubscribe||!document.getElementById('bookingGroup')||!window.MFCloud?.subscribeToGroups)return;
+  publicScheduleUnsubscribe=window.MFCloud.subscribeToGroups(rows=>{
+    appData.groups=Array.isArray(rows)?rows:[];
+    saveData(appData);
+    renderBookingScheduleOptions();
+    const live=document.getElementById('bookingSchedulesLive');
+    if(live)live.textContent='المواعيد متصلة بلوحة الإدارة الآن';
+  });
 }
 function refreshActiveViews(){
   const path=(location.pathname.split('/').pop()||'index.html');
@@ -185,7 +197,7 @@ function setupUnifiedHeader(){
     document.body.insertAdjacentElement('afterbegin',header);
   }
   const links=[
-    ['index.html','الرئيسية'],['services.html','الخدمات'],['learning-path.html','المسار التعليمي'],
+    ['index.html','الرئيسية'],['learning-path.html','المسار التعليمي'],
     ['about.html','عن م. عمرو'],['practical.html','العملي'],['index.html#booking','الحجز'],
     ['student.html','بوابة الطالب'],['parent.html','ولي الأمر'],['materials.html','التدريبات'],['exams.html','الاختبارات']
   ];
@@ -228,6 +240,7 @@ function renderBookingScheduleOptions(){
   const submit=document.querySelector('#bookingForm button[type="submit"]');
   const hint=document.getElementById('bookingGroupHint');
   select.disabled=false;
+  select.onchange=()=>{const option=select.selectedOptions[0];if(scheduleIdInput)scheduleIdInput.value=option?.dataset.scheduleId||'';};
   if(!allSchedules.length){
     select.innerHTML='<option value="">سأسجل الآن وأحدد المجموعة لاحقًا</option>';
     if(scheduleIdInput)scheduleIdInput.value='';
@@ -247,7 +260,6 @@ function renderBookingScheduleOptions(){
   const retained=[...select.options].find(option=>option.dataset.scheduleId===currentId);
   if(retained)retained.selected=true;else if(scheduleIdInput)scheduleIdInput.value='';
   if(hint)hint.textContent=`اختيار المجموعة اختياري. يوجد ${allSchedules.length} موعدًا لـ ${grade}${query?` — نتائج البحث ${schedules.length}`:''}.`;
-  select.onchange=()=>{const option=select.selectedOptions[0];if(scheduleIdInput)scheduleIdInput.value=option?.dataset.scheduleId||'';};
 }
 function groupOptions(){return (appData.groups||[]).filter(item=>item&&item.active!==false).map(item=>item.name).filter(Boolean);}
 function classRecordComplete(record){return record?.completed===true||record?.approved===true||/^تم/.test(String(record?.status||''));}

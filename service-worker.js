@@ -1,7 +1,7 @@
-const CACHE_NAME = "technominds-v60-2-1-production";
+const CACHE_NAME = "technominds-v60-3-0-production";
 const APP_SHELL = [
   "/", "/index.html", "/student.html", "/exams.html", "/materials.html",
-  "/services.html", "/learning-path.html", "/about.html", "/practical.html", "/parent.html", "/reviews.html", "/privacy.html",
+  "/learning-path.html", "/about.html", "/practical.html", "/parent.html", "/reviews.html", "/privacy.html",
   "/terms.html", "/offline.html", "/assets/site.css", "/assets/v55.css",
   "/assets/v56.css", "/assets/v60-technominds.css", "/assets/app.js", "/assets/practical.js", "/assets/firebase-sync.js",
   "/assets/firebase-config.js", "/assets/v53-upgrades.js",
@@ -10,32 +10,9 @@ const APP_SHELL = [
   "/assets/amr-khaled-profile.jpeg", "/site.webmanifest"
 ];
 
-// Firebase Messaging shares the same service worker as the PWA, avoiding a
-// second worker with a conflicting root scope.
-try {
-  importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js');
-  importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging-compat.js');
-  firebase.initializeApp({
-    apiKey:'AIzaSyDfV7heZtckswPx0GINff2cWvxG9Lj8vg8',
-    authDomain:'eng-amr-khaled-academy.firebaseapp.com',
-    projectId:'eng-amr-khaled-academy',
-    storageBucket:'eng-amr-khaled-academy.firebasestorage.app',
-    messagingSenderId:'162216637616',
-    appId:'1:162216637616:web:23048188094bba8cdd7775'
-  });
-  firebase.messaging().onBackgroundMessage(payload => {
-    const notification = payload.notification || payload.data || {};
-    self.registration.showNotification(notification.title || 'حجز جديد', {
-      body: notification.body || 'تم تسجيل حجز طالب جديد',
-      icon: '/assets/technominds-logo.png',
-      badge: '/assets/technominds-logo.png',
-      data: { url: '/teacher-login.html?section=bookings' },
-      tag: `booking-${payload.data?.bookingCode || Date.now()}`
-    });
-  });
-} catch (error) {
-  console.warn('Firebase Messaging is unavailable', error);
-}
+// Booking updates are delivered through the authenticated Firestore listener
+// while the admin workspace is open. Keeping the PWA worker dependency-free
+// avoids a blocked third-party import from breaking offline startup on phones.
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();

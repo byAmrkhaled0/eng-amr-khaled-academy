@@ -1,4 +1,4 @@
-# نشر Techno Minds V60.2.1
+# نشر Techno Minds V60.3.0
 
 ## أسهل طريقة على Windows
 
@@ -18,13 +18,15 @@ firebase login
 
 السكربت يختار مشروع `eng-amr-khaled-academy`، يفحص المشروع، يبني الموقع، ينشئ `functions/.env` من القالب الآمن عند الحاجة، ويثبت حزم Functions. بعد نشر Functions يشغّل اختبارًا فعليًا لاتصال Firestore وخدمات الحجز وبوابة الطالب والإدارة، ثم ينفذ برنامج JavaScript تجريبي كاملًا عبر Judge0. بعد نجاح الاختبارات ينشر القواعد والفهارس وStorage وHosting، وإذا كان المجلد مربوطًا بـ GitHub يدفع التغييرات إلى الفرع `main`.
 
+ملفا النشر يضبطان `FUNCTIONS_DISCOVERY_TIMEOUT=120` تلقائيًا لتجنب توقف Firebase بعد 10 ثوانٍ أثناء تحليل 28 دالة على Windows.
+
 ## ربط النسخة بالريبو
 
 لو المجلد المفكوك غير مربوط بـ GitHub، شغّل:
 
 ```powershell
 .\prepare-github-folder.ps1
-cd ..\Techno-Minds-v60.2.1-GitHub
+cd ..\Techno-Minds-v60.3.0-GitHub
 npm run deploy:production
 ```
 

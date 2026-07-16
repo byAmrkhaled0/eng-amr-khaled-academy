@@ -15,6 +15,14 @@ function Invoke-Checked {
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ProjectRoot
 
+# Firebase CLI gives function discovery only 10 seconds by default. This
+# project exports many secure callables, and loading the Firebase SDKs can take
+# longer on Windows (especially while antivirus scans node_modules). Firebase
+# officially supports increasing this value for deployment discovery.
+if (-not $env:FUNCTIONS_DISCOVERY_TIMEOUT) {
+  $env:FUNCTIONS_DISCOVERY_TIMEOUT = "120"
+}
+
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) { throw "Node.js is not installed. Install Node.js 22 LTS first." }
 $nodeMajor = [int]((node --version).TrimStart('v').Split('.')[0])
 if ($nodeMajor -ne 22) { throw "This release requires Node.js 22. Current version: $(node --version)" }
@@ -45,10 +53,17 @@ Invoke-Checked -Executable $NpmExecutable -ArgumentList @("--prefix", "functions
 Invoke-Checked -Executable $NpmExecutable -ArgumentList @("--prefix", "functions", "run", "lint")
 
 Write-Host "5/10 Deploying Firebase Functions..." -ForegroundColor Cyan
+Write-Host "Function discovery timeout: $env:FUNCTIONS_DISCOVERY_TIMEOUT seconds" -ForegroundColor DarkGray
 Invoke-Checked -Executable $FirebaseExecutable -ArgumentList @("deploy", "--only", "functions")
 
-Write-Host "6/10 Testing deployed Firebase, booking, portal, and code services..." -ForegroundColor Cyan
-$HealthUrl = "https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/getPlatformHealth"
+Write-Host "6/10 Deploying Firebase rules and indexes..." -ForegroundColor Cyan
+Invoke-Checked -Executable $FirebaseExecutable -ArgumentList @("deploy", "--only", "firestore:rules,firestore:indexes,storage")
+
+Write-Host "7/10 Deploying Firebase Hosting and same-origin API routes..." -ForegroundColor Cyan
+Invoke-Checked -Executable $FirebaseExecutable -ArgumentList @("deploy", "--only", "hosting")
+
+Write-Host "8/10 Testing deployed Firebase, booking, portal, and code services..." -ForegroundColor Cyan
+$HealthUrl = "https://eng-amr-khaled-academy.web.app/api/health"
 $HealthResponse = Invoke-RestMethod -Method Post -Uri $HealthUrl -ContentType "application/json" -Body '{"data":{}}' -TimeoutSec 45
 if ($HealthResponse.result.status -ne "ok" -or -not $HealthResponse.result.firestore) {
   throw "Firebase health check failed. Functions or Firestore is not connected."
@@ -56,10 +71,10 @@ if ($HealthResponse.result.status -ne "ok" -or -not $HealthResponse.result.fires
 if (-not $HealthResponse.result.services.booking -or -not $HealthResponse.result.services.studentPortal -or -not $HealthResponse.result.services.administration) {
   throw "Booking, student portal, or administration capability check failed."
 }
-$CodeRunnerUrl = "https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/getCodeLanguages"
+$CodeRunnerUrl = "https://eng-amr-khaled-academy.web.app/api/code/getCodeLanguages"
 $CodeRunnerResponse = Invoke-RestMethod -Method Post -Uri $CodeRunnerUrl -ContentType "application/json" -Body '{"data":{}}' -TimeoutSec 45
 if (-not $CodeRunnerResponse.result.languages) { throw "getCodeLanguages deployed but returned an invalid response." }
-$CodeExecutionUrl = "https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/submitCodeExecution"
+$CodeExecutionUrl = "https://eng-amr-khaled-academy.web.app/api/code/submitCodeExecution"
 $CodeExecutionBody = @{
   data = @{
     language = "javascript"
@@ -74,12 +89,6 @@ if ($CodeExecutionResponse.result.stdout -notmatch "TECHNO_MINDS_OK") {
 }
 Write-Host "Firebase, booking, portal, administration, and real code execution are online." -ForegroundColor Green
 
-Write-Host "7/10 Deploying Firebase rules and indexes..." -ForegroundColor Cyan
-Invoke-Checked -Executable $FirebaseExecutable -ArgumentList @("deploy", "--only", "firestore:rules,firestore:indexes,storage")
-
-Write-Host "8/10 Deploying Firebase Hosting..." -ForegroundColor Cyan
-Invoke-Checked -Executable $FirebaseExecutable -ArgumentList @("deploy", "--only", "hosting")
-
 Write-Host "9/10 Checking Git repository..." -ForegroundColor Cyan
 if (-not (Test-Path (Join-Path $ProjectRoot ".git"))) {
   Write-Host "Firebase deployment completed, but this extracted folder is not connected to GitHub." -ForegroundColor Yellow
@@ -93,7 +102,7 @@ $GitExecutable = (Get-Command git).Source
 Invoke-Checked -Executable $GitExecutable -ArgumentList @("add", "-A")
 $changes = git status --porcelain
 if ($changes) {
-  Invoke-Checked -Executable $GitExecutable -ArgumentList @("commit", "-m", "Techno Minds platform V60.2.1")
+  Invoke-Checked -Executable $GitExecutable -ArgumentList @("commit", "-m", "Techno Minds platform V60.3.0")
   Invoke-Checked -Executable $GitExecutable -ArgumentList @("push", "origin", "main")
 } else {
   Write-Host "No Git changes to push." -ForegroundColor Yellow

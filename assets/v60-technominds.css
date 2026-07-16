@@ -60,7 +60,7 @@ body{background:radial-gradient(circle at 7% 6%,rgba(34,211,238,.08),transparent
 }
 @media (prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 
-/* V60.2.1 — original programmer-first visual identity. */
+/* V60.3.0 — original programmer-first visual identity. */
 :root{
   --primary:#246bfd;--primary-2:#00c2ff;--gold:#8b5cf6;--bg:#f4f7ff;--card:#fff;
   --text:#0a1830;--muted:#60708d;--border:#d8e2f3;--tm-neon:#17e7c0;
@@ -96,7 +96,7 @@ body{position:relative;background-image:linear-gradient(rgba(36,107,253,.035) 1p
   body{background-attachment:scroll;padding-bottom:86px}.mobile-bottom{display:grid!important}.teacher-frame{display:block!important;min-height:390px!important}.teacher-photo{height:390px!important;margin-top:8px}.teacher-photo img{object-position:center 60%!important}.floating-card{display:none!important}.teacher-frame:before{top:8px;inset-inline-end:4px}.hero:before{display:none}.hero-grid{display:grid!important}.booking-clean-layout{display:grid!important}.booking-status-grid,.certificate-grid,.about-method-grid,.about-values{grid-template-columns:1fr}.booking-status-console{padding:17px}.path-hero,.about-hero{padding:34px 0 24px}.path-hero h1,.about-hero h1{font-size:clamp(2.15rem,10vw,3.3rem)}.path-hero-grid,.about-hero-grid{gap:25px}.code-window pre{padding:18px;font-size:12px}.path-stage{grid-template-columns:52px 1fr;padding:16px;gap:10px}.path-timeline:before{inset-inline-start:26px}.path-stage>b{width:42px;height:42px}.path-stage ul{display:grid}.lesson-loop{padding:18px}.lesson-loop-grid{grid-template-columns:1fr}.about-photo{max-width:100%}.certificate-card figcaption{display:grid;text-align:center}.certificate-card figcaption span{text-align:center}.admin-action-dialog{padding:22px 16px}.logo-mark{width:48px!important;height:44px!important;min-width:48px!important}.tm-code-toolbar input{display:none}
 }
 
-/* V60.2.1 — unified navigation, clean portrait and mobile-first flows. */
+/* V60.3.0 — unified navigation, clean portrait and mobile-first flows. */
 body:not(.admin-dashboard-active){padding-top:74px}
 .site-header{position:fixed!important;top:0!important;inset-inline:0!important;width:100%!important;margin:0!important;z-index:3500!important}
 .site-header .navbar{display:flex!important;align-items:center!important;gap:12px!important;height:74px!important;min-height:74px!important}
@@ -162,4 +162,39 @@ body:not(.admin-dashboard-active){padding-top:74px}
   .teacher-photo img{object-position:center 58%!important}.booking-form-compact{padding:12px!important;border-radius:19px!important}.booking-steps small{font-size:.54rem!important}.booking-step-actions{position:static!important;background:none!important;padding-top:4px!important}
   .about-social-links{grid-template-columns:1fr}.professional-badges{justify-content:flex-start}.professional-badges>span{flex:1 1 145px}
   .robot-faq-btn{inset-inline-start:12px!important;bottom:12px!important;width:54px!important;height:54px!important;min-width:54px!important;border-radius:17px!important}
+}
+
+/* V60.3 — live schedules, cleaner administration and portrait signature. */
+.teacher-frame{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:11px!important}
+.teacher-photo{width:min(390px,90%)!important;height:auto!important;aspect-ratio:3/4!important}
+.teacher-nameplate{display:block;padding:9px 18px;border:1px solid color-mix(in srgb,var(--primary) 30%,var(--border));border-radius:999px;background:color-mix(in srgb,var(--card) 94%,var(--primary));color:var(--text);box-shadow:0 10px 28px rgba(36,107,253,.13);font:900 clamp(.92rem,2vw,1.08rem)/1.2 Consolas,"Trebuchet MS",sans-serif;letter-spacing:.02em;text-align:center}
+.booking-live-label,.admin-live-state{display:inline-flex;align-items:center;gap:7px;color:#087c66;font-size:.72rem;font-weight:900}
+.booking-live-label{width:max-content;max-width:100%;margin:3px 0 8px;padding:6px 9px;border:1px solid color-mix(in srgb,var(--tm-neon) 45%,var(--border));border-radius:999px;background:color-mix(in srgb,var(--tm-neon) 7%,var(--card))}
+.booking-live-label i,.admin-live-state i{width:8px;height:8px;border-radius:50%;background:var(--tm-neon);box-shadow:0 0 0 4px rgba(23,231,192,.13);animation:tm-live-dot 1.8s ease infinite}
+@keyframes tm-live-dot{50%{box-shadow:0 0 0 8px rgba(23,231,192,0)}}
+
+.admin-page{min-height:100dvh!important}
+.admin-main{padding-top:24px!important}
+.admin-sidebar .admin-brand-logo{display:block!important;width:54px!important;height:54px!important;min-width:54px!important;padding:3px!important;border:1px solid rgba(255,255,255,.18)!important;border-radius:13px!important;background:#030814!important;object-fit:contain!important;box-shadow:0 10px 26px rgba(0,0,0,.24)!important}
+.admin-sidebar-footer{display:grid!important;gap:8px!important;padding-top:14px!important}
+.admin-sidebar-footer .btn{width:100%!important;justify-content:flex-start!important}
+.admin-sidebar-footer .admin-live-state{justify-content:center;padding:8px;color:#8fffe7;border:1px solid rgba(143,255,231,.18);border-radius:10px;background:rgba(0,0,0,.12)}
+.admin-theme-button{min-height:44px!important}
+.admin-theme-button svg{width:20px!important;height:20px!important}
+.admin-mobile-logo{display:block!important;width:42px!important;height:42px!important;min-width:42px!important;padding:2px!important;border-radius:11px!important;background:#030814!important;object-fit:contain!important;border:1px solid rgba(255,255,255,.18)!important;box-shadow:0 8px 20px rgba(0,0,0,.2)!important}
+.admin-section>.section-head:first-child{margin-top:0!important}
+.schedule-simple-list,.booking-admin-list{content-visibility:auto;contain-intrinsic-size:1px 640px}
+
+@media(max-width:980px){
+  .admin-main{padding-top:12px!important}
+  .admin-mobile-header{margin-bottom:12px!important}
+}
+@media(max-width:600px){
+  .teacher-frame{min-height:0!important;padding-block:8px 3px!important}
+  .teacher-photo{width:min(82vw,310px)!important;height:auto!important;aspect-ratio:3/4!important;margin:0 auto!important;border-width:5px!important}
+  .teacher-photo img{object-position:center 52%!important}
+  .teacher-nameplate{font-size:.9rem;padding:8px 15px}
+  .booking-live-label{white-space:normal;border-radius:12px;line-height:1.5}
+  .tm-code-editor textarea{min-height:52vh!important;line-height:1.75!important}
+  .admin-section .section-title{font-size:1.65rem!important}
 }

@@ -1438,7 +1438,10 @@ const CODE_LANGUAGES = Object.freeze([
   { key: 'java', name: 'Java', judge0Id: 62, template: 'class Main {\n  public static void main(String[] args) {\n    System.out.println("Hello, Techno Minds!");\n  }\n}' },
   { key: 'csharp', name: 'C#', judge0Id: 51, template: 'using System;\nclass Program {\n  static void Main() {\n    Console.WriteLine("Hello, Techno Minds!");\n  }\n}' },
   { key: 'go', name: 'Go', judge0Id: 60, template: 'package main\nimport "fmt"\nfunc main() { fmt.Println("Hello, Techno Minds!") }' },
-  { key: 'php', name: 'PHP', judge0Id: 68, template: '<?php\necho "Hello, Techno Minds!\\n";' }
+  { key: 'php', name: 'PHP', judge0Id: 68, template: '<?php\necho "Hello, Techno Minds!\\n";' },
+  { key: 'ruby', name: 'Ruby', judge0Id: 72, template: "puts 'Hello, Techno Minds!'" },
+  { key: 'rust', name: 'Rust', judge0Id: 73, template: 'fn main() {\n  println!("Hello, Techno Minds!");\n}' },
+  { key: 'kotlin', name: 'Kotlin', judge0Id: 78, template: 'fun main() {\n  println("Hello, Techno Minds!")\n}' }
 ]);
 
 function integerEnv(name, fallback, min, max) {
@@ -1481,7 +1484,7 @@ exports.getPlatformHealth = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 15 }, 
   ]);
   return {
     status: 'ok',
-    version: '60.2.1',
+    version: '60.3.0',
     firestore: true,
     services: {
       booking: true,

@@ -121,7 +121,8 @@ for (const name of mfCloudUses) {
 }
 if (!functionsSource.includes('exports.scheduledPlatformBackup = onSchedule')) fail('Scheduled daily backup export is missing');
 if (!functionsSource.includes('exports.notifyStaffOnBookingCreated = onDocumentCreated')) fail('Asynchronous booking notification trigger is missing');
-if (!read('practical.html').includes('id="codeEditor"') || !read('assets/practical.js').includes('submitCodeExecution') || read('practical.html').includes('codeStudentCode') || !functionsSource.includes("rateLimitPublic('code-run-public'")) fail('Public practical code editor is incomplete');
+if (!read('practical.html').includes('id="codeEditor"') || !read('assets/practical.js').includes("publicCallable('submitCodeExecution'") || !read('assets/practical.js').includes("'/api/code'") || read('practical.html').includes('codeStudentCode') || read('practical.html').includes('firebase-functions-compat.js') || !functionsSource.includes("rateLimitPublic('code-run-public'")) fail('Public practical code editor is incomplete or still loads the full Firebase bundle');
+if (!read('firebase.json').includes('/api/code/submitCodeExecution') || !read('vercel.json').includes('/api/code/submitCodeExecution')) fail('Same-origin code runner rewrites are missing from Firebase or Vercel');
 if (!read('firestore.rules').includes('match /code_execution_runs/{id}') || !read('firestore.rules').includes('allow read, write: if false;')) fail('Code execution records are not server-only');
 if (!functionsSource.includes("db.collection('_booking_requests')") || !functionsSource.includes('requestId')) fail('Idempotent booking request protection is missing');
 if (!functionsSource.includes("db.collection('_homework_upload_tokens')") || !read('storage.rules').includes('_homework_upload_tokens')) fail('One-time homework upload authorization is missing');
@@ -170,12 +171,13 @@ if (manifest.display !== 'standalone' || manifest.scope !== '/' || !Array.isArra
 if (!manifest.icons.some(icon => String(icon.purpose || '').includes('maskable') && icon.sizes === '512x512')) fail('Maskable PWA icon is missing');
 const sw = read('service-worker.js');
 const appShellSource = sw.slice(0,sw.indexOf('];')+2);
-if (!/technominds-v60-2-1-production/.test(sw) || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes('/practical.html') || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell is incomplete');
+if (!/technominds-v60-3-0-production/.test(sw) || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes('/practical.html') || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell is incomplete');
 if (/assets\/vendor|assets\/admin\.js|teacher-login\.html/.test(appShellSource) || !sw.includes('event.waitUntil(network.catch')) fail('Large admin assets are still precached or repeat-visit caching is missing');
 if (!read('index.html').includes('<script defer src="https://www.gstatic.com/firebasejs/')) fail('Firebase scripts are not downloaded in parallel with deferred execution');
 const upgrade = read('assets/v53-upgrades.js');
 if (!upgrade.includes('beforeinstallprompt') || !upgrade.includes('إضافة إلى الشاشة الرئيسية') || !upgrade.includes('navigator.standalone')) fail('Mobile install handling is incomplete');
 if (!read('assets/app.js').includes('renderBookingScheduleOptions') || !read('index.html').includes('bookingScheduleId')) fail('Booking schedule linkage is incomplete');
+if (!read('assets/firebase-sync.js').includes('subscribeToGroups:handler') || !read('assets/app.js').includes('startPublicScheduleSync')) fail('Live booking schedules are not connected to the admin timetable');
 if (/24\/7/.test(read('index.html')) || /24\/7/.test(read('assets/app.js'))) fail('Ambiguous 24/7 student portal label is still present');
 if (!read('assets/app.js').includes('leaderboard-name-line') || !read('assets/v56.css').includes('.leaderboard-avatar')) fail('Improved mobile leaderboard identity layout is missing');
 if (!functionsSource.includes('leaderboardStateRef') || !functionsSource.includes('stateVersion') || !functionsSource.includes('currentMonthRows')) fail('Immediate monthly leaderboard cache invalidation is missing');
@@ -201,21 +203,24 @@ if (!read('assets/app.js').includes('toEnglishDigits') || !read('functions/index
 if (!functionsSource.includes('uniqueNumericCode') || !functionsSource.includes('studentCode, parentCode') || !read('assets/app.js').includes('كود الطالب')) fail('Immediate numeric booking access code is incomplete');
 if (!rules.includes('match /booking_status/{bookingCode}') || !rules.includes('allow read, create: if false;')) fail('Booking status documents must be server-only');
 if (!read('assets/admin.js').includes('renderSchedules') || !read('assets/admin.js').includes('startBookingNotifications')) fail('V55 schedule or booking notification UI is incomplete');
-if (!read('teacher-login.html').includes('firebase-messaging-compat.js') || !sw.includes('onBackgroundMessage')) fail('Teacher background push notification wiring is incomplete');
+if (read('teacher-login.html').includes('firebase-messaging-compat.js') || sw.includes("importScripts('https://www.gstatic.com/firebasejs/")) fail('The lightweight admin/PWA build still loads Firebase Messaging eagerly');
 if (!read('assets/admin.js').includes('MFCloud?.approveBooking') || !read('functions/index.js').includes('tx.delete(bookingRef)')) fail('Atomic booking approval and queue removal are incomplete');
 if (/مجموعة السبت والثلاثاء|مجموعة الأحد والأربعاء|مجموعة الاثنين والخميس|أونلاين متابعة/.test(read('index.html'))) fail('Static booking groups must not appear in the booking form');
 if (!appSourceCode.includes('setupUnifiedHeader') || !appSourceCode.includes('setupImageLazyLoading') || !read('assets/v60-technominds.css').includes('position:fixed!important')) fail('Unified fixed header or image lazy loading is incomplete');
 if (read('index.html').includes('floating-card one') || !read('assets/v60-technominds.css').includes('.teacher-frame:before,.teacher-frame:after')) fail('Clean portrait overlay removal is incomplete');
 if (!upgrade.includes('tm-robot-icon') || !upgrade.includes('مين هو المهندس عمرو خالد؟')) fail('Robot FAQ assistant is incomplete');
 if (!read('about.html').includes('https://amrkhaledabozeid.vercel.app/') || !read('about.html').includes('https://github.com/byAmrkhaled0') || !read('about.html').includes('professional-badges')) fail('About portfolio, social links, or skill badges are incomplete');
-if (!read('assets/admin.js').includes('admin-site-links') || !read('assets/v56-fixes.js').includes('openStudentGroupManager')) fail('Admin-to-public page links or group manager is incomplete');
+if (!read('assets/admin.js').includes('معاينة الموقع') || read('assets/admin.js').includes('<div class="admin-top">') || !read('assets/v56-fixes.js').includes('openStudentGroupManager')) fail('Header-free admin navigation or group manager is incomplete');
 if (!read('assets/practical.js').includes('runJavascriptFallback') || !read('deploy-production.ps1').includes('getCodeLanguages') || !read('deploy-production.ps1').includes('TECHNO_MINDS_OK')) fail('Code runner fallback or deployed execution smoke test is incomplete');
 if (!functionsSource.includes('wait=false') || !functionsSource.includes('judge0-poll-') || !functionsSource.includes('fields=stdout,time,memory')) fail('Judge0 asynchronous submission and polling support is incomplete');
-if (!functionsSource.includes('exports.getPlatformHealth = onCall') || !read('deploy-production.ps1').includes('getPlatformHealth') || !read('deploy-production.ps1').includes('services.booking')) fail('Post-deploy Firebase, booking, and portal health check is incomplete');
+if (!functionsSource.includes('exports.getPlatformHealth = onCall') || !read('deploy-production.ps1').includes('/api/health') || !read('deploy-production.ps1').includes('services.booking')) fail('Post-deploy Firebase, booking, and portal health check is incomplete');
 const deployScript = read('deploy-production.ps1');
 if (deployScript.includes('ValueFromRemainingArguments') || !deployScript.includes('Get-Command npm.cmd') || !deployScript.includes('-Executable $NpmExecutable -ArgumentList @("test")')) fail('Windows PowerShell command invocation is not explicit or npm.cmd-safe');
+if (!deployScript.includes('FUNCTIONS_DISCOVERY_TIMEOUT = "120"') || !read('DEPLOY-WINDOWS.cmd').includes('FUNCTIONS_DISCOVERY_TIMEOUT=120')) fail('Firebase Functions discovery timeout is not protected on Windows');
 if (!appSourceCode.includes("file==='questions.html'||file==='teacher-login.html'") || read('teacher-login.html').includes('<header class="site-header"')) fail('Public header must not appear in the administration workspace');
 if (!adminSourceCode.includes('admin-brand-logo') || !adminSourceCode.includes('admin-mobile-logo')) fail('Techno Minds logo is missing from the administration workspace');
+if (!read('index.html').includes('Eng. Amr Khaled') || !appSourceCode.includes('أولى ثانوي برمجة')) fail('English teacher name or the First Secondary programming track is missing');
+if (fs.existsSync(path.join(root,'services.html')) || read('scripts/build.js').includes("'services.html'") || appSourceCode.includes("['services.html'")) fail('The removed services page is still shipped or linked');
 if (!read('teacher-login.html').includes('adminPasswordReset') || !adminSourceCode.includes('sendPasswordReset(email)')) fail('Administration password-reset recovery is missing');
 if (!failures.some(x => x.includes('PWA') || x.includes('Service worker') || x.includes('Mobile install'))) ok('Android and iPhone PWA installation checks passed');
 

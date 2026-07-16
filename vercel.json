@@ -4,6 +4,20 @@
   "outputDirectory": "dist",
   "installCommand": "npm install --ignore-scripts",
   "cleanUrls": false,
+  "rewrites": [
+    {
+      "source": "/api/health",
+      "destination": "https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/getPlatformHealth"
+    },
+    {
+      "source": "/api/code/getCodeLanguages",
+      "destination": "https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/getCodeLanguages"
+    },
+    {
+      "source": "/api/code/submitCodeExecution",
+      "destination": "https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/submitCodeExecution"
+    }
+  ],
   "headers": [
     {
       "source": "/service-worker.js",

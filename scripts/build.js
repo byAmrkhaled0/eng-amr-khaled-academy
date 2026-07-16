@@ -5,7 +5,6 @@ const root = path.resolve(__dirname, '..');
 const dist = path.join(root, 'dist');
 const entriesToCopy = [
   'index.html',
-  'services.html',
   'learning-path.html',
   'about.html',
   'practical.html',
@@ -24,7 +23,6 @@ const entriesToCopy = [
   'site.webmanifest',
   'teacher.webmanifest',
   'service-worker.js',
-  'firebase-messaging-sw.js',
   'offline.html'
 ];
 
