@@ -1,5 +1,0 @@
-User-agent: *
-Allow: /
-Sitemap: https://technominds-academy.vercel.app/sitemap.xml
-
-Allow: /online-lectures.html
