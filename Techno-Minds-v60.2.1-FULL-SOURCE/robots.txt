@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-Disallow: /teacher-login.html
-Sitemap: https://eng-amr-khaled-academy.vercel.app/sitemap.xml
