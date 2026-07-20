@@ -16,12 +16,6 @@ const db = admin.firestore();
 const FieldValue = admin.firestore.FieldValue;
 const Timestamp = admin.firestore.Timestamp;
 const PAYMENT_MONTH_NAMES = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
-const OWNER_EMAILS = new Set(
-  ['amr@gmail.com', 'amrk78420@gmail.com', process.env.OWNER_EMAILS, process.env.OWNER_EMAIL]
-    .flatMap(value => String(value || '').split(','))
-    .map(value => value.trim().toLowerCase())
-    .filter(Boolean)
-);
 // Callable endpoints must accept the browser's unauthenticated CORS preflight.
 // Sensitive operations still enforce staff authentication inside each handler.
 const CALLABLE_OPTIONS = { region: 'europe-west1', timeoutSeconds: 30, invoker: 'public' };
@@ -50,6 +44,11 @@ function normalizeDigits(value) {
 
 function digits(value) {
   return normalizeDigits(value).replace(/\D/g, '');
+}
+
+function validPhone(value) {
+  const phone = digits(value);
+  return phone.length >= 10 && phone.length <= 15 && !/^(\d)\1+$/.test(phone);
 }
 
 function safePublicUrl(value) {
@@ -162,12 +161,14 @@ async function requireStaff(request, allowedRoles = ['admin', 'teacher', 'assist
   return { uid: request.auth.uid, email: request.auth.token?.email || '', ...profile };
 }
 
-// Repairs only the signed-in owner's own profile. The email must come from the
-// verified Firebase Auth token, so a browser cannot grant another account admin access.
+// Bootstrap is deliberately claim-only. An email address is not an authorization
+// boundary: Firebase Console/Admin SDK must set the `admin` custom claim once.
 exports.activateOwnerAccount = onCall(CALLABLE_OPTIONS, async request => {
   if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'سجّل الدخول أولًا.');
   const email = String(request.auth.token?.email || '').trim().toLowerCase();
-  if (!OWNER_EMAILS.has(email)) throw new HttpsError('permission-denied', 'هذا البريد غير مسجل ضمن حسابات مالك المنصة.');
+  if (request.auth.token?.email_verified !== true || request.auth.token?.admin !== true) {
+    throw new HttpsError('permission-denied', 'تفعيل حساب المالك يتطلب بريدًا موثقًا وصلاحية Admin من Firebase.');
+  }
   const profile = {
     uid: request.auth.uid,
     email,
@@ -891,11 +892,11 @@ exports.createStudentAccess = onCall(CALLABLE_OPTIONS, async request => {
   const name = text(body.studentName || body.name, 100);
   const parentPhone = digits(body.parentPhone);
   if (name.length < 3) throw new HttpsError('invalid-argument', 'اكتب اسم الطالب كاملًا.');
-  if (digits(parentPhone).length < 10) throw new HttpsError('invalid-argument', 'اكتب رقم ولي أمر صحيحًا.');
+  if (!validPhone(parentPhone)) throw new HttpsError('invalid-argument', 'اكتب رقم ولي أمر صحيحًا.');
 
   for (let attemptNo = 0; attemptNo < 8; attemptNo += 1) {
     const studentCode = await uniqueUnifiedAccessCode(8);
-    const parentCode = studentCode;
+    const parentCode = await uniqueNumericCode('parent_portal', 8);
     const studentRef = db.collection('students').doc(cleanDocId(studentCode));
     const studentPortalRef = db.collection('student_portal').doc(cleanDocId(studentCode));
     const parentPortalRef = db.collection('parent_portal').doc(cleanDocId(parentCode));
@@ -970,7 +971,7 @@ exports.createBooking = onCall(CALLABLE_OPTIONS, async request => {
   const studentPhone = digits(body.studentPhone);
   const parentPhone = digits(body.parentPhone);
   if (name.length < 3) throw new HttpsError('invalid-argument', 'اكتب اسم الطالب كاملًا.');
-  if (studentPhone.length < 10 || parentPhone.length < 10) throw new HttpsError('invalid-argument', 'اكتب أرقام هاتف صحيحة.');
+  if (!validPhone(studentPhone) || !validPhone(parentPhone)) throw new HttpsError('invalid-argument', 'اكتب أرقام هاتف صحيحة.');
   const requestedGrade = text(body.grade, 80);
   const requestedGroup = text(body.group, 100);
   const selectedScheduleId = cleanDocId(text(body.scheduleId, 100));
@@ -997,7 +998,9 @@ exports.createBooking = onCall(CALLABLE_OPTIONS, async request => {
   // All codes shown after booking are digits only and can be typed with Arabic
   // or English numerals. They are issued immediately and never change later.
   const studentCode = code;
-  const parentCode = code;
+  // Parent access is intentionally separate. Existing unified legacy codes keep
+  // working, while every new booking receives an independent private parent code.
+  const parentCode = await uniqueNumericCode('parent_portal', 8);
   const payload = {
     id: code,
     code,
@@ -1052,13 +1055,13 @@ exports.createBooking = onCall(CALLABLE_OPTIONS, async request => {
     parentCode,
     paid: false,
     paymentDate: '',
-    active: true,
+    active: false,
     approvalStatus: 'قيد التسجيل'
   };
   const provisionalPortal = portalResponse(provisionalStudent, []);
   batch.create(db.collection('students').doc(studentCode), provisionalStudent);
-  batch.create(db.collection('student_portal').doc(studentCode), { ...provisionalPortal, parentCode, active: true, updatedAt: FieldValue.serverTimestamp() });
-  batch.create(db.collection('parent_portal').doc(parentCode), { ...provisionalPortal, parentCode, active: true, updatedAt: FieldValue.serverTimestamp() });
+  batch.create(db.collection('student_portal').doc(studentCode), { ...provisionalPortal, parentCode, active: false, updatedAt: FieldValue.serverTimestamp() });
+  batch.create(db.collection('parent_portal').doc(parentCode), { ...provisionalPortal, parentCode, active: false, updatedAt: FieldValue.serverTimestamp() });
   const response = { code, bookingCode: code, studentCode, parentCode, status: payload.status };
   if (requestRef) batch.create(requestRef, { requestId, response, createdAt: FieldValue.serverTimestamp(), expiresAt: Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000) });
   try {
@@ -1087,6 +1090,7 @@ exports.approveBooking = onCall(CALLABLE_OPTIONS, async request => {
   // access code. Avoid five unnecessary uniqueness reads on every approval;
   // only old alphanumeric bookings need a fresh fallback code.
   const fallbackStudentCode = /^\d{6,12}$/.test(bookingCode) ? bookingCode : await uniqueUnifiedAccessCode(8);
+  const fallbackParentCode = await uniqueNumericCode('parent_portal', 8);
 
   const bookingRef = db.collection('bookings').doc(cleanDocId(bookingCode));
   const statusRef = db.collection('booking_status').doc(cleanDocId(bookingCode));
@@ -1105,7 +1109,7 @@ exports.approveBooking = onCall(CALLABLE_OPTIONS, async request => {
     const existingStudentCode = text(booking.studentCode || status.studentCode, 40);
     const oldParentCode = text(booking.parentCode || status.parentCode, 40);
     const studentCode = /^\d{6,12}$/.test(existingStudentCode) ? existingStudentCode : fallbackStudentCode;
-    const parentCode = studentCode;
+    const parentCode = /^\d{6,12}$/.test(oldParentCode) ? oldParentCode : fallbackParentCode;
     const name = text(booking.studentName || booking.name, 100);
     const student = {
       ...booking,
@@ -1127,7 +1131,6 @@ exports.approveBooking = onCall(CALLABLE_OPTIONS, async request => {
     tx.set(db.collection('students').doc(studentCode), student, { merge: true });
     tx.set(db.collection('student_portal').doc(studentCode), { ...portal, parentCode, active: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.set(db.collection('parent_portal').doc(parentCode), { ...portal, parentCode, active: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    if (oldParentCode && oldParentCode !== parentCode) tx.delete(db.collection('parent_portal').doc(cleanDocId(oldParentCode)));
     tx.set(db.collection('payments').doc(studentCode), { studentCode, studentName: name, grade: student.grade, group: student.group, academicYear: student.academicYear, term: student.term, paid: false, paymentDate: '', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.set(statusRef, { ...status, code: bookingCode, name, studentName: name, studentCode, parentCode, status: 'تم القبول والتسجيل كطالب', acceptedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.delete(bookingRef);
@@ -1614,6 +1617,8 @@ const BACKUP_COLLECTIONS = [
   'materials','questions','groups','assignments','exams','exam_attempts','homework_submissions',
   'attendance','recitations','grades','payments','monthly_payments','payment_transactions','reports','activityLog','client_errors',
   'student_attempts','exam_locks'
+  ,'curriculum','units','lectures','lecture_materials','assignments_v2','assignment_questions',
+  'question_banks','bank_questions','monthly_exams','exam_questions_v2','teacher_files','student_progress'
 ];
 
 function encodeBackupValue(value) {
@@ -1649,6 +1654,10 @@ async function exportCollection(collectionName) {
       const attempts = await doc.ref.collection('attempts').get();
       row.attempts = attempts.docs.map(attempt => ({ id: attempt.id, data: encodeBackupValue(attempt.data()) }));
     }
+    if (collectionName === 'student_progress') {
+      const lectures = await doc.ref.collection('lectures').get();
+      row.lectures = lectures.docs.map(lecture => ({ id: lecture.id, data: encodeBackupValue(lecture.data()) }));
+    }
     rows.push(row);
   }
   return rows;
@@ -1658,7 +1667,7 @@ async function createPlatformBackup(reason, actor = {}) {
   const collections = {};
   for (const name of BACKUP_COLLECTIONS) collections[name] = await exportCollection(name);
   const payload = {
-    schemaVersion: 60,
+    schemaVersion: 61,
     backupFormatVersion: 2,
     project: process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || 'eng-amr-khaled-academy',
     reason: text(reason, 100),
@@ -1989,7 +1998,7 @@ exports.getPlatformHealth = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 15 }, 
   ]);
   return {
     status: 'ok',
-    version: '60.6.2',
+    version: '61.0.0',
     firestore: true,
     services: {
       booking: true,
@@ -2124,4 +2133,270 @@ exports.getCodeExecutionResult = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 1
     compileOutput: data.compileOutput || '', message: data.message || '',
     time: data.time || '', memory: Number(data.memory || 0), exitCode: data.exitCode ?? null
   };
+});
+
+// ---------------------------------------------------------------------------
+// Curriculum V61: server-owned content, progress and idempotent migration.
+// ---------------------------------------------------------------------------
+const CURRICULUM_COLLECTIONS = new Set([
+  'curriculum', 'units', 'lectures', 'lecture_materials', 'assignments_v2',
+  'assignment_questions', 'question_banks', 'bank_questions', 'monthly_exams',
+  'exam_questions_v2', 'teacher_files'
+]);
+const TEACHER_ONLY_COLLECTIONS = new Set(['teacher_files']);
+const CONTENT_STATUSES = new Set(['draft', 'published', 'hidden']);
+
+function curriculumId(value) {
+  const id = cleanDocId(text(value, 120));
+  if (!/^[A-Za-z0-9_-]{3,120}$/.test(id)) throw new HttpsError('invalid-argument', 'معرّف المحتوى غير صالح.');
+  return id;
+}
+
+function curriculumTimestamp(value) {
+  if (!value) return null;
+  if (value instanceof Timestamp) return value;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new HttpsError('invalid-argument', 'صيغة التاريخ غير صحيحة.');
+  return Timestamp.fromDate(date);
+}
+
+function normalizedCurriculumPayload(raw, staff, id) {
+  const data = raw || {};
+  const status = CONTENT_STATUSES.has(data.status) ? data.status : (data.published === true ? 'published' : 'draft');
+  const payload = {
+    id,
+    grade: text(data.grade, 80), academicYear: text(data.academicYear, 30), term: text(data.term, 40),
+    unitId: text(data.unitId, 120), lectureId: text(data.lectureId, 120),
+    lectureNumber: Math.max(0, Math.min(36, Number(data.lectureNumber || data.order || 0))),
+    order: Math.max(0, Math.min(10000, Number(data.order || data.lectureNumber || 0))),
+    title: text(data.title, 220), description: text(data.description, 4000),
+    learningObjectives: Array.isArray(data.learningObjectives)
+      ? data.learningObjectives.slice(0, 30).map(item => text(item, 300)).filter(Boolean)
+      : text(data.learningObjectives, 4000).split('\n').map(item => item.trim()).filter(Boolean).slice(0, 30),
+    status, active: data.active !== false, published: status === 'published',
+    openAt: curriculumTimestamp(data.openAt), closeAt: curriculumTimestamp(data.closeAt),
+    allowDownload: data.allowDownload === true,
+    filePath: text(data.filePath, 500), coverPath: text(data.coverPath, 500),
+    contentType: text(data.contentType, 100), fileName: text(data.fileName, 220),
+    questionType: text(data.questionType || data.type, 60), difficulty: text(data.difficulty, 30),
+    choices: Array.isArray(data.choices) ? data.choices.slice(0, 12).map(item => text(item, 700)) : [],
+    correctAnswer: text(data.correctAnswer, 5000), answerExplanation: text(data.answerExplanation, 8000),
+    instructions: text(data.instructions, 4000), durationMinutes: Math.max(0, Math.min(600, Number(data.durationMinutes || 0))),
+    maxAttempts: Math.max(1, Math.min(20, Number(data.maxAttempts || 1))),
+    shuffleQuestions: data.shuffleQuestions === true, shuffleChoices: data.shuffleChoices === true,
+    resultVisibility: ['hidden','after_approval','immediate'].includes(data.resultVisibility) ? data.resultVisibility : 'after_approval',
+    keywords: Array.isArray(data.keywords) ? data.keywords.slice(0, 30).map(item => text(item, 80)) : [],
+    points: Math.max(0, Math.min(10000, Number(data.points || 0))),
+    solutionPolicy: ['never','after_submission','after_deadline','scheduled'].includes(data.solutionPolicy) ? data.solutionPolicy : 'never',
+    solutionAt: curriculumTimestamp(data.solutionAt),
+    updatedAt: FieldValue.serverTimestamp(), updatedBy: staff.uid
+  };
+  if (!payload.grade && !['curriculum'].includes(data.kind)) throw new HttpsError('invalid-argument', 'اختر الصف الدراسي.');
+  if (!payload.title) throw new HttpsError('invalid-argument', 'اكتب عنوان المحتوى.');
+  return payload;
+}
+
+async function serverActivity(staff, action, meta = {}) {
+  await db.collection('activityLog').add({
+    action: text(action, 300), meta: JSON.parse(JSON.stringify(meta || {})),
+    actorUid: staff.uid, actorEmail: staff.email || '', actorRole: staff.role || '',
+    createdAt: FieldValue.serverTimestamp()
+  });
+}
+
+exports.logStaffActivity = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request);
+  await rateLimit('staff-activity', staff.uid, 120, 60 * 1000);
+  await serverActivity(staff, request.data?.action, request.data?.meta);
+  return { ok: true };
+});
+
+exports.upsertCurriculumEntity = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request, ['admin', 'teacher']);
+  const collection = text(request.data?.collection, 80);
+  if (!CURRICULUM_COLLECTIONS.has(collection)) throw new HttpsError('invalid-argument', 'قسم المحتوى غير صالح.');
+  const id = curriculumId(request.data?.id || crypto.randomUUID());
+  const ref = db.collection(collection).doc(id);
+  const existing = await ref.get();
+  const payload = normalizedCurriculumPayload(request.data?.data, staff, id);
+  await ref.set({
+    ...payload,
+    createdAt: existing.exists ? (existing.data().createdAt || FieldValue.serverTimestamp()) : FieldValue.serverTimestamp(),
+    createdBy: existing.exists ? (existing.data().createdBy || staff.uid) : staff.uid
+  }, { merge: true });
+  await serverActivity(staff, existing.exists ? 'تعديل محتوى تعليمي' : 'إنشاء محتوى تعليمي', { collection, id, title: payload.title });
+  return { ok: true, id, collection };
+});
+
+exports.listCurriculumAdmin = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request);
+  const collection = text(request.data?.collection, 80);
+  if (!CURRICULUM_COLLECTIONS.has(collection)) throw new HttpsError('invalid-argument', 'قسم المحتوى غير صالح.');
+  if (TEACHER_ONLY_COLLECTIONS.has(collection) && !['admin','teacher'].includes(staff.role)) throw new HttpsError('permission-denied', 'ملفات المدرس خاصة بالمدرس فقط.');
+  const pageSize = Math.max(10, Math.min(50, Number(request.data?.pageSize || 20)));
+  let query = db.collection(collection).orderBy('order', request.data?.direction === 'desc' ? 'desc' : 'asc').limit(pageSize + 1);
+  if (request.data?.grade) query = query.where('grade', '==', text(request.data.grade, 80));
+  if (request.data?.term) query = query.where('term', '==', text(request.data.term, 40));
+  if (request.data?.unitId) query = query.where('unitId', '==', text(request.data.unitId, 120));
+  const cursor = Number(request.data?.cursor);
+  if (Number.isFinite(cursor)) query = query.startAfter(cursor);
+  const snap = await query.get();
+  const docs = snap.docs.slice(0, pageSize);
+  return { rows: docs.map(doc => ({ id: doc.id, ...doc.data() })), hasMore: snap.size > pageSize, nextCursor: docs.length ? Number(docs[docs.length - 1].data().order || 0) : null };
+});
+
+exports.deleteCurriculumEntity = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request, ['admin', 'teacher']);
+  const collection = text(request.data?.collection, 80);
+  if (!CURRICULUM_COLLECTIONS.has(collection)) throw new HttpsError('invalid-argument', 'قسم المحتوى غير صالح.');
+  const id = curriculumId(request.data?.id);
+  const ref = db.collection(collection).doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) return { ok: true, alreadyDeleted: true };
+  await ref.delete();
+  await serverActivity(staff, 'حذف محتوى تعليمي', { collection, id, title: text(snap.data().title, 220) });
+  return { ok: true };
+});
+
+exports.createMonthlyExamPlan = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request, ['admin', 'teacher']);
+  const grade = text(request.data?.grade, 80), academicYear = text(request.data?.academicYear, 30);
+  if (!grade) throw new HttpsError('invalid-argument', 'اختر الصف الدراسي.');
+  const batch = db.batch(); let created = 0, skipped = 0;
+  for (let month = 1; month <= 12; month += 1) {
+    const start = (month - 1) * 3 + 1, end = month * 3;
+    const id = `monthly-${hash(`${grade}|${academicYear}|${month}`).slice(0, 24)}`;
+    const ref = db.collection('monthly_exams').doc(id), snap = await ref.get();
+    if (snap.exists) { skipped += 1; continue; }
+    created += 1;
+    batch.create(ref, {
+      id, title: `الامتحان الشهري ${month}`, month, grade, academicYear,
+      term: month <= 6 ? 'الترم الأول' : 'الترم الثاني', lectureFrom: start, lectureTo: end,
+      coveredLectures: Array.from({ length: 3 }, (_, index) => start + index),
+      lectureId: `lecture-${start}`, unitId: '', order: month, durationMinutes: 45,
+      points: 0, maxAttempts: 1, shuffleQuestions: false, shuffleChoices: false,
+      resultVisibility: 'after_approval', solutionPolicy: 'never', status: 'draft',
+      active: true, published: false, createdBy: staff.uid, updatedBy: staff.uid,
+      createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+    });
+  }
+  if (created) await batch.commit();
+  await serverActivity(staff, 'إنشاء خطة الامتحانات الشهرية', { grade, academicYear, created, skipped });
+  return { ok: true, created, skipped };
+});
+
+function contentIsOpen(data, now = Timestamp.now()) {
+  if (data.active === false || data.published !== true || data.status !== 'published') return false;
+  if (data.openAt && data.openAt.toMillis && data.openAt.toMillis() > now.toMillis()) return false;
+  if (data.closeAt && data.closeAt.toMillis && data.closeAt.toMillis() <= now.toMillis()) return false;
+  return true;
+}
+
+function publicLecture(data, id, progress = {}) {
+  return {
+    id, grade: text(data.grade, 80), term: text(data.term, 40), unitId: text(data.unitId, 120),
+    lectureNumber: Number(data.lectureNumber || data.order || 0), order: Number(data.order || 0),
+    title: text(data.title, 220), description: text(data.description, 1200),
+    learningObjectives: Array.isArray(data.learningObjectives) ? data.learningObjectives : [],
+    allowDownload: data.allowDownload === true, coverPath: text(data.coverPath, 500),
+    openAt: data.openAt || null, closeAt: data.closeAt || null,
+    progress: Math.max(0, Math.min(100, Number(progress.percent || 0))),
+    lastOpenedAt: progress.lastOpenedAt || null, viewed: progress.viewed === true
+  };
+}
+
+exports.getStudentCurriculum = onCall(CALLABLE_OPTIONS, async request => {
+  const code = normalizeCode(request.data?.studentCode);
+  await rateLimitPublic('student-curriculum', code, request, 20, 60, 60 * 1000);
+  const found = await getStudentPortalByCode(code);
+  const student = found.data || {};
+  if (student.active === false || /قيد التسجيل|انتظار|رفض/.test(String(student.approvalStatus || ''))) throw new HttpsError('permission-denied', 'المحتوى يتاح بعد قبول الحجز.');
+  const grade = text(student.grade, 80);
+  const [lectureSnap, unitSnap, progressSnap] = await Promise.all([
+    db.collection('lectures').where('grade', '==', grade).orderBy('order', 'asc').limit(40).get(),
+    db.collection('units').where('grade', '==', grade).orderBy('order', 'asc').limit(30).get(),
+    db.collection('student_progress').doc(code).collection('lectures').limit(40).get()
+  ]);
+  const progress = new Map(progressSnap.docs.map(doc => [doc.id, doc.data()]));
+  const now = Timestamp.now();
+  const lectures = lectureSnap.docs.filter(doc => contentIsOpen(doc.data(), now)).map(doc => publicLecture(doc.data(), doc.id, progress.get(doc.id)));
+  const units = unitSnap.docs.filter(doc => contentIsOpen(doc.data(), now)).map(doc => ({ id: doc.id, title: text(doc.data().title, 220), term: text(doc.data().term, 40), order: Number(doc.data().order || 0) }));
+  const completed = lectures.filter(item => item.progress >= 100).length;
+  return { student: { code, name: text(student.name || student.studentName, 100), grade, term: text(student.term, 40) }, units, lectures, overallProgress: lectures.length ? Math.round(completed / lectures.length * 100) : 0 };
+});
+
+exports.getLectureContent = onCall(CALLABLE_OPTIONS, async request => {
+  const code = normalizeCode(request.data?.studentCode);
+  const lectureId = curriculumId(request.data?.lectureId);
+  await rateLimitPublic('lecture-content', `${code}:${lectureId}`, request, 30, 80, 60 * 1000);
+  const [found, lectureSnap] = await Promise.all([getStudentPortalByCode(code), db.collection('lectures').doc(lectureId).get()]);
+  if (!lectureSnap.exists || !contentIsOpen(lectureSnap.data())) throw new HttpsError('not-found', 'المحاضرة غير متاحة.');
+  const student = found.data || {}, lecture = lectureSnap.data();
+  if (student.active === false || lecture.grade !== student.grade) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الصف.');
+  const queryVisible = async collection => {
+    const snap = await db.collection(collection).where('lectureId', '==', lectureId).orderBy('order', 'asc').limit(50).get();
+    return snap.docs.filter(doc => contentIsOpen(doc.data())).map(doc => {
+      const data = doc.data();
+      const safe = { id: doc.id, title: text(data.title, 220), description: text(data.description, 4000), questionType: text(data.questionType, 60), points: Number(data.points || 0), filePath: text(data.filePath, 500) };
+      if (Array.isArray(data.choices)) safe.choices = data.choices.slice(0, 10).map(choice => text(choice, 700));
+      return safe;
+    });
+  };
+  const [materials, assignments, questions, exams] = await Promise.all([
+    queryVisible('lecture_materials'), queryVisible('assignments_v2'), queryVisible('bank_questions'), queryVisible('monthly_exams')
+  ]);
+  return { lecture: publicLecture(lecture, lectureId), materials, assignments, questions, exams };
+});
+
+exports.recordLectureProgress = onCall(CALLABLE_OPTIONS, async request => {
+  const code = normalizeCode(request.data?.studentCode), lectureId = curriculumId(request.data?.lectureId);
+  await rateLimitPublic('lecture-progress', `${code}:${lectureId}`, request, 30, 80, 60 * 1000);
+  const [found, lectureSnap] = await Promise.all([getStudentPortalByCode(code), db.collection('lectures').doc(lectureId).get()]);
+  if (!lectureSnap.exists || found.data.grade !== lectureSnap.data().grade) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الطالب.');
+  const percent = Math.max(0, Math.min(100, Number(request.data?.percent || 0)));
+  const progressRef = db.collection('student_progress').doc(code);
+  const batch = db.batch();
+  batch.set(progressRef, { studentCode: code, grade: text(found.data.grade, 80), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  batch.set(progressRef.collection('lectures').doc(lectureId), {
+    studentCode: code, grade: text(found.data.grade, 80), lectureId, percent,
+    viewed: true, lastOpenedAt: FieldValue.serverTimestamp(), completedAt: percent >= 100 ? FieldValue.serverTimestamp() : null,
+    updatedAt: FieldValue.serverTimestamp()
+  }, { merge: true });
+  await batch.commit();
+  return { ok: true, percent };
+});
+
+exports.getCurriculumFileUrl = onCall(CALLABLE_OPTIONS, async request => {
+  const code = normalizeCode(request.data?.studentCode), collection = text(request.data?.collection, 80), id = curriculumId(request.data?.id);
+  if (!['lectures','lecture_materials','assignments_v2','bank_questions','monthly_exams'].includes(collection)) throw new HttpsError('invalid-argument', 'نوع الملف غير صالح.');
+  const [found, snap] = await Promise.all([getStudentPortalByCode(code), db.collection(collection).doc(id).get()]);
+  if (!snap.exists || !contentIsOpen(snap.data()) || snap.data().grade !== found.data.grade) throw new HttpsError('permission-denied', 'الملف غير متاح لهذا الطالب.');
+  const path = text(snap.data().filePath, 500);
+  if (!path) throw new HttpsError('not-found', 'لا يوجد ملف مرتبط.');
+  const [url] = await admin.storage().bucket().file(path).getSignedUrl({ action: 'read', expires: Date.now() + 10 * 60 * 1000 });
+  return { url, expiresIn: 600, allowDownload: snap.data().allowDownload === true };
+});
+
+exports.migrateCurriculumV61 = onCall({ region: 'europe-west1', timeoutSeconds: 540, memory: '1GiB' }, async request => {
+  const staff = await requireStaff(request, ['admin']);
+  const apply = request.data?.apply === true;
+  const sources = [['materials','lecture_materials'],['assignments','assignments_v2'],['questions','bank_questions'],['exams','monthly_exams']];
+  const report = { dryRun: !apply, scanned: 0, create: 0, skip: 0, errors: [] };
+  if (apply) report.backup = await createPlatformBackup('pre-curriculum-v61-migration', staff);
+  for (const [source, target] of sources) {
+    const snap = await db.collection(source).limit(2000).get();
+    for (const doc of snap.docs) {
+      report.scanned += 1;
+      const id = `legacy-${source}-${doc.id}`.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 120);
+      const ref = db.collection(target).doc(id), exists = await ref.get();
+      if (exists.exists) { report.skip += 1; continue; }
+      report.create += 1;
+      if (apply) {
+        const row = doc.data() || {};
+        await ref.set({ ...row, id, legacySource: source, legacyId: doc.id, order: Number(row.order || row.lectureNumber || 0), status: row.published === false ? 'draft' : 'published', active: row.active !== false, published: row.published !== false, createdAt: row.createdAt || FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), createdBy: staff.uid });
+      }
+    }
+  }
+  if (apply) await serverActivity(staff, 'ترحيل المحتوى إلى Curriculum V61', report);
+  return report;
 });

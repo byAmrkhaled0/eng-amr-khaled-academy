@@ -5,7 +5,7 @@ const path = require('path');
 const root = path.resolve(__dirname, '..');
 const dist = path.join(root, 'dist');
 const failures = [];
-const required = ['index.html','teacher-login.html','service-worker.js','assets/app.js','assets/admin.js','assets/v60-payments.js','assets/v60-admin-workflow.js','assets/v60-technominds.css'];
+const required = ['index.html','teacher-login.html','service-worker.js','assets/app.js','assets/admin.js','assets/v60-payments.js','assets/v60-admin-workflow.js','assets/v60-technominds.css','assets/curriculum-admin.js','assets/curriculum-student.js'];
 
 for (const file of required) if (!fs.existsSync(path.join(dist, file))) failures.push(`Missing dist/${file}`);
 if (fs.existsSync(path.join(dist, '.env')) || fs.existsSync(path.join(dist, 'functions'))) failures.push('Secrets or backend source leaked into dist');
@@ -23,9 +23,9 @@ for (const name of htmlFiles) {
 
 const login = fs.existsSync(path.join(dist, 'teacher-login.html')) ? fs.readFileSync(path.join(dist, 'teacher-login.html'), 'utf8') : '';
 const worker = fs.existsSync(path.join(dist, 'service-worker.js')) ? fs.readFileSync(path.join(dist, 'service-worker.js'), 'utf8') : '';
-if (!login.includes('v60-payments.js?v=60.6.2')) failures.push('V60.6 payment UI is not in the built admin page');
-if (!login.includes('v60-admin-workflow.js?v=60.6.2')) failures.push('V60.6.2 exam and assignment UI is not in the built admin page');
-if (!worker.includes('technominds-v60-6-2-production')) failures.push('Built service worker cache version is stale');
+if (!login.includes('v60-payments.js?v=61.0.0')) failures.push('Payment UI is not in the built admin page');
+if (!login.includes('v60-admin-workflow.js?v=61.0.0')) failures.push('Exam and assignment UI is not in the built admin page');
+if (!worker.includes('technominds-v61-curriculum-production')) failures.push('Built service worker cache version is stale');
 if (/JUDGE0_API_KEY\s*=\s*[^\s"']+/i.test(login)) failures.push('Judge0 secret appears in built HTML');
 
 if (failures.length) {
@@ -33,4 +33,4 @@ if (failures.length) {
   failures.forEach(item => console.error(`- ${item}`));
   process.exit(1);
 }
-console.log(`✓ dist verified (${htmlFiles.length} HTML pages, V60.6.2 assets, no backend/.env)`);
+console.log(`✓ dist verified (${htmlFiles.length} HTML pages, V61 curriculum assets, no backend/.env)`);

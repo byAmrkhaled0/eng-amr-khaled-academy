@@ -45,6 +45,34 @@
       ]
     },
     {
+      "collectionGroup": "lectures", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "grade", "order": "ASCENDING" }, { "fieldPath": "order", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "units", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "grade", "order": "ASCENDING" }, { "fieldPath": "order", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "lecture_materials", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "lectureId", "order": "ASCENDING" }, { "fieldPath": "order", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "assignments_v2", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "lectureId", "order": "ASCENDING" }, { "fieldPath": "order", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "bank_questions", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "lectureId", "order": "ASCENDING" }, { "fieldPath": "order", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "monthly_exams", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "lectureId", "order": "ASCENDING" }, { "fieldPath": "order", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "teacher_files", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "grade", "order": "ASCENDING" }, { "fieldPath": "order", "order": "ASCENDING" }]
+    },
+    {
       "collectionGroup": "payment_transactions",
       "queryScope": "COLLECTION",
       "fields": [

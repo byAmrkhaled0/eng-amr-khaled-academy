@@ -495,6 +495,7 @@ async function setupStudent(){
       const st=await loadStudentForPortal(code);
       if(!st){box.innerHTML=`<div class="portal-empty portal-empty-large"><span class="iconbox" data-icon="search"></span><h3>الكود غير صحيح</h3><p>راجع الكود المكتوب وحاول مرة أخرى، مع التأكد من الحروف والأرقام.</p><button class="btn ghost" type="button" onclick="document.getElementById('studentQuery')?.focus()">إعادة المحاولة</button></div>`; hydrateIcons(); return;}
       box.innerHTML=studentProfileHTML(st,false); bindStudentDashboard(); bindHomeworkForms(); hydrateIcons();
+      document.dispatchEvent(new CustomEvent('technominds:student-loaded',{detail:{student:st,code}}));
       box.scrollIntoView({behavior:'smooth',block:'start'});
     }catch(err){const raw=String(err?.code||'')+' '+String(err?.message||'');const message=/not-found/i.test(raw)?'الكود غير موجود في بيانات الطلاب. لو سجلت حجزًا جديدًا استخدم نفس الكود، أو راجع الإدارة للتأكد أن الطالب محفوظ ونشط.':/invalid-argument/i.test(raw)?'اكتب كود الطالب كاملًا كما يظهر في لوحة الإدارة.':/internal|unavailable|failed-precondition|function.*unavailable/i.test(raw)?'تعذر الاتصال ببوابة الطالب الآن. حدّث الصفحة وحاول مرة أخرى، وإن استمرت المشكلة تواصل مع الإدارة.':firebaseFriendlyError(err,'تعذر تحميل بيانات الطالب');box.innerHTML=dataErrorHTML(message);hydrateIcons();}
     finally{button?.classList.remove('is-loading'); if(button)button.disabled=false; form.removeAttribute('aria-busy');}

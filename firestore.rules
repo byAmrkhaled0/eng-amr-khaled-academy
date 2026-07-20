@@ -129,7 +129,8 @@ service cloud.firestore {
     match /monthly_payments/{id} { allow read: if isStaff(); allow write: if false; }
     match /payment_transactions/{id} { allow read: if isStaff(); allow write: if false; }
     match /reports/{id} { allow read, create, update: if isStaff(); allow delete: if isTeacher(); }
-    match /activityLog/{id} { allow read, create: if isStaff(); allow update, delete: if isAdmin(); }
+    // Audit entries are created by Cloud Functions so staff cannot forge actors/timestamps.
+    match /activityLog/{id} { allow read: if isStaff(); allow write: if false; }
     match /client_errors/{id} { allow read, delete: if isTeacher(); allow create, update: if false; }
 
     // Staff activity writes bump this small server-only marker so the public
@@ -148,6 +149,22 @@ service cloud.firestore {
     match /deleted_students/{id} { allow read, write: if false; }
     match /backup_runs/{id} { allow read, write: if false; }
     match /staff_push_tokens/{id} { allow read, write: if false; }
+
+    // Curriculum V61 is served through validated Cloud Functions. Correct
+    // answers and grade-scoped content never become directly readable clients.
+    match /curriculum/{id} { allow read: if isStaff(); allow write: if false; }
+    match /units/{id} { allow read: if isStaff(); allow write: if false; }
+    match /lectures/{id} { allow read: if isStaff(); allow write: if false; }
+    match /lecture_materials/{id} { allow read: if isStaff(); allow write: if false; }
+    match /assignments_v2/{id} { allow read: if isStaff(); allow write: if false; }
+    match /assignment_questions/{id} { allow read: if isStaff(); allow write: if false; }
+    match /question_banks/{id} { allow read: if isStaff(); allow write: if false; }
+    match /bank_questions/{id} { allow read: if isStaff(); allow write: if false; }
+    match /monthly_exams/{id} { allow read: if isStaff(); allow write: if false; }
+    match /exam_questions_v2/{id} { allow read: if isStaff(); allow write: if false; }
+    match /teacher_files/{id} { allow read: if isTeacher(); allow write: if false; }
+    match /student_progress/{studentCode} { allow read, write: if false; }
+    match /student_progress/{studentCode}/{document=**} { allow read, write: if false; }
     match /{document=**} { allow read, write: if false; }
   }
 }

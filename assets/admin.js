@@ -26,6 +26,7 @@ const adminSections = [
   ['payments','database','حالة الدفع'],
   ['exams','clipboard','الاختبارات'],
   ['materials','book-open','التدريبات والأسئلة'],
+  ['curriculum','book-open','إدارة المحتوى'],
   ['reviews','star','التقييمات']
 ];
 
@@ -71,11 +72,11 @@ function newParentCode(){return uniqueAccessCode('PR','parentCode');}
 function isWeakAccessCode(code){return !/^\d{8}$/.test(String(code||''));}
 function adminWhatsAppPhone(v){const d=phoneDigits(v); if(!d) return ''; if(d.startsWith('20')) return d; if(d.startsWith('0')) return '2'+d; return d;}
 function monthlyReportTextForStudent(st){const s=normalizeStudent(st); if(typeof parentReportText==='function') return parentReportText(s); const c=calcStudentAdmin(s); return `تقرير متابعة شهر ${s.month||''}\n\nالطالب: ${s.name}\nالكود: ${s.studentCode}\nالمسار: ${s.grade||'-'}\nالمجموعة: ${s.group||'-'}\n\nالمستوى العام: ${c.final||0}%\nنسبة الحضور: ${c.attendancePct||0}%\nمتوسط الدرجات: ${c.avg||0}%\nحالة الدفع: ${s.paid?'تم الدفع':'لم يتم الدفع'}\n\nملاحظات المدرس:\n${s.notes||'لا توجد ملاحظات حالية.'}`;}
-function issuedCodesText(student){const s=normalizeStudent(student);return `اسم الطالب: ${s.name}\nكود الطالب وولي الأمر: ${s.studentCode}`;}
+function issuedCodesText(student){const s=normalizeStudent(student);return `اسم الطالب: ${s.name}\nكود الطالب: ${s.studentCode}\nكود ولي الأمر: ${s.parentCode}`;}
 window.closeIssuedCodes=function(){document.getElementById('issuedCodesModal')?.remove();};
 window.copyIssuedCodes=async function(){const modal=document.getElementById('issuedCodesModal'),text=modal?.dataset.copyText||'';try{await navigator.clipboard.writeText(text);aToast('تم نسخ الكود الموحّد');}catch(_){prompt('انسخ الكود',text);}};
 window.showIssuedCodes=function(student,title='تم تسجيل الطالب بنجاح'){
-  const s=normalizeStudent(student);closeIssuedCodes();document.body.insertAdjacentHTML('beforeend',`<div class="issued-codes-modal" id="issuedCodesModal" role="dialog" aria-modal="true" data-copy-text="${safe(issuedCodesText(s))}"><div class="card issued-codes-card"><button class="issued-codes-close" type="button" onclick="closeIssuedCodes()" aria-label="إغلاق">×</button><span class="badge good">تم الحفظ على النظام</span><h2>${safe(title)}</h2><p>${safe(s.name)} · ${safe(s.grade||'')}</p><div class="issued-code-row"><small>الكود الموحد للطالب وولي الأمر</small><code>${safe(s.studentCode)}</code></div><div class="mobile-actions"><button class="btn primary" type="button" onclick="copyIssuedCodes()"><span data-icon="clipboard"></span> نسخ الكود</button><button class="btn ghost" type="button" onclick="closeIssuedCodes()">تم</button></div></div></div>`);hydrateIcons();
+  const s=normalizeStudent(student);closeIssuedCodes();document.body.insertAdjacentHTML('beforeend',`<div class="issued-codes-modal" id="issuedCodesModal" role="dialog" aria-modal="true" aria-labelledby="issuedCodesTitle" data-copy-text="${safe(issuedCodesText(s))}"><div class="card issued-codes-card"><button class="issued-codes-close" type="button" onclick="closeIssuedCodes()" aria-label="إغلاق">×</button><span class="badge good">تم الحفظ على النظام</span><h2 id="issuedCodesTitle">${safe(title)}</h2><p>${safe(s.name)} · ${safe(s.grade||'')}</p><div class="issued-code-row"><small>كود الطالب</small><code>${safe(s.studentCode)}</code></div><div class="issued-code-row"><small>كود ولي الأمر</small><code>${safe(s.parentCode)}</code></div><div class="mobile-actions"><button class="btn primary" type="button" onclick="copyIssuedCodes()"><span data-icon="clipboard"></span> نسخ الكودين</button><button class="btn ghost" type="button" onclick="closeIssuedCodes()">تم</button></div></div></div>`);hydrateIcons();
 };
 function stCode(st){return st.studentCode||st.code||st.id||'';}
 function stName(st){return st.studentName||st.name||'';}
@@ -150,9 +151,6 @@ function adminLogin(){
     if(!window.MFCloud?.ready || !window.MFCloud.signIn) return aToast('خدمة تسجيل الدخول غير متاحة الآن. تحقق من الإنترنت وحاول مرة أخرى.');
     try{
       await window.MFCloud.signIn(email,pass);
-      await window.MFCloud.activateOwnerAccount?.().catch(error=>{
-        if(/permission-denied/i.test(`${error?.code||''} ${error?.message||''}`))throw error;
-      });
       currentStaff = await window.MFCloud.getCurrentStaffProfile();
       if(!currentStaff?.allowed){ await window.MFCloud.signOut?.(); unauthorized('غير مصرح لك بالدخول.'); return; }
       await reloadFromCloud();
@@ -167,7 +165,6 @@ async function tryRestoreSession(){
   window.MFCloud.auth.onAuthStateChanged(async user=>{
     if(!user || document.querySelector('.admin-page')) return;
     try{
-      await window.MFCloud.activateOwnerAccount?.().catch(()=>null);
       currentStaff = await window.MFCloud.getCurrentStaffProfile();
       if(currentStaff?.allowed){ await reloadFromCloud(); renderAdmin(); }
     }catch(e){}
@@ -596,7 +593,7 @@ function bindAdminGradeGroupPicker(){
   };
   grade.addEventListener('change',refresh);refresh();
 }
-function renderSection(){({overview:renderOverview,students:renderStudents,bookings:renderBookings,schedules:renderSchedules,attendance:renderAttendance,payments:renderPayments,exams:renderExams,materials:renderMaterials,reviews:renderReviewsAdmin}[currentSection]||renderOverview)();if(currentSection==='students')bindAdminGradeGroupPicker();}
+function renderSection(){({overview:renderOverview,students:renderStudents,bookings:renderBookings,schedules:renderSchedules,attendance:renderAttendance,payments:renderPayments,exams:renderExams,materials:renderMaterials,curriculum:()=>window.renderCurriculumAdmin?.(),reviews:renderReviewsAdmin}[currentSection]||renderOverview)();if(currentSection==='students')bindAdminGradeGroupPicker();}
 function exportCSV(name, rows){const csv=rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'})); a.download=name; a.click();}
 window.exportBookingsCSV=function(){exportCSV('bookings.csv',[['code','name','grade','month','group','parentPhone','status'],...adminData.bookings.map(b=>[b.code,b.name,b.grade,b.month,b.group,b.parentPhone,b.status])]);};
 

@@ -176,7 +176,7 @@ if (manifest.display !== 'standalone' || manifest.scope !== '/' || !Array.isArra
 if (!manifest.icons.some(icon => String(icon.purpose || '').includes('maskable') && icon.sizes === '512x512')) fail('Maskable PWA icon is missing');
 const sw = read('service-worker.js');
 const appShellSource = sw.slice(0,sw.indexOf('];')+2);
-if (!/technominds-v60-6-2-production/.test(sw) || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes('/practical.html') || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell is incomplete');
+if (!/technominds-v61-curriculum-production/.test(sw) || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/curriculum-student.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes('/practical.html') || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell is incomplete');
 if (/assets\/vendor|assets\/admin\.js|teacher-login\.html/.test(appShellSource) || !sw.includes('event.waitUntil(network.catch')) fail('Large admin assets are still precached or repeat-visit caching is missing');
 if (!read('index.html').includes('<script defer src="https://www.gstatic.com/firebasejs/')) fail('Firebase scripts are not downloaded in parallel with deferred execution');
 const upgrade = read('assets/v53-upgrades.js');

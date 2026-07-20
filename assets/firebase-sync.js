@@ -115,6 +115,16 @@
       getCodeLanguages:callable('getCodeLanguages'),
       submitCodeExecution:callable('submitCodeExecution'),
       getCodeExecutionResult:callable('getCodeExecutionResult')
+      ,logStaffActivity:callable('logStaffActivity')
+      ,upsertCurriculumEntity:callable('upsertCurriculumEntity')
+      ,listCurriculumAdmin:callable('listCurriculumAdmin')
+      ,deleteCurriculumEntity:callable('deleteCurriculumEntity')
+      ,createMonthlyExamPlan:callable('createMonthlyExamPlan')
+      ,getStudentCurriculum:callable('getStudentCurriculum')
+      ,getLectureContent:callable('getLectureContent')
+      ,recordLectureProgress:callable('recordLectureProgress')
+      ,getCurriculumFileUrl:callable('getCurriculumFileUrl')
+      ,migrateCurriculumV61:callable('migrateCurriculumV61')
     };
 
     let firebaseMessagingPromise=null;
@@ -457,7 +467,8 @@
     }
     async function logActivity(action,meta){
       const profile=await getCurrentStaffProfile().catch(()=>null);if(!profile?.allowed)return;
-      await db.collection('activityLog').add({action:String(action||'').slice(0,300),meta:meta&&typeof meta==='object'?meta:{},actorUid:profile.uid,actorEmail:profile.email||'',actorRole:profile.role||'',createdAt:serverTime()});
+      if(!calls.logStaffActivity)throw new Error('Secure activity service unavailable');
+      await calls.logStaffActivity({action:String(action||'').slice(0,300),meta:meta&&typeof meta==='object'?meta:{}});
     }
     async function deleteCollectionDocs(ref,pageSize=300){
       while(true){const snap=await ref.limit(pageSize).get();if(snap.empty)break;const batch=db.batch();snap.docs.forEach(doc=>batch.delete(doc.ref));await batch.commit();if(snap.size<pageSize)break;}
@@ -590,6 +601,15 @@
           catch(callableError){callableError.hostingError=hostingError;throw callableError;}
         }
       },
+      getStudentCurriculum:studentCode=>calls.getStudentCurriculum({studentCode:normalizeCode(studentCode)}),
+      getLectureContent:(studentCode,lectureId)=>calls.getLectureContent({studentCode:normalizeCode(studentCode),lectureId}),
+      recordLectureProgress:(studentCode,lectureId,percent)=>calls.recordLectureProgress({studentCode:normalizeCode(studentCode),lectureId,percent}),
+      getCurriculumFileUrl:(studentCode,collection,id)=>calls.getCurriculumFileUrl({studentCode:normalizeCode(studentCode),collection,id}),
+      listCurriculumAdmin:payload=>calls.listCurriculumAdmin(payload||{}),
+      upsertCurriculumEntity:payload=>calls.upsertCurriculumEntity(payload||{}),
+      deleteCurriculumEntity:(collection,id)=>calls.deleteCurriculumEntity({collection,id}),
+      createMonthlyExamPlan:(grade,academicYear)=>calls.createMonthlyExamPlan({grade,academicYear}),
+      migrateCurriculumV61:apply=>calls.migrateCurriculumV61({apply:apply===true}),
       getPublicLeaderboard:grade=>calls.getPublicLeaderboard?calls.getPublicLeaderboard({grade:String(grade||'').trim()}):Promise.resolve([]),
       getParentStudent:code=>{if(!calls.getPortalStudent)throw new Error('Secure parent portal function is unavailable');return retryTransient(()=>calls.getPortalStudent({code:normalizeCode(code),mode:'parent'}),1);},
       uploadHomework:async(file,studentCode)=>{const normalized=normalizeCode(studentCode);if(!calls.prepareHomeworkUpload||!calls.registerHomeworkSubmission)throw new Error('Secure homework function is unavailable');const permit=await calls.prepareHomeworkUpload({studentCode:normalized,fileName:file.name,size:file.size,contentType:file.type});const uploaded=await upload(file,`homework/${cleanDocId(normalized)}/${permit.uploadId}`,permit.safeName,true);await calls.registerHomeworkSubmission({studentCode:normalized,uploadId:permit.uploadId,...uploaded,fileName:file.name});return uploaded;},
