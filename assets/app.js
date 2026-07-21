@@ -77,6 +77,7 @@ function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&l
 function toEnglishDigits(v){return String(v||'').replace(/[٠-٩]/g,digit=>String(digit.charCodeAt(0)-1632)).replace(/[۰-۹]/g,digit=>String(digit.charCodeAt(0)-1776));}
 function normalizeText(v){return toEnglishDigits(v).trim().toLowerCase().replace(/\s+/g,' ');}
 function phoneDigits(v){return toEnglishDigits(v).replace(/\D/g,'');}
+function validBookingPhone(v){const phone=phoneDigits(v);return phone.length>=10&&phone.length<=15&&!/^(\d)\1+$/.test(phone);}
 function formatTime12(value){
   const normalized=toEnglishDigits(value||'').trim();
   const match=normalized.match(/^(\d{1,2}):(\d{2})/);
@@ -719,6 +720,8 @@ function setupBooking(){
       b.academicYear=typeof currentAcademicContext==='function'?currentAcademicContext().academicYear:'';
       const statusBox=document.getElementById('bookingSubmitStatus');
       const showStatus=(message,type='info')=>{if(!statusBox)return;if(!message){statusBox.hidden=true;statusBox.textContent='';statusBox.className='booking-submit-status';return;}statusBox.hidden=false;statusBox.textContent=message;statusBox.className=`booking-submit-status ${type}`;};
+      if(!validBookingPhone(b.studentPhone)){form.elements.studentPhone?.focus();showStatus('اكتب رقم الطالب كاملًا من 10 إلى 15 رقمًا.','error');return toast('راجع رقم الطالب.');}
+      if(!validBookingPhone(b.parentPhone)){form.elements.parentPhone?.focus();showStatus('اكتب رقم ولي الأمر كاملًا من 10 إلى 15 رقمًا.','error');return toast('راجع رقم ولي الأمر.');}
       if(!window.MFCloud?.ready || !window.MFCloud?.createBooking){showStatus('الاتصال بالحجز لم يكتمل. تأكد من الإنترنت ثم اضغط تأكيد مرة أخرى.','error');return toast('الاتصال بالحجز لم يكتمل.');}
       showStatus('جاري تسجيل الحجز وتأمين الكود… لا تغلق الصفحة.','loading');
       button?.classList.add('is-loading'); if(button)button.disabled=true;
@@ -735,7 +738,6 @@ function setupBooking(){
         clearBookingRequest();
         form.reset(); fillSelects();
       }catch(err){
-        console.error(err);
         const message=firebaseFriendlyError(err,'لم يكتمل الحجز. بياناتك ما زالت موجودة؛ اضغط تأكيد مرة أخرى.');
         showStatus(message,'error');
         toast(message);
@@ -1073,7 +1075,9 @@ function registerServiceWorker(){
 }
 function setupPWAInstall(){
   const button=document.getElementById('installAppButton');if(!button)return;let installPrompt=null;
-  window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();installPrompt=event;button.hidden=false;});
+  // Let the browser own its native install UI. The platform button provides
+  // manual instructions, avoiding a suppressed-banner warning in DevTools.
+  window.addEventListener('beforeinstallprompt',()=>{button.hidden=false;});
   button.addEventListener('click',async()=>{if(!installPrompt)return toast('يمكنك تثبيت الموقع من قائمة المتصفح');installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;button.hidden=true;});
   window.addEventListener('appinstalled',()=>{button.hidden=true;toast('تم تثبيت المنصة على الهاتف');});
 }

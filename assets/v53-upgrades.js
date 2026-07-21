@@ -118,14 +118,14 @@
     if(!button)return;
     if(isStandalone()){button.hidden=true;button.style.display='none';return;}
     button.hidden=false;
-    let installPrompt=window.__mfInstallPrompt||null;
+    let installPrompt=null;
     const updateLabel=()=>{
       button.title=isIOS()?(teacherMode?'إضافة لوحة المدرس إلى الشاشة الرئيسية':'إضافة المنصة إلى الشاشة الرئيسية'):(teacherMode?'تثبيت لوحة المدرس كتطبيق':'تثبيت المنصة كتطبيق');
       button.setAttribute('aria-label',button.title);
     };
     updateLabel();
-    window.addEventListener('beforeinstallprompt',event=>{
-      event.preventDefault();installPrompt=event;window.__mfInstallPrompt=event;button.hidden=false;button.style.display='';
+    window.addEventListener('beforeinstallprompt',()=>{
+      button.hidden=false;button.style.display='';
     });
     button.onclick=async()=>{
       if(installPrompt){

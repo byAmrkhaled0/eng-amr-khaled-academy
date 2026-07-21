@@ -1998,7 +1998,7 @@ exports.getPlatformHealth = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 15 }, 
   ]);
   return {
     status: 'ok',
-    version: '61.0.0',
+    version: '61.0.1',
     firestore: true,
     services: {
       booking: true,
