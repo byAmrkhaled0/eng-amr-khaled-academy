@@ -23,9 +23,9 @@ for (const name of htmlFiles) {
 
 const login = fs.existsSync(path.join(dist, 'teacher-login.html')) ? fs.readFileSync(path.join(dist, 'teacher-login.html'), 'utf8') : '';
 const worker = fs.existsSync(path.join(dist, 'service-worker.js')) ? fs.readFileSync(path.join(dist, 'service-worker.js'), 'utf8') : '';
-if (!login.includes('v60-payments.js?v=61.0.1')) failures.push('Payment UI is not in the built admin page');
-if (!login.includes('v60-admin-workflow.js?v=61.0.1')) failures.push('Exam and assignment UI is not in the built admin page');
-if (!worker.includes('technominds-v61-0-1-production')) failures.push('Built service worker cache version is stale');
+if (!login.includes('v60-payments.js?v=61.0.2')) failures.push('Payment UI is not in the built admin page');
+if (!login.includes('v60-admin-workflow.js?v=61.0.2')) failures.push('Exam and assignment UI is not in the built admin page');
+if (!worker.includes('technominds-v61-0-2-production')) failures.push('Built service worker cache version is stale');
 if (/JUDGE0_API_KEY\s*=\s*[^\s"']+/i.test(login)) failures.push('Judge0 secret appears in built HTML');
 
 if (failures.length) {

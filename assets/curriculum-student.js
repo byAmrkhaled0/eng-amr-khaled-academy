@@ -25,10 +25,11 @@
     const units=new Map((data.units||[]).map(unit=>[unit.id,unit]));
     const lectures=(data.lectures||[]).map(item=>({...item,unitTitle:units.get(item.unitId)?.title||''}));
     const terms=[...new Set(['الترم الأول','الترم الثاني',...lectures.map(item=>item.term).filter(Boolean)])];
+    if(!lectures.length)return;
     const html=`<section id="studentCurriculumPanel" class="student-curriculum card" aria-labelledby="studentCurriculumTitle">
       <header class="curriculum-head"><div><span class="kicker">منهجي</span><h2 id="studentCurriculumTitle">منهج ${esc(data.student?.grade||'الطالب')}</h2><p>المحاضرات مرتبة من 1 إلى 36 حسب رقم المحاضرة.</p></div><div class="curriculum-total"><b>${Number(data.overallProgress||0)}%</b><small>إنجاز المنهج</small></div></header>
       <div class="curriculum-term-tabs" role="tablist">${terms.map((term,index)=>`<button type="button" role="tab" class="${index===0?'active':''}" data-curriculum-term="${esc(term)}">${esc(term)}</button>`).join('')}</div>
-      ${lectures.length?terms.map((term,index)=>`<div class="curriculum-term-panel ${index===0?'show':''}" data-term-panel="${esc(term)}">${lectures.filter(item=>item.term===term||(!item.term&&index===0)).sort((a,b)=>Number(a.lectureNumber)-Number(b.lectureNumber)).map(lectureCard).join('')||'<div class="empty-state"><h3>لا توجد محاضرات منشورة في هذا الترم</h3></div>'}</div>`).join(''):'<div class="empty-state"><h3>المنهج قيد التجهيز</h3><p>ستظهر المحاضرات هنا بمجرد نشرها من المدرس.</p></div>'}
+      ${terms.map((term,index)=>`<div class="curriculum-term-panel ${index===0?'show':''}" data-term-panel="${esc(term)}">${lectures.filter(item=>item.term===term||(!item.term&&index===0)).sort((a,b)=>Number(a.lectureNumber)-Number(b.lectureNumber)).map(lectureCard).join('')||'<div class="empty-state"><h3>لا توجد محاضرات منشورة في هذا الترم</h3></div>'}</div>`).join('')}
     </section>`;
     result.insertAdjacentHTML('beforeend',html);
     result.querySelectorAll('[data-curriculum-term]').forEach(button=>button.addEventListener('click',()=>{
@@ -68,7 +69,7 @@
   document.addEventListener('technominds:student-loaded',async event=>{
     currentCode=event.detail.code;
     const result=document.getElementById('studentResult');
-    result?.insertAdjacentHTML('beforeend','<section id="studentCurriculumPanel" class="student-curriculum card"><div class="skeleton" style="height:180px"></div></section>');
+    result?.insertAdjacentHTML('beforeend','<section id="studentCurriculumPanel" class="student-curriculum card"><div class="skeleton" style="height:96px"></div></section>');
     try{renderCurriculum(await window.MFCloud.getStudentCurriculum(currentCode));}
     catch(error){const panel=document.getElementById('studentCurriculumPanel');if(panel)panel.innerHTML=`<div class="empty-state"><h3>المنهج غير متاح الآن</h3><p>${esc(error?.message||'حاول مرة أخرى لاحقًا.')}</p></div>`;}
   });

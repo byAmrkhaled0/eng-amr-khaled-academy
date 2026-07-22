@@ -1998,7 +1998,7 @@ exports.getPlatformHealth = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 15 }, 
   ]);
   return {
     status: 'ok',
-    version: '61.0.1',
+    version: '61.0.2',
     firestore: true,
     services: {
       booking: true,
@@ -2287,6 +2287,10 @@ exports.createMonthlyExamPlan = onCall(CALLABLE_OPTIONS, async request => {
 
 function contentIsOpen(data, now = Timestamp.now()) {
   if (data.active === false || data.published !== true || data.status !== 'published') return false;
+  // Migrated legacy records must be reviewed explicitly before students can see
+  // them. This keeps old uploads available to staff without publishing them by
+  // accident during a migration.
+  if (data.legacySource && data.studentVisible !== true) return false;
   if (data.openAt && data.openAt.toMillis && data.openAt.toMillis() > now.toMillis()) return false;
   if (data.closeAt && data.closeAt.toMillis && data.closeAt.toMillis() <= now.toMillis()) return false;
   return true;
@@ -2332,10 +2336,10 @@ exports.getLectureContent = onCall(CALLABLE_OPTIONS, async request => {
   const [found, lectureSnap] = await Promise.all([getStudentPortalByCode(code), db.collection('lectures').doc(lectureId).get()]);
   if (!lectureSnap.exists || !contentIsOpen(lectureSnap.data())) throw new HttpsError('not-found', 'المحاضرة غير متاحة.');
   const student = found.data || {}, lecture = lectureSnap.data();
-  if (student.active === false || lecture.grade !== student.grade) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الصف.');
+  if (student.active === false || /قيد التسجيل|انتظار|رفض/.test(String(student.approvalStatus || '')) || lecture.grade !== student.grade) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الصف.');
   const queryVisible = async collection => {
     const snap = await db.collection(collection).where('lectureId', '==', lectureId).orderBy('order', 'asc').limit(50).get();
-    return snap.docs.filter(doc => contentIsOpen(doc.data())).map(doc => {
+    return snap.docs.filter(doc => contentIsOpen(doc.data()) && doc.data().grade === student.grade).map(doc => {
       const data = doc.data();
       const safe = { id: doc.id, title: text(data.title, 220), description: text(data.description, 4000), questionType: text(data.questionType, 60), points: Number(data.points || 0), filePath: text(data.filePath, 500) };
       if (Array.isArray(data.choices)) safe.choices = data.choices.slice(0, 10).map(choice => text(choice, 700));
@@ -2352,7 +2356,7 @@ exports.recordLectureProgress = onCall(CALLABLE_OPTIONS, async request => {
   const code = normalizeCode(request.data?.studentCode), lectureId = curriculumId(request.data?.lectureId);
   await rateLimitPublic('lecture-progress', `${code}:${lectureId}`, request, 30, 80, 60 * 1000);
   const [found, lectureSnap] = await Promise.all([getStudentPortalByCode(code), db.collection('lectures').doc(lectureId).get()]);
-  if (!lectureSnap.exists || found.data.grade !== lectureSnap.data().grade) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الطالب.');
+  if (!lectureSnap.exists || !contentIsOpen(lectureSnap.data()) || found.data.active === false || /قيد التسجيل|انتظار|رفض/.test(String(found.data.approvalStatus || '')) || found.data.grade !== lectureSnap.data().grade) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الطالب.');
   const percent = Math.max(0, Math.min(100, Number(request.data?.percent || 0)));
   const progressRef = db.collection('student_progress').doc(code);
   const batch = db.batch();
@@ -2368,9 +2372,10 @@ exports.recordLectureProgress = onCall(CALLABLE_OPTIONS, async request => {
 
 exports.getCurriculumFileUrl = onCall(CALLABLE_OPTIONS, async request => {
   const code = normalizeCode(request.data?.studentCode), collection = text(request.data?.collection, 80), id = curriculumId(request.data?.id);
+  await rateLimitPublic('curriculum-file', `${code}:${collection}:${id}`, request, 20, 50, 60 * 1000);
   if (!['lectures','lecture_materials','assignments_v2','bank_questions','monthly_exams'].includes(collection)) throw new HttpsError('invalid-argument', 'نوع الملف غير صالح.');
   const [found, snap] = await Promise.all([getStudentPortalByCode(code), db.collection(collection).doc(id).get()]);
-  if (!snap.exists || !contentIsOpen(snap.data()) || snap.data().grade !== found.data.grade) throw new HttpsError('permission-denied', 'الملف غير متاح لهذا الطالب.');
+  if (!snap.exists || !contentIsOpen(snap.data()) || found.data.active === false || /قيد التسجيل|انتظار|رفض/.test(String(found.data.approvalStatus || '')) || snap.data().grade !== found.data.grade) throw new HttpsError('permission-denied', 'الملف غير متاح لهذا الطالب.');
   const path = text(snap.data().filePath, 500);
   if (!path) throw new HttpsError('not-found', 'لا يوجد ملف مرتبط.');
   const [url] = await admin.storage().bucket().file(path).getSignedUrl({ action: 'read', expires: Date.now() + 10 * 60 * 1000 });
@@ -2393,7 +2398,7 @@ exports.migrateCurriculumV61 = onCall({ region: 'europe-west1', timeoutSeconds: 
       report.create += 1;
       if (apply) {
         const row = doc.data() || {};
-        await ref.set({ ...row, id, legacySource: source, legacyId: doc.id, order: Number(row.order || row.lectureNumber || 0), status: row.published === false ? 'draft' : 'published', active: row.active !== false, published: row.published !== false, createdAt: row.createdAt || FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), createdBy: staff.uid });
+        await ref.set({ ...row, id, legacySource: source, legacyId: doc.id, studentVisible: false, order: Number(row.order || row.lectureNumber || 0), status: 'draft', active: row.active !== false, published: false, createdAt: row.createdAt || FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), createdBy: staff.uid });
       }
     }
   }

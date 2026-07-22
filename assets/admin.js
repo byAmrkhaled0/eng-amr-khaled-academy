@@ -26,7 +26,6 @@ const adminSections = [
   ['payments','database','حالة الدفع'],
   ['exams','clipboard','الاختبارات'],
   ['materials','book-open','التدريبات والأسئلة'],
-  ['curriculum','book-open','إدارة المحتوى'],
   ['reviews','star','التقييمات']
 ];
 
@@ -593,7 +592,7 @@ function bindAdminGradeGroupPicker(){
   };
   grade.addEventListener('change',refresh);refresh();
 }
-function renderSection(){({overview:renderOverview,students:renderStudents,bookings:renderBookings,schedules:renderSchedules,attendance:renderAttendance,payments:renderPayments,exams:renderExams,materials:renderMaterials,curriculum:()=>window.renderCurriculumAdmin?.(),reviews:renderReviewsAdmin}[currentSection]||renderOverview)();if(currentSection==='students')bindAdminGradeGroupPicker();}
+function renderSection(){({overview:renderOverview,students:renderStudents,bookings:renderBookings,schedules:renderSchedules,attendance:renderAttendance,payments:renderPayments,exams:renderExams,materials:renderMaterials,reviews:renderReviewsAdmin}[currentSection]||renderOverview)();if(currentSection==='students')bindAdminGradeGroupPicker();}
 function exportCSV(name, rows){const csv=rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'})); a.download=name; a.click();}
 window.exportBookingsCSV=function(){exportCSV('bookings.csv',[['code','name','grade','month','group','parentPhone','status'],...adminData.bookings.map(b=>[b.code,b.name,b.grade,b.month,b.group,b.parentPhone,b.status])]);};
 
