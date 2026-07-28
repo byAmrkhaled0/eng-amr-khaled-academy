@@ -102,6 +102,7 @@
       submitExam:callable('submitExam'),
       reportClientError:callable('reportClientError'),
       createStudentAccess:callable('createStudentAccess'),
+      regenerateParentAccessCode:callable('regenerateParentAccessCode'),
       prepareHomeworkUpload:callable('prepareHomeworkUpload'),
       registerHomeworkSubmission:callable('registerHomeworkSubmission'),
       submitAssignmentAnswer:callable('submitAssignmentAnswer'),
@@ -361,8 +362,10 @@
       const profile=await getCurrentStaffProfile();if(!profile?.allowed)throw new Error('Not authorized');
       let studentCode='';
       for(let i=0;i<12&&!studentCode;i+=1){const code=randomNumericAccessCode();const [studentPortal,parentPortal,booking]=await Promise.all([db.collection('student_portal').doc(code).get(),db.collection('parent_portal').doc(code).get(),db.collection('bookings').doc(code).get()]);if(!studentPortal.exists&&!parentPortal.exists&&!booking.exists)studentCode=code;}
-      const parentCode=studentCode;
       if(!studentCode)throw new Error('تعذر إنشاء كود موحد جديد');
+      let parentCode='';
+      for(let i=0;i<12&&!parentCode;i+=1){const code=randomNumericAccessCode();const snap=await db.collection('parent_portal').doc(code).get();if(code!==studentCode&&!snap.exists)parentCode=code;}
+      if(!parentCode)throw new Error('تعذر إنشاء كود ولي أمر منفصل');
       const source=normalizedStudent({...student,studentCode,code:studentCode,parentCode,active:student?.active!==false});
       const ops=[];pushStudentOps(ops,source);await commitOperations(ops);return {...studentProfile(source),studentCode,code:studentCode,parentCode};
     }
@@ -513,6 +516,9 @@
         }}
         return createStudentAccessDirect(student);
       },
+      regenerateParentAccessCode:studentCode=>calls.regenerateParentAccessCode
+        ? calls.regenerateParentAccessCode({studentCode:normalizeCode(studentCode)})
+        : Promise.reject(new Error('Parent access code service unavailable')),
       createBooking:async booking=>{
         try{
           return await retryTransient(()=>sameOriginCallable('/api/booking/create',booking),2);
@@ -640,7 +646,7 @@
         const ops=[];if(summary?.exists)ops.push(batch=>batch.set(newAttempts,{...summary.data(),studentCode:normalizeCode(newCode),updatedAt:serverTime()},{merge:true}));
         summaryDocs?.forEach(doc=>{ops.push(batch=>batch.set(newAttempts.collection('attempts').doc(doc.id),{...doc.data(),studentCode:normalizeCode(newCode)},{merge:true}));ops.push(batch=>batch.delete(doc.ref));});if(summary?.exists)ops.push(batch=>batch.delete(summary.ref));
         [attempts,grades,attendance,homeworks,recitations,monthlyPayments,paymentTransactions].forEach(snap=>snap?.forEach(doc=>ops.push(batch=>batch.update(doc.ref,{studentCode:normalizeCode(newCode),updatedAt:serverTime()}))));
-        ops.push(batch=>batch.delete(db.collection('students').doc(oldId)));ops.push(batch=>batch.delete(db.collection('student_portal').doc(oldId)));ops.push(batch=>batch.delete(db.collection('parent_portal').doc(oldId)));ops.push(batch=>batch.delete(db.collection('payments').doc(oldId)));if(student)pushStudentOps(ops,student);await commitOperations(ops);
+        ops.push(batch=>batch.delete(db.collection('students').doc(oldId)));ops.push(batch=>batch.delete(db.collection('student_portal').doc(oldId)));ops.push(batch=>batch.delete(db.collection('payments').doc(oldId)));if(student)pushStudentOps(ops,student);await commitOperations(ops);
       },
       getActivityLog:async(limit=50)=>{const snap=await db.collection('activityLog').orderBy('createdAt','desc').limit(Math.min(Number(limit)||50,200)).get();return snap.docs.map(doc=>({id:doc.id,...doc.data()}));},
       getClientErrors:async(limit=100)=>{const snap=await db.collection('client_errors').orderBy('createdAt','desc').limit(Math.min(Number(limit)||100,300)).get();return snap.docs.map(doc=>({id:doc.id,...doc.data()}));},

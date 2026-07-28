@@ -11,7 +11,7 @@ var LAST_EXAM_CODE_KEY = 'mf_last_exam_code';
 var EXAM_DRAFT_PREFIX = 'mf_exam_draft_v2_';
 var PENDING_BOOKING_REQUEST_KEY = 'mf_pending_booking_request_v1';
 var cloudSaveTimer = null;
-var MF_ASSET_VERSION = '60.6.2';
+var MF_ASSET_VERSION = '61.1.0';
 var mfLazyScriptPromises = Object.create(null);
 var publicScheduleUnsubscribe = null;
 
@@ -39,6 +39,13 @@ window.MFAssets={
   loadQrScanner:()=>loadLazyScript('qr-scanner','assets/vendor/html5-qrcode-2.3.8.min.js',()=>typeof window.Html5Qrcode==='function'),
   loadSpreadsheet:()=>loadLazyScript('spreadsheet','assets/vendor/xlsx-0.18.5.full.min.js',()=>typeof window.XLSX!=='undefined')
 };
+
+async function ensureQrScannerLibrary(){
+  if(typeof window.Html5Qrcode==='function')return true;
+  try{await window.MFAssets?.loadQrScanner?.();}
+  catch(error){console.warn('QR scanner library failed to initialize; trying the browser fallback.',error);}
+  return typeof window.Html5Qrcode==='function';
+}
 var icons = {
   atom: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="2"></circle><path d="M12 2c3 3.8 5 7.1 5 10s-2 6.2-5 10c-3-3.8-5-7.1-5-10s2-6.2 5-10Z"></path><path d="M2 12c3.8-3 7.1-5 10-5s6.2 2 10 5c-3.8 3-7.1 5-10 5S5.8 15 2 12Z"></path></svg>',
   calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M8 2v4M16 2v4M3 10h18"></path><rect x="3" y="5" width="18" height="17" rx="3"></rect></svg>',
@@ -673,23 +680,28 @@ window.openParentQrScanner = async function(){
   modal.hidden=false; reader.innerHTML='<p class="section-desc">جاري تجهيز الكاميرا…</p>';
   try{
     const onDecoded = async decoded => { await closeParentQrScanner(); await showParentReportByCode(String(decoded||'').trim()); };
-    if(!window.Html5Qrcode)await window.MFAssets?.loadQrScanner?.();
+    await ensureQrScannerLibrary();
     reader.innerHTML='';
-    if(window.Html5Qrcode){
-      parentQrScanner = new Html5Qrcode('parentQrReader');
-      await parentQrScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:250,height:250}}, onDecoded);
-    } else if('BarcodeDetector' in window){
+    if(typeof window.Html5Qrcode==='function'){
+      parentQrScanner = new window.Html5Qrcode('parentQrReader');
+      await parentQrScanner.start({facingMode:{ideal:'environment'}},{fps:10,qrbox:{width:250,height:250}}, onDecoded);
+    } else if(navigator.mediaDevices?.getUserMedia && 'BarcodeDetector' in window){
       reader.innerHTML='<video id="parentQrVideo" autoplay playsinline></video>';
       const video=document.getElementById('parentQrVideo');
-      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
       video.srcObject=stream;
-      const detector=new BarcodeDetector({formats:['qr_code']});
+      video.muted=true;
+      await video.play();
+      const detector=new window.BarcodeDetector({formats:['qr_code']});
       const loop=async()=>{ if(modal.hidden) return; const codes=await detector.detect(video).catch(()=>[]); if(codes.length) return onDecoded(codes[0].rawValue); setTimeout(loop,700); };
       loop();
     } else {
       reader.innerHTML='<p class="section-desc">المتصفح لا يدعم ماسح QR. استخدم إدخال الكود اليدوي.</p>';
     }
-  }catch(e){
+  }catch(error){
+    const video=document.getElementById('parentQrVideo');
+    if(video?.srcObject){video.srcObject.getTracks().forEach(track=>track.stop());video.srcObject=null;}
+    console.warn('Parent QR scanner failed to start.',error);
     reader.innerHTML='<p class="section-desc">تعذر فتح الكاميرا. افتح الموقع من HTTPS واسمح باستخدام الكاميرا.</p>';
   }
 };
@@ -988,11 +1000,11 @@ window.startStudentScanner=async function(){
   await window.stopStudentScanner();studentQrDecoded=false;box.hidden=false;reader.innerHTML='<p class="section-desc">جاري تجهيز الكاميرا…</p>';
   const decoded=async value=>{if(studentQrDecoded)return;studentQrDecoded=true;const input=document.getElementById('studentQuery');if(input)input.value=toEnglishDigits(value).trim().toUpperCase();await window.stopStudentScanner();document.getElementById('studentSearchForm')?.requestSubmit();};
   try{
-    if(!window.Html5Qrcode)await window.MFAssets?.loadQrScanner?.();
+    await ensureQrScannerLibrary();
     reader.innerHTML='';
-    if(window.Html5Qrcode){
-      video.hidden=true;reader.hidden=false;studentQrScanner=new Html5Qrcode('studentQrReader');
-      await studentQrScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:240,height:240},aspectRatio:1},decoded,()=>{});
+    if(typeof window.Html5Qrcode==='function'){
+      video.hidden=true;reader.hidden=false;studentQrScanner=new window.Html5Qrcode('studentQrReader');
+      await studentQrScanner.start({facingMode:{ideal:'environment'}},{fps:10,qrbox:{width:240,height:240},aspectRatio:1},decoded,()=>{});
       toast('وجّه الكاميرا على QR الطالب');return;
     }
     if(!navigator.mediaDevices?.getUserMedia)throw new Error('camera-unavailable');

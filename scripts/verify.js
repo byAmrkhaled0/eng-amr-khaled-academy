@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 const { spawnSync } = require('child_process');
 
 const root = path.resolve(__dirname, '..');
@@ -11,7 +12,7 @@ const requiredFiles = [
   'assets/firebase-sync.js', 'assets/firebase-config.js', 'assets/technominds-logo.png',
   'firestore.rules', 'storage.rules', 'firestore.indexes.json', 'firebase.json',
   'functions/index.js', 'functions/package.json', 'service-worker.js', 'site.webmanifest', 'teacher.webmanifest', 'offline.html',
-  'practical.html', 'assets/practical.js', 'assets/v60-technominds.css', 'assets/v60-payments.js', 'assets/v60-admin-workflow.js', 'functions/payment-domain.js',
+  'practical.html', 'assets/practical.js', 'assets/v60-technominds.css', 'assets/v61-design.css', 'assets/v60-payments.js', 'assets/v60-admin-workflow.js', 'functions/payment-domain.js',
   'check-deployment.ps1', 'deploy-hosting-only.ps1', 'DEPLOY-HOSTING-ONLY.cmd', 'CHECK-SITE.cmd', 'PREPARE-GITHUB.cmd'
 ];
 
@@ -47,6 +48,9 @@ const htmlFiles = fs.readdirSync(root).filter(name => name.endsWith('.html'));
 const localRefPattern = /(?:src|href)=["']([^"'#?]+)["']/g;
 for (const htmlFile of htmlFiles) {
   const html = read(htmlFile);
+  if (!html.includes('assets/v61-design.css?v=61.1.0')) {
+    fail(`Unified V61.1 design is not loaded by ${htmlFile}`);
+  }
   const ids = [...html.matchAll(/\sid=["']([^"']+)["']/g)].map(match => match[1]);
   const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
   if (duplicates.length) fail(`Duplicate IDs in ${htmlFile}: ${[...new Set(duplicates)].join(', ')}`);
@@ -60,6 +64,16 @@ for (const htmlFile of htmlFiles) {
   }
 }
 if (!failures.some(x => x.startsWith('Duplicate IDs') || x.startsWith('Broken local reference'))) ok('HTML IDs and local references passed');
+if (!failures.some(x => x.includes('Unified V61.1 design'))) ok(`Unified V61.1 design is loaded by all ${htmlFiles.length} HTML pages`);
+
+const designSource = read('assets/v61-design.css');
+for (const token of ['--tm-navy:#07111f', '--tm-blue:#2563eb', '--tm-cyan:#06b6d4']) {
+  if (!designSource.includes(token)) fail(`Missing design token: ${token}`);
+}
+for (const selector of ['.site-header', '.hero', '.parent-hero-v29', '.student-hero-v32', '.admin-sidebar', 'html[data-theme="dark"]']) {
+  if (!designSource.includes(selector)) fail(`Missing unified design selector: ${selector}`);
+}
+if (!failures.some(x => x.startsWith('Missing design'))) ok('Public, portal, admin and dark-mode design coverage passed');
 
 const buttonSources = [...htmlFiles, ...jsFiles.filter(file => file.startsWith('assets/'))].map(relative => ({ relative, source: read(relative) }));
 const combinedButtonSource = buttonSources.map(item => item.source).join('\n');
@@ -104,6 +118,7 @@ if (!failures.some(x => x.includes('public direct-write') || x.includes('Cloud F
 const functionsSource = read('functions/index.js');
 const callableNames = [
   'getPortalStudent', 'getStudentResources', 'createStudentAccess', 'createBooking', 'approveBooking', 'rejectBooking', 'getBookingStatus', 'createReview', 'recordClassProgress', 'registerTeacherPushToken',
+  'regenerateParentAccessCode',
   'getExamDashboard', 'startExam', 'submitExam', 'prepareHomeworkUpload', 'registerHomeworkSubmission', 'reportClientError',
   'createBackupNow', 'listAutomaticBackups', 'getBackupDownloadUrl', 'restoreAutomaticBackup', 'deleteStudentSafely',
   'activateOwnerAccount', 'getPlatformHealth', 'getCodeLanguages', 'submitCodeExecution', 'getCodeExecutionResult'
@@ -145,13 +160,25 @@ const fixesSourceCode = read('assets/v56-fixes.js');
 if (!adminSourceCode.includes("loadSiteData({fast:true})") || !adminSourceCode.includes('hydrateAdminRecords')) fail('Staged admin loading is missing');
 if (!appSourceCode.includes('staffCacheOnly') || !appSourceCode.includes('if(isStaffWorkspace())return;')) fail('Compact staff browser cache protection is missing');
 if (!fixesSourceCode.includes('showMoreAdminStudents') || !fixesSourceCode.includes('slice(0,adminStudentVisible)')) fail('Paginated student rendering is missing');
-if (!appSourceCode.includes('window.Html5Qrcode') || !appSourceCode.includes("loadQrScanner:()=>loadLazyScript('qr-scanner'")) fail('Cross-browser lazy QR scanner fallback is missing');
+if (!appSourceCode.includes('ensureQrScannerLibrary') || !appSourceCode.includes("loadQrScanner:()=>loadLazyScript('qr-scanner'")) fail('Cross-browser lazy QR scanner fallback is missing');
 for (const page of ['student.html','parent.html','teacher-login.html']) {
   if (read(page).includes('assets/vendor/html5-qrcode-2.3.8.min.js')) fail(`QR scanner is still eagerly loaded by ${page}`);
 }
 if (read('teacher-login.html').includes('assets/vendor/xlsx-0.18.5.full.min.js') || !read('assets/v53-upgrades.js').includes('loadSpreadsheet')) fail('Excel must load only when an Excel import starts');
 if (/unpkg\.com\/html5-qrcode|cdn\.jsdelivr\.net\/npm\/xlsx/.test([read('student.html'),read('parent.html'),read('teacher-login.html')].join('\n'))) fail('Tracking-sensitive QR or Excel CDN dependency is still present');
 if (!fs.existsSync(path.join(root,'assets/vendor/html5-qrcode-2.3.8.min.js')) || !fs.existsSync(path.join(root,'assets/vendor/xlsx-0.18.5.full.min.js'))) fail('Vendored QR or Excel file is missing');
+try {
+  const qrSandbox = {};
+  qrSandbox.window = qrSandbox;
+  vm.runInNewContext(read('assets/vendor/html5-qrcode-2.3.8.min.js'), qrSandbox);
+  if (typeof qrSandbox.Html5Qrcode !== 'function') fail('Vendored QR scanner does not initialize');
+} catch (error) {
+  fail(`Vendored QR scanner validation failed: ${error.message}`);
+}
+for (const name of ['renderAttendance','renderExams']) {
+  const count = [...adminSourceCode.matchAll(new RegExp(`function\\s+${name}\\s*\\(`,'g'))].length;
+  if (count !== 1) fail(`Duplicate or missing admin function ${name}: found ${count}`);
+}
 if (!adminSourceCode.includes("toggleAttribute('inert',shouldHide)") || !adminSourceCode.includes('adminDrawerReturnFocus')) fail('Mobile admin drawer focus isolation is incomplete');
 if (!appSourceCode.includes('printParentReport') || !read('assets/v56.css').includes('printing-parent-report')) fail('Parent PDF print isolation fix is missing');
 if (!appSourceCode.includes('recitationPct') || !functionsSource.includes('recitationPct')) fail('Recitation/homework ranking linkage is missing');
@@ -176,7 +203,7 @@ if (manifest.display !== 'standalone' || manifest.scope !== '/' || !Array.isArra
 if (!manifest.icons.some(icon => String(icon.purpose || '').includes('maskable') && icon.sizes === '512x512')) fail('Maskable PWA icon is missing');
 const sw = read('service-worker.js');
 const appShellSource = sw.slice(0,sw.indexOf('];')+2);
-if (!/technominds-v61-0-2-production/.test(sw) || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/curriculum-student.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes('/practical.html') || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell is incomplete');
+if (!/technominds-v61-1-0-production/.test(sw) || !sw.includes('/assets/v61-design.css') || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/curriculum-student.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes('/practical.html') || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell is incomplete');
 if (/assets\/vendor|assets\/admin\.js|teacher-login\.html/.test(appShellSource) || !sw.includes('event.waitUntil(network.catch')) fail('Large admin assets are still precached or repeat-visit caching is missing');
 if (!read('index.html').includes('<script defer src="https://www.gstatic.com/firebasejs/')) fail('Firebase scripts are not downloaded in parallel with deferred execution');
 const upgrade = read('assets/v53-upgrades.js');
@@ -199,6 +226,9 @@ if (!read('assets/app.js').includes('normalizeText(item.grade)===selected') || r
 if (read('index.html').includes('name="group" required') || !read('assets/app.js').includes('التسجيل بدون مجموعة') || !functionsSource.includes('groupAssignmentPending: !schedule')) fail('Optional booking group flow is incomplete');
 if (!read('assets/admin.js').includes('moveStudentToGroup') || !read('assets/admin.js').includes('confirmStudentGroupMove') || !read('assets/admin.js').includes('studentGroupMoveSelect')) fail('Admin student group move flow is incomplete');
 if (!functionsSource.includes("where(field, '==', normalized)") || !functionsSource.includes('repair the canonical portal document')) fail('Legacy/imported student-code portal repair is incomplete');
+const parentPortalFunction = functionsSource.slice(functionsSource.indexOf('async function getParentPortalByCode'), functionsSource.indexOf('async function attemptSummaries'));
+if (parentPortalFunction.includes('getStudentPortalByCode(normalized)') || !parentPortalFunction.includes("where('parentCode', '==', normalized)")) fail('Parent portal can still fall back to a student access code');
+if (adminSourceCode.includes('parentCode:created.studentCode') || adminSourceCode.includes('parentCode:newCode') || firebaseSyncSource.includes('const parentCode=studentCode')) fail('Staff student creation or code migration still merges student and parent credentials');
 if (!read('student.html').includes('data-digits-only') || !read('student.html').includes('inputmode="numeric"') || !appSourceCode.includes("converted.replace(/\\D/g,'')")) fail('Numeric-only code, phone, and number fields are incomplete');
 if (!read('service-worker.js').includes('caches.match(url.pathname,{ignoreSearch:true})') || !read('assets/app.js').includes("localDevelopment=['localhost','127.0.0.1','0.0.0.0']")) fail('Portal navigation/offline fallback safeguards are incomplete');
 if (!read('assets/admin.js').includes('bookingActionPending') || read('assets/admin.js').includes("showIssuedCodes(student,'تم قبول الحجز وتسجيل الطالب')")) fail('Instant repeated booking approval safeguards are incomplete');
@@ -263,6 +293,11 @@ if (!failures.some(x => x.includes('assignment'))) ok('Grade assignments and sec
 
 if (!firebaseSyncSource.includes('firebase-messaging-compat.js') || !firebaseSyncSource.includes('loadFirebaseMessaging') || !sw.includes("self.addEventListener('push'") || sw.includes('importScripts(')) fail('Lazy Firebase Messaging or dependency-free background Push is incomplete');
 if (!functionsSource.includes('exports.unregisterTeacherPushToken') || !functionsSource.includes('invalid-registration-token') || !rules.includes('match /staff_push_tokens/{id}')) fail('Push token registration lifecycle or server-only token rules are incomplete');
+const firebaseConfigSource = read('assets/firebase-config.js');
+if (!/messagingVapidKey:\s*"[A-Za-z0-9_-]{80,}"/.test(firebaseConfigSource)) fail('Firebase Web Push VAPID public key is missing');
+const functionsPackage = JSON.parse(read('functions/package.json'));
+if (functionsPackage.dependencies?.['techno-minds-platform']) fail('Functions still has an unnecessary parent file dependency');
+if (functionsPackage.overrides?.['fast-xml-parser'] !== '5.10.1') fail('Safe fast-xml-parser override is missing');
 if (!failures.some(x => x.includes('Messaging') || x.includes('Push token'))) ok('Background booking Push and token lifecycle checks passed');
 
 if (!deployScript.includes('functions:$FunctionName') || !deployScript.includes('.deploy-state.txt') || !read('DEPLOY-WINDOWS.cmd').includes('.deploy-success')) fail('Resumable per-Function Windows deployment is incomplete');

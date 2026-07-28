@@ -1,9 +1,9 @@
-const CACHE_NAME = "technominds-v61-0-2-production";
+const CACHE_NAME = "technominds-v61-1-0-production";
 const APP_SHELL = [
   "/", "/index.html", "/student.html", "/exams.html", "/materials.html", "/questions.html",
   "/learning-path.html", "/about.html", "/practical.html", "/parent.html", "/reviews.html", "/privacy.html",
   "/terms.html", "/offline.html", "/assets/site.css", "/assets/v55.css",
-  "/assets/v56.css", "/assets/v60-technominds.css", "/assets/app.js", "/assets/practical.js", "/assets/firebase-sync.js",
+  "/assets/v56.css", "/assets/v60-technominds.css", "/assets/v61-design.css", "/assets/app.js", "/assets/practical.js", "/assets/firebase-sync.js",
   "/assets/firebase-config.js", "/assets/v53-upgrades.js",
   "/assets/v56-fixes.js", "/assets/curriculum-student.js",
   "/assets/technominds-logo.png", "/assets/technominds-logo.webp",

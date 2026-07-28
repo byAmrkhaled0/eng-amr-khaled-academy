@@ -1,4 +1,4 @@
-# نشر Techno Minds V60.6.2 على Windows
+# نشر Techno Minds V61.1.0 على Windows
 
 هذه النسخة لا ترفع إلى GitHub تلقائيًا، ولا تحذف Functions أو Indexes قديمة تلقائيًا. النشر لا يبدأ إلا عندما تشغّل السكربت بنفسك.
 
@@ -102,10 +102,10 @@ npm --prefix functions run lint
 ينشئ/يستخدم Clone محليًا وينسخ المصدر مع استبعاد `node_modules` و`dist` و`.env`. لا ينفذ Commit أو Push. بعد المراجعة:
 
 ```powershell
-cd ..\Techno-Minds-v60.6.2-GitHub
+cd ..\Techno-Minds-v61.1.0-GitHub
 git status --short
 git add -A
-git commit -m "Techno Minds V60.6.2"
+git commit -m "Techno Minds V61.1.0"
 git push origin main
 ```
 

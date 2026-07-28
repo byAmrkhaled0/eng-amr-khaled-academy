@@ -627,10 +627,14 @@ async function getParentPortalByCode(code) {
   if (!validLegacyOrStrongCode(normalized)) throw new HttpsError('invalid-argument', 'كود غير صالح.');
   let snap = await db.collection('parent_portal').doc(cleanDocId(normalized)).get();
   if (!snap.exists) {
-    const student = await getStudentPortalByCode(normalized).catch(() => null);
-    if (student) {
-      const repaired = portalResponse(student.data, []);
-      await db.collection('parent_portal').doc(cleanDocId(normalized)).set({ ...repaired, parentCode: normalized, active: true, repairedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    // Repair legacy data only when the supplied value is explicitly stored as
+    // the parent code. Never fall back to a matching student code because that
+    // would bypass the separate private parent credential.
+    const match = await db.collection('students').where('parentCode', '==', normalized).limit(1).get().catch(() => null);
+    if (match && !match.empty && match.docs[0].data().active !== false) {
+      const studentData = match.docs[0].data() || {};
+      const repaired = portalResponse(studentData, []);
+      await db.collection('parent_portal').doc(cleanDocId(normalized)).set({ ...repaired, studentCode: text(studentData.studentCode || studentData.code, 40), parentCode: normalized, active: true, repairedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       snap = await db.collection('parent_portal').doc(cleanDocId(normalized)).get();
     }
   }
@@ -954,6 +958,34 @@ exports.createStudentAccess = onCall(CALLABLE_OPTIONS, async request => {
     }
   }
   throw new HttpsError('resource-exhausted', 'تعذر إنشاء أكواد فريدة، حاول مرة أخرى.');
+});
+
+exports.regenerateParentAccessCode = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request, ['admin', 'teacher']);
+  const studentCode = normalizeCode(request.data?.studentCode);
+  if (!validLegacyOrStrongCode(studentCode)) throw new HttpsError('invalid-argument', 'كود الطالب غير صالح.');
+  const studentRef = db.collection('students').doc(cleanDocId(studentCode));
+  const studentSnap = await studentRef.get();
+  if (!studentSnap.exists || studentSnap.data().active === false) throw new HttpsError('not-found', 'الطالب غير موجود أو غير نشط.');
+  const student = studentSnap.data() || {};
+  const oldParentCode = normalizeCode(student.parentCode);
+  const parentCode = await uniqueNumericCode('parent_portal', 8);
+  const portal = portalResponse({ ...student, studentCode, parentCode }, []);
+  const batch = db.batch();
+  batch.update(studentRef, { parentCode, updatedAt: FieldValue.serverTimestamp() });
+  batch.set(db.collection('student_portal').doc(cleanDocId(studentCode)), { ...portal, studentCode, parentCode, active: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  batch.create(db.collection('parent_portal').doc(cleanDocId(parentCode)), { ...portal, studentCode, parentCode, active: true, updatedAt: FieldValue.serverTimestamp() });
+  if (oldParentCode && oldParentCode !== parentCode) batch.delete(db.collection('parent_portal').doc(cleanDocId(oldParentCode)));
+  batch.set(db.collection('activityLog').doc(), {
+    action: 'تم تغيير كود ولي الأمر',
+    meta: { studentCode },
+    actorUid: staff.uid,
+    actorEmail: staff.email || '',
+    actorRole: staff.role || '',
+    createdAt: FieldValue.serverTimestamp()
+  });
+  await batch.commit();
+  return { studentCode, parentCode };
 });
 
 exports.createBooking = onCall(CALLABLE_OPTIONS, async request => {
@@ -1996,16 +2028,21 @@ exports.getPlatformHealth = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 15 }, 
     db.collection('settings').doc('platform').get(),
     db.collection('groups').limit(1).get()
   ]);
+  const runner = codeRunnerConfig();
+  const codeRunnerConfigured = Boolean(process.env.JUDGE0_BASE_URL || runner.apiKey);
   return {
     status: 'ok',
-    version: '61.0.2',
+    version: '61.1.0',
     firestore: true,
     services: {
       booking: true,
       studentPortal: true,
       administration: true,
-      codeRunner: true,
+      codeRunner: codeRunnerConfigured,
       studentResources: true
+    },
+    configuration: {
+      codeRunner: codeRunnerConfigured ? 'configured' : 'default-provider-unverified'
     }
   };
 });
