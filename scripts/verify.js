@@ -48,7 +48,7 @@ const htmlFiles = fs.readdirSync(root).filter(name => name.endsWith('.html'));
 const localRefPattern = /(?:src|href)=["']([^"'#?]+)["']/g;
 for (const htmlFile of htmlFiles) {
   const html = read(htmlFile);
-  if (!html.includes('assets/v61-design.css?v=61.1.0')) {
+  if (!html.includes('assets/v61-design.css?v=62.0.0')) {
     fail(`Unified V61.1 design is not loaded by ${htmlFile}`);
   }
   const ids = [...html.matchAll(/\sid=["']([^"']+)["']/g)].map(match => match[1]);
@@ -203,7 +203,7 @@ if (manifest.display !== 'standalone' || manifest.scope !== '/' || !Array.isArra
 if (!manifest.icons.some(icon => String(icon.purpose || '').includes('maskable') && icon.sizes === '512x512')) fail('Maskable PWA icon is missing');
 const sw = read('service-worker.js');
 const appShellSource = sw.slice(0,sw.indexOf('];')+2);
-if (!/technominds-v61-1-0-production/.test(sw) || !sw.includes('/assets/v61-design.css') || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/curriculum-student.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes('/practical.html') || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell is incomplete');
+if (!/technominds-v62-0-0-academic-workflow/.test(sw) || !sw.includes('/assets/v61-design.css') || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/curriculum-student.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes('/practical.html') || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell is incomplete');
 if (/assets\/vendor|assets\/admin\.js|teacher-login\.html/.test(appShellSource) || !sw.includes('event.waitUntil(network.catch')) fail('Large admin assets are still precached or repeat-visit caching is missing');
 if (!read('index.html').includes('<script defer src="https://www.gstatic.com/firebasejs/')) fail('Firebase scripts are not downloaded in parallel with deferred execution');
 const upgrade = read('assets/v53-upgrades.js');
@@ -261,7 +261,7 @@ if (!rules.includes('match /materials/{id} { allow read: if isStaff();') || !rul
 if (!adminSourceCode.includes('admin-brand-logo') || !adminSourceCode.includes('admin-mobile-logo')) fail('Techno Minds logo is missing from the administration workspace');
 if (!adminSourceCode.includes('admin-hero-theme-icon') || /admin-sidebar-footer[\s\S]{0,500}themeToggleAdmin/.test(adminSourceCode)) fail('Administration theme icon is not isolated in the top hero');
 if (!read('teacher-login.html').includes('v60-admin-workflow.js') || !adminWorkflowSource.includes('renderExamsV6061') || !adminWorkflowSource.includes('assignmentFormV6061')) fail('Organized exam or grade-assignment administration is missing');
-if (!functionsSource.includes('Reconcile it') || !functionsSource.includes('Do not turn a Firebase/index failure') || !appSourceCode.includes('assignmentLoadError') || !appSourceCode.includes('getStudentResources(code)')) fail('Assignment grade reconciliation or partial-backend failure handling is missing');
+if (!functionsSource.includes('assignmentsForStudent') || !functionsSource.includes('learningTargetMatchesStudent') || !functionsSource.includes('assignmentIsReleased') || !appSourceCode.includes('assignmentLoadError') || !appSourceCode.includes('getStudentResources(code)')) fail('Assignment academic targeting, scheduling, or partial-backend failure handling is missing');
 if (!read('index.html').includes('Eng. Amr Khaled') || !appSourceCode.includes('أولى ثانوي برمجة')) fail('English teacher name or the First Secondary programming track is missing');
 if (fs.existsSync(path.join(root,'services.html')) || read('scripts/build.js').includes("'services.html'") || appSourceCode.includes("['services.html'")) fail('The removed services page is still shipped or linked');
 if (!read('teacher-login.html').includes('adminPasswordReset') || !adminSourceCode.includes('sendPasswordReset(email)')) fail('Administration password-reset recovery is missing');

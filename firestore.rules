@@ -80,6 +80,12 @@ service cloud.firestore {
     match /groups/{id} { allow read: if true; allow write: if isTeacher(); }
     // Assignments are returned only after validating the student code/track.
     match /assignments/{id} { allow read, write: if isTeacher(); }
+    // Transfer requests are created and reviewed only by validated Functions.
+    // Staff can read them for the management dashboard.
+    match /student_transfer_requests/{id} {
+      allow read: if isStaff();
+      allow create, update, delete: if false;
+    }
     match /exams/{id} { allow read, write: if isTeacher(); }
 
     match /exam_sessions/{id} { allow read, write: if false; }

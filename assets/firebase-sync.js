@@ -116,6 +116,8 @@
       getCodeLanguages:callable('getCodeLanguages'),
       submitCodeExecution:callable('submitCodeExecution'),
       getCodeExecutionResult:callable('getCodeExecutionResult')
+      ,createStudentTransferRequest:callable('createStudentTransferRequest')
+      ,reviewStudentTransferRequest:callable('reviewStudentTransferRequest')
       ,logStaffActivity:callable('logStaffActivity')
       ,upsertCurriculumEntity:callable('upsertCurriculumEntity')
       ,listCurriculumAdmin:callable('listCurriculumAdmin')
@@ -333,14 +335,15 @@
     }
 
     async function loadStaffRecordCollections(){
-      const [attempts,grades,attendance,recitations,homeworks]=await Promise.all([
+      const [attempts,grades,attendance,recitations,homeworks,studentTransferRequests]=await Promise.all([
         getDocs('exam_attempts',3000).catch(()=>[]),getDocs('grades',5000).catch(()=>[]),getDocs('attendance',5000).catch(()=>[]),
-        getDocs('recitations',3000).catch(()=>[]),getDocs('homework_submissions',3000).catch(()=>[])
+        getDocs('recitations',3000).catch(()=>[]),getDocs('homework_submissions',3000).catch(()=>[]),
+        getDocs('student_transfer_requests',1000).catch(()=>[])
       ]);
       attendance.forEach(item=>seedFingerprint('attendance',cleanDocId(item.id),item));
       grades.forEach(item=>seedFingerprint('grades',cleanDocId(item.id),item));
       recitations.forEach(item=>seedFingerprint('recitations',cleanDocId(item.id),item));
-      return {attempts,grades,attendance,recitations,homeworks};
+      return {attempts,grades,attendance,recitations,homeworks,studentTransferRequests};
     }
 
     function mergeStaffRecords(core,records){
@@ -351,7 +354,7 @@
       records.recitations.forEach(row=>{const st=ensure(row.studentCode);if(st)st.recitations.push(row);});
       records.homeworks.forEach(row=>{const st=ensure(row.studentCode);if(st)st.homeworks.push(row);});
       normalized.forEach(st=>{st.attendance.sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));st.grades.sort((a,b)=>String(a.date||a.submittedAt||'').localeCompare(String(b.date||b.submittedAt||'')));});
-      return {...core,students:normalized,examAttempts:records.attempts,grades:records.grades};
+      return {...core,students:normalized,examAttempts:records.attempts,grades:records.grades,studentTransferRequests:records.studentTransferRequests||[]};
     }
 
     async function loadStaffCollections(options={}){const core=await loadStaffCoreCollections();if(options.fast===true)return core;return mergeStaffRecords(core,await loadStaffRecordCollections());}
@@ -535,6 +538,7 @@
       subscribeToBookings:handler=>db.collection('bookings').orderBy('createdAt','desc').limit(100).onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>console.warn('booking-listener',error)),
       subscribeToGroups:handler=>db.collection('groups').onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>console.warn('group-listener',error)),
       subscribeToStudents:handler=>db.collection('students').limit(3000).onSnapshot(snap=>handler(snap.docs.map(doc=>normalizedStudent({id:doc.id,...doc.data()})),snap.docChanges()),error=>console.warn('student-listener',error)),
+      subscribeToStudentTransferRequests:handler=>db.collection('student_transfer_requests').limit(1000).onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>console.warn('student-transfer-listener',error)),
       subscribeMonthlyPayments:handler=>db.collection('monthly_payments').orderBy('updatedAt','desc').limit(5000).onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>handler(null,[],error)),
       subscribePaymentTransactions:handler=>db.collection('payment_transactions').orderBy('paymentDate','desc').limit(5000).onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>handler(null,[],error)),
       getStudentPaymentHistory:async code=>{
@@ -618,6 +622,8 @@
       migrateCurriculumV61:apply=>calls.migrateCurriculumV61({apply:apply===true}),
       getPublicLeaderboard:grade=>calls.getPublicLeaderboard?calls.getPublicLeaderboard({grade:String(grade||'').trim()}):Promise.resolve([]),
       getParentStudent:code=>{if(!calls.getPortalStudent)throw new Error('Secure parent portal function is unavailable');return retryTransient(()=>calls.getPortalStudent({code:normalizeCode(code),mode:'parent'}),1);},
+      createStudentTransferRequest:payload=>{if(!calls.createStudentTransferRequest)throw new Error('Student transfer service unavailable');return calls.createStudentTransferRequest({...payload,studentCode:normalizeCode(payload?.studentCode)});},
+      reviewStudentTransferRequest:payload=>{if(!calls.reviewStudentTransferRequest)throw new Error('Student transfer review service unavailable');return calls.reviewStudentTransferRequest(payload||{});},
       uploadHomework:async(file,studentCode)=>{const normalized=normalizeCode(studentCode);if(!calls.prepareHomeworkUpload||!calls.registerHomeworkSubmission)throw new Error('Secure homework function is unavailable');const permit=await calls.prepareHomeworkUpload({studentCode:normalized,fileName:file.name,size:file.size,contentType:file.type});const uploaded=await upload(file,`homework/${cleanDocId(normalized)}/${permit.uploadId}`,permit.safeName,true);await calls.registerHomeworkSubmission({studentCode:normalized,uploadId:permit.uploadId,...uploaded,fileName:file.name});return uploaded;},
       submitAssignmentAnswer:payload=>{if(!calls.submitAssignmentAnswer)throw new Error('Assignment answer service unavailable');return calls.submitAssignmentAnswer({...payload,studentCode:normalizeCode(payload?.studentCode)});},
       uploadAttachment:(file,folder)=>upload(file,folder||'teacher-uploads'),logActivity,

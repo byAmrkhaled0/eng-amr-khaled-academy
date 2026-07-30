@@ -260,6 +260,43 @@ html[data-theme="dark"]{
   --bg:var(--tm-bg);--surface:var(--tm-surface);--card:var(--tm-surface);--card-soft:var(--tm-surface-soft);
   --text:var(--tm-text);--muted:var(--tm-muted);--border:var(--tm-line);--line:var(--tm-line);
 }
+
+/* V62 academic workflow: homework scheduling, absence warnings and transfers */
+.academic-filter-grid,.assignment-grid{display:grid;grid-template-columns:2fr repeat(4,minmax(150px,1fr));gap:12px;margin-bottom:18px}
+.academic-filter-grid label,.assignment-grid label,.student-transfer-form label{display:grid;gap:7px;font-weight:900}
+.academic-filter-grid input,.academic-filter-grid select,.assignment-grid input,.assignment-grid select,.assignment-grid textarea,.student-transfer-form select,.student-transfer-form textarea{width:100%;min-height:48px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--text);padding:11px 13px}
+.academic-card-list{display:grid;gap:13px}
+.academic-warning-card,.transfer-request-card,.assignment-scheduled-card{display:grid;gap:13px}
+.academic-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.academic-card-head h3{margin:0 0 4px}
+.academic-meta-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.academic-meta-grid span{display:grid;gap:3px;padding:11px;border-radius:13px;background:color-mix(in srgb,var(--tm-blue) 7%,var(--surface))}
+.academic-meta-grid small{color:var(--muted);font-weight:800}
+.academic-actions,.transfer-route{display:flex;align-items:center;gap:10px}
+.transfer-route{justify-content:center;padding:12px;border-radius:14px;background:color-mix(in srgb,var(--tm-cyan) 9%,var(--surface))}
+.assignment-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.assignment-grid .full-span{grid-column:1/-1}
+.assignment-scheduled-card{grid-template-columns:minmax(0,1fr) auto;align-items:center}
+.student-transfer-form,.student-transfer-status-card{display:grid;gap:14px;max-width:760px;padding:16px;border:1px solid var(--line);border-radius:18px;background:var(--surface)}
+.student-transfer-status-card{margin-bottom:14px}
+.whatsapp-report-btn{background:#16a34a!important;color:#fff!important;border-color:#16a34a!important}
+
+@media(max-width:900px){
+  .academic-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .assignment-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:620px){
+  .academic-filter-grid,.assignment-grid{grid-template-columns:1fr}
+  .academic-filter-grid>*,
+  .assignment-grid>*{grid-column:auto!important}
+  .academic-meta-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .academic-actions{display:grid;grid-template-columns:1fr 1fr}
+  .academic-actions>*{width:100%}
+  .assignment-scheduled-card{grid-template-columns:1fr}
+  .assignment-scheduled-card>button{width:100%}
+  .student-tabbar{overflow-x:auto;scrollbar-width:none}
+  .student-tabbar button{min-width:92px;flex:0 0 auto}
+}
 html[data-theme="dark"] body{color:var(--tm-text);background:radial-gradient(circle at 7% 2%,rgba(37,99,235,.14),transparent 26rem),#07111f}
 html[data-theme="dark"] .site-header{border-color:rgba(84,111,142,.4)!important;background:rgba(8,20,35,.88)!important}
 html[data-theme="dark"] .logo,html[data-theme="dark"] .section-title{color:#f1f6fd!important}
