@@ -464,7 +464,8 @@ function publicExamSession(sessionId, exam, questions, startedAtMs, expiresAtMs)
       type: q.type,
       question: q.question,
       options: q.options,
-      optionLabels: q.optionLabels
+      optionLabels: q.optionLabels,
+      mark: q.mark
     }))
   };
 }
@@ -487,11 +488,17 @@ function parseExamQuestions(source) {
   return blocks.map(block => {
     const lines = block.split('\n').map(x => x.trim()).filter(Boolean);
     const answerLine = lines.find(line => /^(answer|correct|الإجابة|الاجابة|الإجابة الصحيحة|الاجابة الصحيحة)\s*[:=：-]?/i.test(line));
+    const typeLine = lines.find(line => /^(type|النوع)\s*[:=：-]?/i.test(line));
+    const markLine = lines.find(line => /^(mark|points|الدرجة)\s*[:=：-]?/i.test(line));
+    const modelLine = lines.find(line => /^(model|النموذج|الإجابة النموذجية)\s*[:=：-]?/i.test(line));
     const answer = answerLine ? cleanAnswerLine(answerLine) : '';
+    const declaredType = typeLine ? String(typeLine).replace(/^(type|النوع)\s*[:=：-]?\s*/i, '').trim().toLowerCase() : '';
+    const mark = Math.max(0.25, Math.min(1000, Number(String(markLine || '').replace(/^(mark|points|الدرجة)\s*[:=：-]?\s*/i, '')) || 1));
+    const modelAnswer = modelLine ? String(modelLine).replace(/^(model|النموذج|الإجابة النموذجية)\s*[:=：-]?\s*/i, '').trim() : '';
     const options = [];
     const questionLines = [];
     for (const line of lines) {
-      if (line === answerLine) continue;
+      if (line === answerLine || line === typeLine || line === markLine || line === modelLine) continue;
       const option = parseOptionLine(line);
       if (option) options.push(option);
       else questionLines.push(line.replace(/^س\d*\s*[:\-]?\s*/, '').trim());
@@ -499,14 +506,15 @@ function parseExamQuestions(source) {
     const question = text(questionLines[0] || lines[0] || 'سؤال', 1500);
     if (options.length) {
       return {
-        type: 'mcq',
+        type: declaredType === 'truefalse' || declaredType === 'صح وخطأ' ? 'truefalse' : 'mcq',
         question,
         options: options.slice(0, 8).map(o => text(o.text, 700)),
         optionLabels: options.slice(0, 8).map(o => text(o.label, 10)),
-        answer: text(answer, 700)
+        answer: text(answer, 700),
+        mark
       };
     }
-    return { type: 'essay', question, options: [], optionLabels: [], answer: '' };
+    return { type: declaredType === 'code' || declaredType === 'كود' ? 'code' : 'essay', question, options: [], optionLabels: [], answer: '', modelAnswer: text(modelAnswer, 2000), mark };
   }).filter(q => q.question);
 }
 
@@ -659,6 +667,8 @@ async function attemptSummaries(studentCode) {
     submittedAt: text(a.submittedAt, 60),
     score: a.score === null || a.score === undefined ? null : Number(a.score),
     autoScore: a.autoScore === null || a.autoScore === undefined ? null : Number(a.autoScore),
+    maxScore: Number(a.maxScore || 100),
+    review: Array.isArray(a.review) ? a.review.slice(0, 200) : [],
     needsManualReview: a.needsManualReview === true,
     status: text(a.status, 40)
   }));
@@ -978,11 +988,11 @@ exports.submitAssignmentAnswer = onCall(CALLABLE_OPTIONS, async request => {
     throw new HttpsError('permission-denied', 'هذا الواجب غير متاح لمسار الطالب.');
   }
   if (assignmentDueDatePassed(assignment, cairoDateKey(new Date()))) throw new HttpsError('deadline-exceeded', 'انتهى موعد تسليم هذا الواجب.');
-  const type = ['mcq', 'code', 'text'].includes(assignment.type) ? assignment.type : 'text';
+  const type = ['mcq', 'truefalse', 'code', 'text'].includes(assignment.type) ? assignment.type : 'text';
   let answer = text(body.answer, type === 'code' ? 20000 : 5000);
   let selectedOption = null;
   let score = null;
-  if (type === 'mcq') {
+  if (type === 'mcq' || type === 'truefalse') {
     selectedOption = Number(body.selectedOption);
     const choices = Array.isArray(assignment.choices) ? assignment.choices.slice(0, 8) : [];
     if (!Number.isInteger(selectedOption) || selectedOption < 0 || selectedOption >= choices.length) throw new HttpsError('invalid-argument', 'اختار إجابة من الاختيارات.');
@@ -1497,6 +1507,7 @@ function examIsOpen(exam, now = Date.now()) {
   if (closeAt && Number.isFinite(closeAt) && now > closeAt) return false;
   return true;
 }
+function examScheduleState(exam, now = Date.now()) {if(exam.active===false)return 'inactive';const open=exam.openAt?new Date(exam.openAt).getTime():0,close=exam.closeAt?new Date(exam.closeAt).getTime():0;if(open&&Number.isFinite(open)&&now<open)return 'upcoming';if(close&&Number.isFinite(close)&&now>close)return 'closed';return 'open';}
 
 exports.getExamDashboard = onCall(CALLABLE_OPTIONS, async request => {
   const studentCode = normalizeCode(request.data && request.data.studentCode);
@@ -1506,7 +1517,6 @@ exports.getExamDashboard = onCall(CALLABLE_OPTIONS, async request => {
   const snap = await db.collection('exams').get();
   const exams = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     .filter(exam => examMatchesStudent(exam, found.data))
-    .filter(exam => examIsOpen(exam))
     .map(exam => ({
       id: text(exam.id, 100),
       title: text(exam.title, 200),
@@ -1521,6 +1531,7 @@ exports.getExamDashboard = onCall(CALLABLE_OPTIONS, async request => {
       pdfUrl: safePublicUrl(exam.pdfUrl || exam.examPdfUrl),
       pdfName: text(exam.pdfName || exam.examPdfName, 220),
       allowRetake: exam.allowRetake === true,
+      scheduleState: examScheduleState(exam),
       questionCount: Number(exam.questionCount || parseExamQuestions(exam.text || exam.questionsText).length)
     }));
   const [attempts, records] = await Promise.all([attemptSummaries(studentCode), studentRecords(studentCode)]);
@@ -1651,7 +1662,8 @@ exports.submitExam = onCall(CALLABLE_OPTIONS, async request => {
   const staffAnswers = [];
   questions.forEach((question, index) => {
     const value = rawAnswers[String(index)] ?? rawAnswers[index] ?? '';
-    if (question.type === 'mcq') {
+    const questionMark = Math.max(0.25, Number(question.mark || 1));
+    if (question.type === 'mcq' || question.type === 'truefalse') {
       mcqCount += 1;
       const chosenIndex = Number(value);
       const chosen = Number.isInteger(chosenIndex) ? question.options[chosenIndex] || '' : '';
@@ -1666,7 +1678,9 @@ exports.submitExam = onCall(CALLABLE_OPTIONS, async request => {
         correct,
         correctAnswer: question.answer,
         options: question.options,
-        optionLabels: question.optionLabels
+        optionLabels: question.optionLabels,
+        mark: questionMark,
+        awardedMark: correct === true ? questionMark : 0
       });
     } else {
       essayCount += 1;
@@ -1676,13 +1690,16 @@ exports.submitExam = onCall(CALLABLE_OPTIONS, async request => {
         type: 'essay',
         answer: text(value, 4000),
         correct: null,
-        correctAnswer: 'يصححها المدرس'
+        correctAnswer: question.modelAnswer || 'يصححها المدرس',
+        mark: questionMark,
+        awardedMark: null
       });
     }
   });
 
-  const autoScore = mcqCount ? Math.round((correctCount / mcqCount) * 100) : null;
-  const score = needsManualReview ? null : (autoScore || 0);
+  const maxScore = questions.reduce((sum, question) => sum + Math.max(0.25, Number(question.mark || 1)), 0);
+  const autoScore = staffAnswers.reduce((sum, answer) => sum + Number(answer.awardedMark || 0), 0);
+  const score = needsManualReview ? null : autoScore;
   const attemptRef = db.collection('exam_attempts').doc();
   const submittedAt = new Date().toISOString();
   const attempt = {
@@ -1699,7 +1716,7 @@ exports.submitExam = onCall(CALLABLE_OPTIONS, async request => {
     submittedAt,
     score,
     autoScore,
-    maxScore: 100,
+    maxScore,
     mcqCount,
     essayCount,
     questionCount: questions.length,
@@ -1717,6 +1734,8 @@ exports.submitExam = onCall(CALLABLE_OPTIONS, async request => {
     submittedAt,
     score,
     autoScore,
+    maxScore,
+    review: staffAnswers.map(answer => ({ question: answer.question, type: answer.type, answer: answer.answer, correct: answer.correct, correctAnswer: answer.correctAnswer, mark: answer.mark, awardedMark: answer.awardedMark })),
     needsManualReview,
     status: attempt.status,
     academicYear: attempt.academicYear,

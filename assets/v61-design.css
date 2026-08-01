@@ -357,3 +357,7 @@ html[data-theme="dark"] .admin-mobile-header{border-color:#23374f!important;back
 @media print{
   body{background:#fff!important}.card,.mini-panel{box-shadow:none!important}.site-header,.mobile-bottom{display:none!important}
 }
+
+/* V62.1 weighted exams, mobile correction and attendance filters */
+.add-question-under{width:100%;margin-top:12px;border-style:dashed!important}.exam-attendance-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}.exam-attendance-filters label{display:grid;gap:6px;font-weight:800}.exam-attendance-summary{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.exam-answer-review{margin-top:12px}.exam-answer-review summary{cursor:pointer;font-weight:900}.exam-review-item{display:grid;gap:4px;padding:10px;margin-top:8px;border-radius:12px;background:#f8fafc;border-inline-start:4px solid #94a3b8}.exam-review-item.correct{border-color:#16a34a;background:#f0fdf4}.exam-review-item.wrong{border-color:#dc2626;background:#fef2f2}.exam-review-item.pending{border-color:#d97706;background:#fffbeb}.correction-question-v40 input[type=number]{width:130px;margin-inline-start:8px}.admin-exam-actions{flex-wrap:wrap}
+@media(max-width:720px){.exam-attendance-filters{grid-template-columns:1fr}.admin-exam-actions>*{flex:1}.correction-card-v40{width:calc(100vw - 16px)!important;max-height:calc(100vh - 16px)!important}.exam-result-card{align-items:flex-start!important;flex-direction:column}.score-pill{align-self:stretch;text-align:center}}
