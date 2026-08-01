@@ -675,7 +675,15 @@ async function attemptSummaries(studentCode) {
 }
 
 function publicAssignmentPayload(data = {}, id = '') {
-  const type = ['mcq', 'code', 'text', 'file'].includes(data.type) ? data.type : 'text';
+  const type = ['mcq', 'truefalse', 'code', 'text', 'file', 'multi'].includes(data.type) ? data.type : 'text';
+  const questions = Array.isArray(data.questions) ? data.questions.slice(0, 100).map(question => ({
+    type: ['mcq','truefalse','code','text'].includes(question.type) ? question.type : 'text',
+    question: text(question.question, 1500),
+    mark: Math.max(0.25, Math.min(100, Number(question.mark || 1))),
+    language: text(question.language, 40),
+    starterCode: question.type === 'code' ? text(question.starterCode, 12000) : '',
+    choices: ['mcq','truefalse'].includes(question.type) && Array.isArray(question.choices) ? question.choices.slice(0, 8).map(choice => text(choice, 700)) : []
+  })) : [];
   return {
     id: text(id || data.id, 120),
     title: text(data.title, 200),
@@ -684,6 +692,8 @@ function publicAssignmentPayload(data = {}, id = '') {
     group: text(data.group, 100),
     academicYear: text(data.academicYear, 30),
     term: text(data.term, 40),
+    lessonTitle: text(data.lessonTitle, 200),
+    lessonNumber: text(data.lessonNumber, 30),
     type,
     dueDate: text(data.dueDate, 40),
     publishAt: text(data.publishAt, 60),
@@ -692,7 +702,10 @@ function publicAssignmentPayload(data = {}, id = '') {
     fileName: text(data.fileName, 220),
     language: text(data.language, 40),
     starterCode: type === 'code' ? text(data.starterCode, 12000) : '',
-    choices: type === 'mcq' && Array.isArray(data.choices) ? data.choices.slice(0, 8).map(choice => text(choice, 700)) : []
+    choices: (type === 'mcq' || type === 'truefalse') && Array.isArray(data.choices) ? data.choices.slice(0, 8).map(choice => text(choice, 700)) : [],
+    questionCount: questions.length || Number(data.questionCount || 1),
+    totalScore: questions.reduce((sum, question) => sum + question.mark, 0) || Number(data.totalScore || 1),
+    questions
   };
 }
 
@@ -988,6 +1001,35 @@ exports.submitAssignmentAnswer = onCall(CALLABLE_OPTIONS, async request => {
     throw new HttpsError('permission-denied', 'هذا الواجب غير متاح لمسار الطالب.');
   }
   if (assignmentDueDatePassed(assignment, cairoDateKey(new Date()))) throw new HttpsError('deadline-exceeded', 'انتهى موعد تسليم هذا الواجب.');
+  const multiQuestions = Array.isArray(assignment.questions) ? assignment.questions.slice(0, 100) : [];
+  if (multiQuestions.length) {
+    const rawAnswers = body.answers && typeof body.answers === 'object' && !Array.isArray(body.answers) ? body.answers : {};
+    if (jsonByteSize(rawAnswers) > 96 * 1024) throw new HttpsError('invalid-argument', 'حجم إجابات الواجب أكبر من الحد المسموح.');
+    let score = 0;
+    let needsManualReview = false;
+    const review = multiQuestions.map((question, index) => {
+      const qType = ['mcq','truefalse','code','text'].includes(question.type) ? question.type : 'text';
+      const mark = Math.max(0.25, Math.min(100, Number(question.mark || 1)));
+      const raw = rawAnswers[String(index)] ?? rawAnswers[index] ?? '';
+      if (qType === 'mcq' || qType === 'truefalse') {
+        const selectedOption = Number(raw);
+        const choices = Array.isArray(question.choices) ? question.choices.slice(0, 8) : [];
+        if (!Number.isInteger(selectedOption) || selectedOption < 0 || selectedOption >= choices.length) throw new HttpsError('invalid-argument', `أجب عن السؤال ${index + 1}.`);
+        const correct = selectedOption === Number(question.correctIndex);
+        if (correct) score += mark;
+        return { question: text(question.question,1500), type:qType, answer:text(choices[selectedOption],700), correct, correctAnswer:text(choices[Number(question.correctIndex)]||'',700), mark, awardedMark:correct?mark:0 };
+      }
+      const answer = text(raw, qType === 'code' ? 20000 : 5000);
+      if (!answer) throw new HttpsError('invalid-argument', `أجب عن السؤال ${index + 1}.`);
+      needsManualReview = true;
+      return { question:text(question.question,1500), type:qType, answer, correct:null, correctAnswer:text(question.modelAnswer,2000)||'يصححها المدرس', mark, awardedMark:null };
+    });
+    const maxScore = review.reduce((sum, row) => sum + row.mark, 0);
+    const submissionId = hash(`${assignmentId}|${studentCode}`).slice(0, 48);
+    await db.collection('homework_submissions').doc(submissionId).set({id:submissionId,assignmentId,homeworkTitle:text(assignment.title,200),title:text(assignment.title,200),type:'homework',answerType:'multi',answers:review,score:needsManualReview?null:score,autoScore:score,maxScore,needsManualReview,status:needsManualReview?'بانتظار تصحيح المدرس':'تم تصحيح الواجب',completed:true,approved:!needsManualReview,studentCode,studentName:text(found.data.studentName||found.data.name,100),grade,group:text(found.data.group,100),method:'student_assignment_answer',submittedAt:new Date().toISOString(),attemptCount:FieldValue.increment(1),updatedAt:FieldValue.serverTimestamp()},{merge:true});
+    await markLeaderboardDirty('assignment-submitted');
+    return {ok:true,assignmentId,submissionId,score:needsManualReview?null:score,autoScore:score,maxScore,needsManualReview,review};
+  }
   const type = ['mcq', 'truefalse', 'code', 'text'].includes(assignment.type) ? assignment.type : 'text';
   let answer = text(body.answer, type === 'code' ? 20000 : 5000);
   let selectedOption = null;
@@ -1026,6 +1068,26 @@ exports.submitAssignmentAnswer = onCall(CALLABLE_OPTIONS, async request => {
   }, { merge: true });
   await markLeaderboardDirty('assignment-submitted');
   return { ok: true, assignmentId, submissionId, score, correct: score === null ? null : score === 100 };
+});
+
+exports.reviewHomeworkSubmission = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request);
+  const submissionId = cleanDocId(text(request.data?.submissionId, 120));
+  const awarded = request.data?.awarded && typeof request.data.awarded === 'object' ? request.data.awarded : {};
+  if (!submissionId) throw new HttpsError('invalid-argument', 'رقم تسليم الواجب غير صالح.');
+  const ref = db.collection('homework_submissions').doc(submissionId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'تسليم الواجب غير موجود.');
+  const submission = snap.data() || {};
+  const answers = Array.isArray(submission.answers) ? submission.answers.map((answer, index) => {
+    const mark = Math.max(0.25, Number(answer.mark || 1));
+    const value = Math.max(0, Math.min(mark, Number(awarded[String(index)] ?? answer.awardedMark ?? 0) || 0));
+    return { ...answer, awardedMark:value, correct:value===mark, teacherReviewed:true };
+  }) : [];
+  const maxScore = answers.reduce((sum, answer) => sum + Number(answer.mark || 1), 0);
+  const score = answers.reduce((sum, answer) => sum + Number(answer.awardedMark || 0), 0);
+  await ref.set({answers,score,maxScore,needsManualReview:false,approved:true,status:'تم تصحيح الواجب',reviewedBy:staff.email||staff.uid,reviewedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()},{merge:true});
+  return {ok:true,submissionId,score,maxScore};
 });
 
 const leaderboardStateRef = db.collection('_system').doc('leaderboard');

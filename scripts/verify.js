@@ -48,7 +48,7 @@ const htmlFiles = fs.readdirSync(root).filter(name => name.endsWith('.html'));
 const localRefPattern = /(?:src|href)=["']([^"'#?]+)["']/g;
 for (const htmlFile of htmlFiles) {
   const html = read(htmlFile);
-  if (!html.includes('assets/v61-design.css?v=62.1.0')) {
+  if (!html.includes('assets/v61-design.css?v=62.2.0')) {
     fail(`Unified V61.1 design is not loaded by ${htmlFile}`);
   }
   const ids = [...html.matchAll(/\sid=["']([^"']+)["']/g)].map(match => match[1]);
