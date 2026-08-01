@@ -18,10 +18,10 @@ test('scheduled homework remains hidden until its release time', () => {
 });
 
 test('groups and learning content match the same normalized academic scope', () => {
-  const student = { grade: 'أولى ثانوي برمجة', group: 'مجموعة ١', term: 'الترم الأول', academicYear: '2026/2027' };
+  const student = { grade: 'أولى ثانوي بكالوريا', group: 'مجموعة ١', term: 'الترم الأول', academicYear: '2026/2027' };
   assert.equal(scheduleMatchesStudent({ active: true, grade: 'اولي ثانوي برمجة', term: 'الترم الأول', academicYear: '2026/2027' }, student), true);
   assert.equal(scheduleMatchesStudent({ active: true, grade: 'ثانية ثانوي' }, student), false);
-  assert.equal(learningTargetMatchesStudent({ grade: 'أولى ثانوي برمجة', group: 'مجموعة 1', term: 'الترم الأول' }, student), true);
+  assert.equal(learningTargetMatchesStudent({ grade: 'أولى ثانوي بكالوريا', group: 'مجموعة 1', term: 'الترم الأول' }, student), true);
 });
 
 test('student and admin bundles contain the complete transfer and warning workflow', () => {

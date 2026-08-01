@@ -1,6 +1,6 @@
 {
   "name": "technominds-platform-functions",
-  "version": "62.2.1",
+  "version": "62.3.0",
   "private": true,
   "main": "index.js",
   "engines": {

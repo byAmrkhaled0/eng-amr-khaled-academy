@@ -7,7 +7,7 @@ function normalizeDigits(value) {
 }
 
 function normalizeAcademicValue(value) {
-  return normalizeDigits(value)
+  const normalized = normalizeDigits(value)
     .normalize('NFKC')
     .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '')
     .replace(/\u0640/g, '')
@@ -16,6 +16,7 @@ function normalizeAcademicValue(value) {
     .trim()
     .toLocaleLowerCase('ar')
     .replace(/\s+/g, ' ');
+  return normalized === 'اولي ثانوي برمجة' ? 'اولي ثانوي بكالوريا' : normalized;
 }
 
 function sameAcademicValue(left, right) {

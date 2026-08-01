@@ -7,7 +7,7 @@
   ];
   let active='lectures',rows=[],cursor=null,hasMore=false,editing=null;
 
-  const gradeOptions='<option value="">اختر الصف</option><option>أولى ثانوي برمجة</option><option>تانية ثانوي بكالوريا</option>';
+  const gradeOptions='<option value="">اختر الصف</option><option>أولى ثانوي بكالوريا</option><option>تانية ثانوي بكالوريا</option>';
   const termOptions='<option value="">اختر الترم</option><option>الترم الأول</option><option>الترم الثاني</option>';
 
   function shell(){

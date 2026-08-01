@@ -455,8 +455,7 @@ function publicExamSession(sessionId, exam, questions, startedAtMs, expiresAtMs)
       title: text(exam.title, 200),
       instructions: text(exam.instructions, 1500),
       duration: Math.max(1, Math.min(240, Number(exam.duration || 20))),
-      pdfUrl: safePublicUrl(exam.pdfUrl || exam.examPdfUrl),
-      pdfName: text(exam.pdfName || exam.examPdfName, 220)
+      questionMode: 'interactive'
     },
     startedAt: new Date(startedAtMs).toISOString(),
     expiresAt: expiresAtMs,
@@ -571,6 +570,7 @@ function portalResponse(data, attempts, records = {}) {
       lastPaymentDate: text(row.lastPaymentDate, 40)
     })),
     assignments: (Array.isArray(records.assignments) ? records.assignments : []).slice(0, 120).map(row => publicAssignmentPayload(row, row.id)),
+    materials: (Array.isArray(records.materials) ? records.materials : []).slice(0, 120),
     examAttempts: Array.isArray(attempts) ? attempts.slice(-120) : []
   };
 }
@@ -637,10 +637,14 @@ async function getParentPortalByCode(code) {
   if (!validLegacyOrStrongCode(normalized)) throw new HttpsError('invalid-argument', 'كود غير صالح.');
   let snap = await db.collection('parent_portal').doc(cleanDocId(normalized)).get();
   if (!snap.exists) {
-    // Repair legacy data only when the supplied value is explicitly stored as
-    // the parent code. Never fall back to a matching student code because that
-    // would bypass the separate private parent credential.
-    const match = await db.collection('students').where('parentCode', '==', normalized).limit(1).get().catch(() => null);
+    // The academy uses one code for the student and parent portals. Keep older
+    // parent-only codes compatible, then fall back to the canonical student code.
+    let match = await db.collection('students').where('parentCode', '==', normalized).limit(1).get().catch(() => null);
+    if (!match || match.empty) {
+      const direct = await db.collection('students').doc(cleanDocId(normalized)).get().catch(() => null);
+      if (direct?.exists) match = { empty: false, docs: [direct] };
+    }
+    if (!match || match.empty) match = await db.collection('students').where('studentCode', '==', normalized).limit(1).get().catch(() => null);
     if (match && !match.empty && match.docs[0].data().active !== false) {
       const studentData = match.docs[0].data() || {};
       const repaired = portalResponse(studentData, []);
@@ -719,17 +723,26 @@ async function assignmentsForStudent(student = {}) {
     .slice(0, 120);
 }
 
+async function materialsForStudent(student = {}) {
+  const snap = await db.collection('materials').limit(250).get();
+  return snap.docs
+    .filter(doc => { const row = doc.data() || {}; return row.active !== false && row.published !== false && row.status !== 'مسودة' && learningTargetMatchesStudent(row, student); })
+    .map(doc => studentResourcePayload(doc, 'material'))
+    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+    .slice(0, 120);
+}
+
 async function studentRecords(studentCode, student = {}) {
   const normalized = normalizeCode(studentCode);
   const load = async collection => {
     const snap = await db.collection(collection).where('studentCode', '==', normalized).limit(250).get().catch(() => null);
     return snap ? snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) : [];
   };
-  const [attendance, grades, homeworks, recitations, monthlyPayments, assignments] = await Promise.all([
-    load('attendance'), load('grades'), load('homework_submissions'), load('recitations'), load('monthly_payments'), assignmentsForStudent(student)
+  const [attendance, grades, homeworks, recitations, monthlyPayments, assignments, materials] = await Promise.all([
+    load('attendance'), load('grades'), load('homework_submissions'), load('recitations'), load('monthly_payments'), assignmentsForStudent(student), materialsForStudent(student)
   ]);
   const byDate = rows => rows.sort((a, b) => String(a.date || a.submittedAt || a.createdAt || '').localeCompare(String(b.date || b.submittedAt || b.createdAt || '')));
-  return { attendance: byDate(attendance), grades: byDate(grades), homeworks: byDate(homeworks), recitations: byDate(recitations), monthlyPayments: monthlyPayments.sort((a, b) => String(a.academicYear + a.month).localeCompare(String(b.academicYear + b.month))), assignments };
+  return { attendance: byDate(attendance), grades: byDate(grades), homeworks: byDate(homeworks), recitations: byDate(recitations), monthlyPayments: monthlyPayments.sort((a, b) => String(a.academicYear + a.month).localeCompare(String(b.academicYear + b.month))), assignments, materials };
 }
 
 function publicSchedule(schedule = {}) {
@@ -946,11 +959,13 @@ function studentResourcePayload(doc, kind) {
     content: text(data.content, 4000),
     answer: kind === 'question' ? text(data.answer, 4000) : '',
     grade: text(data.grade, 80),
+    group: text(data.group, 100),
     unit: text(data.unit, 120),
     lecture: text(data.lecture, 120),
     fileUrl,
     fileName: text(data.fileName, 220),
-    fileType: text(data.fileType || data.type, 100)
+    fileType: text(data.fileType || data.type, 100),
+    createdAt: text(data.createdAt, 60)
   };
 }
 
@@ -961,7 +976,7 @@ exports.getStudentResources = onCall(CALLABLE_OPTIONS, async request => {
   const studentCode = normalizeCode(found.data.studentCode || found.data.code || code);
   const grade = text(found.data.grade, 80);
   if (!grade) throw new HttpsError('failed-precondition', 'مسار الطالب غير محدد. تواصل مع الإدارة لتحديد المسار أولًا.');
-  const allowedGrades = [...new Set([grade, 'كل المسارات'])];
+  const allowedGrades = [...new Set([grade, 'كل المسارات', ...(sameAcademicValue(grade, 'أولى ثانوي بكالوريا') ? ['أولى ثانوي برمجة'] : [])])];
   const [materialsSnap, questionsSnap, assignments] = await Promise.all([
     db.collection('materials').where('grade', 'in', allowedGrades).limit(250).get(),
     db.collection('questions').where('grade', 'in', allowedGrades).limit(250).get(),
@@ -978,7 +993,7 @@ exports.getStudentResources = onCall(CALLABLE_OPTIONS, async request => {
       grade,
       group: text(found.data.group, 100)
     },
-    materials: materialsSnap.docs.filter(visible).map(doc => studentResourcePayload(doc, 'material')),
+    materials: materialsSnap.docs.filter(visible).filter(doc => learningTargetMatchesStudent(doc.data() || {}, found.data)).map(doc => studentResourcePayload(doc, 'material')),
     questions: questionsSnap.docs.filter(visible).map(doc => studentResourcePayload(doc, 'question')),
     assignments: assignments.map(row => publicAssignmentPayload(row, row.id))
   };
@@ -1130,15 +1145,16 @@ exports.getPublicLeaderboard = onCall(CALLABLE_OPTIONS, async request => {
   const requestedGrade = text(request.data?.grade, 50);
   const selectGradeLeaders = items => (items || []).filter(row => row.grade === requestedGrade).slice(0, 5);
   if (leaderboardCache.expiresAt > Date.now() && leaderboardCache.version === stateVersion) return selectGradeLeaders(leaderboardCache.rows);
-  const [studentsSnap, attendanceSnap, gradesSnap, homeworkSnap, recitationSnap] = await Promise.all([
+  const [studentsSnap, attendanceSnap, gradesSnap, examAttemptsSnap, homeworkSnap, recitationSnap] = await Promise.all([
     db.collection('students').where('active', '==', true).limit(500).get(),
     db.collection('attendance').limit(2000).get(),
     db.collection('grades').limit(2000).get(),
+    db.collection('exam_attempts').limit(2000).get(),
     db.collection('homework_submissions').limit(2000).get(),
     db.collection('recitations').limit(2000).get()
   ]);
   const grouped = snap => { const map = new Map(); snap.docs.forEach(doc => { const row=doc.data()||{},code=normalizeCode(row.studentCode); if(!code)return; if(!map.has(code))map.set(code,[]); map.get(code).push(row); }); return map; };
-  const attendance=grouped(attendanceSnap),grades=grouped(gradesSnap),homeworks=grouped(homeworkSnap),recitations=grouped(recitationSnap);
+  const attendance=grouped(attendanceSnap),grades=grouped(gradesSnap),examAttempts=grouped(examAttemptsSnap),homeworks=grouped(homeworkSnap),recitations=grouped(recitationSnap);
   const complete=row=>row.completed===true||row.approved===true||String(row.status||'').startsWith('تم');
   const currentMonth=cairoDateKey(new Date()).slice(0,7);
   const currentMonthRows=items=>(items||[]).filter(row=>leaderboardRecordDate(row).slice(0,7)===currentMonth);
@@ -1146,7 +1162,7 @@ exports.getPublicLeaderboard = onCall(CALLABLE_OPTIONS, async request => {
   const rows=studentsSnap.docs.map(doc=>{
     const st=doc.data()||{},code=normalizeCode(st.studentCode||st.code||doc.id);
     const att=currentMonthRows(attendance.get(code)||st.attendance||[]),present=att.filter(x=>['present','حاضر','متأخر'].includes(x.status)).length,attendancePct=att.length?Math.round(present/att.length*100):0;
-    const gradeRows=currentMonthRows(grades.get(code)||st.grades||[]).filter(x=>Number.isFinite(Number(x.score))),gradePct=gradeRows.length?Math.round(gradeRows.reduce((sum,x)=>sum+Number(x.score),0)/gradeRows.length):0;
+    const gradeRows=[...currentMonthRows(grades.get(code)||st.grades||[]),...currentMonthRows(examAttempts.get(code)||[])].filter(x=>Number.isFinite(Number(x.score))),gradePct=gradeRows.length?Math.round(gradeRows.reduce((sum,x)=>sum+(Number(x.maxScore)>0?Number(x.score)/Number(x.maxScore)*100:Number(x.score)),0)/gradeRows.length):0;
     const hw=currentMonthRows(homeworks.get(code)||st.homeworks||[]).filter(complete),rec=currentMonthRows(recitations.get(code)||st.recitations||[]).filter(complete);
     const classDates=new Set(att.map(recordDate).filter(Boolean));hw.forEach(row=>{const date=recordDate(row);if(date)classDates.add(date);});rec.forEach(row=>{const date=recordDate(row);if(date)classDates.add(date);});
     const sessions=classDates.size,completedDates=items=>new Set(items.map(recordDate).filter(Boolean)).size;

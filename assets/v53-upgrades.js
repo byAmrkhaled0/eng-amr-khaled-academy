@@ -354,7 +354,7 @@
         form.addEventListener('submit',event=>{const open=form.openAt.value,close=form.closeAt.value;if(open&&close&&new Date(close)<=new Date(open)){event.preventDefault();event.stopImmediatePropagation();aToast('موعد إغلاق الامتحان يجب أن يكون بعد موعد الفتح');}},true);
       }
       const questions=form?.querySelector('[name="text"]');
-      if(questions&&!form.querySelector('[name="pdfFile"]')){
+      if(false&&questions&&!form.querySelector('[name="pdfFile"]')){
         questions.insertAdjacentHTML('beforebegin',`<label class="exam-pdf-upload"><span><b>ملف الامتحان PDF (اختياري)</b><small>يمكن رفع PDF حتى 15MB، وكتابة الأسئلة هنا أو تركها فارغة ليجيب الطالب عن الملف في مربع إجابة واحد.</small></span><input name="pdfFile" type="file" accept="application/pdf,.pdf"></label>`);
         questions.placeholder='اكتب الأسئلة هنا، أو ارفع PDF فقط.\n\nمثال اختياري:\nما ناتج print(2 + 3)؟\nأ) 5\nب) 23\nالإجابة: أ\n\nمثال مقالي:\nاشرح الفرق بين المتغير والقيمة في Python.';
       }
@@ -436,7 +436,7 @@
     {q:'مين هو المهندس عمرو خالد؟',keys:'مين عمرو خالد مهندس مدرس مدرب شهادات بورتفوليو ذكاء اصطناعي واجهات انترنت الاشياء هاردوير',a:'مؤسس Techno Minds، ومهندس ذكاء اصطناعي ومطور واجهات أمامية ومتخصص في إنترنت الأشياء والهاردوير. يركز على التطبيق العملي والمشروعات والمتابعة، وصفحة «عن م. عمرو» تضم الشهادات والمهارات وروابط الأعمال.',link:'about.html',label:'عن م. عمرو والشهادات'},
     {q:'أشوف مشروعات وبورتفوليو م. عمرو فين؟',keys:'بورتفوليو portfolio مشاريع اعمال github جيت هب',a:'تقدر تفتح البورتفوليو وGitHub وروابط التواصل الموثقة من صفحة «عن م. عمرو».',link:'about.html',label:'فتح الروابط المهنية'},
     {q:'إزاي أحجز في الأكاديمية؟',keys:'احجز حجز تسجيل سنتر',a:'الحجز 3 خطوات داخل نفس الصندوق: بيانات الطالب، ثم المسار والموعد الاختياري، ثم استلام الكود وروابط بوابة الطالب وولي الأمر.',link:'index.html#booking',label:'فتح الحجز'},
-    {q:'إيه المسارات المتاحة؟',keys:'مسارات برمجة بايثون ذكاء اصطناعي ثانوي مبتدئين',a:'متاح أولى ثانوي برمجة، وتانية ثانوي، والمبتدئين، وأساسيات Python، والتطبيقات والمراجعة.'},
+    {q:'إيه المسارات المتاحة؟',keys:'مسارات برمجة بايثون ذكاء اصطناعي ثانوي مبتدئين',a:'متاح أولى ثانوي بكالوريا، وتانية ثانوي، والمبتدئين، وأساسيات Python، والتطبيقات والمراجعة.'},
     {q:'إيه المسار التعليمي الكامل؟',keys:'المسار التعليمي خطة اتعلم ابدا مبتدئ مشاريع',a:'المسار يبدأ بالتفكير البرمجي وPython، ثم التطبيق والتحديات والذكاء الاصطناعي، وينتهي بمشروع Portfolio.',link:'learning-path.html',label:'شاهد المسار الكامل'},
     {q:'أشغّل الكود منين؟',keys:'عملي محرر كود تشغيل run python javascript c java rust kotlin ruby',a:'المعمل العملي مفتوح للجميع بدون كود طالب، ويدعم 12 لغة منها Python وJavaScript وC وC++ وJava وC# وGo وPHP وRuby وRust وKotlin.',link:'practical.html',label:'فتح المعمل العملي'},
     {q:'أجيب كود الطالب منين؟',keys:'كود الطالب ضاع نسيته',a:'كود الطالب يصدر بعد قبول الحجز. اطلبه من المدرس أو تواصل معه إذا فقدته.'},

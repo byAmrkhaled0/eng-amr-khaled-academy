@@ -48,7 +48,7 @@ const htmlFiles = fs.readdirSync(root).filter(name => name.endsWith('.html'));
 const localRefPattern = /(?:src|href)=["']([^"'#?]+)["']/g;
 for (const htmlFile of htmlFiles) {
   const html = read(htmlFile);
-  if (!html.includes('assets/v61-design.css?v=62.2.1')) {
+  if (!html.includes('assets/v61-design.css?v=62.3.0')) {
     fail(`Unified V61.1 design is not loaded by ${htmlFile}`);
   }
   const ids = [...html.matchAll(/\sid=["']([^"']+)["']/g)].map(match => match[1]);
@@ -262,13 +262,13 @@ if (!adminSourceCode.includes('admin-brand-logo') || !adminSourceCode.includes('
 if (!adminSourceCode.includes('admin-hero-theme-icon') || /admin-sidebar-footer[\s\S]{0,500}themeToggleAdmin/.test(adminSourceCode)) fail('Administration theme icon is not isolated in the top hero');
 if (!read('teacher-login.html').includes('v60-admin-workflow.js') || !adminWorkflowSource.includes('renderExamsV6061') || !adminWorkflowSource.includes('assignmentFormV6061')) fail('Organized exam or grade-assignment administration is missing');
 if (!functionsSource.includes('assignmentsForStudent') || !functionsSource.includes('learningTargetMatchesStudent') || !functionsSource.includes('assignmentIsReleased') || !appSourceCode.includes('assignmentLoadError') || !appSourceCode.includes('getStudentResources(code)')) fail('Assignment academic targeting, scheduling, or partial-backend failure handling is missing');
-if (!read('index.html').includes('Eng. Amr Khaled') || !appSourceCode.includes('أولى ثانوي برمجة')) fail('English teacher name or the First Secondary programming track is missing');
+if (!read('index.html').includes('Eng. Amr Khaled') || !appSourceCode.includes('أولى ثانوي بكالوريا')) fail('English teacher name or the First Secondary programming track is missing');
 if (fs.existsSync(path.join(root,'services.html')) || read('scripts/build.js').includes("'services.html'") || appSourceCode.includes("['services.html'")) fail('The removed services page is still shipped or linked');
 if (!read('teacher-login.html').includes('adminPasswordReset') || !adminSourceCode.includes('sendPasswordReset(email)')) fail('Administration password-reset recovery is missing');
 if (!failures.some(x => x.includes('PWA') || x.includes('Service worker') || x.includes('Mobile install'))) ok('Android and iPhone PWA installation checks passed');
 
 const adminSource = read('assets/admin.js') + '\n' + upgrade;
-for (const feature of ['importStudentsFile', 'exportStudentsCSV', 'exportAttendanceCSV', 'exportGradesCSV', 'academicYear', 'openAt', 'closeAt', 'renderClientErrors', 'pdfFile', 'showIssuedCodes']) {
+for (const feature of ['importStudentsFile', 'exportStudentsCSV', 'exportAttendanceCSV', 'exportGradesCSV', 'academicYear', 'openAt', 'closeAt', 'renderClientErrors', 'showIssuedCodes']) {
   if (!adminSource.includes(feature)) fail(`Admin v54 feature is missing: ${feature}`);
 }
 if (!adminSource.includes('المدفوعات') || adminSource.includes('بوابة دفع')) fail('Center subscription wording is incomplete');
