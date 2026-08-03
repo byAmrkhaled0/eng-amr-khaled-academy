@@ -4,6 +4,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ExpectedVersion = (Get-Content -LiteralPath (Join-Path $ProjectRoot "functions\package.json") -Raw | ConvertFrom-Json).version
 
 function Invoke-Callable([string]$Path, [hashtable]$Data, [int]$TimeoutSec = 45) {
   $body = @{ data = $Data } | ConvertTo-Json -Depth 8 -Compress
@@ -23,6 +25,7 @@ try {
 
   $health = Invoke-Callable "/api/health" @{}
   if ($health.status -ne "ok" -or -not $health.firestore) { throw "Health endpoint did not confirm Firestore." }
+  if ($health.version -ne $ExpectedVersion) { throw "Backend version $($health.version) does not match source version $ExpectedVersion. Deploy Firebase Functions before the interface." }
   if (-not $health.services.booking -or -not $health.services.studentPortal -or -not $health.services.administration -or -not $health.services.studentResources) {
     throw "One or more backend capability flags are false."
   }

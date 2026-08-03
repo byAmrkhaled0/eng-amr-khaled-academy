@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 const zlib = require('zlib');
 const admin = require('firebase-admin');
+const { version: PLATFORM_VERSION } = require('./package.json');
 const { money, paymentStatus, paymentTotals } = require('./payment-domain');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
@@ -10,6 +11,7 @@ const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { setGlobalOptions } = require('firebase-functions/v2/options');
 const { scheduledTimeMillis, assignmentIsReleased, assignmentDueDatePassed } = require('./lib/assignment-schedule');
 const { sameAcademicValue, scheduleMatchesStudent, learningTargetMatchesStudent } = require('./lib/academic-targeting');
+const { studentCanOpenPortal, studentIsApproved } = require('./lib/student-access');
 
 admin.initializeApp();
 setGlobalOptions({ region: 'europe-west1', maxInstances: 10, memory: '256MiB' });
@@ -548,6 +550,7 @@ function portalResponse(data, attempts, records = {}) {
     term: text(data.term, 40),
     bookingCode: text(data.bookingCode, 40),
     approvalStatus: text(data.approvalStatus || data.status, 100),
+    active: data.active !== false,
     scheduleDays: text(data.scheduleDays, 100),
     scheduleStartTime: text(data.scheduleStartTime, 20),
     scheduleEndTime: text(data.scheduleEndTime, 20),
@@ -575,6 +578,11 @@ function portalResponse(data, attempts, records = {}) {
   };
 }
 
+function requireApprovedStudent(data = {}) {
+  if (!studentIsApproved(data)) throw new HttpsError('permission-denied', 'هذه الخدمة تتاح بعد قبول الحجز.');
+  return data;
+}
+
 async function getStudentPortalByCode(code) {
   const normalized = normalizeCode(code);
   if (!validLegacyOrStrongCode(normalized)) throw new HttpsError('invalid-argument', 'كود غير صالح.');
@@ -591,7 +599,7 @@ async function getStudentPortalByCode(code) {
     const canonicalSnap = await db.collection('students').doc(id).get().catch(() => null);
     if (canonicalSnap && canonicalSnap.exists) {
       const canonical = canonicalSnap.data() || {};
-      if (canonical.active === false) throw new HttpsError('not-found', 'حساب الطالب غير نشط.');
+      if (!studentCanOpenPortal(canonical)) throw new HttpsError('not-found', 'حساب الطالب غير نشط.');
       const current = { ...portal, ...canonical, studentCode: canonical.studentCode || normalized, code: normalized, id: normalized };
       const projection = {
         studentCode: normalized,
@@ -604,13 +612,14 @@ async function getStudentPortalByCode(code) {
         month: text(current.month, 40),
         academicYear: text(current.academicYear, 20),
         term: text(current.term, 40),
-        active: true
+        approvalStatus: text(current.approvalStatus || current.status, 100),
+        active: current.active !== false
       };
       const needsRepair = Object.entries(projection).some(([key, value]) => String(portal[key] ?? '') !== String(value ?? ''));
       if (needsRepair) await portalRef.set({ ...projection, repairedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       return { code: normalized, data: current };
     }
-    if (portal.active === false) throw new HttpsError('not-found', 'حساب الطالب غير نشط.');
+    if (!studentCanOpenPortal(portal)) throw new HttpsError('not-found', 'حساب الطالب غير نشط.');
     return { code: normalized, data: { ...portal, studentCode: portal.studentCode || normalized, code: normalized } };
   }
   // Older releases sometimes created the student record before the dedicated
@@ -625,10 +634,10 @@ async function getStudentPortalByCode(code) {
       if (match && !match.empty) { studentSnap = match.docs[0]; break; }
     }
   }
-  if (!studentSnap.exists || studentSnap.data().active === false) throw new HttpsError('not-found', 'لم يتم العثور على الطالب بهذا الكود.');
+  if (!studentSnap.exists || !studentCanOpenPortal(studentSnap.data())) throw new HttpsError('not-found', 'لم يتم العثور على الطالب بهذا الكود.');
   const student = { ...studentSnap.data(), studentCode: normalized, code: normalized, id: normalized };
   const repaired = portalResponse(student, []);
-  await portalRef.set({ ...repaired, parentCode: text(student.parentCode, 40), active: true, repairedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  await portalRef.set({ ...repaired, parentCode: text(student.parentCode, 40), active: student.active !== false, repairedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   return { code: normalized, data: student };
 }
 
@@ -808,13 +817,21 @@ exports.getPortalStudent = onCall(CALLABLE_OPTIONS, async request => {
   const studentCode = normalizeCode(found.data.studentCode || found.data.code);
   const canonicalSnap = await db.collection('students').doc(cleanDocId(studentCode)).get().catch(() => null);
   const student = canonicalSnap?.exists ? { ...found.data, ...canonicalSnap.data() } : found.data;
-  const [attempts, records, groupSnap, transferSnap, assignmentSnap] = await Promise.all([
-    attemptSummaries(studentCode),
-    studentRecords(studentCode, student),
-    mode === 'student' ? db.collection('groups').limit(300).get().catch(() => null) : Promise.resolve(null),
-    mode === 'student' ? db.collection('student_transfer_requests').where('studentCode', '==', studentCode).limit(20).get().catch(() => null) : Promise.resolve(null),
-    db.collection('assignments').where('active', '==', true).limit(250).get().catch(() => null)
-  ]);
+  const approved = studentIsApproved(student);
+  let attempts = [];
+  let records = { attendance: [], grades: [], homeworks: [], recitations: [], monthlyPayments: [], assignments: [], materials: [] };
+  let groupSnap = null;
+  let transferSnap = null;
+  let assignmentSnap = null;
+  if (approved) {
+    [attempts, records, groupSnap, transferSnap, assignmentSnap] = await Promise.all([
+      attemptSummaries(studentCode),
+      studentRecords(studentCode, student),
+      mode === 'student' ? db.collection('groups').limit(300).get().catch(() => null) : Promise.resolve(null),
+      mode === 'student' ? db.collection('student_transfer_requests').where('studentCode', '==', studentCode).limit(20).get().catch(() => null) : Promise.resolve(null),
+      db.collection('assignments').where('active', '==', true).limit(250).get().catch(() => null)
+    ]);
+  }
   const schedules = groupSnap ? groupSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     .filter(item => scheduleMatchesStudent(item, student))
     .filter(item => student.scheduleId ? item.id !== student.scheduleId : !sameAcademicValue(item.name, student.group)) : [];
@@ -831,6 +848,7 @@ exports.getPortalStudent = onCall(CALLABLE_OPTIONS, async request => {
     .map(item => scheduledTimeMillis(item.publishAt)).filter(value => value > Date.now()).sort((a, b) => a - b)[0] || 0 : 0;
   return {
     ...portalResponse(student, attempts, records),
+    accessStatus: approved ? 'approved' : 'pending',
     transferOptions,
     transferRequest: requests.length ? publicTransferRequest(requests[0]) : null,
     nextAssignmentPublishAt: nextAssignment ? new Date(nextAssignment).toISOString() : ''
@@ -844,6 +862,7 @@ exports.createStudentTransferRequest = onCall(CALLABLE_OPTIONS, async request =>
   const found = await getStudentPortalByCode(studentCode);
   const canonicalSnap = await db.collection('students').doc(cleanDocId(studentCode)).get().catch(() => null);
   const student = canonicalSnap?.exists ? { ...found.data, ...canonicalSnap.data() } : found.data;
+  requireApprovedStudent(student);
   const targetScheduleId = cleanDocId(text(body.targetScheduleId, 100));
   const reason = text(body.reason, 800);
   if (!targetScheduleId) throw new HttpsError('invalid-argument', 'اختر المجموعة المطلوب النقل إليها.');
@@ -973,6 +992,7 @@ exports.getStudentResources = onCall(CALLABLE_OPTIONS, async request => {
   const code = normalizeCode(request.data && request.data.code);
   await rateLimitPublic('student-resources', code, request, 15, 60, 60 * 1000);
   const found = await getStudentPortalByCode(code);
+  requireApprovedStudent(found.data);
   const studentCode = normalizeCode(found.data.studentCode || found.data.code || code);
   const grade = text(found.data.grade, 80);
   if (!grade) throw new HttpsError('failed-precondition', 'مسار الطالب غير محدد. تواصل مع الإدارة لتحديد المسار أولًا.');
@@ -1009,6 +1029,7 @@ exports.submitAssignmentAnswer = onCall(CALLABLE_OPTIONS, async request => {
     getStudentPortalByCode(studentCode),
     db.collection('assignments').doc(assignmentId).get()
   ]);
+  requireApprovedStudent(found.data);
   if (!assignmentSnap.exists) throw new HttpsError('not-found', 'الواجب غير موجود.');
   const assignment = assignmentSnap.data() || {};
   const grade = text(found.data.grade, 80);
@@ -1591,6 +1612,7 @@ exports.getExamDashboard = onCall(CALLABLE_OPTIONS, async request => {
   const studentCode = normalizeCode(request.data && request.data.studentCode);
   await rateLimitPublic('exam-dashboard', studentCode, request, 10, 35, 60 * 1000);
   const found = await getStudentPortalByCode(studentCode);
+  requireApprovedStudent(found.data);
   const grade = text(found.data.grade, 80);
   const snap = await db.collection('exams').get();
   const exams = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
@@ -1621,6 +1643,7 @@ exports.startExam = onCall(CALLABLE_OPTIONS, async request => {
   const examId = cleanDocId(request.data && request.data.examId);
   await rateLimitPublic('exam-start', `${studentCode}:${examId}`, request, 5, 20, 10 * 60 * 1000);
   const found = await getStudentPortalByCode(studentCode);
+  requireApprovedStudent(found.data);
   const examSnap = await db.collection('exams').doc(examId).get();
   if (!examSnap.exists) throw new HttpsError('not-found', 'الامتحان غير موجود.');
   const exam = { id: examSnap.id, ...examSnap.data() };
@@ -1845,7 +1868,8 @@ exports.prepareHomeworkUpload = onCall(CALLABLE_OPTIONS, async request => {
   const body = request.data || {};
   const studentCode = normalizeCode(body.studentCode);
   await rateLimitPublic('homework-prepare', studentCode, request, 5, 15, 60 * 60 * 1000);
-  await getStudentPortalByCode(studentCode);
+  const found = await getStudentPortalByCode(studentCode);
+  requireApprovedStudent(found.data);
   const fileName = text(body.fileName, 180).replace(/[\\/#?\[\]]/g, '-');
   const contentType = text(body.contentType, 100);
   const size = Number(body.size || 0);
@@ -1869,6 +1893,7 @@ exports.registerHomeworkSubmission = onCall(CALLABLE_OPTIONS, async request => {
   const studentCode = normalizeCode(body.studentCode);
   await rateLimitPublic('homework-submit', studentCode, request, 5, 15, 60 * 60 * 1000);
   const found = await getStudentPortalByCode(studentCode);
+  requireApprovedStudent(found.data);
   const uploadId = text(body.uploadId, 80);
   const tokenRef = db.collection('_homework_upload_tokens').doc(cleanDocId(uploadId));
   const tokenSnap = await tokenRef.get();
@@ -2325,7 +2350,7 @@ exports.getPlatformHealth = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 15 }, 
   const codeRunnerConfigured = Boolean(process.env.JUDGE0_BASE_URL || runner.apiKey);
   return {
     status: 'ok',
-    version: '61.1.0',
+    version: PLATFORM_VERSION,
     firestore: true,
     services: {
       booking: true,
@@ -2644,7 +2669,7 @@ exports.getStudentCurriculum = onCall(CALLABLE_OPTIONS, async request => {
   await rateLimitPublic('student-curriculum', code, request, 20, 60, 60 * 1000);
   const found = await getStudentPortalByCode(code);
   const student = found.data || {};
-  if (student.active === false || /قيد التسجيل|انتظار|رفض/.test(String(student.approvalStatus || ''))) throw new HttpsError('permission-denied', 'المحتوى يتاح بعد قبول الحجز.');
+  requireApprovedStudent(student);
   const grade = text(student.grade, 80);
   const [lectureSnap, unitSnap, progressSnap] = await Promise.all([
     db.collection('lectures').where('grade', '==', grade).orderBy('order', 'asc').limit(40).get(),
@@ -2666,7 +2691,8 @@ exports.getLectureContent = onCall(CALLABLE_OPTIONS, async request => {
   const [found, lectureSnap] = await Promise.all([getStudentPortalByCode(code), db.collection('lectures').doc(lectureId).get()]);
   if (!lectureSnap.exists || !contentIsOpen(lectureSnap.data())) throw new HttpsError('not-found', 'المحاضرة غير متاحة.');
   const student = found.data || {}, lecture = lectureSnap.data();
-  if (student.active === false || /قيد التسجيل|انتظار|رفض/.test(String(student.approvalStatus || '')) || lecture.grade !== student.grade) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الصف.');
+  requireApprovedStudent(student);
+  if (lecture.grade !== student.grade) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الصف.');
   const queryVisible = async collection => {
     const snap = await db.collection(collection).where('lectureId', '==', lectureId).orderBy('order', 'asc').limit(50).get();
     return snap.docs.filter(doc => contentIsOpen(doc.data()) && doc.data().grade === student.grade).map(doc => {
@@ -2686,7 +2712,8 @@ exports.recordLectureProgress = onCall(CALLABLE_OPTIONS, async request => {
   const code = normalizeCode(request.data?.studentCode), lectureId = curriculumId(request.data?.lectureId);
   await rateLimitPublic('lecture-progress', `${code}:${lectureId}`, request, 30, 80, 60 * 1000);
   const [found, lectureSnap] = await Promise.all([getStudentPortalByCode(code), db.collection('lectures').doc(lectureId).get()]);
-  if (!lectureSnap.exists || !contentIsOpen(lectureSnap.data()) || found.data.active === false || /قيد التسجيل|انتظار|رفض/.test(String(found.data.approvalStatus || '')) || found.data.grade !== lectureSnap.data().grade) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الطالب.');
+  requireApprovedStudent(found.data);
+  if (!lectureSnap.exists || !contentIsOpen(lectureSnap.data()) || found.data.grade !== lectureSnap.data().grade) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الطالب.');
   const percent = Math.max(0, Math.min(100, Number(request.data?.percent || 0)));
   const progressRef = db.collection('student_progress').doc(code);
   const batch = db.batch();
@@ -2705,7 +2732,8 @@ exports.getCurriculumFileUrl = onCall(CALLABLE_OPTIONS, async request => {
   await rateLimitPublic('curriculum-file', `${code}:${collection}:${id}`, request, 20, 50, 60 * 1000);
   if (!['lectures','lecture_materials','assignments_v2','bank_questions','monthly_exams'].includes(collection)) throw new HttpsError('invalid-argument', 'نوع الملف غير صالح.');
   const [found, snap] = await Promise.all([getStudentPortalByCode(code), db.collection(collection).doc(id).get()]);
-  if (!snap.exists || !contentIsOpen(snap.data()) || found.data.active === false || /قيد التسجيل|انتظار|رفض/.test(String(found.data.approvalStatus || '')) || snap.data().grade !== found.data.grade) throw new HttpsError('permission-denied', 'الملف غير متاح لهذا الطالب.');
+  requireApprovedStudent(found.data);
+  if (!snap.exists || !contentIsOpen(snap.data()) || snap.data().grade !== found.data.grade) throw new HttpsError('permission-denied', 'الملف غير متاح لهذا الطالب.');
   const path = text(snap.data().filePath, 500);
   if (!path) throw new HttpsError('not-found', 'لا يوجد ملف مرتبط.');
   const [url] = await admin.storage().bucket().file(path).getSignedUrl({ action: 'read', expires: Date.now() + 10 * 60 * 1000 });
