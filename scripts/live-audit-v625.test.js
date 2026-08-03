@@ -11,10 +11,12 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 test('first secondary leaderboard uses the canonical track and keeps legacy backend compatibility', () => {
   const index = read('index.html');
   const functions = read('functions/index.js');
+  const targeting = read('functions/lib/academic-targeting.js');
   assert.match(index, /<select id="leaderboardGrade"><option>أولى ثانوي بكالوريا<\/option>/);
   assert.doesNotMatch(index, /<option>أولى ثانوي برمجة<\/option>/);
   assert.match(functions, /canonicalLeaderboardGrade/);
-  assert.match(functions, /أولى ثانوي برمجة/);
+  assert.match(functions, /canonicalAcademicLabel/);
+  assert.match(targeting, /اولي ثانوي برمجة/);
   assert.match(functions, /grade:canonicalLeaderboardGrade\(st\.grade\)/);
 });
 

@@ -1,6 +1,6 @@
 param(
   [string]$RepositoryUrl = "https://github.com/byAmrkhaled0/eng-amr-khaled-academy.git",
-  [string]$TargetFolder = "Techno-Minds-v62.5.0-GitHub"
+  [string]$TargetFolder = "Techno-Minds-v62.6.0-GitHub"
 )
 
 $ErrorActionPreference = "Stop"
@@ -42,7 +42,7 @@ try {
     Write-Host "Using the existing local Git clone without deleting its files." -ForegroundColor Yellow
   }
 
-  Write-Host "Copying V62.5.0 source into the local clone..." -ForegroundColor Cyan
+  Write-Host "Copying V62.6.0 source into the local clone..." -ForegroundColor Cyan
   Get-ChildItem -LiteralPath $SourceRoot -Force | ForEach-Object { Copy-ProjectItem $_.FullName (Join-Path $TargetRoot $_.Name) }
 
   Write-Host "Prepared local Git folder (nothing was pushed):" -ForegroundColor Green

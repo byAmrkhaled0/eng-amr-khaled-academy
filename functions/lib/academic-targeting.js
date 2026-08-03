@@ -6,8 +6,15 @@ function normalizeDigits(value) {
     .replace(/[۰-۹]/g, digit => String(digit.charCodeAt(0) - 1776));
 }
 
-function normalizeAcademicValue(value) {
-  const normalized = normalizeDigits(value)
+const ACADEMIC_GRADES = Object.freeze([
+  'أولى ثانوي بكالوريا',
+  'تانية ثانوي بكالوريا',
+  'أساسيات برمجة',
+  'مبتدئين برمجة'
+]);
+
+function baseAcademicValue(value) {
+  return normalizeDigits(value)
     .normalize('NFKC')
     .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '')
     .replace(/\u0640/g, '')
@@ -16,7 +23,50 @@ function normalizeAcademicValue(value) {
     .trim()
     .toLocaleLowerCase('ar')
     .replace(/\s+/g, ' ');
-  return normalized === 'اولي ثانوي برمجة' ? 'اولي ثانوي بكالوريا' : normalized;
+}
+
+const GRADE_ALIASES = new Map([
+  ['اولي ثانوي بكالوريا', 'اولي ثانوي بكالوريا'],
+  ['اولي ثانوي برمجة', 'اولي ثانوي بكالوريا'],
+  ['اولي ثانوي برمجه', 'اولي ثانوي بكالوريا'],
+  ['اولي ثانوي', 'اولي ثانوي بكالوريا'],
+  ['تانية ثانوي بكالوريا', 'تانية ثانوي بكالوريا'],
+  ['تانيه ثانوي بكالوريا', 'تانية ثانوي بكالوريا'],
+  ['ثانية ثانوي بكالوريا', 'تانية ثانوي بكالوريا'],
+  ['ثانيه ثانوي بكالوريا', 'تانية ثانوي بكالوريا'],
+  ['تانية ثانوي عام', 'تانية ثانوي بكالوريا'],
+  ['تانيه ثانوي عام', 'تانية ثانوي بكالوريا'],
+  ['ثانية ثانوي عام', 'تانية ثانوي بكالوريا'],
+  ['ثانيه ثانوي عام', 'تانية ثانوي بكالوريا'],
+  ['تانية ثانوي', 'تانية ثانوي بكالوريا'],
+  ['تانيه ثانوي', 'تانية ثانوي بكالوريا'],
+  ['ثانية ثانوي', 'تانية ثانوي بكالوريا'],
+  ['ثانيه ثانوي', 'تانية ثانوي بكالوريا'],
+  ['اساسيات برمجة', 'اساسيات برمجة'],
+  ['اساسيات برمجه', 'اساسيات برمجة'],
+  ['اساسيات python', 'اساسيات برمجة'],
+  ['اساسيات بايثون', 'اساسيات برمجة'],
+  ['تطبيقات ومراجعة', 'اساسيات برمجة'],
+  ['تطبيقات و مراجعة', 'اساسيات برمجة'],
+  ['مبتدئين برمجة', 'مبتدئين برمجة'],
+  ['مبتدئين برمجه', 'مبتدئين برمجة'],
+  ['مبتدئين', 'مبتدئين برمجة']
+]);
+
+const CANONICAL_LABELS = new Map(ACADEMIC_GRADES.map(label => [baseAcademicValue(label), label]));
+
+function normalizeAcademicValue(value) {
+  const normalized = baseAcademicValue(value);
+  return GRADE_ALIASES.get(normalized) || normalized;
+}
+
+function canonicalAcademicLabel(value) {
+  const normalized = normalizeAcademicValue(value);
+  return CANONICAL_LABELS.get(normalized) || String(value || '').trim();
+}
+
+function isSupportedAcademicGrade(value) {
+  return CANONICAL_LABELS.has(normalizeAcademicValue(value));
 }
 
 function sameAcademicValue(left, right) {
@@ -47,4 +97,12 @@ function learningTargetMatchesStudent(item, student) {
   return grade && group && term && year;
 }
 
-module.exports = { normalizeAcademicValue, sameAcademicValue, scheduleMatchesStudent, learningTargetMatchesStudent };
+module.exports = {
+  ACADEMIC_GRADES,
+  normalizeAcademicValue,
+  canonicalAcademicLabel,
+  isSupportedAcademicGrade,
+  sameAcademicValue,
+  scheduleMatchesStudent,
+  learningTargetMatchesStudent
+};

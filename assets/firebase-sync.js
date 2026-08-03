@@ -11,6 +11,7 @@
   const normalizeDigits=value=>String(value||'').replace(/[٠-٩]/g,digit=>String(digit.charCodeAt(0)-1632)).replace(/[۰-۹]/g,digit=>String(digit.charCodeAt(0)-1776));
   const digits=value=>normalizeDigits(value).replace(/\D/g,'');
   const normalizeCode=value=>normalizeDigits(value).trim().toUpperCase().replace(/\s+/g,'');
+  const canonicalGrade=value=>typeof globalThis.canonicalAcademicLabel==='function'?globalThis.canonicalAcademicLabel(value):String(value||'').trim();
   const serverTime=()=>firebase.firestore.FieldValue.serverTimestamp();
   const nowIso=()=>new Date().toISOString();
 
@@ -168,7 +169,7 @@
       return {
         ...s,id:code,code,studentCode:code,parentCode:normalizeCode(s.parentCode||''),
         name:s.studentName||s.name||'',studentName:s.studentName||s.name||'',
-        studentPhone:digits(s.studentPhone),parentPhone:digits(s.parentPhone),grade:s.grade||'',month:s.month||'',group:s.group||'',
+        studentPhone:digits(s.studentPhone),parentPhone:digits(s.parentPhone),grade:canonicalGrade(s.grade),month:s.month||'',group:s.group||'',
         academicYear:s.academicYear||'',term:s.term||'',paid:s.paid===true,paymentDate:s.paymentDate||'',paymentAmount:Number(s.paymentAmount||0),paymentCourse:s.paymentCourse||'',notes:s.notes||'',active:s.active!==false,
         attendance:Array.isArray(s.attendance)?s.attendance:[],grades:Array.isArray(s.grades)?s.grades:[],
         homeworks:Array.isArray(s.homeworks)?s.homeworks:[],recitations:Array.isArray(s.recitations)?s.recitations:[]
@@ -199,7 +200,7 @@
 
     function publicBookingStatusPayload(payload){
       return {
-        code:payload.code,name:payload.name,grade:payload.grade,month:payload.month,group:payload.group,
+        code:payload.code,name:payload.name,grade:canonicalGrade(payload.grade),month:payload.month,group:payload.group,
         academicYear:payload.academicYear||'',term:payload.term||'',status:payload.status,
         studentCode:String(payload.studentCode||''),parentCode:String(payload.parentCode||''),updatedAt:serverTime()
       };
@@ -271,7 +272,7 @@
       const mappings=[['materials','title'],['questions','title'],['exams','title'],['reviews','name'],['groups','name'],['assignments','title']];
       mappings.forEach(([collection,fallback])=>(data[collection]||[]).forEach(item=>{
         const id=cleanDocId(item.id||item[fallback]||`${Date.now()}-${Math.random().toString(36).slice(2,8)}`);
-        const body={...item,id,updatedAt:serverTime()};if(collection==='reviews')body.approved=item.approved===true;
+        const body={...item,id,updatedAt:serverTime()};if('grade'in body)body.grade=canonicalGrade(body.grade);if(collection==='reviews')body.approved=item.approved===true;
         if(changed(`${collection}/${id}`,body))ops.push(batch=>batch.set(db.collection(collection).doc(id),body,{merge:true}));
       }));
       if(options.full===true)(data.grades||[]).forEach(item=>{
@@ -469,8 +470,9 @@
       return {ok:true,studentCode,backupMode:'browser'};
     }
     async function getAttendanceForDate(date,grade,group){
-      let query=db.collection('attendance').where('date','==',date);if(grade&&grade!=='all')query=query.where('grade','==',grade);if(group&&group!=='all')query=query.where('group','==',group);
-      const snap=await query.get();return snap.docs.map(doc=>({id:doc.id,...doc.data()}));
+      const snap=await db.collection('attendance').where('date','==',date).get();
+      const same=(left,right)=>typeof globalThis.sameAcademicValueClient==='function'?globalThis.sameAcademicValueClient(left,right):String(left||'')===String(right||'');
+      return snap.docs.map(doc=>({id:doc.id,...doc.data()})).filter(row=>(!grade||grade==='all'||same(row.grade,grade))&&(!group||group==='all'||same(row.group,group)));
     }
     async function logActivity(action,meta){
       const profile=await getCurrentStaffProfile().catch(()=>null);if(!profile?.allowed)return;
@@ -512,7 +514,7 @@
       saveSiteData:async(payload,options={})=>syncPayloadToCollections(payload,options),
       saveSettings:async settings=>{const profile=await getCurrentStaffProfile();if(!profile?.allowed||!['admin','teacher'].includes(profile.role))throw new Error('Not authorized');await platformSettingsDoc.set({...settings,schemaVersion:55,updatedAt:serverTime()},{merge:true});seedFingerprint('settings','platform',settings);},
       saveStudent:async student=>{const ops=[];pushStudentOps(ops,student);await commitOperations(ops);},
-      saveGroup:async group=>{const id=cleanDocId(group?.id||'');if(!id)throw new Error('Invalid group');const profile=await getCurrentStaffProfile();if(!profile?.allowed||!['admin','teacher'].includes(profile.role))throw new Error('Not authorized');await db.collection('groups').doc(id).set({...group,id,updatedAt:serverTime()},{merge:true});return {...group,id};},
+      saveGroup:async group=>{const id=cleanDocId(group?.id||'');if(!id)throw new Error('Invalid group');const profile=await getCurrentStaffProfile();if(!profile?.allowed||!['admin','teacher'].includes(profile.role))throw new Error('Not authorized');const payload={...group,id,grade:canonicalGrade(group.grade),updatedAt:serverTime()};await db.collection('groups').doc(id).set(payload,{merge:true});return payload;},
       deleteGroup:async id=>{const profile=await getCurrentStaffProfile();if(!profile?.allowed||!['admin','teacher'].includes(profile.role))throw new Error('Not authorized');await db.collection('groups').doc(cleanDocId(id)).delete();},
       createStudentAccess:async student=>{
         if(calls.createStudentAccess){try{return await retryTransient(()=>calls.createStudentAccess(student),1);}catch(error){

@@ -1,7 +1,7 @@
 var DEFAULT_SITE_URL = 'https://eng-amr-khaled-academy.vercel.app';
 var TEACHER_WHATSAPP = '201008454029';
 var ENGINEER_WHATSAPP = '201008454029';
-var GRADES = ['أولى ثانوي بكالوريا','تانية ثانوي بكالوريا','تانية ثانوي عام','مبتدئين برمجة','أساسيات Python','تطبيقات ومراجعة'];
+var GRADES = ['أولى ثانوي بكالوريا','تانية ثانوي بكالوريا','أساسيات برمجة','مبتدئين برمجة'];
 var MONTHS = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 var STORAGE_KEY = 'technominds_academy_v60_data';
 var OLD_STORAGE_KEY = 'mf_science_v11_data';
@@ -11,7 +11,7 @@ var LAST_EXAM_CODE_KEY = 'mf_last_exam_code';
 var EXAM_DRAFT_PREFIX = 'mf_exam_draft_v2_';
 var PENDING_BOOKING_REQUEST_KEY = 'mf_pending_booking_request_v1';
 var cloudSaveTimer = null;
-var MF_ASSET_VERSION = '62.5.0';
+var MF_ASSET_VERSION = '62.6.0';
 var mfLazyScriptPromises = Object.create(null);
 var publicScheduleUnsubscribe = null;
 
@@ -84,6 +84,20 @@ function studentCodeFriendlyError(err,fallback){const raw=`${err?.code||''} ${er
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function toEnglishDigits(v){return String(v||'').replace(/[٠-٩]/g,digit=>String(digit.charCodeAt(0)-1632)).replace(/[۰-۹]/g,digit=>String(digit.charCodeAt(0)-1776));}
 function normalizeText(v){return toEnglishDigits(v).trim().toLowerCase().replace(/\s+/g,' ');}
+function academicBaseValue(value){return normalizeText(String(value||'').normalize('NFKC').replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g,'').replace(/\u0640/g,'').replace(/[إأآٱ]/g,'ا').replace(/ى/g,'ي'));}
+function canonicalAcademicKey(value){
+  const key=academicBaseValue(value),aliases={
+    'اولي ثانوي برمجة':'اولي ثانوي بكالوريا','اولي ثانوي برمجه':'اولي ثانوي بكالوريا','اولي ثانوي':'اولي ثانوي بكالوريا',
+    'تانيه ثانوي بكالوريا':'تانية ثانوي بكالوريا','ثانية ثانوي بكالوريا':'تانية ثانوي بكالوريا','ثانيه ثانوي بكالوريا':'تانية ثانوي بكالوريا',
+    'تانية ثانوي عام':'تانية ثانوي بكالوريا','تانيه ثانوي عام':'تانية ثانوي بكالوريا','ثانية ثانوي عام':'تانية ثانوي بكالوريا','ثانيه ثانوي عام':'تانية ثانوي بكالوريا',
+    'تانية ثانوي':'تانية ثانوي بكالوريا','تانيه ثانوي':'تانية ثانوي بكالوريا','ثانية ثانوي':'تانية ثانوي بكالوريا','ثانيه ثانوي':'تانية ثانوي بكالوريا',
+    'اساسيات برمجه':'اساسيات برمجة','اساسيات python':'اساسيات برمجة','اساسيات بايثون':'اساسيات برمجة','تطبيقات ومراجعة':'اساسيات برمجة','تطبيقات و مراجعة':'اساسيات برمجة',
+    'مبتدئين برمجه':'مبتدئين برمجة','مبتدئين':'مبتدئين برمجة'
+  };
+  return aliases[key]||key;
+}
+function canonicalAcademicLabel(value){const key=canonicalAcademicKey(value),labels=new Map(GRADES.map(label=>[academicBaseValue(label),label]));return labels.get(key)||String(value||'').trim();}
+function sameAcademicValueClient(left,right){const a=canonicalAcademicKey(left),b=canonicalAcademicKey(right);return Boolean(a&&b&&a===b);}
 function phoneDigits(v){return toEnglishDigits(v).replace(/\D/g,'');}
 function validBookingPhone(v){const phone=phoneDigits(v);return phone.length>=10&&phone.length<=15&&!/^(\d)\1+$/.test(phone);}
 function formatTime12(value){
@@ -237,8 +251,7 @@ function fillSelects(){
   renderBookingScheduleOptions();
 }
 function activeSchedulesForGrade(grade){
-  const selected=normalizeText(grade);
-  return (appData.groups||[]).filter(item=>item&&item.active!==false&&normalizeText(item.grade)===selected);
+  return (appData.groups||[]).filter(item=>item&&item.active!==false&&sameAcademicValueClient(item.grade,grade));
 }
 function scheduleOptionLabel(item){const time=[item.startTime,item.endTime].filter(Boolean).map(formatTime12).join(' - ');return [item.name,item.days,time].filter(Boolean).join(' — ');}
 function renderBookingScheduleOptions(){
@@ -297,7 +310,7 @@ function calcStudent(st){
   const level= final>=90?'ممتاز':final>=75?'جيد جدًا':final>=60?'جيد':'محتاج متابعة';
   return {attendancePct,avg,hwPct:homeworkPct,homeworkPct,recitationPct,homeworkCount,recitationCount,sessions,final,level,totalAttendance:total,present,absent:attendance.filter(a=>(a.status==='absent'||a.status==='غائب')).length,lastGrade:graded.at(-1)};
 }
-function normalizedStudent(st){const code=toEnglishDigits(st?.studentCode||st?.code||st?.id||'').trim().toUpperCase(); return {...(st||{}),id:code,code,studentCode:code,parentCode:toEnglishDigits(st?.parentCode||'').trim().toUpperCase(),name:st?.studentName||st?.name||'',studentName:st?.studentName||st?.name||''};}
+function normalizedStudent(st){const code=toEnglishDigits(st?.studentCode||st?.code||st?.id||'').trim().toUpperCase(); return {...(st||{}),id:code,code,studentCode:code,parentCode:toEnglishDigits(st?.parentCode||'').trim().toUpperCase(),name:st?.studentName||st?.name||'',studentName:st?.studentName||st?.name||'',grade:canonicalAcademicLabel(st?.grade)};}
 function findStudentByCode(code){const q=normalizeText(code); return (appData.students||[]).map(normalizedStudent).find(s=>normalizeText(s.code)===q || normalizeText(s.studentCode)===q) || null;}
 function attendanceDocId(st,date){return `${st.studentCode||st.code}_${date}`.replace(/[\\/#?\[\]]/g,'-');}
 function getAttendanceRows(st){

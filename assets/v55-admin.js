@@ -20,7 +20,7 @@
   });
   const paymentRows=(includeSearch=true)=>{
     const {query,grade,month}=paymentFilters();
-    return (adminData.students||[]).map(normalizeStudent).filter(st=>st.active!==false&&(grade==='all'||st.grade===grade)&&(month==='all'||st.month===month)&&(!includeSearch||!query||normalizeText(`${st.name} ${st.studentCode} ${st.parentPhone}`).includes(query)));
+    return (adminData.students||[]).map(normalizeStudent).filter(st=>st.active!==false&&(grade==='all'||adminSameAcademic(st.grade,grade))&&(month==='all'||st.month===month)&&(!includeSearch||!query||normalizeText(`${st.name} ${st.studentCode} ${st.parentPhone}`).includes(query)));
   };
   const paymentSummary=()=>{
     const rows=paymentRows(false),paidRows=rows.filter(student=>student.paid),expected=rows.reduce((total,student)=>total+coursePriceFor(student),0),collected=paidRows.reduce((total,student)=>total+paidAmountFor(student),0);

@@ -12,7 +12,7 @@
   const statusLabel=status=>status==='paid'?'مدفوع بالكامل':status==='partial'?'دفع جزئي':'لم يدفع';
   const statusClass=status=>status==='paid'?'good':status==='partial'?'warn':'danger';
   const coursePrices=()=>adminData?.settings?.coursePrices&&typeof adminData.settings.coursePrices==='object'?adminData.settings.coursePrices:{};
-  const coursePrice=student=>number(coursePrices()[String(student?.grade||'')]);
+  const coursePrice=student=>{const prices=coursePrices(),key=Object.keys(prices).find(name=>adminSameAcademic(name,student?.grade));return number(prices[key??String(student?.grade||'')]);};
   const transactionDate=row=>String(row?.paymentDate||'');
   const safeId=value=>String(value||'').replace(/[^A-Za-z0-9_-]/g,'');
   const spreadsheetSafe=value=>{const text=String(value??'');return /^[=+\-@]/.test(text)?`'${text}`:text;};
@@ -29,12 +29,12 @@
 
   function findSummary(student,month,academicYear){
     const code=stCode(student);
-    return state.summaries.find(row=>String(row.studentCode||'')===String(code)&&String(row.month||'')===String(month)&&String(row.academicYear||'')===String(academicYear)&&String(row.course||student.grade||'')===String(student.grade||''));
+    return state.summaries.find(row=>String(row.studentCode||'')===String(code)&&String(row.month||'')===String(month)&&String(row.academicYear||'')===String(academicYear)&&adminSameAcademic(row.course||student.grade,student.grade));
   }
 
   function periodRows(){
     const selected=filters();
-    const students=(adminData.students||[]).map(normalizeStudent).filter(student=>student.active!==false&&(selected.grade==='all'||student.grade===selected.grade)&&(!selected.query||normalizeText(`${student.name} ${student.studentCode} ${student.parentPhone||''}`).includes(selected.query)));
+    const students=(adminData.students||[]).map(normalizeStudent).filter(student=>student.active!==false&&(selected.grade==='all'||adminSameAcademic(student.grade,selected.grade))&&(!selected.query||normalizeText(`${student.name} ${student.studentCode} ${student.parentPhone||''}`).includes(selected.query)));
     let rows=[];
     if(selected.month==='all'){
       const map=new Map(students.map(student=>[stCode(student),student]));
@@ -56,13 +56,13 @@
 
   function matchingTransactions(activeOnly=false){
     const selected=filters();
-    const allowedStudents=new Set((adminData.students||[]).map(normalizeStudent).filter(student=>student.active!==false&&(selected.grade==='all'||student.grade===selected.grade)).map(stCode));
+    const allowedStudents=new Set((adminData.students||[]).map(normalizeStudent).filter(student=>student.active!==false&&(selected.grade==='all'||adminSameAcademic(student.grade,selected.grade))).map(stCode));
     return state.transactions.filter(row=>allowedStudents.has(String(row.studentCode||''))&&(selected.month==='all'||row.month===selected.month)&&(selected.academicYear==='all'||row.academicYear===selected.academicYear)&&(!activeOnly||row.status!=='cancelled'));
   }
 
   function transactionHistory(row){
     const rowCourse=String(row.summary?.course||row.student.grade||'');
-    const items=state.transactions.filter(item=>String(item.studentCode||'')===String(stCode(row.student))&&String(item.month||'')===String(row.month)&&String(item.academicYear||'')===String(row.academicYear)&&String(item.course||'')===rowCourse).sort((a,b)=>String(b.paymentDate||'').localeCompare(String(a.paymentDate||'')));
+    const items=state.transactions.filter(item=>String(item.studentCode||'')===String(stCode(row.student))&&String(item.month||'')===String(row.month)&&String(item.academicYear||'')===String(row.academicYear)&&adminSameAcademic(item.course,rowCourse)).sort((a,b)=>String(b.paymentDate||'').localeCompare(String(a.paymentDate||'')));
     if(!items.length)return '<p class="section-desc">لا توجد عمليات مسجلة لهذا الشهر.</p>';
     const adminRole=typeof currentStaff!=='undefined'&&currentStaff?.role==='admin';
     return `<div class="payment-history-list">${items.map(item=>`<article class="payment-history-item ${item.status==='cancelled'?'is-cancelled':''}"><div><b>${safe(money(item.amount))}</b><small>${safe(item.paymentDate||'-')} · ${safe(paymentMethodLabel(item.paymentMethod))} · ${safe(item.recordedByEmail||item.recordedByRole||'-')}</small>${item.notes?`<p>${safe(item.notes)}</p>`:''}</div><span class="badge ${item.status==='cancelled'?'danger':'good'}">${item.status==='cancelled'?'ملغاة':'نشطة'}</span>${adminRole&&item.status!=='cancelled'?`<div class="payment-history-actions"><button type="button" class="small-btn" onclick="openPaymentTransactionEditor('${safeId(item.id)}')">تعديل</button><button type="button" class="small-btn danger" onclick="cancelMonthlyPayment('${safeId(item.id)}')">إلغاء</button></div>`:''}</article>`).join('')}</div>`;
