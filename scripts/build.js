@@ -20,6 +20,7 @@ const entriesToCopy = [
   'assets',
   'robots.txt',
   'sitemap.xml',
+  'llms.txt',
   'site.webmanifest',
   'teacher.webmanifest',
   'service-worker.js',
@@ -47,4 +48,4 @@ for (const entry of entriesToCopy) {
   copyRecursive(path.join(root, entry), path.join(dist, entry));
 }
 
-console.log('Vercel build ready: static files copied to dist/ (v62.4.0)');
+console.log('Vercel build ready: static files copied to dist/ (v62.5.0)');
