@@ -363,3 +363,30 @@ html[data-theme="dark"] .admin-mobile-header{border-color:#23374f!important;back
 @media(max-width:720px){.exam-attendance-filters{grid-template-columns:1fr}.admin-exam-actions>*{flex:1}.correction-card-v40{width:calc(100vw - 16px)!important;max-height:calc(100vh - 16px)!important}.exam-result-card{align-items:flex-start!important;flex-direction:column}.score-pill{align-self:stretch;text-align:center}}
 .homework-full-builder{grid-column:1/-1}.homework-question-list,.homework-admin-answer-list{display:grid;gap:16px;margin-top:14px}.homework-question-card{display:block;min-inline-size:0;margin:0;padding:14px;border:1px solid var(--border);border-radius:14px;background:var(--surface-2);color:var(--text)}.homework-question-card legend{max-width:100%;margin:0;padding:0 8px;color:var(--text);font-weight:900;line-height:1.7}.homework-question-card .assignment-choices{margin-top:10px}.homework-question-card>span{display:block;margin-bottom:10px;color:var(--text);font-weight:900;line-height:1.7}.homework-submission-result{margin:12px 0;padding:10px;border-radius:12px;background:var(--surface-2);color:var(--text)}.homework-submission-result summary{cursor:pointer;font-weight:900}.homework-builder-question{border-inline-start:4px solid #0f8b8d}
 @media(max-width:720px){.homework-full-builder .exam-meta-grid{grid-template-columns:1fr!important}.homework-question-card{padding:10px}.homework-admin-answer-list .correction-question-v40{padding:10px}}
+
+/* V62.8 duplicate booking recovery + touch-first homework correction */
+.existing-student-pass{border:1px solid color-mix(in srgb,#2563eb 28%,var(--border));background:linear-gradient(145deg,color-mix(in srgb,#2563eb 8%,var(--surface)),var(--surface))}
+.existing-student-message{max-width:34rem;margin:0 auto;color:var(--text);font-weight:800;line-height:1.75;text-align:center}
+.homework-admin-answer-list input[type="number"]{min-height:48px;font-size:16px;text-align:center;touch-action:manipulation}
+.homework-admin-answer-list .btn{min-height:48px;touch-action:manipulation}
+@media(max-width:1024px){
+  .booking-clean-layout,.booking-form-compact,.booking-step,.booking-result-step,.booking-success-box,.compact-booking-pass{width:100%!important;max-width:100%!important;min-width:0!important}
+  .booking-step-actions,.compact-portal-links{display:grid!important;grid-template-columns:1fr 1fr!important;gap:10px!important}
+  .booking-step-actions .btn,.compact-portal-links .btn{width:100%!important;min-height:48px!important;margin:0!important;white-space:normal;text-align:center}
+  .booking-code-spotlight{width:min(100%,340px)!important;min-width:0!important}
+  .booking-code-spotlight code{max-width:100%;font-size:clamp(1.35rem,7vw,2rem)!important;overflow-wrap:anywhere}
+  .assignment-submission-row>summary{align-items:flex-start;gap:10px}
+  .homework-admin-answer-list{min-width:0}.homework-admin-answer-list .correction-question-v40{min-width:0;overflow-wrap:anywhere}
+}
+@media(max-width:600px){
+  .booking-steps{overflow:hidden}.booking-steps span small{font-size:.55rem!important;white-space:normal!important;line-height:1.3;text-align:center}
+  .booking-step-actions,.compact-portal-links{grid-template-columns:1fr!important}
+  .booking-form-compact input,.booking-form-compact select,.booking-form-compact textarea{font-size:16px!important;max-width:100%}
+  .booking-result-qr .real-qr-wrap{max-width:min(150px,55vw)!important;min-width:0!important}
+  .existing-student-message{font-size:.9rem}
+  .assignment-submission-row>summary{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important}
+  .assignment-submission-row>summary .badge{white-space:normal;text-align:center}
+  .homework-admin-answer-list .correction-question-v40 label{display:grid;grid-template-columns:1fr;gap:7px}
+  .homework-admin-answer-list input[type="number"]{width:100%!important;margin:0!important}
+  .homework-admin-answer-list .btn{width:100%!important;position:sticky;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:4}
+}

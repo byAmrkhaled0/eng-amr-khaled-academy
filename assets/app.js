@@ -12,7 +12,7 @@ var EXAM_DRAFT_PREFIX = 'mf_exam_draft_v2_';
 var PENDING_BOOKING_REQUEST_KEY = 'mf_pending_booking_request_v1';
 var cloudSaveTimer = null;
 var staffCacheTimer = null;
-var MF_ASSET_VERSION = '62.7.0';
+var MF_ASSET_VERSION = '62.9.0';
 var mfLazyScriptPromises = Object.create(null);
 var publicScheduleUnsubscribe = null;
 
@@ -80,7 +80,7 @@ var appDataLoadFailed = false;
 function iconNameToKey(name){return String(name||'').replace(/-([a-z])/g,(_,c)=>c.toUpperCase());}
 function hydrateIcons(){document.querySelectorAll('[data-icon]').forEach(el=>{const key=iconNameToKey(el.dataset.icon); if(icons[key]) el.innerHTML=icons[key];});}
 function toast(msg){const t=document.getElementById('toast'); if(!t) return; t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2800);}
-function firebaseFriendlyError(err,fallback){const raw=`${err?.code||''} ${err?.message||''}`;if(/functions\/not-found|function.*unavailable|service.*unavailable/i.test(raw))return 'الخدمة غير مفعّلة حاليًا. تواصل مع المدرس أو حاول لاحقًا.';if(/resource-exhausted/i.test(raw))return 'محاولات كثيرة. انتظر قليلًا ثم حاول مرة أخرى.';if(/failed-precondition/i.test(raw))return raw.split(':').pop().trim()||'الاختيار لم يعد متاحًا. حدّث الصفحة وحاول مرة أخرى.';if(/invalid-argument/i.test(raw)){const message=raw.split(':').pop().trim();return /firebase|firestore|function|permission|internal/i.test(message)?(fallback||'تعذر إتمام الطلب. راجع البيانات وحاول مرة أخرى.'):message;}if(/deadline-exceeded/i.test(raw))return 'انتهى وقت الامتحان.';if(/already-exists/i.test(raw))return 'تم تسليم الامتحان بالفعل.';if(/permission-denied|unauthenticated/i.test(raw))return 'لا يمكن تنفيذ الطلب حاليًا. حدّث الصفحة ثم حاول مرة أخرى.';if(/unavailable|network|internal|fetch|offline|timeout/i.test(raw))return 'تعذر الاتصال بالخدمة. تحقق من الإنترنت وحاول مرة أخرى.';if(/not-found/i.test(raw))return 'الكود غير صحيح أو غير موجود.';return fallback||'حدث خطأ غير متوقع.';}
+function firebaseFriendlyError(err,fallback){const raw=`${err?.code||''} ${err?.message||''}`;if(/functions\/not-found|function.*unavailable|service.*unavailable/i.test(raw))return 'الخدمة غير مفعّلة حاليًا. تواصل مع المدرس أو حاول لاحقًا.';if(/resource-exhausted/i.test(raw))return 'محاولات كثيرة. انتظر قليلًا ثم حاول مرة أخرى.';if(/failed-precondition/i.test(raw))return raw.split(':').pop().trim()||'الاختيار لم يعد متاحًا. حدّث الصفحة وحاول مرة أخرى.';if(/invalid-argument/i.test(raw)){const message=raw.split(':').pop().trim();return /firebase|firestore|function|permission|internal/i.test(message)?(fallback||'تعذر إتمام الطلب. راجع البيانات وحاول مرة أخرى.'):message;}if(/deadline-exceeded/i.test(raw))return 'انتهى وقت الامتحان.';if(/already-exists/i.test(raw)){const message=raw.split(':').pop().trim();return /الطالب موجود|كود الطالب|رقم الطالب|ولي الأمر/.test(message)?message:'تم تنفيذ العملية بالفعل.';}if(/permission-denied|unauthenticated/i.test(raw))return 'لا يمكن تنفيذ الطلب حاليًا. حدّث الصفحة ثم حاول مرة أخرى.';if(/unavailable|network|internal|fetch|offline|timeout/i.test(raw))return 'تعذر الاتصال بالخدمة. تحقق من الإنترنت وحاول مرة أخرى.';if(/not-found/i.test(raw))return 'الكود غير صحيح أو غير موجود.';return fallback||'حدث خطأ غير متوقع.';}
 function studentCodeFriendlyError(err,fallback){const raw=`${err?.code||''} ${err?.message||''}`;if(/functions\/not-found|\bnot-found\b/i.test(raw))return 'الكود غير صحيح أو غير موجود.';return firebaseFriendlyError(err,fallback);}
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function toEnglishDigits(v){return String(v||'').replace(/[٠-٩]/g,digit=>String(digit.charCodeAt(0)-1632)).replace(/[۰-۹]/g,digit=>String(digit.charCodeAt(0)-1776));}
@@ -315,7 +315,7 @@ function calcStudent(st){
   const level= final>=90?'ممتاز':final>=75?'جيد جدًا':final>=60?'جيد':'محتاج متابعة';
   return {attendancePct,avg,hwPct:homeworkPct,homeworkPct,recitationPct,homeworkCount,recitationCount,sessions,final,level,totalAttendance:total,present,absent:attendance.filter(a=>(a.status==='absent'||a.status==='غائب')).length,lastGrade:graded.at(-1)};
 }
-function normalizedStudent(st){const code=toEnglishDigits(st?.studentCode||st?.code||st?.id||'').trim().toUpperCase(); return {...(st||{}),id:code,code,studentCode:code,parentCode:toEnglishDigits(st?.parentCode||'').trim().toUpperCase(),name:st?.studentName||st?.name||'',studentName:st?.studentName||st?.name||'',grade:canonicalAcademicLabel(st?.grade)};}
+function normalizedStudent(st){const code=toEnglishDigits(st?.studentCode||st?.code||st?.id||'').trim().toUpperCase(); return {...(st||{}),id:code,code,studentCode:code,parentCode:code,name:st?.studentName||st?.name||'',studentName:st?.studentName||st?.name||'',grade:canonicalAcademicLabel(st?.grade)};}
 function findStudentByCode(code){const q=normalizeText(code); return (appData.students||[]).map(normalizedStudent).find(s=>normalizeText(s.code)===q || normalizeText(s.studentCode)===q) || null;}
 function attendanceDocId(st,date){return `${st.studentCode||st.code}_${date}`.replace(/[\\/#?\[\]]/g,'-');}
 function getAttendanceRows(st){
@@ -663,7 +663,7 @@ async function showParentReportByCode(code){
     return;
   }
   lastParentStudent = normalizedStudent(st);
-  const input=document.querySelector('#parentSearchForm [name="parentCode"]'); if(input) input.value=code;
+  const input=document.querySelector('#parentSearchForm [name="parentCode"]'); if(input) input.value=lastParentStudent.studentCode;
   if(box) box.innerHTML=parentReportHTML(lastParentStudent);
   hydrateIcons();
 }
@@ -793,12 +793,11 @@ function setupBooking(){
         b.requestId=bookingRequestId(b);
         const result=await window.MFCloud.createBooking(b);
         Object.assign(b,result||{}); b.id=b.code; b.date=isoDate(); b.status=b.status||'بانتظار الموافقة';
-        appData.bookings=Array.isArray(appData.bookings)?appData.bookings:[];
-        appData.bookings.push(b); saveData(appData);
+        if(!b.alreadyExists){appData.bookings=Array.isArray(appData.bookings)?appData.bookings:[];appData.bookings.push(b);saveData(appData);}
         renderBookingSuccess(b);
         form.dispatchEvent(new Event('booking-success'));
-        toast('تم تسجيل الحجز بنجاح — الحالة: قيد التسجيل');
-        showStatus('تم تسجيل الحجز بنجاح. احتفظ بالكود الظاهر أمامك.','success');
+        toast(b.alreadyExists?'الطالب موجود بالفعل — تم استرجاع الكود المسجل':'تم تسجيل الحجز بنجاح — الحالة: قيد التسجيل');
+        showStatus(b.alreadyExists?'الطالب موجود بالفعل؛ لم يتم إنشاء حجز مكرر، وظهر الكود المسجل.':'تم تسجيل الحجز بنجاح. احتفظ بالكود الظاهر أمامك.','success');
         clearBookingRequest();
         form.reset(); fillSelects();
       }catch(err){
@@ -813,14 +812,16 @@ function portalUrl(file,code){const url=new URL(file,document.baseURI);url.searc
 function renderBookingSuccess(b){
   const box=document.getElementById('bookingSuccess');if(!box)return;
   const code=b.studentCode||b.code;
+  const existing=b.alreadyExists===true;
   box.hidden=false;
-  box.innerHTML=`<div class="booking-success-card booking-student-pass compact-booking-pass">
-    <span class="badge good">تم التسجيل بنجاح</span>
-    <h3>الكود الموحّد جاهز</h3>
+  box.innerHTML=`<div class="booking-success-card booking-student-pass compact-booking-pass ${existing?'existing-student-pass':''}">
+    <span class="badge ${existing?'warn':'good'}">${existing?'الطالب موجود بالفعل':'تم التسجيل بنجاح'}</span>
+    <h3>${existing?'ده كود الطالب المسجل':'الكود الموحّد جاهز'}</h3>
+    ${existing?'<p class="existing-student-message">لم يتم إنشاء حجز أو حساب جديد. استخدم نفس الكود للدخول إلى المنصة.</p>':''}
     <div class="booking-code-spotlight student-code"><small>الكود الموحّد</small><code>${esc(code)}</code><button class="small-btn primary" type="button" onclick="copyBookingCode('${esc(code)}')">نسخ الكود</button></div>
     <div class="booking-result-qr"><div class="real-qr-wrap">${makeQR(code)}<small>باركود الحساب الموحّد</small></div></div>
     <div class="hero-cta compact-portal-links"><a class="btn primary" href="${esc(portalUrl('student.html',code))}"><span data-icon="user-check"></span> بوابة الطالب</a><a class="btn ghost" href="${esc(portalUrl('parent.html',code))}"><span data-icon="users"></span> بوابة ولي الأمر</a></div>
-    <p class="section-desc booking-approval-note">احتفظ بصورة للكود؛ ويمكن للإدارة نقلك إلى المجموعة المناسبة من لوحة التحكم.</p>
+    <p class="section-desc booking-approval-note">${existing?'لو البيانات أو المجموعة محتاجة تعديل، تواصل مع الإدارة بدل تسجيل طالب جديد.':'احتفظ بصورة للكود؛ ويمكن للإدارة نقلك إلى المجموعة المناسبة من لوحة التحكم.'}</p>
   </div>`;
   hydrateIcons();
 }

@@ -21,6 +21,12 @@ const {
   academicAudienceKeysForItem
 } = require('./lib/academic-targeting');
 const { studentCanOpenPortal, studentIsApproved } = require('./lib/student-access');
+const {
+  studentNameKey,
+  recordNameKey,
+  phoneMatchesStudent,
+  studentRecordIsRejected
+} = require('./lib/student-identity');
 
 admin.initializeApp();
 setGlobalOptions({ region: 'europe-west1', maxInstances: 10, memory: '256MiB' });
@@ -93,6 +99,107 @@ function publicStudentName(value) {
   // The teacher requested the leaderboard to use the exact full student name
   // saved on the platform instead of shortening the family name to an initial.
   return text(value, 80).replace(/\s+/g, ' ').trim();
+}
+
+function studentNameRegistryRef(nameKey) {
+  return db.collection('_student_names').doc(hash(nameKey).slice(0, 48));
+}
+
+function existingStudentCode(record = {}, fallbackId = '') {
+  return normalizeCode(record.studentCode || record.code || record.bookingCode || record.id || fallbackId);
+}
+
+function existingBookingResponse(record = {}, fallbackId = '') {
+  const studentCode = existingStudentCode(record, fallbackId);
+  return {
+    code: studentCode,
+    bookingCode: normalizeCode(record.bookingCode || record.code || studentCode),
+    studentCode,
+    parentCode: studentCode,
+    status: text(record.approvalStatus || record.status || (record.active === false ? 'قيد التسجيل' : 'تم القبول والتسجيل كطالب'), 100),
+    alreadyExists: true
+  };
+}
+
+async function registeredStudentForName(name, nameKey, studentPhone = '', parentPhone = '') {
+  const registryRef = studentNameRegistryRef(nameKey);
+  const registrySnap = await registryRef.get().catch(() => null);
+  if (registrySnap?.exists) {
+    const registeredCode = existingStudentCode(registrySnap.data());
+    const registeredSnap = registeredCode
+      ? await db.collection('students').doc(cleanDocId(registeredCode)).get().catch(() => null)
+      : null;
+    if (registeredSnap?.exists) {
+      const record = { id: registeredSnap.id, ...registeredSnap.data(), _documentId: registeredSnap.id };
+      if (recordNameKey(record) === nameKey && !studentRecordIsRejected(record)) {
+        return { record, registryRef };
+      }
+    }
+    // An edited/deleted/rejected student must not keep an old name reserved.
+    await registryRef.delete().catch(() => {});
+  }
+
+  // Older records predate the normalized name registry. Exact indexed queries
+  // migrate them lazily without scanning the whole students collection.
+  const normalizedStudentPhone = digits(studentPhone);
+  const normalizedParentPhone = digits(parentPhone);
+  const phoneQueries = [...new Set([normalizedStudentPhone, normalizedParentPhone].filter(Boolean))]
+    .flatMap(phone => [
+      db.collection('students').where('studentPhone', '==', phone).limit(3).get().catch(() => null),
+      db.collection('students').where('parentPhone', '==', phone).limit(3).get().catch(() => null)
+    ]);
+  const [keySnap, studentNameSnap, nameSnap, ...phoneSnaps] = await Promise.all([
+    db.collection('students').where('nameKey', '==', nameKey).limit(3).get().catch(() => null),
+    db.collection('students').where('studentName', '==', name).limit(3).get().catch(() => null),
+    db.collection('students').where('name', '==', name).limit(3).get().catch(() => null),
+    ...phoneQueries
+  ]);
+  const candidates = new Map();
+  for (const snap of [keySnap, studentNameSnap, nameSnap, ...phoneSnaps]) {
+    if (snap) snap.docs.forEach(doc => candidates.set(doc.id, { id: doc.id, ...doc.data(), _documentId: doc.id }));
+  }
+  const record = [...candidates.values()].find(item =>
+    recordNameKey(item) === nameKey && !studentRecordIsRejected(item) && existingStudentCode(item)
+  );
+  return record ? { record, registryRef } : { record: null, registryRef };
+}
+
+async function returnExistingStudent(record, registryRef, requestRef, requestId, name, nameKey, studentPhone, parentPhone) {
+  if (!phoneMatchesStudent(record, studentPhone, parentPhone)) {
+    throw new HttpsError(
+      'already-exists',
+      'الطالب موجود بالفعل. اكتب رقم الطالب أو ولي الأمر المسجل لاسترجاع الكود، أو تواصل مع الإدارة.'
+    );
+  }
+  const response = existingBookingResponse(record);
+  if (!validLegacyOrStrongCode(response.studentCode)) {
+    throw new HttpsError('failed-precondition', 'الطالب موجود بالفعل، لكن يلزم التواصل مع الإدارة لاسترجاع الكود.');
+  }
+  const batch = db.batch();
+  batch.set(registryRef, {
+    name,
+    nameKey,
+    studentCode: response.studentCode,
+    updatedAt: FieldValue.serverTimestamp()
+  }, { merge: true });
+  const studentRef = db.collection('students').doc(cleanDocId(record._documentId || response.studentCode));
+  const oldParentCode = normalizeCode(record.parentCode);
+  const unified = { ...record, studentCode: response.studentCode, code: response.studentCode, parentCode: response.studentCode, nameKey };
+  const portal = portalResponse(unified, []);
+  batch.set(studentRef, { studentCode: response.studentCode, code: response.studentCode, parentCode: response.studentCode, nameKey, accessCodeVersion: 2, accessUnifiedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  batch.set(db.collection('student_portal').doc(cleanDocId(response.studentCode)), { ...portal, studentCode: response.studentCode, parentCode: response.studentCode, active: record.active !== false, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  batch.set(db.collection('parent_portal').doc(cleanDocId(response.studentCode)), { ...portal, studentCode: response.studentCode, parentCode: response.studentCode, active: record.active !== false, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  if (oldParentCode && oldParentCode !== response.studentCode) batch.delete(db.collection('parent_portal').doc(cleanDocId(oldParentCode)));
+  if (requestRef) {
+    batch.set(requestRef, {
+      requestId,
+      response,
+      createdAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000)
+    }, { merge: true });
+  }
+  await batch.commit();
+  return response;
 }
 
 async function uniqueNumericCode(collection, length = 8) {
@@ -295,8 +402,8 @@ function paymentLegacyMirrorWrites(tx, student, summary, paymentDate) {
     grade: text(student.grade, 80),
     group: text(student.group, 100)
   }, { merge: true });
-  const parentCode = normalizeCode(student.parentCode);
-  if (parentCode) tx.set(db.collection('parent_portal').doc(cleanDocId(parentCode)), legacy, { merge: true });
+  const parentCode = studentCode;
+  if (parentCode) tx.set(db.collection('parent_portal').doc(cleanDocId(parentCode)), { ...legacy, studentCode, parentCode }, { merge: true });
 }
 
 exports.createPaymentTransaction = onCall(CALLABLE_OPTIONS, async request => {
@@ -594,6 +701,24 @@ function requireApprovedStudent(data = {}) {
   return data;
 }
 
+async function ensureUnifiedStudentAccess(studentSnap, requestedCode = '') {
+  if (!studentSnap?.exists) throw new HttpsError('not-found', 'لم يتم العثور على الطالب بهذا الكود.');
+  const raw = studentSnap.data() || {};
+  const studentCode = normalizeCode(raw.studentCode || raw.code || requestedCode || studentSnap.id);
+  if (!validLegacyOrStrongCode(studentCode)) throw new HttpsError('failed-precondition', 'كود الطالب المسجل غير صالح.');
+  const oldParentCode = normalizeCode(raw.parentCode);
+  const unified = { ...raw, id: studentCode, code: studentCode, studentCode, parentCode: studentCode };
+  const portal = portalResponse(unified, []);
+  const projection = { ...portal, studentCode, code: studentCode, parentCode: studentCode, active: raw.active !== false, updatedAt: FieldValue.serverTimestamp() };
+  const batch = db.batch();
+  batch.set(studentSnap.ref, { studentCode, code: studentCode, parentCode: studentCode, accessUnifiedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  batch.set(db.collection('student_portal').doc(cleanDocId(studentCode)), projection, { merge: true });
+  batch.set(db.collection('parent_portal').doc(cleanDocId(studentCode)), projection, { merge: true });
+  if (oldParentCode && oldParentCode !== studentCode) batch.delete(db.collection('parent_portal').doc(cleanDocId(oldParentCode)));
+  await batch.commit();
+  return unified;
+}
+
 async function getStudentPortalByCode(code) {
   const normalized = normalizeCode(code);
   if (!validLegacyOrStrongCode(normalized)) throw new HttpsError('invalid-argument', 'كود غير صالح.');
@@ -615,13 +740,13 @@ async function getStudentPortalByCode(code) {
       }
     }
     if (canonicalSnap && canonicalSnap.exists) {
-      const canonical = canonicalSnap.data() || {};
+      const canonical = await ensureUnifiedStudentAccess(canonicalSnap, normalized);
       if (!studentCanOpenPortal(canonical)) throw new HttpsError('not-found', 'حساب الطالب غير نشط.');
-      const current = { ...portal, ...canonical, grade: canonicalAcademicLabel(canonical.grade || portal.grade), studentCode: canonical.studentCode || normalized, code: normalized, id: normalized };
+      const current = { ...portal, ...canonical, grade: canonicalAcademicLabel(canonical.grade || portal.grade), studentCode: normalized, parentCode: normalized, code: normalized, id: normalized };
       const projection = {
         studentCode: normalized,
         code: normalized,
-        parentCode: text(current.parentCode, 40),
+        parentCode: normalized,
         name: text(current.studentName || current.name, 100),
         studentName: text(current.studentName || current.name, 100),
         grade: text(canonicalAcademicLabel(current.grade), 80),
@@ -642,7 +767,14 @@ async function getStudentPortalByCode(code) {
       return { code: normalized, data: current };
     }
     if (!studentCanOpenPortal(portal)) throw new HttpsError('not-found', 'حساب الطالب غير نشط.');
-    return { code: normalized, data: { ...portal, grade: canonicalAcademicLabel(portal.grade), studentCode: portal.studentCode || normalized, code: normalized } };
+    const legacyParentCode = normalizeCode(portal.parentCode);
+    const repairedPortal = { ...portal, grade: canonicalAcademicLabel(portal.grade), studentCode: normalized, parentCode: normalized, code: normalized };
+    const batch = db.batch();
+    batch.set(portalRef, { ...repairedPortal, accessUnifiedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    batch.set(db.collection('parent_portal').doc(id), { ...repairedPortal, accessUnifiedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    if (legacyParentCode && legacyParentCode !== normalized) batch.delete(db.collection('parent_portal').doc(cleanDocId(legacyParentCode)));
+    await batch.commit();
+    return { code: normalized, data: repairedPortal };
   }
   // Older releases sometimes created the student record before the dedicated
   // portal document. Keep those real accounts working and repair them lazily.
@@ -657,34 +789,41 @@ async function getStudentPortalByCode(code) {
     }
   }
   if (!studentSnap.exists || !studentCanOpenPortal(studentSnap.data())) throw new HttpsError('not-found', 'لم يتم العثور على الطالب بهذا الكود.');
-  const student = { ...studentSnap.data(), grade: canonicalAcademicLabel(studentSnap.data().grade), studentCode: normalized, code: normalized, id: normalized };
+  const unified = await ensureUnifiedStudentAccess(studentSnap, normalized);
+  const student = { ...unified, grade: canonicalAcademicLabel(unified.grade), studentCode: normalized, parentCode: normalized, code: normalized, id: normalized };
   const repaired = portalResponse(student, []);
-  await portalRef.set({ ...repaired, parentCode: text(student.parentCode, 40), active: student.active !== false, repairedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  await portalRef.set({ ...repaired, parentCode: normalized, active: student.active !== false, repairedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   return { code: normalized, data: student };
 }
 
 async function getParentPortalByCode(code) {
   const normalized = normalizeCode(code);
   if (!validLegacyOrStrongCode(normalized)) throw new HttpsError('invalid-argument', 'كود غير صالح.');
-  let snap = await db.collection('parent_portal').doc(cleanDocId(normalized)).get();
-  if (!snap.exists) {
-    // The academy uses one code for the student and parent portals. Keep older
-    // parent-only codes compatible, then fall back to the canonical student code.
-    let match = await db.collection('students').where('parentCode', '==', normalized).limit(1).get().catch(() => null);
-    if (!match || match.empty) {
-      const direct = await db.collection('students').doc(cleanDocId(normalized)).get().catch(() => null);
-      if (direct?.exists) match = { empty: false, docs: [direct] };
-    }
-    if (!match || match.empty) match = await db.collection('students').where('studentCode', '==', normalized).limit(1).get().catch(() => null);
-    if (match && !match.empty && match.docs[0].data().active !== false) {
-      const studentData = match.docs[0].data() || {};
-      const repaired = portalResponse(studentData, []);
-      await db.collection('parent_portal').doc(cleanDocId(normalized)).set({ ...repaired, studentCode: text(studentData.studentCode || studentData.code, 40), parentCode: normalized, active: true, repairedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-      snap = await db.collection('parent_portal').doc(cleanDocId(normalized)).get();
+  // Resolve the canonical student first. A legacy parent-only code is accepted
+  // once so the account can be migrated without losing access; after repair the
+  // student's single code opens both portals.
+  let studentSnap = await db.collection('students').doc(cleanDocId(normalized)).get().catch(() => null);
+  if (!studentSnap?.exists) {
+    for (const field of ['studentCode', 'code', 'parentCode']) {
+      const match = await db.collection('students').where(field, '==', normalized).limit(1).get().catch(() => null);
+      if (match && !match.empty) { studentSnap = match.docs[0]; break; }
     }
   }
-  if (!snap.exists || snap.data().active === false) throw new HttpsError('not-found', 'لم يتم العثور على التقرير.');
-  return { code: normalized, data: { ...snap.data(), studentCode: snap.data().studentCode || normalized, code: normalized } };
+  if (!studentSnap?.exists) {
+    const legacyPortal = await db.collection('parent_portal').doc(cleanDocId(normalized)).get().catch(() => null);
+    const legacyStudentCode = normalizeCode(legacyPortal?.exists ? legacyPortal.data().studentCode : '');
+    if (legacyStudentCode) studentSnap = await db.collection('students').doc(cleanDocId(legacyStudentCode)).get().catch(() => null);
+    if (!studentSnap?.exists && legacyPortal?.exists && studentCanOpenPortal(legacyPortal.data())) {
+      const portalStudentCode = legacyStudentCode || normalized;
+      const repaired = { ...legacyPortal.data(), studentCode: portalStudentCode, code: portalStudentCode, parentCode: portalStudentCode };
+      await db.collection('parent_portal').doc(cleanDocId(portalStudentCode)).set({ ...repaired, accessUnifiedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      return { code: portalStudentCode, data: repaired };
+    }
+  }
+  if (!studentSnap?.exists || !studentCanOpenPortal(studentSnap.data())) throw new HttpsError('not-found', 'لم يتم العثور على التقرير.');
+  const student = await ensureUnifiedStudentAccess(studentSnap, normalized);
+  const studentCode = normalizeCode(student.studentCode || student.code);
+  return { code: studentCode, data: { ...student, studentCode, parentCode: studentCode, code: studentCode } };
 }
 
 async function attemptSummaries(studentCode) {
@@ -996,10 +1135,12 @@ exports.reviewStudentTransferRequest = onCall(CALLABLE_OPTIONS, async request =>
       schedulePending: false,
       updatedAt: FieldValue.serverTimestamp()
     };
-    const parentCode = normalizeCode(student.parentCode || studentCode);
-    tx.set(studentRef, patch, { merge: true });
+    const legacyParentCode = normalizeCode(student.parentCode);
+    const parentCode = studentCode;
+    tx.set(studentRef, { ...patch, parentCode }, { merge: true });
     tx.set(db.collection('student_portal').doc(cleanDocId(studentCode)), { ...patch, studentCode, parentCode }, { merge: true });
     tx.set(db.collection('parent_portal').doc(cleanDocId(parentCode)), { ...patch, studentCode, parentCode }, { merge: true });
+    if (legacyParentCode && legacyParentCode !== parentCode) tx.delete(db.collection('parent_portal').doc(cleanDocId(legacyParentCode)));
     tx.set(db.collection('payments').doc(cleanDocId(studentCode)), { group: patch.group, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.update(requestRef, {
       status: 'approved',
@@ -1059,10 +1200,12 @@ exports.upsertGroupSchedule = onCall(CALLABLE_OPTIONS, async request => {
     if (student.grade && !sameAcademicValue(student.grade, grade)) continue;
     const patch = { group: name, groupId: id, scheduleId: id, scheduleDays: payload.days, scheduleStartTime: payload.startTime, scheduleEndTime: payload.endTime, updatedAt: FieldValue.serverTimestamp() };
     const studentCode = normalizeCode(student.studentCode || doc.id);
-    const parentCode = normalizeCode(student.parentCode || studentCode);
-    writes.push(batch => batch.set(doc.ref, patch, { merge: true }));
-    if (studentCode) writes.push(batch => batch.set(db.collection('student_portal').doc(cleanDocId(studentCode)), { ...patch, studentCode }, { merge: true }));
+    const legacyParentCode = normalizeCode(student.parentCode);
+    const parentCode = studentCode;
+    writes.push(batch => batch.set(doc.ref, { ...patch, parentCode }, { merge: true }));
+    if (studentCode) writes.push(batch => batch.set(db.collection('student_portal').doc(cleanDocId(studentCode)), { ...patch, studentCode, parentCode }, { merge: true }));
     if (parentCode) writes.push(batch => batch.set(db.collection('parent_portal').doc(cleanDocId(parentCode)), { ...patch, studentCode, parentCode }, { merge: true }));
+    if (legacyParentCode && legacyParentCode !== parentCode) writes.push(batch => batch.delete(db.collection('parent_portal').doc(cleanDocId(legacyParentCode))));
     if (studentCode) writes.push(batch => batch.set(db.collection('payments').doc(cleanDocId(studentCode)), { group: name, scheduleId: id, updatedAt: FieldValue.serverTimestamp() }, { merge: true }));
   }
   if (bookingsById) bookingsById.docs.forEach(doc => writes.push(batch => batch.set(doc.ref, { group: name, scheduleId: id, scheduleDays: payload.days, scheduleStartTime: payload.startTime, scheduleEndTime: payload.endTime, updatedAt: FieldValue.serverTimestamp() }, { merge: true })));
@@ -1322,15 +1465,22 @@ exports.createStudentAccess = onCall(CALLABLE_OPTIONS, async request => {
   const staff = await requireStaff(request);
   const body = request.data || {};
   const name = text(body.studentName || body.name, 100);
+  const nameKey = studentNameKey(name);
   const parentPhone = digits(body.parentPhone);
   const studentGrade = text(canonicalAcademicLabel(body.grade), 80);
   if (name.length < 3) throw new HttpsError('invalid-argument', 'اكتب اسم الطالب كاملًا.');
   if (!validPhone(parentPhone)) throw new HttpsError('invalid-argument', 'اكتب رقم ولي أمر صحيحًا.');
   if (!isSupportedAcademicGrade(studentGrade)) throw new HttpsError('invalid-argument', 'اختر مسار الطالب من القائمة المتاحة.');
+  const existing = await registeredStudentForName(name, nameKey, body.studentPhone, parentPhone);
+  if (existing.record) {
+    const code = existingStudentCode(existing.record);
+    throw new HttpsError('already-exists', `الطالب موجود بالفعل — كود الطالب: ${code}`);
+  }
+  const nameRegistryRef = existing.registryRef;
 
   for (let attemptNo = 0; attemptNo < 8; attemptNo += 1) {
     const studentCode = await uniqueUnifiedAccessCode(8);
-    const parentCode = await uniqueNumericCode('parent_portal', 8);
+    const parentCode = studentCode;
     const studentRef = db.collection('students').doc(cleanDocId(studentCode));
     const studentPortalRef = db.collection('student_portal').doc(cleanDocId(studentCode));
     const parentPortalRef = db.collection('parent_portal').doc(cleanDocId(parentCode));
@@ -1341,6 +1491,7 @@ exports.createStudentAccess = onCall(CALLABLE_OPTIONS, async request => {
       parentCode,
       studentName: name,
       name,
+      nameKey,
       studentPhone: digits(body.studentPhone),
       parentPhone,
       grade: studentGrade,
@@ -1365,6 +1516,7 @@ exports.createStudentAccess = onCall(CALLABLE_OPTIONS, async request => {
     batch.create(studentRef, student);
     batch.create(studentPortalRef, { ...portal, studentCode, parentCode, active: student.active, updatedAt: FieldValue.serverTimestamp() });
     batch.create(parentPortalRef, { ...portal, studentCode, parentCode, active: student.active, updatedAt: FieldValue.serverTimestamp() });
+    batch.create(nameRegistryRef, { name, nameKey, studentCode, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
     batch.set(paymentRef, {
       studentCode,
       studentName: name,
@@ -1390,6 +1542,10 @@ exports.createStudentAccess = onCall(CALLABLE_OPTIONS, async request => {
       await batch.commit();
       return { ...portal, studentCode, code: studentCode, parentCode, active: student.active };
     } catch (error) {
+      const concurrent = await registeredStudentForName(name, nameKey, body.studentPhone, parentPhone).catch(() => null);
+      if (concurrent?.record) {
+        throw new HttpsError('already-exists', `الطالب موجود بالفعل — كود الطالب: ${existingStudentCode(concurrent.record)}`);
+      }
       if (attemptNo === 7) throw new HttpsError('aborted', 'تعذر إنشاء أكواد فريدة، حاول مرة أخرى.');
     }
   }
@@ -1405,15 +1561,15 @@ exports.regenerateParentAccessCode = onCall(CALLABLE_OPTIONS, async request => {
   if (!studentSnap.exists || studentSnap.data().active === false) throw new HttpsError('not-found', 'الطالب غير موجود أو غير نشط.');
   const student = studentSnap.data() || {};
   const oldParentCode = normalizeCode(student.parentCode);
-  const parentCode = await uniqueNumericCode('parent_portal', 8);
+  const parentCode = studentCode;
   const portal = portalResponse({ ...student, studentCode, parentCode }, []);
   const batch = db.batch();
   batch.update(studentRef, { parentCode, updatedAt: FieldValue.serverTimestamp() });
   batch.set(db.collection('student_portal').doc(cleanDocId(studentCode)), { ...portal, studentCode, parentCode, active: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-  batch.create(db.collection('parent_portal').doc(cleanDocId(parentCode)), { ...portal, studentCode, parentCode, active: true, updatedAt: FieldValue.serverTimestamp() });
+  batch.set(db.collection('parent_portal').doc(cleanDocId(parentCode)), { ...portal, studentCode, parentCode, active: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   if (oldParentCode && oldParentCode !== parentCode) batch.delete(db.collection('parent_portal').doc(cleanDocId(oldParentCode)));
   batch.set(db.collection('activityLog').doc(), {
-    action: 'تم تغيير كود ولي الأمر',
+    action: 'تم إصلاح وتوحيد كود الدخول',
     meta: { studentCode },
     actorUid: staff.uid,
     actorEmail: staff.email || '',
@@ -1422,6 +1578,61 @@ exports.regenerateParentAccessCode = onCall(CALLABLE_OPTIONS, async request => {
   });
   await batch.commit();
   return { studentCode, parentCode };
+});
+
+async function unifyStudentAccessDocuments(docs = []) {
+  let migrated = 0;
+  let alreadyUnified = 0;
+  for (let offset = 0; offset < docs.length; offset += 100) {
+    const batch = db.batch();
+    const chunk = docs.slice(offset, offset + 100);
+    for (const doc of chunk) {
+      const raw = doc.data() || {};
+      const studentCode = normalizeCode(raw.studentCode || raw.code || doc.id);
+      if (!validLegacyOrStrongCode(studentCode)) continue;
+      const oldParentCode = normalizeCode(raw.parentCode);
+      const unified = { ...raw, id: studentCode, code: studentCode, studentCode, parentCode: studentCode };
+      const portal = portalResponse(unified, []);
+      const projection = { ...portal, studentCode, code: studentCode, parentCode: studentCode, active: raw.active !== false, updatedAt: FieldValue.serverTimestamp() };
+      batch.set(doc.ref, { studentCode, code: studentCode, parentCode: studentCode, accessCodeVersion: 2, accessUnifiedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      batch.set(db.collection('student_portal').doc(cleanDocId(studentCode)), projection, { merge: true });
+      batch.set(db.collection('parent_portal').doc(cleanDocId(studentCode)), projection, { merge: true });
+      if (oldParentCode && oldParentCode !== studentCode) batch.delete(db.collection('parent_portal').doc(cleanDocId(oldParentCode)));
+      if (oldParentCode === studentCode && Number(raw.accessCodeVersion) === 2) alreadyUnified += 1;
+      else migrated += 1;
+    }
+    await batch.commit();
+  }
+  return { scanned: docs.length, migrated, alreadyUnified };
+}
+
+exports.unifyStudentAccessCodes = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 120, memory: '512MiB' }, async request => {
+  const staff = await requireStaff(request, ['admin', 'teacher']);
+  const snap = await db.collection('students').limit(3000).get();
+  const result = await unifyStudentAccessDocuments(snap.docs);
+  await db.collection('activityLog').add({
+    action: 'تم توحيد أكواد بوابتي الطالب وولي الأمر',
+    meta: result,
+    actorUid: staff.uid,
+    actorEmail: staff.email || '',
+    actorRole: staff.role || '',
+    createdAt: FieldValue.serverTimestamp()
+  });
+  return { ok: true, ...result };
+});
+
+exports.unifyLegacyStudentAccess = onSchedule({ schedule: 'every 6 hours', region: 'europe-west1', timeZone: 'Africa/Cairo', timeoutSeconds: 120, memory: '256MiB' }, async () => {
+  const stateRef = db.collection('_system').doc('unified_student_access');
+  const stateSnap = await stateRef.get();
+  const cursor = text(stateSnap.exists ? stateSnap.data().cursor : '', 200);
+  let query = db.collection('students').orderBy(admin.firestore.FieldPath.documentId()).limit(100);
+  if (cursor) query = query.startAfter(cursor);
+  let snap = await query.get();
+  if (snap.empty && cursor) snap = await db.collection('students').orderBy(admin.firestore.FieldPath.documentId()).limit(100).get();
+  const result = await unifyStudentAccessDocuments(snap.docs);
+  const nextCursor = snap.empty ? '' : snap.docs[snap.docs.length - 1].id;
+  await stateRef.set({ ...result, cursor: nextCursor, lastRunAt: FieldValue.serverTimestamp() }, { merge: true });
+  return result;
 });
 
 exports.createBooking = onCall(CALLABLE_OPTIONS, async request => {
@@ -1436,10 +1647,16 @@ exports.createBooking = onCall(CALLABLE_OPTIONS, async request => {
   const identity = `${digits(body.parentPhone)}:${request.rawRequest.ip || ''}`;
   await rateLimitPublic('booking-v2', identity, request, 12, 60, 10 * 60 * 1000);
   const name = text(body.name, 80);
+  const nameKey = studentNameKey(name);
   const studentPhone = digits(body.studentPhone);
   const parentPhone = digits(body.parentPhone);
   if (name.length < 3) throw new HttpsError('invalid-argument', 'اكتب اسم الطالب كاملًا.');
   if (!validPhone(studentPhone) || !validPhone(parentPhone)) throw new HttpsError('invalid-argument', 'اكتب أرقام هاتف صحيحة.');
+  const existing = await registeredStudentForName(name, nameKey, studentPhone, parentPhone);
+  if (existing.record) {
+    return returnExistingStudent(existing.record, existing.registryRef, requestRef, requestId, name, nameKey, studentPhone, parentPhone);
+  }
+  const nameRegistryRef = existing.registryRef;
   const requestedGrade = text(canonicalAcademicLabel(body.grade), 80);
   const requestedGroup = text(body.group, 100);
   const selectedScheduleId = cleanDocId(text(body.scheduleId, 100));
@@ -1466,14 +1683,14 @@ exports.createBooking = onCall(CALLABLE_OPTIONS, async request => {
   // All codes shown after booking are digits only and can be typed with Arabic
   // or English numerals. They are issued immediately and never change later.
   const studentCode = code;
-  // Parent access is intentionally separate. Existing unified legacy codes keep
-  // working, while every new booking receives an independent private parent code.
-  const parentCode = await uniqueNumericCode('parent_portal', 8);
+  // One numeric code opens the student and parent portals.
+  const parentCode = studentCode;
   const payload = {
     id: code,
     code,
     name,
     studentName: name,
+    nameKey,
     studentPhone,
     parentPhone,
     grade: requestedGrade,
@@ -1530,6 +1747,7 @@ exports.createBooking = onCall(CALLABLE_OPTIONS, async request => {
   batch.create(db.collection('students').doc(studentCode), provisionalStudent);
   batch.create(db.collection('student_portal').doc(studentCode), { ...provisionalPortal, parentCode, active: false, updatedAt: FieldValue.serverTimestamp() });
   batch.create(db.collection('parent_portal').doc(parentCode), { ...provisionalPortal, parentCode, active: false, updatedAt: FieldValue.serverTimestamp() });
+  batch.create(nameRegistryRef, { name, nameKey, studentCode, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
   const response = { code, bookingCode: code, studentCode, parentCode, status: payload.status };
   if (requestRef) batch.create(requestRef, { requestId, response, createdAt: FieldValue.serverTimestamp(), expiresAt: Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000) });
   try {
@@ -1541,6 +1759,10 @@ exports.createBooking = onCall(CALLABLE_OPTIONS, async request => {
     if (requestRef) {
       const previous = await requestRef.get().catch(() => null);
       if (previous?.exists && previous.data().response) return previous.data().response;
+    }
+    const concurrent = await registeredStudentForName(name, nameKey, studentPhone, parentPhone).catch(() => null);
+    if (concurrent?.record) {
+      return returnExistingStudent(concurrent.record, concurrent.registryRef, requestRef, requestId, name, nameKey, studentPhone, parentPhone);
     }
     throw error;
   }
@@ -1558,7 +1780,6 @@ exports.approveBooking = onCall(CALLABLE_OPTIONS, async request => {
   // access code. Avoid five unnecessary uniqueness reads on every approval;
   // only old alphanumeric bookings need a fresh fallback code.
   const fallbackStudentCode = /^\d{6,12}$/.test(bookingCode) ? bookingCode : await uniqueUnifiedAccessCode(8);
-  const fallbackParentCode = await uniqueNumericCode('parent_portal', 8);
 
   const bookingRef = db.collection('bookings').doc(cleanDocId(bookingCode));
   const statusRef = db.collection('booking_status').doc(cleanDocId(bookingCode));
@@ -1577,7 +1798,7 @@ exports.approveBooking = onCall(CALLABLE_OPTIONS, async request => {
     const existingStudentCode = text(booking.studentCode || status.studentCode, 40);
     const oldParentCode = text(booking.parentCode || status.parentCode, 40);
     const studentCode = /^\d{6,12}$/.test(existingStudentCode) ? existingStudentCode : fallbackStudentCode;
-    const parentCode = /^\d{6,12}$/.test(oldParentCode) ? oldParentCode : fallbackParentCode;
+    const parentCode = studentCode;
     const name = text(booking.studentName || booking.name, 100);
     const student = {
       ...booking,
@@ -1599,6 +1820,7 @@ exports.approveBooking = onCall(CALLABLE_OPTIONS, async request => {
     tx.set(db.collection('students').doc(studentCode), student, { merge: true });
     tx.set(db.collection('student_portal').doc(studentCode), { ...portal, parentCode, active: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.set(db.collection('parent_portal').doc(parentCode), { ...portal, parentCode, active: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    if (oldParentCode && oldParentCode !== parentCode) tx.delete(db.collection('parent_portal').doc(cleanDocId(oldParentCode)));
     tx.set(db.collection('payments').doc(studentCode), { studentCode, studentName: name, grade: student.grade, group: student.group, scheduleId: student.scheduleId || '', academicYear: student.academicYear, term: student.term, paid: false, paymentDate: '', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.set(statusRef, { ...status, code: bookingCode, name, studentName: name, studentCode, parentCode, status: 'تم القبول والتسجيل كطالب', acceptedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.delete(bookingRef);
@@ -1642,12 +1864,16 @@ exports.rejectBooking = onCall(CALLABLE_OPTIONS, async request => {
     const data = bookingSnap.exists ? bookingSnap.data() : (statusSnap.exists ? statusSnap.data() : null);
     if (!data) throw new HttpsError('not-found', 'الحجز غير موجود.');
     const studentCode = text(data.studentCode, 40);
-    const parentCode = text(data.parentCode, 40);
+    const parentCode = studentCode || text(data.parentCode, 40);
+    const rejectedNameKey = studentNameKey(data.studentName || data.name);
     if (studentCode) {
       tx.set(db.collection('students').doc(cleanDocId(studentCode)), { active: false, approvalStatus: 'تم رفض الحجز', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       tx.set(db.collection('student_portal').doc(cleanDocId(studentCode)), { active: false, approvalStatus: 'تم رفض الحجز', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     }
-    if (parentCode) tx.set(db.collection('parent_portal').doc(cleanDocId(parentCode)), { active: false, approvalStatus: 'تم رفض الحجز', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    if (parentCode) tx.set(db.collection('parent_portal').doc(cleanDocId(parentCode)), { studentCode, parentCode, active: false, approvalStatus: 'تم رفض الحجز', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    const legacyParentCode = text(data.parentCode, 40);
+    if (legacyParentCode && legacyParentCode !== parentCode) tx.delete(db.collection('parent_portal').doc(cleanDocId(legacyParentCode)));
+    if (rejectedNameKey) tx.delete(studentNameRegistryRef(rejectedNameKey));
     tx.set(statusRef, { ...data, status: 'تم رفض الحجز', rejectedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     if (bookingSnap.exists) tx.delete(bookingRef);
     tx.set(db.collection('activityLog').doc(), { action: 'تم رفض حجز طالب', meta: { bookingCode, studentCode }, actorUid: staff.uid, actorEmail: staff.email || '', actorRole: staff.role || '', createdAt: FieldValue.serverTimestamp() });
@@ -2412,7 +2638,10 @@ exports.deleteStudentSafely = onCall({ region: 'europe-west1', timeoutSeconds: 1
   const archiveName = `deleted-students/${cleanDocId(studentCode)}/${new Date().toISOString().replace(/[:.]/g, '-')}.json.gz`;
   await admin.storage().bucket().file(archiveName).save(zlib.gzipSync(Buffer.from(JSON.stringify(deletionSnapshot), 'utf8')), { resumable: false, contentType: 'application/gzip' });
   const refs = [studentRef, db.collection('student_portal').doc(cleanDocId(studentCode)), db.collection('payments').doc(cleanDocId(studentCode)), attemptsParent, ...relatedDocs];
-  if (student.parentCode) refs.push(db.collection('parent_portal').doc(cleanDocId(student.parentCode)));
+  const deletedNameKey = studentNameKey(student.studentName || student.name);
+  if (deletedNameKey) refs.push(studentNameRegistryRef(deletedNameKey));
+  refs.push(db.collection('parent_portal').doc(cleanDocId(studentCode)));
+  if (student.parentCode && normalizeCode(student.parentCode) !== studentCode) refs.push(db.collection('parent_portal').doc(cleanDocId(student.parentCode)));
   if (attemptsChildren) refs.push(...attemptsChildren.docs.map(doc => doc.ref));
   await commitDeleteRefs(refs);
   await db.collection('activityLog').add({ action: 'تم حذف طالب مع نسخة استرجاع', meta: { studentCode, archiveName }, actorUid: staff.uid, actorEmail: staff.email || '', actorRole: staff.role || '', createdAt: FieldValue.serverTimestamp() });

@@ -1,5 +1,5 @@
-const CACHE_NAME = "technominds-v62-7-0-performance-release";
-const ASSET_VERSION = "62.7.0";
+const CACHE_NAME = "technominds-v62-9-0-unified-access";
+const ASSET_VERSION = "62.9.0";
 const APP_SHELL = [
   "/", "/index.html", "/student.html", "/exams.html", "/materials.html", "/questions.html",
   "/learning-path.html", "/about.html", "/practical.html", "/parent.html", "/reviews.html", "/privacy.html",

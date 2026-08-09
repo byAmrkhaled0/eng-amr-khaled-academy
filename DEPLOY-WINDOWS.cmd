@@ -8,7 +8,7 @@ set "DEPLOY_EXIT=%ERRORLEVEL%"
 if not "%DEPLOY_EXIT%"=="0" goto failed
 if not exist ".deploy-success" goto interrupted
 echo.
-echo Deployment V62.7.0 completed successfully.
+echo Deployment V62.9.0 completed successfully.
 del /q ".deploy-success" >nul 2>nul
 pause
 exit /b 0

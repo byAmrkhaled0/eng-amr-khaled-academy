@@ -9,7 +9,8 @@ for(const name of ['getStudentCurriculum','getLectureContent','recordLectureProg
 }
 assert(/email_verified[^\n]+admin/.test(functions),'owner bootstrap must require verified email and admin claim');
 assert(!/const OWNER_EMAILS/.test(functions),'owner emails must not be embedded');
-assert(/parentCode = await uniqueNumericCode\('parent_portal'/.test(functions),'new parent code must be separate');
+assert(/const parentCode = studentCode;/.test(functions),'student and parent portals must use one code');
+assert(functions.includes('exports.unifyStudentAccessCodes = onCall'),'legacy unified-code migration callable is missing');
 assert(/provisionalPortal, parentCode, active: false/.test(functions),'pending portal must remain inactive');
 assert(rules.includes('match /teacher_files/{id} { allow read: if isTeacher(); allow write: if false; }'),'teacher files rules missing');
 assert(rules.includes('match /student_progress/{studentCode}/{document=**} { allow read, write: if false; }'),'progress must be server-only');

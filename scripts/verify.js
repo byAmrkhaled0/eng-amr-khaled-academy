@@ -12,7 +12,7 @@ const requiredFiles = [
   'assets/firebase-sync.js', 'assets/firebase-config.js', 'assets/technominds-logo.png',
   'firestore.rules', 'storage.rules', 'firestore.indexes.json', 'firebase.json',
   'functions/index.js', 'functions/package.json', 'service-worker.js', 'site.webmanifest', 'teacher.webmanifest', 'offline.html',
-  'practical.html', 'assets/practical.js', 'assets/v60-technominds.css', 'assets/v61-design.css', 'assets/v60-payments.js', 'assets/v60-admin-workflow.js', 'functions/payment-domain.js', 'functions/lib/student-access.js',
+  'practical.html', 'assets/practical.js', 'assets/v60-technominds.css', 'assets/v61-design.css', 'assets/v60-payments.js', 'assets/v60-admin-workflow.js', 'functions/payment-domain.js', 'functions/lib/student-access.js', 'functions/lib/student-identity.js',
   'check-deployment.ps1', 'deploy-hosting-only.ps1', 'DEPLOY-HOSTING-ONLY.cmd', 'CHECK-SITE.cmd', 'PREPARE-GITHUB.cmd', 'llms.txt', 'scripts/live-audit-v625.test.js'
 ];
 
@@ -29,7 +29,7 @@ if (!failures.length) ok('Required files exist');
 const jsFiles = [
   'assets/app.js', 'assets/admin.js', 'assets/v53-upgrades.js', 'assets/v55-admin.js', 'assets/v56-fixes.js',
   'assets/firebase-sync.js', 'assets/firebase-config.js', 'assets/practical.js', 'assets/v60-payments.js', 'assets/v60-admin-workflow.js',
-  'functions/index.js', 'functions/payment-domain.js', 'functions/lib/student-access.js', 'local-server.js', 'scripts/build.js', 'scripts/verify-dist.js', 'scripts/payment-domain.test.js'
+  'functions/index.js', 'functions/payment-domain.js', 'functions/lib/student-access.js', 'functions/lib/student-identity.js', 'local-server.js', 'scripts/build.js', 'scripts/verify-dist.js', 'scripts/payment-domain.test.js', 'scripts/booking-homework-v628.test.js'
 ];
 for (const relative of jsFiles) {
   const result = spawnSync(process.execPath, ['--check', path.join(root, relative)], { encoding: 'utf8' });
@@ -48,7 +48,7 @@ const htmlFiles = fs.readdirSync(root).filter(name => name.endsWith('.html'));
 const localRefPattern = /(?:src|href)=["']([^"'#?]+)["']/g;
 for (const htmlFile of htmlFiles) {
   const html = read(htmlFile);
-  if (!html.includes('assets/v61-design.css?v=62.7.0')) {
+  if (!html.includes('assets/v61-design.css?v=62.9.0')) {
     fail(`Unified V61.1 design is not loaded by ${htmlFile}`);
   }
   const ids = [...html.matchAll(/\sid=["']([^"']+)["']/g)].map(match => match[1]);
@@ -118,7 +118,7 @@ if (!failures.some(x => x.includes('public direct-write') || x.includes('Cloud F
 const functionsSource = read('functions/index.js');
 const callableNames = [
   'getPortalStudent', 'getStudentResources', 'createStudentAccess', 'createBooking', 'approveBooking', 'rejectBooking', 'getBookingStatus', 'createReview', 'recordClassProgress', 'registerTeacherPushToken',
-  'regenerateParentAccessCode',
+  'regenerateParentAccessCode', 'unifyStudentAccessCodes',
   'getExamDashboard', 'startExam', 'submitExam', 'prepareHomeworkUpload', 'registerHomeworkSubmission', 'reportClientError',
   'createBackupNow', 'listAutomaticBackups', 'getBackupDownloadUrl', 'restoreAutomaticBackup', 'deleteStudentSafely',
   'activateOwnerAccount', 'getPlatformHealth', 'getCodeLanguages', 'submitCodeExecution', 'getCodeExecutionResult'
@@ -159,7 +159,7 @@ const appSourceCode = read('assets/app.js');
 const fixesSourceCode = read('assets/v56-fixes.js');
 if (!adminSourceCode.includes("loadSiteData({fast:true})") || !adminSourceCode.includes('hydrateAdminRecords')) fail('Staged admin loading is missing');
 if (!appSourceCode.includes('staffCacheOnly') || !appSourceCode.includes('if(isStaffWorkspace())return;')) fail('Compact staff browser cache protection is missing');
-if (!appSourceCode.includes("MF_ASSET_VERSION = '62.7.0'")) fail('Lazy asset loader version is stale');
+if (!appSourceCode.includes("MF_ASSET_VERSION = '62.9.0'")) fail('Lazy asset loader version is stale');
 if (!fixesSourceCode.includes('showMoreAdminStudents') || !fixesSourceCode.includes('slice(0,adminStudentVisible)')) fail('Paginated student rendering is missing');
 if (!appSourceCode.includes('ensureQrScannerLibrary') || !appSourceCode.includes("loadQrScanner:()=>loadLazyScript('qr-scanner'")) fail('Cross-browser lazy QR scanner fallback is missing');
 for (const page of ['student.html','parent.html','teacher-login.html']) {
@@ -204,7 +204,7 @@ if (manifest.display !== 'standalone' || manifest.scope !== '/' || !Array.isArra
 if (!manifest.icons.some(icon => String(icon.purpose || '').includes('maskable') && icon.sizes === '512x512')) fail('Maskable PWA icon is missing');
 const sw = read('service-worker.js');
 const appShellSource = sw.slice(0,sw.indexOf('];')+2);
-if (!/technominds-v62-7-0-performance-release/.test(sw) || !sw.includes('/assets/v61-design.css') || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/curriculum-student.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes('/practical.html') || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell is incomplete');
+if (!/technominds-v62-9-0-unified-access/.test(sw) || !sw.includes('/assets/v61-design.css') || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/curriculum-student.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes('/practical.html') || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell is incomplete');
 if (/assets\/vendor|assets\/admin\.js|teacher-login\.html/.test(appShellSource) || !sw.includes('event.waitUntil(network.catch')) fail('Large admin assets are still precached or repeat-visit caching is missing');
 if (!read('index.html').includes('<script defer src="https://www.gstatic.com/firebasejs/')) fail('Firebase scripts are not downloaded in parallel with deferred execution');
 const upgrade = read('assets/v53-upgrades.js');
@@ -228,8 +228,8 @@ if (read('index.html').includes('name="group" required') || !read('assets/app.js
 if (!read('assets/admin.js').includes('moveStudentToGroup') || !read('assets/admin.js').includes('confirmStudentGroupMove') || !read('assets/admin.js').includes('studentGroupMoveSelect')) fail('Admin student group move flow is incomplete');
 if (!functionsSource.includes("where(field, '==', normalized)") || !functionsSource.includes('repair the canonical portal document')) fail('Legacy/imported student-code portal repair is incomplete');
 const parentPortalFunction = functionsSource.slice(functionsSource.indexOf('async function getParentPortalByCode'), functionsSource.indexOf('async function attemptSummaries'));
-if (parentPortalFunction.includes('getStudentPortalByCode(normalized)') || !parentPortalFunction.includes("where('parentCode', '==', normalized)")) fail('Parent portal can still fall back to a student access code');
-if (adminSourceCode.includes('parentCode:created.studentCode') || adminSourceCode.includes('parentCode:newCode') || firebaseSyncSource.includes('const parentCode=studentCode')) fail('Staff student creation or code migration still merges student and parent credentials');
+if (!parentPortalFunction.includes("['studentCode', 'code', 'parentCode']") || !parentPortalFunction.includes('ensureUnifiedStudentAccess')) fail('Parent portal does not resolve and repair the unified student code');
+if (!adminSourceCode.includes('parentCode:newCode') || !firebaseSyncSource.includes('const parentCode=studentCode') || !functionsSource.includes('const parentCode = studentCode;')) fail('Staff student creation or code migration does not keep one credential for both portals');
 if (!read('student.html').includes('data-digits-only') || !read('student.html').includes('inputmode="numeric"') || !appSourceCode.includes("converted.replace(/\\D/g,'')")) fail('Numeric-only code, phone, and number fields are incomplete');
 if (!read('service-worker.js').includes('caches.match(url.pathname,{ignoreSearch:true})') || !read('assets/app.js').includes("localDevelopment=['localhost','127.0.0.1','0.0.0.0']")) fail('Portal navigation/offline fallback safeguards are incomplete');
 if (!read('assets/admin.js').includes('bookingActionPending') || read('assets/admin.js').includes("showIssuedCodes(student,'تم قبول الحجز وتسجيل الطالب')")) fail('Instant repeated booking approval safeguards are incomplete');

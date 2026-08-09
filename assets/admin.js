@@ -44,6 +44,7 @@ function adminActionErrorMessage(error,fallback='تعذر تنفيذ العمل�
   if(/unauthenticated|auth\/user-token-expired/i.test(raw))return 'انتهت جلسة الدخول. سجّل دخول المدرس مرة أخرى.';
   if(/permission-denied|insufficient permissions|not authorized/i.test(raw))return 'الحساب لا يملك الصلاحية أو قواعد Firebase الجديدة لم تُنشر بعد.';
   if(/invalid-argument|كود.*غير صالح|بيانات.*غير مكتملة/i.test(raw))return 'البيانات غير مكتملة أو غير صحيحة. راجع المدخلات وحاول مرة أخرى.';
+  if(/already-exists/i.test(raw)){const message=raw.split(':').pop().trim();return /الطالب موجود|كود الطالب/.test(message)?message:'السجل موجود بالفعل ولم يتم إنشاء نسخة مكررة.';}
   if(/resource-exhausted|too many/i.test(raw))return 'تم تنفيذ محاولات كثيرة بسرعة. انتظر قليلًا ثم حاول مرة أخرى.';
   if(/unavailable|network|fetch|offline|deadline-exceeded|timeout/i.test(raw))return 'الاتصال بقاعدة البيانات غير متاح الآن. تحقق من الإنترنت وحاول مرة أخرى.';
   return fallback;
@@ -72,15 +73,15 @@ function newParentCode(){return uniqueAccessCode('PR','parentCode');}
 function isWeakAccessCode(code){return !/^\d{8}$/.test(String(code||''));}
 function adminWhatsAppPhone(v){const d=phoneDigits(v); if(!d) return ''; if(d.startsWith('20')) return d; if(d.startsWith('0')) return '2'+d; return d;}
 function monthlyReportTextForStudent(st){const s=normalizeStudent(st); if(typeof parentReportText==='function') return parentReportText(s); const c=calcStudentAdmin(s); return `تقرير متابعة شهر ${s.month||''}\n\nالطالب: ${s.name}\nالكود: ${s.studentCode}\nالمسار: ${s.grade||'-'}\nالمجموعة: ${s.group||'-'}\n\nالمستوى العام: ${c.final||0}%\nنسبة الحضور: ${c.attendancePct||0}%\nمتوسط الدرجات: ${c.avg||0}%\nحالة الدفع: ${s.paid?'تم الدفع':'لم يتم الدفع'}\n\nملاحظات المدرس:\n${s.notes||'لا توجد ملاحظات حالية.'}`;}
-function issuedCodesText(student){const s=normalizeStudent(student);return `اسم الطالب: ${s.name}\nكود الطالب: ${s.studentCode}\nكود ولي الأمر: ${s.parentCode}`;}
+function issuedCodesText(student){const s=normalizeStudent(student);return `اسم الطالب: ${s.name}\nالكود الموحّد للطالب وولي الأمر: ${s.studentCode}`;}
 window.closeIssuedCodes=function(){document.getElementById('issuedCodesModal')?.remove();};
 window.copyIssuedCodes=async function(){const modal=document.getElementById('issuedCodesModal'),text=modal?.dataset.copyText||'';try{await navigator.clipboard.writeText(text);aToast('تم نسخ الكود الموحّد');}catch(_){prompt('انسخ الكود',text);}};
 window.showIssuedCodes=function(student,title='تم تسجيل الطالب بنجاح'){
-  const s=normalizeStudent(student);closeIssuedCodes();document.body.insertAdjacentHTML('beforeend',`<div class="issued-codes-modal" id="issuedCodesModal" role="dialog" aria-modal="true" aria-labelledby="issuedCodesTitle" data-copy-text="${safe(issuedCodesText(s))}"><div class="card issued-codes-card"><button class="issued-codes-close" type="button" onclick="closeIssuedCodes()" aria-label="إغلاق">×</button><span class="badge good">تم الحفظ على النظام</span><h2 id="issuedCodesTitle">${safe(title)}</h2><p>${safe(s.name)} · ${safe(s.grade||'')}</p><div class="issued-code-row"><small>كود الطالب</small><code>${safe(s.studentCode)}</code></div><div class="issued-code-row"><small>كود ولي الأمر</small><code>${safe(s.parentCode)}</code></div><div class="mobile-actions"><button class="btn primary" type="button" onclick="copyIssuedCodes()"><span data-icon="clipboard"></span> نسخ الكودين</button><button class="btn ghost" type="button" onclick="closeIssuedCodes()">تم</button></div></div></div>`);hydrateIcons();
+  const s=normalizeStudent(student);closeIssuedCodes();document.body.insertAdjacentHTML('beforeend',`<div class="issued-codes-modal" id="issuedCodesModal" role="dialog" aria-modal="true" aria-labelledby="issuedCodesTitle" data-copy-text="${safe(issuedCodesText(s))}"><div class="card issued-codes-card"><button class="issued-codes-close" type="button" onclick="closeIssuedCodes()" aria-label="إغلاق">×</button><span class="badge good">تم الحفظ على النظام</span><h2 id="issuedCodesTitle">${safe(title)}</h2><p>${safe(s.name)} · ${safe(s.grade||'')}</p><div class="issued-code-row"><small>الكود الموحّد للطالب وولي الأمر</small><code>${safe(s.studentCode)}</code></div><div class="mobile-actions"><button class="btn primary" type="button" onclick="copyIssuedCodes()"><span data-icon="clipboard"></span> نسخ الكود</button><button class="btn ghost" type="button" onclick="closeIssuedCodes()">تم</button></div></div></div>`);hydrateIcons();
 };
 function stCode(st){return st.studentCode||st.code||st.id||'';}
 function stName(st){return st.studentName||st.name||'';}
-function normalizeStudent(st){const normalize=typeof toEnglishDigits==='function'?toEnglishDigits:value=>String(value||'');const code=normalize(stCode(st)||'').toUpperCase(); return {...st,id:code,code,studentCode:code,parentCode:normalize(st.parentCode||'').toUpperCase(),studentPhone:phoneDigits(st.studentPhone),parentPhone:phoneDigits(st.parentPhone),name:stName(st),studentName:stName(st),grade:typeof canonicalAcademicLabel==='function'?canonicalAcademicLabel(st.grade):st.grade,active:st.active!==false};}
+function normalizeStudent(st){const normalize=typeof toEnglishDigits==='function'?toEnglishDigits:value=>String(value||'');const code=normalize(stCode(st)||'').toUpperCase(); return {...st,id:code,code,studentCode:code,parentCode:code,studentPhone:phoneDigits(st.studentPhone),parentPhone:phoneDigits(st.parentPhone),name:stName(st),studentName:stName(st),grade:typeof canonicalAcademicLabel==='function'?canonicalAcademicLabel(st.grade):st.grade,active:st.active!==false};}
 function groupOptions(){const data=[...(adminData.groups||[]).filter(g=>g.active!==false).map(g=>g.name),...(adminData.students||[]).map(s=>s.group)].filter(Boolean); return [...new Set(data)];}
 function adminTargetGroupOptions(includeAll=false){
   const groups=new Map();
@@ -353,44 +354,27 @@ window.copyParentMonthlyReport=function(code){const s=adminData.students.find(x=
 
 window.copyStudentCodes=async function(code){
   const raw=adminData.students.find(x=>stCode(x)===code);if(!raw)return aToast('لم يتم العثور على الطالب');const s=normalizeStudent(raw);
-  const text=`اسم الطالب: ${s.name}\nكود الطالب: ${s.studentCode}\nكود ولي الأمر: ${s.parentCode||'غير متاح'}`;
-  try{await navigator.clipboard.writeText(text);aToast('تم نسخ كودي الطالب وولي الأمر');}catch(e){prompt('انسخ الأكواد',text);}
+  const text=`اسم الطالب: ${s.name}\nالكود الموحّد للطالب وولي الأمر: ${s.studentCode}`;
+  try{await navigator.clipboard.writeText(text);aToast('تم نسخ الكود الموحّد');}catch(e){prompt('انسخ الكود',text);}
 };
 window.regenerateParentCode=async function(code){
   const s=adminData.students.find(x=>stCode(x)===code);if(!s)return;
-  if(!confirm('سيتم إلغاء كود ولي الأمر القديم وإصدار كود جديد. متابعة؟'))return;
-  try{const result=await window.MFCloud?.regenerateParentAccessCode?.(code);if(!result?.parentCode)throw new Error('Parent code unavailable');s.parentCode=result.parentCode;saveData(adminData);aToast('تم إصدار كود ولي أمر جديد');renderStudents();showIssuedCodes(s,'تم تغيير كود ولي الأمر');}
-  catch(error){aToast(adminActionErrorMessage(error,'تعذر تغيير كود ولي الأمر؛ ظل الكود القديم صالحًا.'));}
+  if(!confirm('سيتم إصلاح بوابة ولي الأمر لتستخدم نفس كود الطالب. متابعة؟'))return;
+  try{const result=await window.MFCloud?.regenerateParentAccessCode?.(code);if(!result?.parentCode)throw new Error('Unified code unavailable');s.parentCode=s.studentCode;saveData(adminData);aToast('تم إصلاح الكود الموحّد');renderStudents();showIssuedCodes(s,'تم إصلاح كود الدخول الموحّد');}
+  catch(error){aToast(adminActionErrorMessage(error,'تعذر إصلاح الكود الموحّد.'));}
 };
 window.regenerateStudentCode=async function(code){
   const s=adminData.students.find(x=>stCode(x)===code);if(!s)return;
-  if(!confirm('سيتم تغيير كود الطالب وتحديث سجلاته مع الحفاظ على كود ولي الأمر المنفصل. متابعة؟'))return;
-  const oldCode=stCode(s),oldParentCode=String(s.parentCode||oldCode).toUpperCase(),newCode=newStudentCode();
-  const proposed={...s,studentCode:newCode,code:newCode,id:newCode,parentCode:oldParentCode};
+  if(!confirm('سيتم تغيير الكود الموحّد وتحديث سجلات الطالب وبوابة ولي الأمر. متابعة؟'))return;
+  const oldCode=stCode(s),newCode=newStudentCode();
+  const proposed={...s,studentCode:newCode,code:newCode,id:newCode,parentCode:newCode};
   try{if(!window.MFCloud?.migrateStudentCode)throw new Error('Student migration service unavailable');await window.MFCloud.migrateStudentCode(oldCode,newCode,proposed);Object.assign(s,proposed);(adminData.bookings||[]).forEach(item=>{if(item.studentCode===oldCode)item.studentCode=newCode;});(adminData.examAttempts||[]).forEach(item=>{if(item.studentCode===oldCode)item.studentCode=newCode;});(adminData.grades||[]).forEach(item=>{if(item.studentCode===oldCode)item.studentCode=newCode;});saveData(adminData);aToast('تم تغيير كود الطالب وتحديث جميع السجلات');renderStudents();}
   catch(error){aToast(adminActionErrorMessage(error,'تعذر تغيير الكود؛ ظل الكود القديم كما هو.'));}
 };
 window.upgradeLegacyAccessCodes=async function(){
-  fresh();const targets=adminData.students.filter(s=>isWeakAccessCode(stCode(s)));
-  if(!targets.length)return aToast('كل الطلاب يستخدمون كود طالب قوي بالفعل');
-  if(!confirm(`سيتم ترقية كود الطالب مع الحفاظ على كود ولي الأمر المنفصل لعدد ${targets.length} طالب. احفظ نسخة احتياطية أولًا. متابعة؟`))return;
-  let success=0,failed=0,cleanupFailed=0;
-  for(const student of targets){
-    const oldCode=stCode(student),oldParentCode=String(student.parentCode||'').toUpperCase();
-    try{
-      if(isWeakAccessCode(oldCode)){
-        if(!window.MFCloud?.migrateStudentCode)throw new Error('Student migration service unavailable');
-        const newCode=newStudentCode(),proposed={...student,studentCode:newCode,code:newCode,id:newCode,parentCode:oldParentCode||oldCode};
-        await window.MFCloud.migrateStudentCode(oldCode,newCode,proposed);Object.assign(student,proposed);
-        (adminData.bookings||[]).forEach(item=>{if(item.studentCode===oldCode)item.studentCode=newCode;});
-        (adminData.examAttempts||[]).forEach(item=>{if(item.studentCode===oldCode)item.studentCode=newCode;});
-        (adminData.grades||[]).forEach(item=>{if(item.studentCode===oldCode)item.studentCode=newCode;});
-      }
-      success+=1;
-      if(oldParentCode&&oldParentCode!==String(student.parentCode||'')){try{await window.MFCloud?.deleteDocument?.('parent_portal',oldParentCode);}catch(error){cleanupFailed+=1;}}
-    }catch(error){failed+=1;}
-  }
-  saveData(adminData);aToast(failed?`تم ترقية ${success} وتعذر ${failed}${cleanupFailed?`، ويوجد ${cleanupFailed} كود قديم يحتاج تنظيف`:''}`:`تم ترقية أكواد ${success} طالب بنجاح`);renderStudents();
+  fresh();if(!confirm('سيتم توحيد كود الطالب وولي الأمر لكل الطلاب مع الحفاظ على النتائج والمدفوعات. متابعة؟'))return;
+  try{if(!window.MFCloud?.unifyStudentAccessCodes)throw new Error('Unified access service unavailable');const result=await window.MFCloud.unifyStudentAccessCodes();adminData.students.forEach(student=>{const code=stCode(student);student.studentCode=code;student.code=code;student.id=code;student.parentCode=code;});saveData(adminData);aToast(`تم توحيد ${Number(result?.migrated||0)} طالب وفحص ${Number(result?.scanned||adminData.students.length)} سجل`);renderStudents();}
+  catch(error){aToast(adminActionErrorMessage(error,'تعذر توحيد الأكواد حاليًا.'));}
 };
 
 function pendingBookings(){return (adminData.bookings||[]).filter(b=>!String(b.status||'').includes('تم القبول'));}

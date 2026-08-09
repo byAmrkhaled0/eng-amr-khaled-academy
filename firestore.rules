@@ -29,7 +29,7 @@ service cloud.firestore {
       allow read: if isStaff();
       allow create: if isStaff() && validCode(studentCode)
         && request.resource.data.studentCode == studentCode
-        && validCode(request.resource.data.parentCode);
+        && request.resource.data.parentCode == studentCode;
       allow update: if isTeacher() || (isAssistant()
         && request.resource.data.studentCode == resource.data.studentCode
         && request.resource.data.parentCode == resource.data.parentCode
@@ -38,7 +38,8 @@ service cloud.firestore {
     }
     match /student_portal/{studentCode} {
       allow read: if isStaff();
-      allow create: if isStaff() && request.resource.data.studentCode == studentCode;
+      allow create: if isStaff() && request.resource.data.studentCode == studentCode
+        && request.resource.data.parentCode == studentCode;
       allow update: if isTeacher() || (isAssistant()
         && request.resource.data.studentCode == resource.data.studentCode
         && request.resource.data.parentCode == resource.data.parentCode
@@ -47,7 +48,9 @@ service cloud.firestore {
     }
     match /parent_portal/{parentCode} {
       allow read: if isStaff();
-      allow create: if isStaff() && request.resource.data.parentCode == parentCode;
+      allow create: if isStaff()
+        && request.resource.data.studentCode == parentCode
+        && request.resource.data.parentCode == parentCode;
       allow update: if isTeacher() || (isAssistant()
         && request.resource.data.studentCode == resource.data.studentCode
         && request.resource.data.parentCode == resource.data.parentCode
@@ -66,6 +69,11 @@ service cloud.firestore {
       allow read, create: if false;
       allow update: if isStaff();
       allow delete: if isTeacher();
+    }
+    match /_student_names/{nameHash} {
+      // Public duplicate checks run only in Cloud Functions so names/codes
+      // cannot be enumerated directly from the browser.
+      allow read, write: if false;
     }
     match /reviews/{reviewId} {
       allow read: if resource.data.approved == true || isStaff();
