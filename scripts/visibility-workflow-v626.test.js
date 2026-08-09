@@ -40,7 +40,7 @@ test('exam and homework targeting use the same normalized scope', () => {
   const examMatcher = backend.slice(backend.indexOf('function examMatchesStudent'), backend.indexOf('function examIsOpen'));
   assert.match(examMatcher, /learningTargetMatchesStudent\(exam, student\)/);
   assert.match(backend, /studentRecords\(studentCode, found\.data\)/);
-  assert.match(backend, /questionsSnap\.docs\.filter\(visible\)\.filter\(doc => learningTargetMatchesStudent/);
+  assert.match(backend, /questionDocs\.filter\(visible\)\.filter\(doc => learningTargetMatchesStudent/);
 });
 
 test('mobile and admin entry pages keep responsive viewport and navigation coverage', () => {

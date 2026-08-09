@@ -19,7 +19,7 @@ assert(storage.includes('request.resource.size <= 15 * 1024 * 1024'),'15MB limit
 assert(functions.includes("report.backup = await createPlatformBackup('pre-curriculum-v61-migration'"),'migration safety backup missing');
 assert(functions.includes("data.legacySource && data.studentVisible !== true"),'legacy curriculum must stay hidden until staff review');
 assert(functions.includes("studentVisible: false") && functions.includes("status: 'draft'"),'migration must create hidden drafts');
-assert(functions.includes("sameAcademicValue(doc.data().grade, student.grade)"),'lecture children must be filtered by normalized student grade');
+assert(functions.includes("learningTargetMatchesStudent(doc.data(), student)"),'lecture children must be filtered by student grade and immutable group target');
 assert(functions.includes("rateLimitPublic('curriculum-file'"),'curriculum file URLs must be rate limited');
 assert(functions.includes("correctAnswer: text(data.correctAnswer") && !/function publicLecture[\s\S]{0,1500}correctAnswer/.test(functions),'correct answers leaked in public lecture');
 console.log('✓ Curriculum V61 security, migration and client bindings passed');

@@ -1,4 +1,5 @@
-const CACHE_NAME = "technominds-v62-6-0-visibility-fix";
+const CACHE_NAME = "technominds-v62-7-0-performance-release";
+const ASSET_VERSION = "62.7.0";
 const APP_SHELL = [
   "/", "/index.html", "/student.html", "/exams.html", "/materials.html", "/questions.html",
   "/learning-path.html", "/about.html", "/practical.html", "/parent.html", "/reviews.html", "/privacy.html",
@@ -9,6 +10,7 @@ const APP_SHELL = [
   "/assets/technominds-logo.png", "/assets/technominds-logo.webp",
   "/assets/amr-khaled-profile.webp", "/site.webmanifest"
 ];
+const VERSIONED_APP_SHELL=APP_SHELL.map(url=>/\.(?:css|js)$/.test(url)?`${url}?v=${ASSET_VERSION}`:url);
 
 // Background FCM uses the browser's standard Push API with no external worker
 // imports, so a third-party CDN/CORS failure cannot break the PWA worker.
@@ -41,7 +43,7 @@ self.addEventListener('notificationclick', event => {
 self.addEventListener("install", event => {
   event.waitUntil((async()=>{
     const cache=await caches.open(CACHE_NAME);
-    await Promise.allSettled(APP_SHELL.map(url=>cache.add(new Request(url,{cache:"reload"}))));
+    await Promise.allSettled(VERSIONED_APP_SHELL.map(url=>cache.add(new Request(url,{cache:"reload"}))));
     await self.skipWaiting();
   })());
 });
@@ -101,9 +103,9 @@ self.addEventListener("fetch", event => {
       if(response.ok){const cache=await caches.open(CACHE_NAME);await cache.put(request,response.clone());}
       return response;
     });
-    event.respondWith(caches.match(request,{ignoreSearch:true}).then(cached=>{
+    event.respondWith(caches.match(request).then(cached=>{
       if(cached){event.waitUntil(network.catch(()=>null));return cached;}
-      return network.catch(()=>caches.match(request,{ignoreSearch:true}));
+      return network.catch(()=>caches.match(request));
     }));
   }
 });

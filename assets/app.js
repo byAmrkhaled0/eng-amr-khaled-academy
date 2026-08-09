@@ -11,7 +11,8 @@ var LAST_EXAM_CODE_KEY = 'mf_last_exam_code';
 var EXAM_DRAFT_PREFIX = 'mf_exam_draft_v2_';
 var PENDING_BOOKING_REQUEST_KEY = 'mf_pending_booking_request_v1';
 var cloudSaveTimer = null;
-var MF_ASSET_VERSION = '62.6.0';
+var staffCacheTimer = null;
+var MF_ASSET_VERSION = '62.7.0';
 var mfLazyScriptPromises = Object.create(null);
 var publicScheduleUnsubscribe = null;
 
@@ -110,6 +111,8 @@ function formatTime12(value){
 }
 function uid(prefix='ST'){const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';const bytes=new Uint8Array(8);if(window.crypto?.getRandomValues)window.crypto.getRandomValues(bytes);else for(let i=0;i<bytes.length;i++)bytes[i]=Math.floor(Math.random()*256);const body=[...bytes].map(x=>alphabet[x%alphabet.length]).join('');return `${prefix}-${body.slice(0,4)}-${body.slice(4,8)}`;}
 function isoDate(d=new Date()){return d.toISOString().slice(0,10);}
+function localDateTimeToIso(value){if(!value)return '';const date=new Date(String(value));return Number.isFinite(date.getTime())?date.toISOString():'';}
+function isoToLocalDateTimeInput(value){if(!value)return '';const date=new Date(value);if(!Number.isFinite(date.getTime()))return String(value).slice(0,16);const pad=number=>String(number).padStart(2,'0');return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;}
 function arStatus(status){return status==='present'?'حاضر':status==='absent'?'غائب':(status||'-');}
 function statusClass(status){return status==='present'||status==='حاضر'||status===true?'good':status==='absent'||status==='غائب'||status===false?'danger':'warn';}
 function whatsappLink(phone,msg){return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;}
@@ -151,8 +154,10 @@ function loadData(){
 function saveData(data){
   try{
     if(isStaffWorkspace()){
-      sessionStorage.setItem(STORAGE_KEY,JSON.stringify(staffCacheOnly(data)));
-      localStorage.removeItem(STORAGE_KEY);
+      clearTimeout(staffCacheTimer);
+      staffCacheTimer=setTimeout(()=>{
+        try{sessionStorage.setItem(STORAGE_KEY,JSON.stringify(staffCacheOnly(data)));localStorage.removeItem(STORAGE_KEY);}catch(_){ }
+      },120);
     }else{
       localStorage.setItem(PUBLIC_STORAGE_KEY,JSON.stringify(publicDataOnly(data)));
     }
@@ -492,9 +497,9 @@ function bindStudentDashboard(){
   }));
 }
 var portalStudentCache=new Map();
-async function loadStudentForPortal(code){
+async function loadStudentForPortal(code,options={}){
   const key=normalizeText(code), cached=portalStudentCache.get(key);
-  if(cached&&Date.now()-cached.time<120000)return cached.student;
+  if(options.force!==true&&cached&&Date.now()-cached.time<15000)return cached.student;
   if(window.MFCloud?.ready && window.MFCloud.getStudentByCode){
     const student=await window.MFCloud.getStudentByCode(code);
     // A partially deployed Firebase backend can still return the old portal
@@ -530,7 +535,7 @@ async function setupStudent(){
     button?.classList.add('is-loading'); if(button)button.disabled=true; form.setAttribute('aria-busy','true');
     box.innerHTML='<div class="portal-loading"><span></span><b>جاري تحميل ملف الطالب...</b><small>لحظات بسيطة</small></div>';
     try{
-      const st=await loadStudentForPortal(code);
+      const st=await loadStudentForPortal(code,{force:true});
       if(!st){box.innerHTML=`<div class="portal-empty portal-empty-large"><span class="iconbox" data-icon="search"></span><h3>الكود غير صحيح</h3><p>راجع الكود المكتوب وحاول مرة أخرى، مع التأكد من الحروف والأرقام.</p><button class="btn ghost" type="button" onclick="document.getElementById('studentQuery')?.focus()">إعادة المحاولة</button></div>`; hydrateIcons(); return;}
       box.innerHTML=studentProfileHTML(st,false); bindStudentDashboard(); bindHomeworkForms(); bindStudentTransferForms(form,st.studentCode); hydrateIcons();
       document.dispatchEvent(new CustomEvent('technominds:student-loaded',{detail:{student:st,code}}));
@@ -950,9 +955,9 @@ function parseExamQuestions(text){
     });
     const q=(questionLines[0]||lines[0]||'سؤال').replace(/^س\d*\s*[:\-]?\s*/,'').trim();
     if(optionObjs.length){
-      return {type:type==='truefalse'?'truefalse':'mcq',question:q,options:optionObjs.map(o=>o.text),optionLabels:optionObjs.map(o=>o.label),answer,mark};
+      return {type:type==='truefalse'?'truefalse':'mcq',question:q,options:optionObjs.map(o=>o.text),optionLabels:optionObjs.map(o=>o.label),answer,mark,modelAnswer:modelLine?modelLine.replace(/^(model|النموذج|الإجابة النموذجية)\s*[:=：-]?\s*/i,'').trim():''};
     }
-    return {type:type==='code'?'code':'essay',question:q,answer:'',mark};
+    return {type:type==='code'?'code':'essay',question:q,answer:'',mark,modelAnswer:modelLine?modelLine.replace(/^(model|النموذج|الإجابة النموذجية)\s*[:=：-]?\s*/i,'').trim():''};
   });
 }
 function hasSubmitted(examId, code){
@@ -1133,7 +1138,7 @@ function registerServiceWorker(){
       registration.addEventListener('updatefound',()=>{const worker=registration.installing;worker?.addEventListener('statechange',()=>{if(worker.state==='installed'&&navigator.serviceWorker.controller)worker.postMessage({type:'SKIP_WAITING'});});});
     }catch(_){ }
   });
-  navigator.serviceWorker.addEventListener('controllerchange',()=>{try{if(sessionStorage.getItem('mf_sw_reloaded_v5614'))return;sessionStorage.setItem('mf_sw_reloaded_v5614','1');location.reload();}catch(_){ }});
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{try{if(sessionStorage.getItem('mf_sw_reloaded_v6270'))return;sessionStorage.setItem('mf_sw_reloaded_v6270','1');location.reload();}catch(_){ }});
 }
 function setupPWAInstall(){
   const button=document.getElementById('installAppButton');if(!button)return;let installPrompt=null;

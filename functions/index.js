@@ -16,7 +16,9 @@ const {
   isSupportedAcademicGrade,
   sameAcademicValue,
   scheduleMatchesStudent,
-  learningTargetMatchesStudent
+  learningTargetMatchesStudent,
+  academicAudienceKeysForStudent,
+  academicAudienceKeysForItem
 } = require('./lib/academic-targeting');
 const { studentCanOpenPortal, studentIsApproved } = require('./lib/student-access');
 
@@ -552,6 +554,8 @@ function portalResponse(data, attempts, records = {}) {
     studentName: text(data.studentName || data.name, 100),
     grade: text(canonicalAcademicLabel(data.grade), 80),
     group: text(data.group, 100),
+    groupId: text(data.groupId || data.scheduleId, 100),
+    scheduleId: text(data.scheduleId || data.groupId, 100),
     month: text(data.month, 40),
     academicYear: text(data.academicYear, 20),
     term: text(data.term, 40),
@@ -622,6 +626,11 @@ async function getStudentPortalByCode(code) {
         studentName: text(current.studentName || current.name, 100),
         grade: text(canonicalAcademicLabel(current.grade), 80),
         group: text(current.group, 100),
+        groupId: text(current.groupId || current.scheduleId, 100),
+        scheduleId: text(current.scheduleId || current.groupId, 100),
+        scheduleDays: text(current.scheduleDays, 100),
+        scheduleStartTime: text(current.scheduleStartTime, 20),
+        scheduleEndTime: text(current.scheduleEndTime, 20),
         month: text(current.month, 40),
         academicYear: text(current.academicYear, 20),
         term: text(current.term, 40),
@@ -716,6 +725,7 @@ function publicAssignmentPayload(data = {}, id = '') {
     description: text(data.description || data.desc, 3000),
     grade: text(canonicalAcademicLabel(data.grade), 80),
     group: text(data.group, 100),
+    scheduleId: text(data.scheduleId || data.groupId, 100),
     academicYear: text(data.academicYear, 30),
     term: text(data.term, 40),
     lessonTitle: text(data.lessonTitle, 200),
@@ -735,9 +745,36 @@ function publicAssignmentPayload(data = {}, id = '') {
   };
 }
 
+const ACADEMIC_GRADE_QUERY_VALUES = Object.freeze({
+  'أولى ثانوي بكالوريا': ['أولى ثانوي بكالوريا','اولي ثانوي بكالوريا','أولى ثانوي برمجة','اولي ثانوي برمجة','أولى ثانوي','اولي ثانوي'],
+  'تانية ثانوي بكالوريا': ['تانية ثانوي بكالوريا','تانيه ثانوي بكالوريا','ثانية ثانوي بكالوريا','ثانيه ثانوي بكالوريا','تانية ثانوي','تانيه ثانوي','ثانية ثانوي','ثانيه ثانوي'],
+  'أساسيات برمجة': ['أساسيات برمجة','اساسيات برمجة','أساسيات برمجه','اساسيات برمجه','أساسيات Python','اساسيات Python','تطبيقات ومراجعة'],
+  'مبتدئين برمجة': ['مبتدئين برمجة','مبتدئين برمجه','مبتدئين']
+});
+
+function academicGradeQueryValues(grade) {
+  const canonical = canonicalAcademicLabel(grade);
+  return [...new Set([...(ACADEMIC_GRADE_QUERY_VALUES[canonical] || [canonical]), 'كل المسارات', 'كل الصفوف', 'all'])].filter(Boolean).slice(0, 30);
+}
+
+async function targetedLearningDocs(collection, student, limit = 750) {
+  const keys = academicAudienceKeysForStudent(student).slice(0, 10);
+  const grades = academicGradeQueryValues(student.grade);
+  const ref = db.collection(collection);
+  const [targetedSnap, legacySnap] = await Promise.all([
+    keys.length ? ref.where('audienceKeys', 'array-contains-any', keys).limit(limit).get().catch(() => null) : Promise.resolve(null),
+    grades.length ? ref.where('grade', 'in', grades).limit(limit).get().catch(() => null) : Promise.resolve(null)
+  ]);
+  const rows = new Map();
+  for (const snap of [targetedSnap, legacySnap]) {
+    if (snap) snap.docs.forEach(doc => rows.set(doc.id, doc));
+  }
+  return [...rows.values()];
+}
+
 async function assignmentsForStudent(student = {}) {
-  const snap = await db.collection('assignments').limit(250).get();
-  return snap.docs
+  const docs = await targetedLearningDocs('assignments', student);
+  return docs
     .map(doc => ({ id: doc.id, ...doc.data() }))
     .filter(item => assignmentIsReleased(item) && learningTargetMatchesStudent(item, student))
     .map(item => ({ ...item, submissionClosed: assignmentDueDatePassed(item, cairoDateKey(new Date())) }))
@@ -746,8 +783,8 @@ async function assignmentsForStudent(student = {}) {
 }
 
 async function materialsForStudent(student = {}) {
-  const snap = await db.collection('materials').limit(250).get();
-  return snap.docs
+  const docs = await targetedLearningDocs('materials', student);
+  return docs
     .filter(doc => { const row = doc.data() || {}; return row.active !== false && row.published !== false && row.status !== 'مسودة' && learningTargetMatchesStudent(row, student); })
     .map(doc => studentResourcePayload(doc, 'material'))
     .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
@@ -836,14 +873,14 @@ exports.getPortalStudent = onCall(CALLABLE_OPTIONS, async request => {
   let records = { attendance: [], grades: [], homeworks: [], recitations: [], monthlyPayments: [], assignments: [], materials: [] };
   let groupSnap = null;
   let transferSnap = null;
-  let assignmentSnap = null;
+  let assignmentDocs = null;
   if (approved) {
-    [attempts, records, groupSnap, transferSnap, assignmentSnap] = await Promise.all([
+    [attempts, records, groupSnap, transferSnap, assignmentDocs] = await Promise.all([
       attemptSummaries(studentCode),
       studentRecords(studentCode, student),
       mode === 'student' ? db.collection('groups').limit(300).get().catch(() => null) : Promise.resolve(null),
       mode === 'student' ? db.collection('student_transfer_requests').where('studentCode', '==', studentCode).limit(20).get().catch(() => null) : Promise.resolve(null),
-      db.collection('assignments').where('active', '==', true).limit(250).get().catch(() => null)
+      targetedLearningDocs('assignments', student).catch(() => null)
     ]);
   }
   const schedules = groupSnap ? groupSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
@@ -857,7 +894,7 @@ exports.getPortalStudent = onCall(CALLABLE_OPTIONS, async request => {
   }))).filter(Boolean).sort((a, b) => `${a.days} ${a.startTime}`.localeCompare(`${b.days} ${b.startTime}`, 'ar'));
   const requests = transferSnap ? transferSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     .sort((a, b) => firestoreMillis(b.createdAt) - firestoreMillis(a.createdAt)) : [];
-  const nextAssignment = assignmentSnap ? assignmentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+  const nextAssignment = assignmentDocs ? assignmentDocs.map(doc => ({ id: doc.id, ...doc.data() }))
     .filter(item => learningTargetMatchesStudent(item, student))
     .map(item => scheduledTimeMillis(item.publishAt)).filter(value => value > Date.now()).sort((a, b) => a - b)[0] || 0 : 0;
   return {
@@ -981,6 +1018,75 @@ exports.reviewStudentTransferRequest = onCall(CALLABLE_OPTIONS, async request =>
   return publicTransferRequest(result);
 });
 
+async function commitServerWrites(writes, chunkSize = 420) {
+  for (let index = 0; index < writes.length; index += chunkSize) {
+    const batch = db.batch();
+    writes.slice(index, index + chunkSize).forEach(write => write(batch));
+    await batch.commit();
+  }
+}
+
+exports.upsertGroupSchedule = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request, ['admin', 'teacher']);
+  const body = request.data || {};
+  const id = cleanDocId(text(body.id, 100));
+  const name = text(body.name || body.group, 100);
+  const previousName = text(body.previousName, 100);
+  const grade = text(canonicalAcademicLabel(body.grade), 80);
+  if (!id || !name || !isSupportedAcademicGrade(grade)) throw new HttpsError('invalid-argument', 'بيانات المجموعة غير مكتملة.');
+  const payload = {
+    id, name, grade,
+    days: text(body.days, 100), startTime: text(body.startTime, 20), endTime: text(body.endTime, 20),
+    capacity: Math.max(0, Math.min(500, Number(body.capacity || 0))),
+    note: text(body.note, 800), active: body.active !== false,
+    updatedAt: FieldValue.serverTimestamp(), updatedBy: staff.uid
+  };
+  const groupRef = db.collection('groups').doc(id);
+  const existing = await groupRef.get();
+  const effectivePreviousName = previousName || (existing.exists ? text(existing.data().name, 100) : '');
+  await groupRef.set({ ...payload, createdAt: existing.exists ? (existing.data().createdAt || FieldValue.serverTimestamp()) : FieldValue.serverTimestamp() }, { merge: true });
+
+  const [studentsById, studentsByName, bookingsById] = await Promise.all([
+    db.collection('students').where('scheduleId', '==', id).limit(1500).get().catch(() => null),
+    effectivePreviousName && effectivePreviousName !== name ? db.collection('students').where('group', '==', effectivePreviousName).limit(1500).get().catch(() => null) : Promise.resolve(null),
+    db.collection('bookings').where('scheduleId', '==', id).limit(500).get().catch(() => null)
+  ]);
+  const studentDocs = new Map();
+  for (const snap of [studentsById, studentsByName]) if (snap) snap.docs.forEach(doc => studentDocs.set(doc.id, doc));
+  const writes = [];
+  for (const doc of studentDocs.values()) {
+    const student = doc.data() || {};
+    if (student.grade && !sameAcademicValue(student.grade, grade)) continue;
+    const patch = { group: name, groupId: id, scheduleId: id, scheduleDays: payload.days, scheduleStartTime: payload.startTime, scheduleEndTime: payload.endTime, updatedAt: FieldValue.serverTimestamp() };
+    const studentCode = normalizeCode(student.studentCode || doc.id);
+    const parentCode = normalizeCode(student.parentCode || studentCode);
+    writes.push(batch => batch.set(doc.ref, patch, { merge: true }));
+    if (studentCode) writes.push(batch => batch.set(db.collection('student_portal').doc(cleanDocId(studentCode)), { ...patch, studentCode }, { merge: true }));
+    if (parentCode) writes.push(batch => batch.set(db.collection('parent_portal').doc(cleanDocId(parentCode)), { ...patch, studentCode, parentCode }, { merge: true }));
+    if (studentCode) writes.push(batch => batch.set(db.collection('payments').doc(cleanDocId(studentCode)), { group: name, scheduleId: id, updatedAt: FieldValue.serverTimestamp() }, { merge: true }));
+  }
+  if (bookingsById) bookingsById.docs.forEach(doc => writes.push(batch => batch.set(doc.ref, { group: name, scheduleId: id, scheduleDays: payload.days, scheduleStartTime: payload.startTime, scheduleEndTime: payload.endTime, updatedAt: FieldValue.serverTimestamp() }, { merge: true })));
+
+  const targetCollections = ['assignments','exams','materials','questions','lectures','lecture_materials','assignments_v2','bank_questions','monthly_exams'];
+  const targetSnaps = await Promise.all(targetCollections.flatMap(collection => [
+    db.collection(collection).where('scheduleId', '==', id).limit(1000).get().catch(() => null),
+    effectivePreviousName && effectivePreviousName !== name ? db.collection(collection).where('group', '==', effectivePreviousName).limit(1000).get().catch(() => null) : Promise.resolve(null)
+  ]));
+  targetCollections.forEach((collection, collectionIndex) => {
+    const docs = new Map();
+    for (const snap of [targetSnaps[collectionIndex * 2], targetSnaps[collectionIndex * 2 + 1]]) if (snap) snap.docs.forEach(doc => docs.set(doc.id, doc));
+    docs.forEach(doc => {
+      const current = doc.data() || {};
+      if (current.grade && !sameAcademicValue(current.grade, grade)) return;
+      const next = { ...current, group: name, groupId: id, scheduleId: id };
+      writes.push(batch => batch.set(doc.ref, { group: name, groupId: id, scheduleId: id, audienceKeys: academicAudienceKeysForItem(next), updatedAt: FieldValue.serverTimestamp() }, { merge: true }));
+    });
+  });
+  if (writes.length) await commitServerWrites(writes);
+  await serverActivity(staff, existing.exists ? 'تعديل مجموعة وتحديث الاستهداف' : 'إنشاء مجموعة', { groupId: id, name, affectedStudents: studentDocs.size });
+  return { ...payload, updatedAt: new Date().toISOString(), affectedStudents: studentDocs.size };
+});
+
 function studentResourcePayload(doc, kind) {
   const data = doc.data() || {};
   const fileUrl = safePublicUrl(data.fileUrl || data.url);
@@ -993,6 +1099,7 @@ function studentResourcePayload(doc, kind) {
     answer: kind === 'question' ? text(data.answer, 4000) : '',
     grade: text(canonicalAcademicLabel(data.grade), 80),
     group: text(data.group, 100),
+    scheduleId: text(data.scheduleId || data.groupId, 100),
     unit: text(data.unit, 120),
     lecture: text(data.lecture, 120),
     fileUrl,
@@ -1010,9 +1117,9 @@ exports.getStudentResources = onCall(CALLABLE_OPTIONS, async request => {
   const studentCode = normalizeCode(found.data.studentCode || found.data.code || code);
   const grade = text(canonicalAcademicLabel(found.data.grade), 80);
   if (!grade) throw new HttpsError('failed-precondition', 'مسار الطالب غير محدد. تواصل مع الإدارة لتحديد المسار أولًا.');
-  const [materialsSnap, questionsSnap, assignments] = await Promise.all([
-    db.collection('materials').limit(250).get(),
-    db.collection('questions').limit(250).get(),
+  const [materialDocs, questionDocs, assignments] = await Promise.all([
+    targetedLearningDocs('materials', found.data),
+    targetedLearningDocs('questions', found.data),
     assignmentsForStudent(found.data)
   ]);
   const visible = doc => {
@@ -1024,10 +1131,11 @@ exports.getStudentResources = onCall(CALLABLE_OPTIONS, async request => {
       studentCode,
       name: text(found.data.studentName || found.data.name, 100),
       grade,
-      group: text(found.data.group, 100)
+      group: text(found.data.group, 100),
+      scheduleId: text(found.data.scheduleId || found.data.groupId, 100)
     },
-    materials: materialsSnap.docs.filter(visible).filter(doc => learningTargetMatchesStudent(doc.data() || {}, found.data)).map(doc => studentResourcePayload(doc, 'material')),
-    questions: questionsSnap.docs.filter(visible).filter(doc => learningTargetMatchesStudent(doc.data() || {}, found.data)).map(doc => studentResourcePayload(doc, 'question')),
+    materials: materialDocs.filter(visible).filter(doc => learningTargetMatchesStudent(doc.data() || {}, found.data)).map(doc => studentResourcePayload(doc, 'material')),
+    questions: questionDocs.filter(visible).filter(doc => learningTargetMatchesStudent(doc.data() || {}, found.data)).map(doc => studentResourcePayload(doc, 'question')),
     assignments: assignments.map(row => publicAssignmentPayload(row, row.id))
   };
 });
@@ -1238,6 +1346,11 @@ exports.createStudentAccess = onCall(CALLABLE_OPTIONS, async request => {
       grade: studentGrade,
       month: text(body.month, 40),
       group: text(body.group, 100),
+      groupId: text(body.groupId || body.scheduleId, 100),
+      scheduleId: text(body.scheduleId || body.groupId, 100),
+      scheduleDays: text(body.scheduleDays, 100),
+      scheduleStartTime: text(body.scheduleStartTime, 20),
+      scheduleEndTime: text(body.scheduleEndTime, 20),
       academicYear: text(body.academicYear, 20),
       term: text(body.term, 40),
       notes: text(body.notes, 1500),
@@ -1257,6 +1370,7 @@ exports.createStudentAccess = onCall(CALLABLE_OPTIONS, async request => {
       studentName: name,
       grade: student.grade,
       group: student.group,
+      scheduleId: student.scheduleId,
       academicYear: student.academicYear,
       term: student.term,
       paid: student.paid,
@@ -1485,7 +1599,7 @@ exports.approveBooking = onCall(CALLABLE_OPTIONS, async request => {
     tx.set(db.collection('students').doc(studentCode), student, { merge: true });
     tx.set(db.collection('student_portal').doc(studentCode), { ...portal, parentCode, active: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.set(db.collection('parent_portal').doc(parentCode), { ...portal, parentCode, active: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    tx.set(db.collection('payments').doc(studentCode), { studentCode, studentName: name, grade: student.grade, group: student.group, academicYear: student.academicYear, term: student.term, paid: false, paymentDate: '', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    tx.set(db.collection('payments').doc(studentCode), { studentCode, studentName: name, grade: student.grade, group: student.group, scheduleId: student.scheduleId || '', academicYear: student.academicYear, term: student.term, paid: false, paymentDate: '', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.set(statusRef, { ...status, code: bookingCode, name, studentName: name, studentCode, parentCode, status: 'تم القبول والتسجيل كطالب', acceptedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.delete(bookingRef);
     tx.set(db.collection('activityLog').doc(), { action: 'تم قبول الحجز وتسجيل الطالب', meta: { bookingCode, studentCode }, actorUid: staff.uid, actorEmail: staff.email || '', actorRole: staff.role || '', createdAt: FieldValue.serverTimestamp() });
@@ -1613,27 +1727,28 @@ function examMatchesStudent(exam, student) {
 
 function examIsOpen(exam, now = Date.now()) {
   if (exam.active === false) return false;
-  const openAt = exam.openAt ? new Date(exam.openAt).getTime() : 0;
-  const closeAt = exam.closeAt ? new Date(exam.closeAt).getTime() : 0;
+  const openAt = scheduledTimeMillis(exam.openAt);
+  const closeAt = scheduledTimeMillis(exam.closeAt);
   if (openAt && Number.isFinite(openAt) && now < openAt) return false;
   if (closeAt && Number.isFinite(closeAt) && now > closeAt) return false;
   return true;
 }
-function examScheduleState(exam, now = Date.now()) {if(exam.active===false)return 'inactive';const open=exam.openAt?new Date(exam.openAt).getTime():0,close=exam.closeAt?new Date(exam.closeAt).getTime():0;if(open&&Number.isFinite(open)&&now<open)return 'upcoming';if(close&&Number.isFinite(close)&&now>close)return 'closed';return 'open';}
+function examScheduleState(exam, now = Date.now()) {if(exam.active===false)return 'inactive';const open=scheduledTimeMillis(exam.openAt),close=scheduledTimeMillis(exam.closeAt);if(open&&Number.isFinite(open)&&now<open)return 'upcoming';if(close&&Number.isFinite(close)&&now>close)return 'closed';return 'open';}
 
 exports.getExamDashboard = onCall(CALLABLE_OPTIONS, async request => {
   const studentCode = normalizeCode(request.data && request.data.studentCode);
   await rateLimitPublic('exam-dashboard', studentCode, request, 10, 35, 60 * 1000);
   const found = await getStudentPortalByCode(studentCode);
   requireApprovedStudent(found.data);
-  const snap = await db.collection('exams').get();
-  const exams = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+  const examDocs = await targetedLearningDocs('exams', found.data);
+  const exams = examDocs.map(doc => ({ id: doc.id, ...doc.data() }))
     .filter(exam => examMatchesStudent(exam, found.data))
     .map(exam => ({
       id: text(exam.id, 100),
       title: text(exam.title, 200),
       grade: text(canonicalAcademicLabel(exam.grade), 80),
       group: text(exam.group, 100),
+      scheduleId: text(exam.scheduleId || exam.groupId, 100),
       academicYear: text(exam.academicYear, 20),
       term: text(exam.term, 40),
       openAt: text(exam.openAt, 60),
@@ -2522,9 +2637,9 @@ function curriculumId(value) {
 function curriculumTimestamp(value) {
   if (!value) return null;
   if (value instanceof Timestamp) return value;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) throw new HttpsError('invalid-argument', 'صيغة التاريخ غير صحيحة.');
-  return Timestamp.fromDate(date);
+  const millis = scheduledTimeMillis(value);
+  if (!millis) throw new HttpsError('invalid-argument', 'صيغة التاريخ غير صحيحة.');
+  return Timestamp.fromMillis(millis);
 }
 
 function normalizedCurriculumPayload(raw, staff, id) {
@@ -2533,6 +2648,7 @@ function normalizedCurriculumPayload(raw, staff, id) {
   const payload = {
     id,
     grade: text(canonicalAcademicLabel(data.grade), 80), academicYear: text(data.academicYear, 30), term: text(data.term, 40),
+    group: text(data.group, 100), groupId: text(data.scheduleId || data.groupId, 120), scheduleId: text(data.scheduleId || data.groupId, 120),
     unitId: text(data.unitId, 120), lectureId: text(data.lectureId, 120),
     lectureNumber: Math.max(0, Math.min(36, Number(data.lectureNumber || data.order || 0))),
     order: Math.max(0, Math.min(10000, Number(data.order || data.lectureNumber || 0))),
@@ -2560,6 +2676,7 @@ function normalizedCurriculumPayload(raw, staff, id) {
   };
   if (!payload.grade && !['curriculum'].includes(data.kind)) throw new HttpsError('invalid-argument', 'اختر الصف الدراسي.');
   if (!payload.title) throw new HttpsError('invalid-argument', 'اكتب عنوان المحتوى.');
+  payload.audienceKeys = academicAudienceKeysForItem(payload);
   return payload;
 }
 
@@ -2644,6 +2761,7 @@ exports.createMonthlyExamPlan = onCall(CALLABLE_OPTIONS, async request => {
       lectureId: `lecture-${start}`, unitId: '', order: month, durationMinutes: 45,
       points: 0, maxAttempts: 1, shuffleQuestions: false, shuffleChoices: false,
       resultVisibility: 'after_approval', solutionPolicy: 'never', status: 'draft',
+      audienceKeys: academicAudienceKeysForItem({ grade }),
       active: true, published: false, createdBy: staff.uid, updatedBy: staff.uid,
       createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
     });
@@ -2667,6 +2785,7 @@ function contentIsOpen(data, now = Timestamp.now()) {
 function publicLecture(data, id, progress = {}) {
   return {
     id, grade: text(canonicalAcademicLabel(data.grade), 80), term: text(data.term, 40), unitId: text(data.unitId, 120),
+    group: text(data.group, 100), scheduleId: text(data.scheduleId || data.groupId, 120),
     lectureNumber: Number(data.lectureNumber || data.order || 0), order: Number(data.order || 0),
     title: text(data.title, 220), description: text(data.description, 1200),
     learningObjectives: Array.isArray(data.learningObjectives) ? data.learningObjectives : [],
@@ -2684,15 +2803,15 @@ exports.getStudentCurriculum = onCall(CALLABLE_OPTIONS, async request => {
   const student = found.data || {};
   requireApprovedStudent(student);
   const grade = text(canonicalAcademicLabel(student.grade), 80);
-  const [lectureSnap, unitSnap, progressSnap] = await Promise.all([
-    db.collection('lectures').orderBy('order', 'asc').limit(120).get(),
-    db.collection('units').orderBy('order', 'asc').limit(120).get(),
+  const [lectureDocs, unitDocs, progressSnap] = await Promise.all([
+    targetedLearningDocs('lectures', student, 500),
+    targetedLearningDocs('units', student, 250),
     db.collection('student_progress').doc(code).collection('lectures').limit(40).get()
   ]);
   const progress = new Map(progressSnap.docs.map(doc => [doc.id, doc.data()]));
   const now = Timestamp.now();
-  const lectures = lectureSnap.docs.filter(doc => sameAcademicValue(doc.data().grade, grade) && contentIsOpen(doc.data(), now)).map(doc => publicLecture(doc.data(), doc.id, progress.get(doc.id)));
-  const units = unitSnap.docs.filter(doc => sameAcademicValue(doc.data().grade, grade) && contentIsOpen(doc.data(), now)).map(doc => ({ id: doc.id, title: text(doc.data().title, 220), term: text(doc.data().term, 40), order: Number(doc.data().order || 0) }));
+  const lectures = lectureDocs.filter(doc => learningTargetMatchesStudent(doc.data(), student) && contentIsOpen(doc.data(), now)).map(doc => publicLecture(doc.data(), doc.id, progress.get(doc.id))).sort((a,b)=>a.order-b.order);
+  const units = unitDocs.filter(doc => learningTargetMatchesStudent(doc.data(), student) && contentIsOpen(doc.data(), now)).map(doc => ({ id: doc.id, title: text(doc.data().title, 220), term: text(doc.data().term, 40), order: Number(doc.data().order || 0) })).sort((a,b)=>a.order-b.order);
   const completed = lectures.filter(item => item.progress >= 100).length;
   return { student: { code, name: text(student.name || student.studentName, 100), grade, term: text(student.term, 40) }, units, lectures, overallProgress: lectures.length ? Math.round(completed / lectures.length * 100) : 0 };
 });
@@ -2705,10 +2824,10 @@ exports.getLectureContent = onCall(CALLABLE_OPTIONS, async request => {
   if (!lectureSnap.exists || !contentIsOpen(lectureSnap.data())) throw new HttpsError('not-found', 'المحاضرة غير متاحة.');
   const student = found.data || {}, lecture = lectureSnap.data();
   requireApprovedStudent(student);
-  if (!sameAcademicValue(lecture.grade, student.grade)) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الصف.');
+  if (!learningTargetMatchesStudent(lecture, student)) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الطالب.');
   const queryVisible = async collection => {
     const snap = await db.collection(collection).where('lectureId', '==', lectureId).orderBy('order', 'asc').limit(50).get();
-    return snap.docs.filter(doc => contentIsOpen(doc.data()) && sameAcademicValue(doc.data().grade, student.grade)).map(doc => {
+    return snap.docs.filter(doc => contentIsOpen(doc.data()) && learningTargetMatchesStudent(doc.data(), student)).map(doc => {
       const data = doc.data();
       const safe = { id: doc.id, title: text(data.title, 220), description: text(data.description, 4000), questionType: text(data.questionType, 60), points: Number(data.points || 0), filePath: text(data.filePath, 500) };
       if (Array.isArray(data.choices)) safe.choices = data.choices.slice(0, 10).map(choice => text(choice, 700));
@@ -2726,7 +2845,7 @@ exports.recordLectureProgress = onCall(CALLABLE_OPTIONS, async request => {
   await rateLimitPublic('lecture-progress', `${code}:${lectureId}`, request, 30, 80, 60 * 1000);
   const [found, lectureSnap] = await Promise.all([getStudentPortalByCode(code), db.collection('lectures').doc(lectureId).get()]);
   requireApprovedStudent(found.data);
-  if (!lectureSnap.exists || !contentIsOpen(lectureSnap.data()) || !sameAcademicValue(found.data.grade, lectureSnap.data().grade)) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الطالب.');
+  if (!lectureSnap.exists || !contentIsOpen(lectureSnap.data()) || !learningTargetMatchesStudent(lectureSnap.data(), found.data)) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الطالب.');
   const percent = Math.max(0, Math.min(100, Number(request.data?.percent || 0)));
   const progressRef = db.collection('student_progress').doc(code);
   const batch = db.batch();
@@ -2746,7 +2865,7 @@ exports.getCurriculumFileUrl = onCall(CALLABLE_OPTIONS, async request => {
   if (!['lectures','lecture_materials','assignments_v2','bank_questions','monthly_exams'].includes(collection)) throw new HttpsError('invalid-argument', 'نوع الملف غير صالح.');
   const [found, snap] = await Promise.all([getStudentPortalByCode(code), db.collection(collection).doc(id).get()]);
   requireApprovedStudent(found.data);
-  if (!snap.exists || !contentIsOpen(snap.data()) || !sameAcademicValue(snap.data().grade, found.data.grade)) throw new HttpsError('permission-denied', 'الملف غير متاح لهذا الطالب.');
+  if (!snap.exists || !contentIsOpen(snap.data()) || !learningTargetMatchesStudent(snap.data(), found.data)) throw new HttpsError('permission-denied', 'الملف غير متاح لهذا الطالب.');
   const path = text(snap.data().filePath, 500);
   if (!path) throw new HttpsError('not-found', 'لا يوجد ملف مرتبط.');
   const [url] = await admin.storage().bucket().file(path).getSignedUrl({ action: 'read', expires: Date.now() + 10 * 60 * 1000 });

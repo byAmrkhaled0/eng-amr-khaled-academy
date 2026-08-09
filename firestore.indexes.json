@@ -10,6 +10,30 @@
       ]
     },
     {
+      "collectionGroup": "assignments", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "scheduleId", "order": "ASCENDING" }, { "fieldPath": "active", "order": "ASCENDING" }, { "fieldPath": "publishAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "assignments", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "grade", "order": "ASCENDING" }, { "fieldPath": "active", "order": "ASCENDING" }, { "fieldPath": "publishAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "exams", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "scheduleId", "order": "ASCENDING" }, { "fieldPath": "active", "order": "ASCENDING" }, { "fieldPath": "openAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "exams", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "grade", "order": "ASCENDING" }, { "fieldPath": "active", "order": "ASCENDING" }, { "fieldPath": "openAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "materials", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "scheduleId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "questions", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "scheduleId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }]
+    },
+    {
       "collectionGroup": "attendance",
       "queryScope": "COLLECTION",
       "fields": [

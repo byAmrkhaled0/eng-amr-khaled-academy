@@ -130,6 +130,7 @@
       ,recordLectureProgress:callable('recordLectureProgress')
       ,getCurriculumFileUrl:callable('getCurriculumFileUrl')
       ,migrateCurriculumV61:callable('migrateCurriculumV61')
+      ,upsertGroupSchedule:callable('upsertGroupSchedule')
     };
 
     let firebaseMessagingPromise=null;
@@ -189,8 +190,40 @@
       return {
         studentCode:s.studentCode,code:s.studentCode,parentCode:s.parentCode,name:s.name,studentName:s.studentName,
         studentPhone:s.studentPhone,parentPhone:s.parentPhone,grade:s.grade,month:s.month,group:s.group,
+        groupId:String(s.groupId||s.scheduleId||''),scheduleId:String(s.scheduleId||s.groupId||''),
+        scheduleDays:Array.isArray(s.scheduleDays)?s.scheduleDays.join('، '):String(s.scheduleDays||''),scheduleStartTime:s.scheduleStartTime||'',scheduleEndTime:s.scheduleEndTime||'',
+        groupAssignmentPending:s.groupAssignmentPending===true,
         academicYear:s.academicYear,term:s.term,paid:s.paid,paymentDate:s.paymentDate,paymentAmount:s.paymentAmount,paymentCourse:s.paymentCourse,notes:s.notes,active:s.active
       };
+    }
+
+    function academicScopeKey(value){
+      return normalizeDigits(value).normalize('NFKC').replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g,'').replace(/\u0640/g,'').replace(/[إأآٱ]/g,'ا').replace(/ى/g,'ي').trim().toLocaleLowerCase('ar').replace(/\s+/g,' ');
+    }
+    function contentAudienceKeys(item={}){
+      const grade=academicScopeKey(canonicalGrade(item.grade));
+      const scheduleId=String(item.scheduleId||item.groupId||'').trim();
+      const group=academicScopeKey(item.group);
+      const allGrades=!grade||['كل الصفوف','كل المسارات','all'].some(value=>academicScopeKey(value)===grade);
+      const allGroups=!group||['كل المجموعات','all'].some(value=>academicScopeKey(value)===group);
+      if(allGrades)return ['all'];
+      if(scheduleId)return [`schedule:${scheduleId}`];
+      if(!allGroups&&group)return [`group:${group}`];
+      return [`grade:${academicScopeKey(canonicalGrade(item.grade))}`];
+    }
+
+    async function saveContentDocument(collection,item){
+      const allowed=new Set(['materials','questions','exams','reviews','assignments']);
+      if(!allowed.has(String(collection||'')))throw new Error('Invalid content collection');
+      const id=cleanDocId(item?.id||'');if(!id)throw new Error('Invalid content item');
+      const profile=await getCurrentStaffProfile();
+      if(!profile?.allowed||!['admin','teacher'].includes(profile.role))throw new Error('Not authorized');
+      const scheduleId=String(item.scheduleId||item.groupId||'').trim();
+      const payload={...item,id,grade:item.grade?canonicalGrade(item.grade):'',groupId:scheduleId,scheduleId,updatedAt:serverTime()};
+      if(collection!=='reviews')payload.audienceKeys=contentAudienceKeys(payload);
+      await db.collection(collection).doc(id).set(payload,{merge:true});
+      seedFingerprint(collection,id,payload);
+      return {...payload,updatedAt:nowIso()};
     }
 
     function portalProfile(student){
@@ -272,7 +305,7 @@
       const mappings=[['materials','title'],['questions','title'],['exams','title'],['reviews','name'],['groups','name'],['assignments','title']];
       mappings.forEach(([collection,fallback])=>(data[collection]||[]).forEach(item=>{
         const id=cleanDocId(item.id||item[fallback]||`${Date.now()}-${Math.random().toString(36).slice(2,8)}`);
-        const body={...item,id,updatedAt:serverTime()};if('grade'in body)body.grade=canonicalGrade(body.grade);if(collection==='reviews')body.approved=item.approved===true;
+        const body={...item,id,updatedAt:serverTime()};if('grade'in body)body.grade=canonicalGrade(body.grade);if(collection==='reviews')body.approved=item.approved===true;else if(['materials','questions','exams','assignments'].includes(collection))body.audienceKeys=contentAudienceKeys(body);
         if(changed(`${collection}/${id}`,body))ops.push(batch=>batch.set(db.collection(collection).doc(id),body,{merge:true}));
       }));
       if(options.full===true)(data.grades||[]).forEach(item=>{
@@ -319,8 +352,8 @@
 
     async function loadStaffCoreCollections(){
       const [students,bookings,materials,questions,exams,reviews,groups,assignments,payments,settings]=await Promise.all([
-        getDocs('students').catch(()=>[]),getDocs('bookings').catch(()=>[]),getDocs('materials').catch(()=>[]),getDocs('questions').catch(()=>[]),
-        getDocs('exams').catch(()=>[]),getDocs('reviews').catch(()=>[]),getDocs('groups').catch(()=>[]),getDocs('assignments').catch(()=>[]),
+        getDocs('students',3000).catch(()=>[]),getDocs('bookings',1000).catch(()=>[]),getDocs('materials',1000).catch(()=>[]),getDocs('questions',1000).catch(()=>[]),
+        getDocs('exams',1000).catch(()=>[]),getDocs('reviews',500).catch(()=>[]),getDocs('groups',500).catch(()=>[]),getDocs('assignments',1000).catch(()=>[]),
         getDocs('payments',3000).catch(()=>[]),getSettings().catch(()=>({}))
       ]);
       const normalized=students.map(normalizedStudent);const map=new Map(normalized.map(st=>[st.studentCode,st]));
@@ -514,7 +547,13 @@
       saveSiteData:async(payload,options={})=>syncPayloadToCollections(payload,options),
       saveSettings:async settings=>{const profile=await getCurrentStaffProfile();if(!profile?.allowed||!['admin','teacher'].includes(profile.role))throw new Error('Not authorized');await platformSettingsDoc.set({...settings,schemaVersion:55,updatedAt:serverTime()},{merge:true});seedFingerprint('settings','platform',settings);},
       saveStudent:async student=>{const ops=[];pushStudentOps(ops,student);await commitOperations(ops);},
-      saveGroup:async group=>{const id=cleanDocId(group?.id||'');if(!id)throw new Error('Invalid group');const profile=await getCurrentStaffProfile();if(!profile?.allowed||!['admin','teacher'].includes(profile.role))throw new Error('Not authorized');const payload={...group,id,grade:canonicalGrade(group.grade),updatedAt:serverTime()};await db.collection('groups').doc(id).set(payload,{merge:true});return payload;},
+      saveContent:saveContentDocument,
+      saveGroup:async group=>{
+        const id=cleanDocId(group?.id||'');if(!id)throw new Error('Invalid group');
+        if(calls.upsertGroupSchedule)return calls.upsertGroupSchedule({...group,id,grade:canonicalGrade(group.grade)});
+        const profile=await getCurrentStaffProfile();if(!profile?.allowed||!['admin','teacher'].includes(profile.role))throw new Error('Not authorized');
+        const payload={...group,id,grade:canonicalGrade(group.grade),updatedAt:serverTime()};await db.collection('groups').doc(id).set(payload,{merge:true});return payload;
+      },
       deleteGroup:async id=>{const profile=await getCurrentStaffProfile();if(!profile?.allowed||!['admin','teacher'].includes(profile.role))throw new Error('Not authorized');await db.collection('groups').doc(cleanDocId(id)).delete();},
       createStudentAccess:async student=>{
         if(calls.createStudentAccess){try{return await retryTransient(()=>calls.createStudentAccess(student),1);}catch(error){

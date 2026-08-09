@@ -91,10 +91,41 @@ function scheduleMatchesStudent(schedule, student) {
 function learningTargetMatchesStudent(item, student) {
   if (!item || !student) return false;
   const grade = wildcard(item.grade, ['كل الصفوف', 'كل المسارات', 'all']) || sameAcademicValue(item.grade, student.grade);
-  const group = wildcard(item.group, ['كل المجموعات', 'all']) || sameAcademicValue(item.group, student.group);
+  const targetScheduleId = String(item.scheduleId || item.groupId || '').trim();
+  const studentScheduleId = String(student.scheduleId || student.groupId || '').trim();
+  const allGroups = wildcard(item.group, ['كل المجموعات', 'all']);
+  // New records are matched by the immutable schedule document id. Group names
+  // remain only as a compatibility fallback for students/content created by
+  // older releases. If both sides have ids, a renamed group cannot leak or hide
+  // content because the name is no longer part of the decision.
+  const group = allGroups || (targetScheduleId && studentScheduleId
+    ? targetScheduleId === studentScheduleId
+    : sameAcademicValue(item.group, student.group));
   const term = wildcard(item.term, ['كل الترمات', 'all']) || !student.term || sameAcademicValue(item.term, student.term);
   const year = !item.academicYear || !student.academicYear || sameAcademicValue(item.academicYear, student.academicYear);
   return grade && group && term && year;
+}
+
+function academicAudienceKeysForStudent(student = {}) {
+  const grade = normalizeAcademicValue(student.grade);
+  const scheduleId = String(student.scheduleId || student.groupId || '').trim();
+  const group = baseAcademicValue(student.group);
+  return [...new Set([
+    'all',
+    grade ? `grade:${grade}` : '',
+    scheduleId ? `schedule:${scheduleId}` : '',
+    group ? `group:${group}` : ''
+  ].filter(Boolean))];
+}
+
+function academicAudienceKeysForItem(item = {}) {
+  const scheduleId = String(item.scheduleId || item.groupId || '').trim();
+  const group = baseAcademicValue(item.group);
+  const grade = normalizeAcademicValue(item.grade);
+  if (wildcard(item.grade, ['كل الصفوف', 'كل المسارات', 'all'])) return ['all'];
+  if (scheduleId) return [`schedule:${scheduleId}`];
+  if (!wildcard(item.group, ['كل المجموعات', 'all']) && group) return [`group:${group}`];
+  return grade ? [`grade:${grade}`] : ['all'];
 }
 
 module.exports = {
@@ -104,5 +135,7 @@ module.exports = {
   isSupportedAcademicGrade,
   sameAcademicValue,
   scheduleMatchesStudent,
-  learningTargetMatchesStudent
+  learningTargetMatchesStudent,
+  academicAudienceKeysForStudent,
+  academicAudienceKeysForItem
 };
