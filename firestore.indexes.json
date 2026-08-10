@@ -1,0 +1,235 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "attendance",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "date", "order": "ASCENDING" },
+        { "fieldPath": "grade", "order": "ASCENDING" },
+        { "fieldPath": "group", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "assignments", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "scheduleId", "order": "ASCENDING" }, { "fieldPath": "active", "order": "ASCENDING" }, { "fieldPath": "publishAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "assignments", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "grade", "order": "ASCENDING" }, { "fieldPath": "active", "order": "ASCENDING" }, { "fieldPath": "publishAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "exams", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "scheduleId", "order": "ASCENDING" }, { "fieldPath": "active", "order": "ASCENDING" }, { "fieldPath": "openAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "exams", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "grade", "order": "ASCENDING" }, { "fieldPath": "active", "order": "ASCENDING" }, { "fieldPath": "openAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "materials", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "scheduleId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "questions", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "scheduleId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "attendance",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "date", "order": "ASCENDING" },
+        { "fieldPath": "grade", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "attendance",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "date", "order": "ASCENDING" },
+        { "fieldPath": "group", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "monthly_payments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "academicYear", "order": "ASCENDING" },
+        { "fieldPath": "month", "order": "ASCENDING" },
+        { "fieldPath": "course", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "payment_transactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "studentCode", "order": "ASCENDING" },
+        { "fieldPath": "paymentDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "attendance", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "studentCode", "order": "ASCENDING" }, { "fieldPath": "date", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "grades", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "studentCode", "order": "ASCENDING" }, { "fieldPath": "date", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "homework_submissions", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "studentCode", "order": "ASCENDING" }, { "fieldPath": "submittedAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "recitations", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "studentCode", "order": "ASCENDING" }, { "fieldPath": "date", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "monthly_payments", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "studentCode", "order": "ASCENDING" }, { "fieldPath": "updatedAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "homework_attempt_grants", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "studentCode", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "lectures", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "grade", "order": "ASCENDING" }, { "fieldPath": "order", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "units", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "grade", "order": "ASCENDING" }, { "fieldPath": "order", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "lecture_materials", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "lectureId", "order": "ASCENDING" }, { "fieldPath": "order", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "assignments_v2", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "lectureId", "order": "ASCENDING" }, { "fieldPath": "order", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "bank_questions", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "lectureId", "order": "ASCENDING" }, { "fieldPath": "order", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "monthly_exams", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "lectureId", "order": "ASCENDING" }, { "fieldPath": "order", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "teacher_files", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "grade", "order": "ASCENDING" }, { "fieldPath": "order", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "payment_transactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "academicYear", "order": "ASCENDING" },
+        { "fieldPath": "month", "order": "ASCENDING" },
+        { "fieldPath": "course", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "paymentDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "students", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "grade", "order": "ASCENDING" }, { "fieldPath": "updatedAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "students", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "group", "order": "ASCENDING" }, { "fieldPath": "updatedAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "assignments", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "grade", "order": "ASCENDING" }, { "fieldPath": "updatedAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "assignments", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "group", "order": "ASCENDING" }, { "fieldPath": "updatedAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "exams", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "grade", "order": "ASCENDING" }, { "fieldPath": "updatedAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "exams", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "group", "order": "ASCENDING" }, { "fieldPath": "updatedAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "materials", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "grade", "order": "ASCENDING" }, { "fieldPath": "updatedAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "homework_submissions", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "assignmentId", "order": "ASCENDING" }, { "fieldPath": "submittedAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "exam_attempts", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "studentCode", "order": "ASCENDING" }, { "fieldPath": "submittedAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "exam_attempts", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "examId", "order": "ASCENDING" }, { "fieldPath": "submittedAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "attendance", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "grade", "order": "ASCENDING" }, { "fieldPath": "date", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "attendance", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "group", "order": "ASCENDING" }, { "fieldPath": "date", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "student_transfer_requests", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "studentCode", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "student_transfer_requests", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }]
+    }
+  ],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "_rate_limits",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "_booking_requests",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "_homework_upload_tokens",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "_payment_dedup",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "exam_sessions",
+      "fieldPath": "deleteAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "code_execution_runs",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "_portal_sessions",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    }
+  ]
+}
