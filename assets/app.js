@@ -12,7 +12,7 @@ var EXAM_DRAFT_PREFIX = 'mf_exam_draft_v2_';
 var PENDING_BOOKING_REQUEST_KEY = 'mf_pending_booking_request_v1';
 var cloudSaveTimer = null;
 var staffCacheTimer = null;
-var MF_ASSET_VERSION = '63.0.3';
+var MF_ASSET_VERSION = '63.0.4';
 var mfLazyScriptPromises = Object.create(null);
 var publicScheduleUnsubscribe = null;
 
@@ -125,6 +125,15 @@ function safeStorageRemove(key){try{localStorage.removeItem(key);}catch(e){}}
 function portalSessionGet(key){try{return sessionStorage.getItem(key)||'';}catch(e){return '';}}
 function portalSessionSet(key,value){try{sessionStorage.setItem(key,String(value??''));return true;}catch(e){return false;}}
 function portalSessionRemove(key){try{sessionStorage.removeItem(key);}catch(e){}}
+function clearLegacyPortalCodeFromUrl(){
+  try{
+    const url=new URL(location.href);
+    if(!url.searchParams.has('code'))return;
+    url.searchParams.delete('code');
+    const query=url.searchParams.toString();
+    history.replaceState(null,'',`${url.pathname}${query?`?${query}`:''}${url.hash}`);
+  }catch(e){}
+}
 function formatPortalDate(value){if(!value)return '-'; try{return new Date(value).toLocaleDateString('ar-EG',{year:'numeric',month:'short',day:'numeric'});}catch(e){return String(value);}}
 function formatPortalMoney(value){const number=Number(value);return `${new Intl.NumberFormat('ar-EG',{maximumFractionDigits:2}).format(Number.isFinite(number)?number:0)} ج.م`;}
 function scoreLabel(score){const n=Number(score); if(Number.isNaN(n)) return 'بانتظار التصحيح'; return n>=90?'ممتاز':n>=75?'جيد جدًا':n>=60?'جيد':'يحتاج متابعة';}
@@ -599,6 +608,15 @@ function parentReportHTML(raw){
   const rows = studentReportRows(st);
   const grades = rows.grades.slice(0,8);
   const hw = rows.homeworks.slice(-6).reverse();
+  const latestSubmissionByAssignment=new Map();
+  rows.homeworks.filter(row=>row.assignmentId).forEach(row=>{const key=String(row.assignmentId),current=latestSubmissionByAssignment.get(key);if(!current||Number(row.attemptNumber||1)>=Number(current.attemptNumber||1))latestSubmissionByAssignment.set(key,row);});
+  const assignmentRows=(st.assignments||[]).map(assignment=>{
+    const submission=latestSubmissionByAssignment.get(String(assignment.id));
+    const status=submission?(submission.needsManualReview||submission.score===null?'قيد التصحيح':'تم التصحيح'):(assignment.submissionClosed?'متأخر':'مطلوب الآن');
+    const badge=status==='تم التصحيح'?'good':status==='متأخر'?'danger':'warn';
+    const score=submission&&submission.score!==null&&submission.score!==undefined?`${submission.score} من ${submission.maxScore||assignment.totalScore||1}`:'';
+    return {assignment,submission,status,badge,score};
+  });
   const recitations = rows.recitations.slice(-6).reverse();
   const payClass = st.paid ? 'good' : 'danger';
   const teacherName = appData.settings?.teacherName || 'م. عمرو خالد';
@@ -649,7 +667,7 @@ function parentReportHTML(raw){
       </div>
       <div class="mini-panel parent-panel-v40">
         <h3>الواجبات والمتابعة</h3>
-        ${hw.length?hw.map(h=>`<div class="report-list-row-v40"><div><b>${esc(h.title||h.homeworkTitle||'واجب')}</b><small>${esc(formatPortalDate(h.date||h.submittedAt))}</small></div><span class="badge ${classRecordComplete(h)?'good':'warn'}">${esc(h.status||(classRecordComplete(h)?'تم عمل الواجب':'قيد المتابعة'))}</span></div>`).join(''):'<p class="section-desc">لا توجد واجبات مسجلة بعد.</p>'}
+        ${assignmentRows.length?assignmentRows.map(row=>`<div class="report-list-row-v40"><div><b>${esc(row.assignment.title||'واجب')}</b><small>${row.assignment.dueDate?`آخر موعد: ${esc(row.assignment.dueDate)}`:'بدون موعد نهائي'}${row.score?` · الدرجة: ${esc(row.score)}`:''}</small></div><span class="badge ${row.badge}">${row.status}</span></div>`).join(''):(hw.length?hw.map(h=>`<div class="report-list-row-v40"><div><b>${esc(h.title||h.homeworkTitle||'واجب')}</b><small>${esc(formatPortalDate(h.date||h.submittedAt))}</small></div><span class="badge ${classRecordComplete(h)?'good':'warn'}">${esc(h.status||(classRecordComplete(h)?'تم عمل الواجب':'قيد المتابعة'))}</span></div>`).join(''):'<p class="section-desc">لا توجد واجبات مطلوبة أو مسجلة بعد.</p>')}
       </div>
       <div class="mini-panel parent-panel-v40">
         <h3>التطبيق العملي</h3>
@@ -692,6 +710,8 @@ async function showParentReportByCode(code){
     return;
   }
   lastParentStudent = normalizedStudent(st);
+  portalSessionSet(LAST_STUDENT_CODE_KEY,lastParentStudent.studentCode);
+  clearLegacyPortalCodeFromUrl();
   const input=document.querySelector('#parentSearchForm [name="parentCode"]'); if(input) input.value=lastParentStudent.studentCode;
   if(box) box.innerHTML=parentReportHTML(lastParentStudent);
   hydrateIcons();
@@ -932,7 +952,7 @@ function renderUnifiedResourcesPage(){
   const student=currentStudentResources.student||{},materials=sortStudentResources(currentStudentResources.materials),questions=sortStudentResources(currentStudentResources.questions);
   if(content)content.hidden=false;
   if(summary){summary.hidden=false;summary.innerHTML=`<span class="student-avatar">${esc((student.name||'ط').trim().charAt(0))}</span><div><small>تم فتح محتوى المسار</small><h2>${esc(student.name||'الطالب')}</h2><p>${esc(student.grade||'')} ${student.group?`<span>•</span> ${esc(student.group)}`:''}</p><code>${esc(student.studentCode||'')}</code></div><button class="small-btn" type="button" onclick="changeResourceStudent()">تغيير الطالب</button>`;}
-  document.querySelectorAll('[data-resource-cross-link]').forEach(link=>{const url=new URL(link.getAttribute('href'),document.baseURI);url.searchParams.set('code',student.studentCode||'');link.href=url.href;});
+  document.querySelectorAll('[data-resource-cross-link]').forEach(link=>{const url=new URL(link.getAttribute('href'),document.baseURI);url.searchParams.delete('code');link.href=url.href;});
   if(m)m.innerHTML=materials.length?materials.map(x=>resourceCard(x,'material')).join(''):'<div class="portal-empty"><span class="iconbox" data-icon="book-open"></span><h3>لا توجد محاضرات منشورة لهذا المسار بعد</h3><p>ستظهر المحاضرات والملفات هنا فور إضافتها من لوحة الإدارة.</p></div>';
   if(q)q.innerHTML=questions.length?questions.map(x=>resourceCard(x,'question')).join(''):'<div class="portal-empty"><span class="iconbox" data-icon="help-circle"></span><h3>لا توجد أسئلة منشورة لهذا المسار بعد</h3><p>ستظهر الأسئلة والإجابات هنا فور إضافتها من لوحة الإدارة.</p></div>';
   hydrateIcons();
@@ -950,7 +970,7 @@ function setupStudentResourcesPage(){
     try{
       if(!window.MFCloud?.getStudentResources)throw new Error('resource-service-unavailable');
       const result=await window.MFCloud.getStudentResources(code);if(!result?.student)throw new Error('not-found');
-      currentStudentResources=result;if(message)message.hidden=true;renderUnifiedResourcesPage();
+      currentStudentResources=result;portalSessionSet(LAST_STUDENT_CODE_KEY,result.student.studentCode||code);clearLegacyPortalCodeFromUrl();if(message)message.hidden=true;renderUnifiedResourcesPage();
     }catch(error){currentStudentResources=null;renderUnifiedResourcesPage();if(message){message.hidden=false;message.textContent=studentCodeFriendlyError(error,'تعذر فتح المحتوى. تأكد من كود الطالب وحاول مرة أخرى.');message.className='resource-access-message error';}}
     finally{button?.classList.remove('is-loading');if(button)button.disabled=false;}
   });
@@ -1022,6 +1042,7 @@ function setupExamsPage(){
     try{
       const dashboard=await window.MFCloud?.getExamDashboard?.(code);
       if(!dashboard?.student)throw new Error('not-found');
+      clearLegacyPortalCodeFromUrl();
       renderExamPortal(dashboard.student,dashboard.exams||[]);
     }catch(err){box.innerHTML=`<div class="portal-empty"><span class="iconbox" data-icon="search"></span><h3>تعذر فتح الاختبارات</h3><p>${esc(studentCodeFriendlyError(err,'تأكد من كود الطالب واتصال الإنترنت ثم حاول مرة أخرى.'))}</p></div>`;hydrateIcons();}
     finally{button?.classList.remove('is-loading');if(button)button.disabled=false;}

@@ -50,7 +50,7 @@ const PAYMENT_MONTH_NAMES = ['يناير','فبراير','مارس','أبريل'
 // Callable endpoints must accept the browser's unauthenticated CORS preflight.
 // Sensitive operations still enforce staff authentication inside each handler.
 const CALLABLE_OPTIONS = { region: 'europe-west1', timeoutSeconds: 30, invoker: 'public' };
-const API_SCHEMA_VERSION = 'portal-v63.0.3';
+const API_SCHEMA_VERSION = 'portal-v63.0.4';
 
 function apiMetadata() {
   return { frontendVersion: PLATFORM_VERSION, backendVersion: PLATFORM_VERSION, apiSchemaVersion: API_SCHEMA_VERSION };
@@ -1722,6 +1722,7 @@ exports.reviewHomeworkSubmission = onCall(CALLABLE_OPTIONS, async request => {
   const submissionId = cleanDocId(text(request.data?.submissionId, 120));
   const awarded = request.data?.awarded && typeof request.data.awarded === 'object' ? request.data.awarded : {};
   if (!submissionId) throw new HttpsError('invalid-argument', 'رقم تسليم الواجب غير صالح.');
+  if (Array.isArray(awarded) || Object.keys(awarded).length > 100 || jsonByteSize(awarded) > 16 * 1024) throw new HttpsError('invalid-argument', 'بيانات التصحيح أكبر من الحد المسموح.');
   const reason = text(request.data?.reason || request.data?.comment, 800);
   const ref = db.collection('homework_submissions').doc(submissionId);
   const result = await db.runTransaction(async tx => {
@@ -1739,8 +1740,9 @@ exports.reviewHomeworkSubmission = onCall(CALLABLE_OPTIONS, async request => {
     const oldGrade = Number.isFinite(Number(submission.score)) ? Number(submission.score) : null;
     const oldMaxScore = Number.isFinite(Number(submission.maxScore)) ? Number(submission.maxScore) : null;
     const reviewRef = db.collection('homework_review_history').doc();
-    tx.set(ref, {answers,score,maxScore,needsManualReview:false,approved:true,status:'تم تصحيح الواجب',reviewedBy:staff.email||staff.uid,reviewedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()},{merge:true});
+    tx.set(ref, {answers,score,maxScore,needsManualReview:false,approved:true,status:'تم تصحيح الواجب',reviewedBy:staff.email||staff.uid,reviewerUid:staff.uid,reviewerEmail:staff.email||'',reviewedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()},{merge:true});
     tx.create(reviewRef, {id:reviewRef.id,submissionId,assignmentId:text(submission.assignmentId,120),studentCode:normalizeCode(submission.studentCode),oldGrade,oldMaxScore,newGrade:score,newMaxScore:maxScore,reviewerUid:staff.uid,reviewerEmail:staff.email||'',reviewerRole:staff.role||'',comment:reason,createdAt:FieldValue.serverTimestamp()});
+    tx.create(db.collection('activityLog').doc(), {action:'تصحيح واجب',actorUid:staff.uid,actorEmail:staff.email||'',actorRole:'admin',metadata:{submissionId,assignmentId:text(submission.assignmentId,120),studentCode:normalizeCode(submission.studentCode),score,maxScore},createdAt:FieldValue.serverTimestamp()});
     return { score, maxScore };
   });
   await markLeaderboardDirty('homework-reviewed');

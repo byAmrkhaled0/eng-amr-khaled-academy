@@ -2,8 +2,8 @@
   'use strict';
 
   const cfg=window.MF_FIREBASE_CONFIG||{};
-  const FRONTEND_VERSION='63.0.3';
-  const API_SCHEMA_VERSION='portal-v63.0.3';
+  const FRONTEND_VERSION='63.0.4';
+  const API_SCHEMA_VERSION='portal-v63.0.4';
   if(!cfg.enabled||typeof firebase==='undefined'){
     window.MFCloud={ready:false,error:'Firebase غير مفعل'};
     return;
