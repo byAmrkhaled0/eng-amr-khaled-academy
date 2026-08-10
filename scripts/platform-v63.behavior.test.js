@@ -170,6 +170,7 @@ test('pagination is ordered, bounded and content deletion is archival', () => {
 
 test('service worker never caches portal URLs carrying access codes', () => {
   const worker = read('service-worker.js');
-  assert.match(worker, /if\(response\.ok && !url\.search\)/);
+  assert.match(worker, /if\(response\.ok && !url\.search && !SENSITIVE_NAVIGATION\.has\(url\.pathname\)\)/);
+  assert.match(worker, /SENSITIVE_NAVIGATION\.has\(url\.pathname\)/);
   assert.doesNotMatch(worker, /cache\.put\(request,response\.clone\(\)\).*mode===\"navigate\"/s);
 });

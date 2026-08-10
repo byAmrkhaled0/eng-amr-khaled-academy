@@ -13,15 +13,15 @@
 <link href="assets/technominds-logo.png" rel="icon" type="image/png"/>
 <link href="assets/technominds-logo.png" rel="apple-touch-icon"/>
 <link href="site.webmanifest" rel="manifest"/>
-<link href="assets/site.css?v=63.0.1" rel="stylesheet"/>
-<link href="assets/v55.css?v=63.0.1" rel="stylesheet"/>
-<link href="assets/v56.css?v=63.0.1" rel="stylesheet"/>
+<link href="assets/site.css?v=63.0.3" rel="stylesheet"/>
+<link href="assets/v55.css?v=63.0.3" rel="stylesheet"/>
+<link href="assets/v56.css?v=63.0.3" rel="stylesheet"/>
 <title>محاضرات مسار الطالب | Techno Minds</title>
 <meta content="محاضرات وملفات مراجعة خاصة بمسار الطالب، تظهر بأمان بعد إدخال كود الطالب." name="description"/>
 <link rel="canonical" href="https://eng-amr-khaled-academy.vercel.app/materials.html"/>
 <meta property="og:type" content="website"/><meta property="og:locale" content="ar_EG"/><meta property="og:site_name" content="Techno Minds"/><meta property="og:title" content="محاضرات مسار الطالب | Techno Minds"/><meta property="og:description" content="محاضرات وملفات مراجعة خاصة بمسار الطالب تظهر بعد التحقق من الكود."/><meta property="og:url" content="https://eng-amr-khaled-academy.vercel.app/materials.html"/><meta property="og:image" content="https://eng-amr-khaled-academy.vercel.app/assets/technominds-logo.png"/><meta name="twitter:card" content="summary"/>
-<link href="assets/v60-technominds.css?v=63.0.1" rel="stylesheet"/>
-<link rel="stylesheet" href="assets/v61-design.css?v=63.0.1">
+<link href="assets/v60-technominds.css?v=63.0.3" rel="stylesheet"/>
+<link rel="stylesheet" href="assets/v61-design.css?v=63.0.3">
 </head>
 <body id="top" data-resource-mode="materials">
 <header class="site-header">
@@ -37,7 +37,7 @@
 <a href="materials.html">المحاضرات</a><a href="questions.html">الأسئلة</a>
 <a href="exams.html">الاختبارات</a>
 </nav>
-<div class="header-actions"><button aria-label="تغيير الوضع" class="theme-toggle" id="themeToggle"></button></div>
+<div class="header-actions"><button aria-label="تغيير الوضع" class="theme-toggle" id="themeToggle" type="button"></button></div>
 </div>
 </header>
 <main>
@@ -46,8 +46,8 @@
 <div><span class="kicker"><span data-icon="book-open"></span> محاضرات Techno Minds</span><h1 class="hero-title">محاضرات وملفات <span>مسارك فقط</span></h1><p class="hero-sub">اكتب كود الطالب، وهتظهر لك المحاضرات والملخصات الخاصة بالمسار المسجل عليه مباشرة.</p></div>
 <form class="card student-resource-code-card" id="studentResourceCodeForm">
 <span class="iconbox" data-icon="user-check"></span><h2>دخول الطالب</h2><p>استخدم نفس الكود الموجود في بوابة الطالب.</p>
-<label class="field"><span>كود الطالب</span><input name="query" inputmode="numeric" data-digits-only autocomplete="one-time-code" placeholder="اكتب الكود الموحّد" required></label>
-<label class="option-card compact-option"><input type="checkbox" name="rememberCode" checked> حفظ الكود على هذا الجهاز</label>
+<label class="field"><span>كود الطالب</span><input name="query" inputmode="numeric" type="text" minlength="6" maxlength="12" pattern="[0-9٠-٩]{6,12}" data-digits-only autocomplete="one-time-code" placeholder="اكتب الكود الموحّد" required></label>
+
 <button class="btn primary full-width" type="submit"><span data-icon="book-open"></span> فتح محاضرات مساري</button>
 <div class="resource-access-message" id="resourceAccessMessage" role="status" aria-live="polite">اكتب كود الطالب لفتح محتوى مساره.</div>
 </form>
@@ -84,10 +84,10 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-functions-compat.js"></script>
-<script defer src="assets/firebase-config.js?v=63.0.1"></script>
-<script defer src="assets/firebase-sync.js?v=63.0.1"></script>
-<script defer src="assets/app.js?v=63.0.1"></script>
-<script defer src="assets/v53-upgrades.js?v=63.0.1"></script>
-<script defer src="assets/v56-fixes.js?v=63.0.1"></script>
+<script defer src="assets/firebase-config.js?v=63.0.3"></script>
+<script defer src="assets/firebase-sync.js?v=63.0.3"></script>
+<script defer src="assets/app.js?v=63.0.3"></script>
+<script defer src="assets/v53-upgrades.js?v=63.0.3"></script>
+<script defer src="assets/v56-fixes.js?v=63.0.3"></script>
 </body>
 </html>

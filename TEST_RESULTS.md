@@ -1,9 +1,9 @@
-# Test Results — V63.0.1
+# Test Results — V63.0.2
 
 - `npm ci`: ناجح.
 - `npm --prefix functions ci`: ناجح؛ 241 package.
 - `npm test`: ناجح — 54/54 Node tests، بالإضافة إلى verify/payment/curriculum checks.
-- `npm run build`: ناجح؛ إنشاء `dist` للإصدار 63.0.1.
+- `npm run build`: ناجح؛ إنشاء `dist` للإصدار 63.0.2.
 - `npm run verify:dist`: ناجح.
 - JavaScript syntax وJSON وHTML references و14 صفحة وroutes وPWA/security assertions: ناجحة ضمن مجموعة الاختبارات.
 - Regression مضاف: منع direct homework grading، فرض server-side callable، منع Firestore update، وتسجيل old/new grades.

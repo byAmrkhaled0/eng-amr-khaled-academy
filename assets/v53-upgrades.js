@@ -374,7 +374,7 @@
           button.disabled=true;button.classList.add('is-loading');
           try{
             if(pdfFile){const upload=await window.MFCloud?.uploadAttachment?.(pdfFile,'teacher-uploads');if(!upload?.url)throw new Error('pdf upload');ex.pdfUrl=upload.url;ex.pdfName=upload.fileName;ex.pdfPath=upload.path;}
-            ex.id=`ex-${Date.now()}`;ex.allowRetake=!!ex.allowRetake;ex.active=true;ex.questionCount=parsed.length;ex.mcqCount=parsed.filter(q=>q.type==='mcq').length;ex.essayCount=parsed.filter(q=>q.type==='essay').length;
+            ex.id=`ex-${Date.now()}`;ex.allowRetake=!!ex.allowRetake;ex.revealCorrectAnswersAfterGrading=!!ex.revealCorrectAnswersAfterGrading;ex.active=true;ex.questionCount=parsed.length;ex.mcqCount=parsed.filter(q=>q.type==='mcq').length;ex.essayCount=parsed.filter(q=>q.type==='essay').length;
             adminData.exams.push(ex);await saveAdminDataNow();aToast(pdfFile?'تم رفع PDF وحفظ الامتحان':'تم حفظ الامتحان والأسئلة');renderExams();
           }catch(error){if(ex.id)adminData.exams=adminData.exams.filter(item=>item.id!==ex.id);saveData(adminData);aToast(adminActionErrorMessage(error,'تعذر حفظ الامتحان أو رفع ملف PDF.'));}
           finally{button.disabled=false;button.classList.remove('is-loading');}

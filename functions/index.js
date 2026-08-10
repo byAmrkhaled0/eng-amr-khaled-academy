@@ -50,7 +50,7 @@ const PAYMENT_MONTH_NAMES = ['يناير','فبراير','مارس','أبريل'
 // Callable endpoints must accept the browser's unauthenticated CORS preflight.
 // Sensitive operations still enforce staff authentication inside each handler.
 const CALLABLE_OPTIONS = { region: 'europe-west1', timeoutSeconds: 30, invoker: 'public' };
-const API_SCHEMA_VERSION = 'portal-v63.0.1';
+const API_SCHEMA_VERSION = 'portal-v63.0.3';
 
 function apiMetadata() {
   return { frontendVersion: PLATFORM_VERSION, backendVersion: PLATFORM_VERSION, apiSchemaVersion: API_SCHEMA_VERSION };
@@ -326,14 +326,17 @@ function jsonByteSize(value) {
   catch (_) { return Number.MAX_SAFE_INTEGER; }
 }
 
-async function requireStaff(request, allowedRoles = ['admin', 'teacher', 'assistant']) {
-  if (!request.auth || !request.auth.uid) throw new HttpsError('unauthenticated', 'يجب تسجيل دخول فريق العمل.');
-  const userSnap = await db.collection('users').doc(request.auth.uid).get();
-  const profile = userSnap.exists ? userSnap.data() : {};
-  if (profile.active === false || !allowedRoles.includes(profile.role)) {
+async function requireStaff(request) {
+  if (!request.auth || !request.auth.uid) throw new HttpsError('unauthenticated', 'يجب تسجيل دخول الإدارة.');
+  if (request.auth.token?.email_verified !== true || request.auth.token?.admin !== true) {
     throw new HttpsError('permission-denied', 'الحساب غير مصرح له بهذه العملية.');
   }
-  return { uid: request.auth.uid, email: request.auth.token?.email || '', ...profile };
+  const userSnap = await db.collection('users').doc(request.auth.uid).get();
+  const profile = userSnap.exists ? userSnap.data() : {};
+  if (!userSnap.exists || profile.active === false || profile.role !== 'admin') {
+    throw new HttpsError('permission-denied', 'الحساب غير مصرح له بهذه العملية.');
+  }
+  return { ...profile, uid: request.auth.uid, email: request.auth.token?.email || '' };
 }
 
 // Bootstrap is deliberately claim-only. An email address is not an authorization
@@ -715,7 +718,7 @@ function portalResponse(data, attempts, records = {}) {
   const rawHomeworks = Array.isArray(records.homeworks) ? records.homeworks.slice(-160) : (Array.isArray(data.homeworks) ? data.homeworks.slice(-160) : []);
   const recitations = Array.isArray(records.recitations) ? records.recitations.slice(-120) : (Array.isArray(data.recitations) ? data.recitations.slice(-120) : []);
   const allAssignments = Array.isArray(records.assignments) ? records.assignments : [];
-  const assignments = allAssignments.slice(0, 30);
+  const assignments = allAssignments.slice(0, 250);
   const openHomeworkGrants = Array.isArray(records.homeworkGrants)
     ? records.homeworkGrants.filter(row => row.status === 'open' && !row.usedAt)
     : [];
@@ -940,8 +943,12 @@ async function attemptSummaries(studentCode) {
       question: text(answer.question, 1500),
       type: text(answer.type, 30),
       answer: text(answer.answer, 4000),
-      mark: Math.max(0.25, Number(answer.mark || 1))
+      mark: Math.max(0.25, Number(answer.mark || 1)),
+      awardedMark: answer.awardedMark === null || answer.awardedMark === undefined ? null : Number(answer.awardedMark),
+      correct: answer.correct === true ? true : answer.correct === false ? false : null,
+      ...(a.answersRevealed === true ? { correctAnswer: text(answer.correctAnswer, 4000) } : {})
     })) : [],
+    answersRevealed: a.answersRevealed === true,
     needsManualReview: a.needsManualReview === true,
     status: text(a.status, 40)
   }));
@@ -1665,6 +1672,7 @@ exports.submitAssignmentAnswer = onCall(CALLABLE_OPTIONS, async request => {
       autoScore,
       maxScore,
       revealCorrectAnswersAfterClose: assignment.revealCorrectAnswersAfterClose === true,
+      revealCorrectAnswersAfterGrading: assignment.revealCorrectAnswersAfterGrading === true,
       needsManualReview,
       status: needsManualReview ? 'بانتظار تصحيح المدرس' : 'تم تصحيح الواجب',
       completed: true,
@@ -1711,12 +1719,6 @@ exports.submitAssignmentAnswer = onCall(CALLABLE_OPTIONS, async request => {
 
 exports.reviewHomeworkSubmission = onCall(CALLABLE_OPTIONS, async request => {
   const staff = await requireStaff(request);
-  const assistantPermissions = Array.isArray(staff.permissions)
-    ? staff.permissions
-    : Array.isArray(staff.permissions?.homework) ? staff.permissions.homework.map(value => `homework.${value}`) : [];
-  if (staff.role === 'assistant' && !assistantPermissions.includes('homework.review')) {
-    throw new HttpsError('permission-denied', 'المساعد لا يملك صلاحية تعديل درجات الواجبات.');
-  }
   const submissionId = cleanDocId(text(request.data?.submissionId, 120));
   const awarded = request.data?.awarded && typeof request.data.awarded === 'object' ? request.data.awarded : {};
   if (!submissionId) throw new HttpsError('invalid-argument', 'رقم تسليم الواجب غير صالح.');
@@ -1743,6 +1745,74 @@ exports.reviewHomeworkSubmission = onCall(CALLABLE_OPTIONS, async request => {
   });
   await markLeaderboardDirty('homework-reviewed');
   return {ok:true,submissionId,...result};
+});
+
+exports.reviewExamAttempt = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request);
+  const attemptId = cleanDocId(text(request.data?.attemptId, 120));
+  const awarded = request.data?.awarded && typeof request.data.awarded === 'object' ? request.data.awarded : {};
+  const reason = text(request.data?.reason || request.data?.comment, 800);
+  if (!attemptId) throw new HttpsError('invalid-argument', 'رقم محاولة الامتحان غير صالح.');
+  const attemptRef = db.collection('exam_attempts').doc(attemptId);
+  const result = await db.runTransaction(async tx => {
+    const attemptSnap = await tx.get(attemptRef);
+    if (!attemptSnap.exists) throw new HttpsError('not-found', 'محاولة الامتحان غير موجودة.');
+    const attempt = attemptSnap.data() || {};
+    const answers = Array.isArray(attempt.answers) ? attempt.answers.slice(0, 200).map((answer, index) => {
+      const mark = Math.max(0.25, Number(answer.mark || 1));
+      const value = Math.max(0, Math.min(mark, Number(awarded[String(index)] ?? answer.awardedMark ?? 0) || 0));
+      return { ...answer, awardedMark: value, correct: value === mark, adminReviewed: true };
+    }) : [];
+    if (!answers.length) throw new HttpsError('failed-precondition', 'لا توجد إجابات قابلة للتصحيح.');
+    const maxScore = answers.reduce((sum, answer) => sum + Number(answer.mark || 1), 0);
+    const score = answers.reduce((sum, answer) => sum + Number(answer.awardedMark || 0), 0);
+    const studentCode = normalizeCode(attempt.studentCode);
+    const examId = cleanDocId(text(attempt.examId, 120));
+    if (!validLegacyOrStrongCode(studentCode) || !examId) throw new HttpsError('failed-precondition', 'بيانات المحاولة غير مكتملة.');
+    const parentRef = db.collection('student_attempts').doc(cleanDocId(studentCode));
+    const [examSnap, summarySnap, parentSnap] = await Promise.all([
+      tx.get(db.collection('exams').doc(examId)),
+      tx.get(parentRef.collection('attempts').doc(attemptId)),
+      tx.get(parentRef)
+    ]);
+    const exam = examSnap.exists ? examSnap.data() || {} : {};
+    const reveal = exam.revealCorrectAnswersAfterGrading === true;
+    const reviewedAt = new Date().toISOString();
+    const publicReview = answers.map(answer => ({
+      question: text(answer.question, 1500),
+      type: text(answer.type, 30),
+      answer: text(answer.answer, 4000),
+      mark: Math.max(0.25, Number(answer.mark || 1)),
+      awardedMark: Number(answer.awardedMark || 0),
+      correct: answer.correct === true,
+      ...(reveal ? { correctAnswer: text(answer.correctAnswer, 4000) } : {})
+    }));
+    const summary = {
+      ...(summarySnap.exists ? summarySnap.data() : {}),
+      id: attemptId,
+      examId,
+      examTitle: text(attempt.examTitle, 200),
+      submittedAt: text(attempt.submittedAt, 60),
+      score,
+      autoScore: attempt.autoScore === null || attempt.autoScore === undefined ? null : Number(attempt.autoScore),
+      maxScore,
+      review: publicReview,
+      answersRevealed: reveal,
+      needsManualReview: false,
+      status: 'corrected',
+      reviewedAt
+    };
+    tx.set(attemptRef, { answers, score, maxScore, needsManualReview:false, status:'corrected', reviewedByUid:staff.uid, reviewedByEmail:staff.email||'', reviewedAt:FieldValue.serverTimestamp(), updatedAt:FieldValue.serverTimestamp() }, { merge:true });
+    tx.set(parentRef.collection('attempts').doc(attemptId), summary, { merge:true });
+    const existingLast = parentSnap.exists ? parentSnap.data()?.lastAttempt : null;
+    const correctedIsLatest = !existingLast || String(existingLast.id || '') === attemptId || String(existingLast.submittedAt || '') <= String(summary.submittedAt || '');
+    tx.set(parentRef, { studentCode, ...(correctedIsLatest ? {lastAttempt:summary} : {}), updatedAt:FieldValue.serverTimestamp() }, { merge:true });
+    tx.create(db.collection('exam_review_history').doc(), { attemptId, examId, studentCode, oldGrade:attempt.score ?? null, oldMaxScore:attempt.maxScore ?? null, newGrade:score, newMaxScore:maxScore, reviewerUid:staff.uid, reviewerEmail:staff.email||'', reviewerRole:'admin', comment:reason, createdAt:FieldValue.serverTimestamp() });
+    tx.create(db.collection('activityLog').doc(), { action:'تصحيح امتحان', actorUid:staff.uid, actorEmail:staff.email||'', actorRole:'admin', metadata:{attemptId,examId,studentCode,score,maxScore}, createdAt:FieldValue.serverTimestamp() });
+    return summary;
+  });
+  await markLeaderboardDirty('exam-reviewed');
+  return { ok:true, attempt:result };
 });
 
 exports.grantHomeworkRetake = onCall(CALLABLE_OPTIONS, async request => {
@@ -2025,6 +2095,50 @@ exports.createStudentAccess = onCall(CALLABLE_OPTIONS, async request => {
     }
   }
   throw new HttpsError('resource-exhausted', 'تعذر إنشاء أكواد فريدة، حاول مرة أخرى.');
+});
+
+exports.migrateStudentCodeSafely = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request);
+  const oldCode = normalizeCode(request.data?.oldCode);
+  const newCode = normalizeCode(request.data?.newCode);
+  if (!validLegacyOrStrongCode(oldCode) || !validLegacyOrStrongCode(newCode) || oldCode === newCode) {
+    throw new HttpsError('invalid-argument', 'الكود القديم أو الجديد غير صالح.');
+  }
+  const oldId=cleanDocId(oldCode),newId=cleanDocId(newCode);
+  const rootCollections=['attendance','grades','recitations','homework_submissions','exam_attempts','monthly_payments','payment_transactions','bookings','booking_status','student_transfer_requests','homework_attempt_grants'];
+  const result=await db.runTransaction(async tx=>{
+    const oldStudentRef=db.collection('students').doc(oldId),newStudentRef=db.collection('students').doc(newId);
+    const oldAttemptsRef=db.collection('student_attempts').doc(oldId),newAttemptsRef=db.collection('student_attempts').doc(newId);
+    const reads=await Promise.all([
+      tx.get(oldStudentRef),tx.get(newStudentRef),tx.get(db.collection('student_portal').doc(oldId)),tx.get(db.collection('parent_portal').doc(oldId)),tx.get(db.collection('payments').doc(oldId)),tx.get(oldAttemptsRef),tx.get(oldAttemptsRef.collection('attempts').limit(200)),
+      ...rootCollections.map(collection=>tx.get(db.collection(collection).where('studentCode','==',oldCode).limit(300))),
+      tx.get(db.collection('homework_submission_locks').where('studentCode','==',oldCode).limit(200)),
+      tx.get(db.collection('exam_locks').where('studentCode','==',oldCode).limit(200)),
+      tx.get(db.collection('_portal_sessions').where('studentCode','==',oldCode).limit(50))
+    ]);
+    const [oldStudent,newStudent,studentPortal,parentPortal,payment,attemptParent,attemptDocs,...remaining]=reads;
+    if(!oldStudent.exists)throw new HttpsError('not-found','الطالب بالكود القديم غير موجود.');
+    if(newStudent.exists)throw new HttpsError('already-exists','الكود الجديد مستخدم بالفعل.');
+    const rootSnaps=remaining.slice(0,rootCollections.length),homeworkLocks=remaining[rootCollections.length],examLocks=remaining[rootCollections.length+1],sessions=remaining[rootCollections.length+2];
+    const operationCount=12+attemptDocs.size+rootSnaps.reduce((sum,snap)=>sum+snap.size,0)+(homeworkLocks.size*2)+(examLocks.size*2)+sessions.size;
+    if(operationCount>430)throw new HttpsError('resource-exhausted','سجلات الطالب كثيرة وتحتاج Migration مجزأة بعد أخذ نسخة احتياطية. لم يتم تغيير أي بيانات.');
+    const raw={...oldStudent.data(),...(request.data?.student&&typeof request.data.student==='object'?request.data.student:{}),id:newCode,code:newCode,studentCode:newCode,parentCode:newCode,updatedAt:FieldValue.serverTimestamp(),codeMigratedAt:FieldValue.serverTimestamp(),codeMigratedFrom:oldCode};
+    tx.create(newStudentRef,raw);
+    tx.set(db.collection('student_portal').doc(newId),{...raw,parentCode:newCode},{merge:true});
+    tx.set(db.collection('parent_portal').doc(newId),{...raw,parentCode:newCode},{merge:true});
+    if(payment.exists)tx.set(db.collection('payments').doc(newId),{...payment.data(),studentId:newId,studentCode:newCode,updatedAt:FieldValue.serverTimestamp()},{merge:true});
+    if(attemptParent.exists)tx.set(newAttemptsRef,{...attemptParent.data(),studentCode:newCode,updatedAt:FieldValue.serverTimestamp()},{merge:true});
+    attemptDocs.docs.forEach(docSnap=>{tx.set(newAttemptsRef.collection('attempts').doc(docSnap.id),{...docSnap.data(),studentCode:newCode},{merge:true});tx.delete(docSnap.ref);});
+    rootSnaps.forEach(snap=>snap.docs.forEach(docSnap=>tx.update(docSnap.ref,{studentCode:newCode,updatedAt:FieldValue.serverTimestamp()})));
+    homeworkLocks.docs.forEach(docSnap=>{const data=docSnap.data()||{},newRef=db.collection('homework_submission_locks').doc(homeworkLockId(text(data.assignmentId,120),newCode));tx.set(newRef,{...data,lockId:newRef.id,studentCode:newCode,updatedAt:FieldValue.serverTimestamp()},{merge:true});tx.delete(docSnap.ref);});
+    examLocks.docs.forEach(docSnap=>{const data=docSnap.data()||{},newRef=db.collection('exam_locks').doc(cleanDocId(`${text(data.examId,120)}_${newCode}`));tx.set(newRef,{...data,studentCode:newCode,updatedAt:FieldValue.serverTimestamp()},{merge:true});tx.delete(docSnap.ref);});
+    sessions.docs.forEach(docSnap=>tx.delete(docSnap.ref));
+    tx.delete(oldStudentRef);if(studentPortal.exists)tx.delete(studentPortal.ref);if(parentPortal.exists)tx.delete(parentPortal.ref);if(payment.exists)tx.delete(payment.ref);if(attemptParent.exists)tx.delete(attemptParent.ref);
+    tx.create(db.collection('student_code_migrations').doc(),{oldCode,newCode,status:'completed',recordCount:operationCount,actorUid:staff.uid,actorEmail:staff.email||'',createdAt:FieldValue.serverTimestamp()});
+    tx.create(db.collection('activityLog').doc(),{action:'تغيير كود طالب',actorUid:staff.uid,actorEmail:staff.email||'',actorRole:'admin',metadata:{oldCode,newCode,recordCount:operationCount},createdAt:FieldValue.serverTimestamp()});
+    return {ok:true,oldCode,newCode,recordCount:operationCount};
+  });
+  return result;
 });
 
 exports.regenerateParentAccessCode = onCall(CALLABLE_OPTIONS, async request => {
@@ -2773,7 +2887,16 @@ exports.submitExam = onCall(CALLABLE_OPTIONS, async request => {
     maxScore,
     // Public/student projection deliberately excludes correctAnswer. The full
     // correction remains only in exam_attempts for authorized staff.
-    review: staffAnswers.map(answer => ({ question: answer.question, type: answer.type, answer: answer.answer, mark: answer.mark })),
+    review: staffAnswers.map(answer => ({
+      question: answer.question,
+      type: answer.type,
+      answer: answer.answer,
+      mark: answer.mark,
+      awardedMark: answer.awardedMark,
+      correct: answer.correct,
+      ...(exam.revealCorrectAnswersAfterGrading === true && !needsManualReview ? { correctAnswer: answer.correctAnswer } : {})
+    })),
+    answersRevealed: exam.revealCorrectAnswersAfterGrading === true && !needsManualReview,
     needsManualReview,
     status: attempt.status,
     academicYear: attempt.academicYear,
@@ -3560,7 +3683,7 @@ exports.listCurriculumAdmin = onCall(CALLABLE_OPTIONS, async request => {
   const staff = await requireStaff(request);
   const collection = text(request.data?.collection, 80);
   if (!CURRICULUM_COLLECTIONS.has(collection)) throw new HttpsError('invalid-argument', 'قسم المحتوى غير صالح.');
-  if (TEACHER_ONLY_COLLECTIONS.has(collection) && !['admin','teacher'].includes(staff.role)) throw new HttpsError('permission-denied', 'ملفات المدرس خاصة بالمدرس فقط.');
+  if (TEACHER_ONLY_COLLECTIONS.has(collection) && staff.role !== 'admin') throw new HttpsError('permission-denied', 'ملفات الإدارة خاصة بحساب الإدارة فقط.');
   const pageSize = Math.max(10, Math.min(50, Number(request.data?.pageSize || 20)));
   const requestedGrade = text(request.data?.grade, 80);
   let query = db.collection(collection).orderBy('order', request.data?.direction === 'desc' ? 'desc' : 'asc');

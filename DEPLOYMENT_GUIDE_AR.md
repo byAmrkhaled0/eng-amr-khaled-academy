@@ -1,4 +1,4 @@
-# دليل نشر V63.0.1 — Windows PowerShell
+# دليل نشر V63.0.2 — Windows PowerShell
 
 > نفّذ الأوامر من جذر المشروع بعد تسجيل الدخول إلى Firebase/Vercel الصحيحين. خذ Backup قبل أي migration. لا تنشر الواجهة قبل الـBackend.
 
@@ -12,7 +12,7 @@ npm run verify:dist
 # 1) القواعد والفهارس والتخزين
 npx firebase-tools deploy --only firestore:rules,firestore:indexes,storage
 
-# 2) Cloud Functions المتوافقة 63.0.1
+# 2) Cloud Functions المتوافقة 63.0.2
 npx firebase-tools deploy --only functions
 
 # 3) اختياري: شغّل migration من لوحة الإدارة Dry Run أولًا، ثم Apply بعد مراجعة التقرير
@@ -24,4 +24,4 @@ npx firebase-tools deploy --only hosting
 npx vercel --prod
 ```
 
-بعد النشر تحقق أن Portal response يعرض: `backendVersion=63.0.1` و`apiSchemaVersion=portal-v63.0.1`. عند ظهور `BACKEND_VERSION_MISMATCH` لا تنشر/تُبقِ الواجهة الجديدة قبل إعادة نشر Functions بنجاح.
+بعد النشر تحقق أن Portal response يعرض: `backendVersion=63.0.2` و`apiSchemaVersion=portal-v63.0.2`. عند ظهور `BACKEND_VERSION_MISMATCH` لا تنشر/تُبقِ الواجهة الجديدة قبل إعادة نشر Functions بنجاح.

@@ -1,4 +1,4 @@
-# التدقيق النهائي والإصلاحات — V63.0.1
+# التدقيق النهائي والإصلاحات — V63.0.2
 
 ## النطاق
 
@@ -9,7 +9,7 @@
 1. **تجاوز صلاحية تصحيح الواجب:** كان `assets/firebase-sync.js` يحتوي مسار `reviewHomeworkSubmissionDirect` كبديل عند تعطل الـFunction، وكانت `firestore.rules` تسمح لكل Staff بتحديث `homework_submissions`. هذا سمح بتجاوز `homework.review` وعدم إنشاء Audit Trail. أزيل البديل نهائيًا وأصبح `update` محظورًا من العميل.
 2. **سجل التصحيح غير مكتمل ومعرض لتعارض متزامن:** كانت القراءة خارج عملية الكتابة ولم يسجل السجل الدرجة القديمة والدور والتعليق. أصبح `reviewHomeworkSubmission` يستخدم Firestore transaction ويسجل old/new grade وUID والدور والتعليق والتوقيت.
 3. **احتمال Mixed Deployment:** لم يكن مسار Portal/Resources يثبت تطابق الواجهة والـFunctions. تمت إضافة `backendVersion` و`apiSchemaVersion` والتحقق منهما في الواجهة، مع خطأ `BACKEND_VERSION_MISMATCH` واضح وآمن.
-4. **Cache busting قديم:** تم رفع asset/service-worker cache version إلى `63.0.1` وتغيير اسم cache لمنع استمرار ملفات 63.0.0.
+4. **Cache busting قديم:** تم رفع asset/service-worker cache version إلى `63.0.2` وتغيير اسم cache لمنع استمرار ملفات 63.0.0.
 5. **اختبار يثبت سلوكًا غير آمن:** الاختبار السابق كان يطلب وجود direct grading fallback. استبدل باختبار regression يثبت أن التصحيح Server-side فقط وأن القواعد تمنع update المباشر.
 
 ## مصدر الحقيقة للنتائج

@@ -13,12 +13,12 @@ service firebase.storage {
     function isStaff() {
       return hasUserDoc()
         && userData().active != false
-        && userData().role in ['admin', 'teacher', 'assistant'];
+        && userData().role == 'admin'
+        && request.auth.token.admin == true
+        && request.auth.token.email_verified == true;
     }
     function isTeacher() {
-      return hasUserDoc()
-        && userData().active != false
-        && userData().role in ['admin', 'teacher'];
+      return isStaff();
     }
     function validCode(value) {
       return value.size() >= 6

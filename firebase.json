@@ -65,10 +65,6 @@
           "region": "europe-west1",
           "pinTag": true
         }
-      },
-      {
-        "source": "**",
-        "destination": "/index.html"
       }
     ],
     "headers": [
@@ -134,6 +130,10 @@
     "functions": {
       "host": "127.0.0.1",
       "port": 5002
+    },
+    "storage": {
+      "host": "127.0.0.1",
+      "port": 9199
     },
     "hosting": {
       "host": "127.0.0.1",

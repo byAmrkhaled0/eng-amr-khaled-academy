@@ -7,10 +7,17 @@ service cloud.firestore {
     function hasUserDoc() { return signedIn() && exists(userPath()); }
     function userData() { return get(userPath()).data; }
     function isActive() { return hasUserDoc() && userData().active != false; }
-    function isAdmin() { return isActive() && userData().role == 'admin'; }
-    function isTeacher() { return isActive() && userData().role in ['admin', 'teacher']; }
-    function isAssistant() { return isActive() && userData().role == 'assistant'; }
-    function isStaff() { return isTeacher() || isAssistant(); }
+    function isAdmin() {
+      return isActive()
+        && userData().role == 'admin'
+        && request.auth.token.admin == true
+        && request.auth.token.email_verified == true;
+    }
+    // Legacy helper names remain only to avoid a risky rules rewrite; every
+    // administrative permission now resolves to the single verified Admin.
+    function isTeacher() { return isAdmin(); }
+    function isAssistant() { return false; }
+    function isStaff() { return isAdmin(); }
     function validCode(value) {
       return value is string && value.size() >= 6 && value.size() <= 40
         && value.matches('^[A-Za-z0-9_-]+$');
@@ -106,17 +113,17 @@ service cloud.firestore {
     match /code_execution_runs/{id} { allow read, write: if false; }
     match /exam_attempts/{id} {
       allow read: if isStaff();
-      allow create: if false;
-      allow update, delete: if isTeacher();
+      allow create, update, delete: if false;
     }
     match /student_attempts/{studentCode} {
       allow read: if isStaff();
-      allow create, update, delete: if isTeacher();
+      allow create, update, delete: if false;
     }
     match /student_attempts/{studentCode}/attempts/{attemptId} {
       allow read: if isStaff();
-      allow create, update, delete: if isTeacher();
+      allow create, update, delete: if false;
     }
+    match /exam_review_history/{id} { allow read: if isAdmin(); allow write: if false; }
     match /homework_submissions/{id} {
       allow read: if isStaff();
       // Student uploads are still server-only. A signed-in staff account may

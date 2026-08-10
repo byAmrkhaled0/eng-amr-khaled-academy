@@ -2,8 +2,8 @@
   'use strict';
 
   const cfg=window.MF_FIREBASE_CONFIG||{};
-  const FRONTEND_VERSION='63.0.1';
-  const API_SCHEMA_VERSION='portal-v63.0.1';
+  const FRONTEND_VERSION='63.0.3';
+  const API_SCHEMA_VERSION='portal-v63.0.3';
   if(!cfg.enabled||typeof firebase==='undefined'){
     window.MFCloud={ready:false,error:'Firebase غير مفعل'};
     return;
@@ -112,10 +112,12 @@
       getExamDashboard:callable('getExamDashboard'),
       startExam:callable('startExam'),
       submitExam:callable('submitExam'),
+      reviewExamAttempt:callable('reviewExamAttempt'),
       reportClientError:callable('reportClientError'),
       createStudentAccess:callable('createStudentAccess'),
       regenerateParentAccessCode:callable('regenerateParentAccessCode'),
       unifyStudentAccessCodes:callable('unifyStudentAccessCodes'),
+      migrateStudentCodeSafely:callable('migrateStudentCodeSafely'),
       prepareHomeworkUpload:callable('prepareHomeworkUpload'),
       registerHomeworkSubmission:callable('registerHomeworkSubmission'),
       submitAssignmentAnswer:callable('submitAssignmentAnswer'),
@@ -264,7 +266,7 @@
       if(!allowed.has(String(collection||'')))throw new Error('Invalid content collection');
       const id=cleanDocId(item?.id||'');if(!id)throw new Error('Invalid content item');
       const profile=await getCurrentStaffProfile();
-      if(!profile?.allowed||!['admin','teacher'].includes(profile.role))throw new Error('Not authorized');
+      if(!profile?.allowed||profile.role!=='admin')throw new Error('Not authorized');
       const scheduleId=String(item.scheduleId||item.groupId||'').trim();
       const payload={...item,id,grade:item.grade?canonicalGrade(item.grade):'',groupId:scheduleId,scheduleId,updatedAt:serverTime()};
       if(collection!=='reviews')payload.audienceKeys=contentAudienceKeys(payload);
@@ -303,10 +305,11 @@
 
     async function getCurrentStaffProfile(){
       const user=auth.currentUser;if(!user)return null;
+      const token=await user.getIdTokenResult(true);
       const userDoc=await db.collection('users').doc(user.uid).get();
       const profile=userDoc.exists?userDoc.data():{};
       const role=profile.role||'';
-      const allowed=['admin','teacher','assistant'].includes(role)&&profile.active!==false;
+      const allowed=userDoc.exists&&role==='admin'&&profile.active!==false&&token.claims.admin===true&&token.claims.email_verified===true;
       return {uid:user.uid,email:user.email,role,allowed,...profile};
     }
 
@@ -522,7 +525,7 @@
     }
     async function deleteStudentSafelyDirect(studentInput){
       const profile=await getCurrentStaffProfile();
-      if(!profile?.allowed||!['admin','teacher'].includes(profile.role))throw new Error('Not authorized');
+      if(!profile?.allowed||profile.role!=='admin')throw new Error('Not authorized');
       const studentCode=normalizeCode(studentInput?.studentCode||studentInput?.code||studentInput?.id||'');
       if(!/^[A-Z0-9_-]{6,40}$/.test(studentCode))throw new Error('كود الطالب غير صالح');
       const studentRef=db.collection('students').doc(cleanDocId(studentCode));
@@ -596,16 +599,16 @@
       },
       loadStaffRecords:async()=>{const profile=await getCurrentStaffProfile();if(!profile?.allowed)throw new Error('Not authorized');return loadStaffRecordCollections();},
       saveSiteData:async(payload,options={})=>syncPayloadToCollections(payload,options),
-      saveSettings:async settings=>{const profile=await getCurrentStaffProfile();if(!profile?.allowed||!['admin','teacher'].includes(profile.role))throw new Error('Not authorized');await platformSettingsDoc.set({...settings,schemaVersion:55,updatedAt:serverTime()},{merge:true});seedFingerprint('settings','platform',settings);},
+      saveSettings:async settings=>{const profile=await getCurrentStaffProfile();if(!profile?.allowed||profile.role!=='admin')throw new Error('Not authorized');await platformSettingsDoc.set({...settings,schemaVersion:55,updatedAt:serverTime()},{merge:true});seedFingerprint('settings','platform',settings);},
       saveStudent:async student=>{const ops=[];pushStudentOps(ops,student);await commitOperations(ops);},
       saveContent:saveContentDocument,
       saveGroup:async group=>{
         const id=cleanDocId(group?.id||'');if(!id)throw new Error('Invalid group');
         if(calls.upsertGroupSchedule)return calls.upsertGroupSchedule({...group,id,grade:canonicalGrade(group.grade)});
-        const profile=await getCurrentStaffProfile();if(!profile?.allowed||!['admin','teacher'].includes(profile.role))throw new Error('Not authorized');
+        const profile=await getCurrentStaffProfile();if(!profile?.allowed||profile.role!=='admin')throw new Error('Not authorized');
         const payload={...group,id,grade:canonicalGrade(group.grade),updatedAt:serverTime()};await db.collection('groups').doc(id).set(payload,{merge:true});return payload;
       },
-      deleteGroup:async id=>{const profile=await getCurrentStaffProfile();if(!profile?.allowed||!['admin','teacher'].includes(profile.role))throw new Error('Not authorized');await db.collection('groups').doc(cleanDocId(id)).delete();},
+      deleteGroup:async id=>{const profile=await getCurrentStaffProfile();if(!profile?.allowed||profile.role!=='admin')throw new Error('Not authorized');await db.collection('groups').doc(cleanDocId(id)).delete();},
       createStudentAccess:async student=>{
         if(!calls.createStudentAccess)throw new Error('Secure student registration service unavailable');
         return retryTransient(()=>calls.createStudentAccess(student),1);
@@ -666,32 +669,18 @@
       },
       getBookingStatus:async code=>{
         const normalized=normalizeCode(code);
-        if(calls.getBookingStatus){try{return await calls.getBookingStatus({code:normalized});}catch(error){
-          const raw=String(error?.code||'')+' '+String(error?.message||'');if(/invalid-argument|resource-exhausted/i.test(raw))throw error;
-        }}
-        const snap=await db.collection('booking_status').doc(cleanDocId(normalized)).get();return snap.exists?{code:normalized,...snap.data()}:null;
+        if(!calls.getBookingStatus)throw new Error('Secure booking status service is unavailable');
+        return calls.getBookingStatus({code:normalized});
       },
       saveReview:async review=>{if(!calls.createReview)throw new Error('Secure review function is unavailable');return calls.createReview(review);},
       recordClassProgress:async record=>{
-        let directError=null;
-        try{return await retryTransient(()=>recordClassProgressDirect(record),1);}
-        catch(error){directError=error;}
-        if(calls.recordClassProgress){
-          try{return await retryTransient(()=>calls.recordClassProgress(record),1);}
-          catch(error){error.directError=directError;throw error;}
-        }
-        throw directError||new Error('Class progress service is unavailable');
+        if(!calls.recordClassProgress)throw new Error('Secure class progress service is unavailable');
+        return retryTransient(()=>calls.recordClassProgress(record),1);
       },
       getExamDashboard:async studentCode=>{if(!calls.getExamDashboard)throw new Error('Secure exam dashboard function is unavailable');const normalized=normalizeCode(studentCode);return calls.getExamDashboard(await portalPayload(normalized,{studentCode:normalized}));},
       startSecureExam:async(examId,studentCode)=>{if(!calls.startExam)throw new Error('Secure start exam function is unavailable');const normalized=normalizeCode(studentCode);return calls.startExam(await portalPayload(normalized,{examId,studentCode:normalized}));},
       submitSecureExam:async(sessionId,studentCode,answers)=>{if(!calls.submitExam)throw new Error('Secure submit exam function is unavailable');const normalized=normalizeCode(studentCode);return calls.submitExam(await portalPayload(normalized,{sessionId,studentCode:normalized,answers}));},
-      saveExamAttempt:async attempt=>{
-        const profile=await getCurrentStaffProfile();if(!profile?.allowed)throw new Error('Not authorized');
-        const id=cleanDocId(attempt.id||`${attempt.examId}_${attempt.studentCode}`),studentCode=normalizeCode(attempt.studentCode||'');const ops=[];
-        ops.push(batch=>batch.set(db.collection('exam_attempts').doc(id),{...attempt,id,studentCode,updatedAt:serverTime()},{merge:true}));
-        if(studentCode){const parent=db.collection('student_attempts').doc(cleanDocId(studentCode));const summary={id,studentCode,examId:attempt.examId||'',examTitle:attempt.examTitle||attempt.exam||'امتحان',submittedAt:attempt.submittedAt||attempt.date||nowIso(),score:attempt.score??null,autoScore:attempt.autoScore??null,maxScore:attempt.maxScore||100,review:Array.isArray(attempt.answers)?attempt.answers.map(row=>({question:row.question,type:row.type,answer:row.answer,correct:row.correct,correctAnswer:row.correctAnswer,mark:row.mark,awardedMark:row.awardedMark})):[],needsManualReview:attempt.needsManualReview===true,status:attempt.status||'',academicYear:attempt.academicYear||'',term:attempt.term||''};ops.push(batch=>batch.set(parent,{studentCode,lastAttempt:summary,updatedAt:serverTime()},{merge:true}));ops.push(batch=>batch.set(parent.collection('attempts').doc(id),summary,{merge:true}));}
-        await commitOperations(ops);
-      },
+      reviewExamAttempt:async payload=>{if(!calls.reviewExamAttempt)throw new Error('Secure exam correction service is unavailable');return calls.reviewExamAttempt(payload||{});},
       upsertAttendance,getAttendanceForDate,
       recordAttendanceByQr:(attendanceCode,date)=>{if(!calls.recordAttendance)throw new Error('Secure attendance service unavailable');return calls.recordAttendance({attendanceCode:String(attendanceCode||'').trim().toUpperCase(),date,status:'present'});},
       bulkMarkAttendance:payload=>{if(!calls.bulkMarkAttendance)throw new Error('Bulk attendance service unavailable');return calls.bulkMarkAttendance(payload||{});},
@@ -737,30 +726,13 @@
         await db.collection(collection).doc(cleanDocId(id)).delete();
       },
       deleteStudentSafely:async student=>{
-        let callableError=null;
-        if(calls.deleteStudentSafely){
-          try{return await calls.deleteStudentSafely({studentCode:normalizeCode(student?.studentCode||student?.code||student?.id)});}
-          catch(error){callableError=error;}
-        }
-        try{return await deleteStudentSafelyDirect(student);}
-        catch(error){error.callableError=callableError;throw error;}
+        if(!calls.deleteStudentSafely)throw new Error('Secure student archive service is unavailable');
+        return calls.deleteStudentSafely({studentCode:normalizeCode(student?.studentCode||student?.code||student?.id)});
       },
       deleteStudentPortals:async student=>window.MFCloud.deleteStudentSafely(student),
       migrateStudentCode:async(oldCode,newCode,student)=>{
-        const oldId=cleanDocId(normalizeCode(oldCode)),newId=cleanDocId(normalizeCode(newCode));if(!oldId||!newId||oldId===newId)return;
-        const profile=await getCurrentStaffProfile();if(!profile?.allowed)throw new Error('Not authorized');
-        const oldAttempts=db.collection('student_attempts').doc(oldId),newAttempts=db.collection('student_attempts').doc(newId);
-        const [oldStudent,summary,summaryDocs,attempts,grades,attendance,homeworks,recitations,monthlyPayments,paymentTransactions]=await Promise.all([
-          db.collection('students').doc(oldId).get().catch(()=>null),oldAttempts.get().catch(()=>null),oldAttempts.collection('attempts').get().catch(()=>null),db.collection('exam_attempts').where('studentCode','==',normalizeCode(oldCode)).get().catch(()=>null),
-          db.collection('grades').where('studentCode','==',normalizeCode(oldCode)).get().catch(()=>null),db.collection('attendance').where('studentCode','==',normalizeCode(oldCode)).get().catch(()=>null),
-          db.collection('homework_submissions').where('studentCode','==',normalizeCode(oldCode)).get().catch(()=>null),db.collection('recitations').where('studentCode','==',normalizeCode(oldCode)).get().catch(()=>null),
-          db.collection('monthly_payments').where('studentCode','==',normalizeCode(oldCode)).get().catch(()=>null),db.collection('payment_transactions').where('studentCode','==',normalizeCode(oldCode)).get().catch(()=>null)
-        ]);
-        const ops=[];if(summary?.exists)ops.push(batch=>batch.set(newAttempts,{...summary.data(),studentCode:normalizeCode(newCode),updatedAt:serverTime()},{merge:true}));
-        summaryDocs?.forEach(doc=>{ops.push(batch=>batch.set(newAttempts.collection('attempts').doc(doc.id),{...doc.data(),studentCode:normalizeCode(newCode)},{merge:true}));ops.push(batch=>batch.delete(doc.ref));});if(summary?.exists)ops.push(batch=>batch.delete(summary.ref));
-        [attempts,grades,attendance,homeworks,recitations,monthlyPayments,paymentTransactions].forEach(snap=>snap?.forEach(doc=>ops.push(batch=>batch.update(doc.ref,{studentCode:normalizeCode(newCode),updatedAt:serverTime()}))));
-        const legacyParentCode=normalizeCode(oldStudent?.exists?oldStudent.data().parentCode:'');
-        ops.push(batch=>batch.delete(db.collection('students').doc(oldId)));ops.push(batch=>batch.delete(db.collection('student_portal').doc(oldId)));ops.push(batch=>batch.delete(db.collection('parent_portal').doc(oldId)));if(legacyParentCode&&legacyParentCode!==oldId)ops.push(batch=>batch.delete(db.collection('parent_portal').doc(cleanDocId(legacyParentCode))));ops.push(batch=>batch.delete(db.collection('payments').doc(oldId)));if(student)pushStudentOps(ops,{...student,studentCode:newId,code:newId,id:newId,parentCode:newId});await commitOperations(ops);
+        if(!calls.migrateStudentCodeSafely)throw new Error('Secure student code migration service is unavailable');
+        return calls.migrateStudentCodeSafely({oldCode:normalizeCode(oldCode),newCode:normalizeCode(newCode),student:student||{}});
       },
       getActivityLog:async(limit=50)=>{const snap=await db.collection('activityLog').orderBy('createdAt','desc').limit(Math.min(Number(limit)||50,200)).get();return snap.docs.map(doc=>({id:doc.id,...doc.data()}));},
       getClientErrors:async(limit=100)=>{const snap=await db.collection('client_errors').orderBy('createdAt','desc').limit(Math.min(Number(limit)||100,300)).get();return snap.docs.map(doc=>({id:doc.id,...doc.data()}));},
