@@ -22,6 +22,18 @@ const {
 } = require('./lib/academic-targeting');
 const { studentCanOpenPortal, studentIsApproved } = require('./lib/student-access');
 const {
+  homeworkLockId,
+  submissionIdForAttempt,
+  decideHomeworkAttempt,
+  publicHomeworkProjection
+} = require('./lib/homework-domain');
+const {
+  normalizeUnifiedResults,
+  homeworkMetrics,
+  configurableOverallAverage
+} = require('./lib/portal-results');
+const { configuredScheduleDays, cairoWeekdayForDate } = require('./lib/attendance-domain');
+const {
   studentNameKey,
   recordNameKey,
   phoneMatchesStudent,
@@ -93,6 +105,44 @@ function randomNumericCode(length = 8) {
   let rest = '';
   while (rest.length < length - 1) rest += String(crypto.randomInt(0, 10));
   return first + rest;
+}
+
+function randomAttendanceCode() {
+  return `ATT-${crypto.randomBytes(9).toString('base64url').toUpperCase()}`;
+}
+
+async function createPortalSession(studentCode, mode, request) {
+  const token = crypto.randomBytes(32).toString('base64url');
+  const tokenHash = hash(token);
+  const now = Date.now();
+  const expiresAt = now + 30 * 60 * 1000;
+  await db.collection('_portal_sessions').doc(tokenHash).create({
+    studentCode,
+    mode: mode === 'parent' ? 'parent' : 'student',
+    ipHash: hash(requestIp(request)).slice(0, 32),
+    userAgentHash: hash(text(request.rawRequest?.headers?.['user-agent'], 500)).slice(0, 32),
+    createdAt: FieldValue.serverTimestamp(),
+    expiresAt: Timestamp.fromMillis(expiresAt)
+  });
+  return { token, expiresAt };
+}
+
+async function requirePortalSession(request, expectedStudentCode, allowedModes = ['student']) {
+  const token = text(request.data?.portalSessionToken, 1000);
+  if (!token || token.length < 32) throw new HttpsError('unauthenticated', 'انتهت جلسة البوابة. افتح حساب الطالب من جديد.');
+  const ref = db.collection('_portal_sessions').doc(hash(token));
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('unauthenticated', 'جلسة البوابة غير صالحة.');
+  const session = snap.data() || {};
+  const expiresAt = session.expiresAt?.toMillis?.() || 0;
+  if (expiresAt <= Date.now()) {
+    await ref.delete().catch(() => {});
+    throw new HttpsError('unauthenticated', 'انتهت جلسة البوابة. افتح الحساب من جديد.');
+  }
+  if (normalizeCode(session.studentCode) !== normalizeCode(expectedStudentCode) || !allowedModes.includes(session.mode)) {
+    throw new HttpsError('permission-denied', 'الجلسة لا تخص هذا الحساب.');
+  }
+  return session;
 }
 
 function publicStudentName(value) {
@@ -655,6 +705,21 @@ function mcqCorrect(question, chosenIndex) {
 }
 
 function portalResponse(data, attempts, records = {}) {
+  const attendance = Array.isArray(records.attendance) ? records.attendance.slice(-120) : (Array.isArray(data.attendance) ? data.attendance.slice(-120) : []);
+  const grades = Array.isArray(records.grades) ? records.grades.slice(-120) : (Array.isArray(data.grades) ? data.grades.slice(-120) : []);
+  const rawHomeworks = Array.isArray(records.homeworks) ? records.homeworks.slice(-160) : (Array.isArray(data.homeworks) ? data.homeworks.slice(-160) : []);
+  const recitations = Array.isArray(records.recitations) ? records.recitations.slice(-120) : (Array.isArray(data.recitations) ? data.recitations.slice(-120) : []);
+  const allAssignments = Array.isArray(records.assignments) ? records.assignments : [];
+  const assignments = allAssignments.slice(0, 30);
+  const openHomeworkGrants = Array.isArray(records.homeworkGrants)
+    ? records.homeworkGrants.filter(row => row.status === 'open' && !row.usedAt)
+    : [];
+  const openGrantByAssignment = new Map(openHomeworkGrants.map(row => [String(row.assignmentId), row]));
+  const examAttempts = Array.isArray(attempts) ? attempts.slice(-120) : [];
+  const results = normalizeUnifiedResults({ grades, examAttempts, homeworks: rawHomeworks, practicals: recitations });
+  const homeworkSummary = homeworkMetrics(allAssignments, rawHomeworks);
+  const gradingWeights = records.platformSettings?.gradingWeights || data.gradingWeights || {};
+  const overall = configurableOverallAverage(results, gradingWeights);
   return {
     studentCode: text(data.studentCode || data.code, 40),
     name: text(data.studentName || data.name, 100),
@@ -672,13 +737,14 @@ function portalResponse(data, attempts, records = {}) {
     scheduleDays: text(data.scheduleDays, 100),
     scheduleStartTime: text(data.scheduleStartTime, 20),
     scheduleEndTime: text(data.scheduleEndTime, 20),
+    attendanceCode: text(data.attendanceCode, 40),
     paid: data.paid === true,
     paymentDate: text(data.paymentDate, 40),
     notes: text(data.notes, 1500),
-    attendance: Array.isArray(records.attendance) ? records.attendance.slice(-120) : (Array.isArray(data.attendance) ? data.attendance.slice(-120) : []),
-    grades: Array.isArray(records.grades) ? records.grades.slice(-120) : (Array.isArray(data.grades) ? data.grades.slice(-120) : []),
-    homeworks: Array.isArray(records.homeworks) ? records.homeworks.slice(-120) : (Array.isArray(data.homeworks) ? data.homeworks.slice(-120) : []),
-    recitations: Array.isArray(records.recitations) ? records.recitations.slice(-120) : (Array.isArray(data.recitations) ? data.recitations.slice(-120) : []),
+    attendance,
+    grades,
+    homeworks: rawHomeworks.map(row => publicHomeworkProjection(row)),
+    recitations,
     monthlyPayments: (Array.isArray(records.monthlyPayments) ? records.monthlyPayments : (Array.isArray(data.monthlyPayments) ? data.monthlyPayments : [])).slice(-120).map(row => ({
       id: text(row.id || row.periodId, 100),
       academicYear: text(row.academicYear, 30),
@@ -690,9 +756,20 @@ function portalResponse(data, attempts, records = {}) {
       status: ['paid', 'partial', 'unpaid'].includes(row.status) ? row.status : paymentStatus(row.expectedAmount, row.paidAmount),
       lastPaymentDate: text(row.lastPaymentDate, 40)
     })),
-    assignments: (Array.isArray(records.assignments) ? records.assignments : []).slice(0, 120).map(row => publicAssignmentPayload(row, row.id)),
+    assignments: assignments.map(row => ({
+      ...publicAssignmentPayload(row, row.id),
+      extraAttemptAvailable: openGrantByAssignment.has(String(row.id)),
+      extraAttemptNumber: Math.max(0, Number(openGrantByAssignment.get(String(row.id))?.attemptNumber || 0))
+    })),
     materials: (Array.isArray(records.materials) ? records.materials : []).slice(0, 120),
-    examAttempts: Array.isArray(attempts) ? attempts.slice(-120) : []
+    examAttempts,
+    results,
+    homeworkMetrics: homeworkSummary,
+    gradingPolicy: {
+      overallPercentage: overall.percentage,
+      weights: overall.weights,
+      typeAverages: overall.typeAverages
+    }
   };
 }
 
@@ -740,7 +817,13 @@ async function getStudentPortalByCode(code) {
       }
     }
     if (canonicalSnap && canonicalSnap.exists) {
-      const canonical = await ensureUnifiedStudentAccess(canonicalSnap, normalized);
+      const canonicalRaw = canonicalSnap.data() || {};
+      const alreadyUnified = normalizeCode(canonicalRaw.studentCode || canonicalRaw.code) === normalized
+        && normalizeCode(canonicalRaw.parentCode) === normalized
+        && Boolean(canonicalRaw.accessUnifiedAt);
+      const canonical = alreadyUnified
+        ? { ...canonicalRaw, id: normalized, code: normalized, studentCode: normalized, parentCode: normalized }
+        : await ensureUnifiedStudentAccess(canonicalSnap, normalized);
       if (!studentCanOpenPortal(canonical)) throw new HttpsError('not-found', 'حساب الطالب غير نشط.');
       const current = { ...portal, ...canonical, grade: canonicalAcademicLabel(canonical.grade || portal.grade), studentCode: normalized, parentCode: normalized, code: normalized, id: normalized };
       const projection = {
@@ -821,7 +904,12 @@ async function getParentPortalByCode(code) {
     }
   }
   if (!studentSnap?.exists || !studentCanOpenPortal(studentSnap.data())) throw new HttpsError('not-found', 'لم يتم العثور على التقرير.');
-  const student = await ensureUnifiedStudentAccess(studentSnap, normalized);
+  const rawStudent = studentSnap.data() || {};
+  const storedCode = normalizeCode(rawStudent.studentCode || rawStudent.code || studentSnap.id);
+  const alreadyUnified = normalizeCode(rawStudent.parentCode) === storedCode && Boolean(rawStudent.accessUnifiedAt);
+  const student = alreadyUnified
+    ? { ...rawStudent, id: storedCode, code: storedCode, studentCode: storedCode, parentCode: storedCode }
+    : await ensureUnifiedStudentAccess(studentSnap, normalized);
   const studentCode = normalizeCode(student.studentCode || student.code);
   return { code: studentCode, data: { ...student, studentCode, parentCode: studentCode, code: studentCode } };
 }
@@ -842,7 +930,12 @@ async function attemptSummaries(studentCode) {
     score: a.score === null || a.score === undefined ? null : Number(a.score),
     autoScore: a.autoScore === null || a.autoScore === undefined ? null : Number(a.autoScore),
     maxScore: Number(a.maxScore || 100),
-    review: Array.isArray(a.review) ? a.review.slice(0, 200) : [],
+    review: Array.isArray(a.review) ? a.review.slice(0, 200).map(answer => ({
+      question: text(answer.question, 1500),
+      type: text(answer.type, 30),
+      answer: text(answer.answer, 4000),
+      mark: Math.max(0.25, Number(answer.mark || 1))
+    })) : [],
     needsManualReview: a.needsManualReview === true,
     status: text(a.status, 40)
   }));
@@ -918,7 +1011,7 @@ async function assignmentsForStudent(student = {}) {
     .filter(item => assignmentIsReleased(item) && learningTargetMatchesStudent(item, student))
     .map(item => ({ ...item, submissionClosed: assignmentDueDatePassed(item, cairoDateKey(new Date())) }))
     .sort((a, b) => String(b.publishAt || b.createdAt || b.dueDate || '').localeCompare(String(a.publishAt || a.createdAt || a.dueDate || '')))
-    .slice(0, 120);
+    .slice(0, 250);
 }
 
 async function materialsForStudent(student = {}) {
@@ -932,15 +1025,24 @@ async function materialsForStudent(student = {}) {
 
 async function studentRecords(studentCode, student = {}) {
   const normalized = normalizeCode(studentCode);
+  const orderFields = {
+    attendance: 'date',
+    grades: 'date',
+    homework_submissions: 'submittedAt',
+    recitations: 'date',
+    monthly_payments: 'updatedAt'
+  };
   const load = async collection => {
-    const snap = await db.collection(collection).where('studentCode', '==', normalized).limit(250).get().catch(() => null);
+    const base = db.collection(collection).where('studentCode', '==', normalized);
+    const ordered = await base.orderBy(orderFields[collection] || 'updatedAt', 'desc').limit(160).get().catch(() => null);
+    const snap = ordered || await base.limit(160).get().catch(() => null);
     return snap ? snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) : [];
   };
-  const [attendance, grades, homeworks, recitations, monthlyPayments, assignments, materials] = await Promise.all([
-    load('attendance'), load('grades'), load('homework_submissions'), load('recitations'), load('monthly_payments'), assignmentsForStudent(student), materialsForStudent(student)
+  const [attendance, grades, homeworks, recitations, monthlyPayments, assignments, materials, platformSettingsSnap, homeworkGrantsSnap] = await Promise.all([
+    load('attendance'), load('grades'), load('homework_submissions'), load('recitations'), load('monthly_payments'), assignmentsForStudent(student), materialsForStudent(student), db.collection('settings').doc('platform').get().catch(() => null), db.collection('homework_attempt_grants').where('studentCode', '==', normalized).where('status', '==', 'open').limit(30).get().catch(() => null)
   ]);
   const byDate = rows => rows.sort((a, b) => String(a.date || a.submittedAt || a.createdAt || '').localeCompare(String(b.date || b.submittedAt || b.createdAt || '')));
-  return { attendance: byDate(attendance), grades: byDate(grades), homeworks: byDate(homeworks), recitations: byDate(recitations), monthlyPayments: monthlyPayments.sort((a, b) => String(a.academicYear + a.month).localeCompare(String(b.academicYear + b.month))), assignments, materials };
+  return { attendance: byDate(attendance), grades: byDate(grades), homeworks: byDate(homeworks), recitations: byDate(recitations), monthlyPayments: monthlyPayments.sort((a, b) => String(a.academicYear + a.month).localeCompare(String(b.academicYear + b.month))), assignments, materials, platformSettings: platformSettingsSnap?.exists ? platformSettingsSnap.data() : {}, homeworkGrants: homeworkGrantsSnap ? homeworkGrantsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) : [] };
 }
 
 function publicSchedule(schedule = {}) {
@@ -1001,13 +1103,25 @@ async function scheduleEnrollment(schedule, scheduleId, excludeStudentCode = '')
 exports.getPortalStudent = onCall(CALLABLE_OPTIONS, async request => {
   const code = normalizeCode(request.data && request.data.code);
   const mode = request.data && request.data.mode === 'parent' ? 'parent' : 'student';
+  const includeTransfers = mode === 'student' && request.data?.includeTransfers === true;
   await rateLimitPublic(`portal-${mode}`, code, request, 8, 35, 60 * 1000);
   const found = mode === 'parent' ? await getParentPortalByCode(code) : await getStudentPortalByCode(code);
   const studentCode = normalizeCode(found.data.studentCode || found.data.code);
   const canonicalFound = mode === 'parent' ? await getStudentPortalByCode(studentCode).catch(() => null) : null;
   const canonicalSnap = await db.collection('students').doc(cleanDocId(studentCode)).get().catch(() => null);
   const student = canonicalFound?.data || (canonicalSnap?.exists ? { ...found.data, ...canonicalSnap.data(), grade: canonicalAcademicLabel(canonicalSnap.data().grade || found.data.grade) } : found.data);
-  const approved = studentIsApproved(student);
+  let attendanceCode = text(student.attendanceCode, 40);
+  if (!attendanceCode && canonicalSnap?.exists) {
+    attendanceCode = randomAttendanceCode();
+    const securityPatch = { attendanceCode, securitySchemaVersion: 63, securityMigratedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
+    const securityBatch = db.batch();
+    securityBatch.set(canonicalSnap.ref, securityPatch, { merge: true });
+    securityBatch.set(db.collection('student_portal').doc(cleanDocId(studentCode)), securityPatch, { merge: true });
+    securityBatch.set(db.collection('parent_portal').doc(cleanDocId(studentCode)), securityPatch, { merge: true });
+    await securityBatch.commit();
+  }
+  const secureStudent = { ...student, attendanceCode };
+  const approved = studentIsApproved(secureStudent);
   let attempts = [];
   let records = { attendance: [], grades: [], homeworks: [], recitations: [], monthlyPayments: [], assignments: [], materials: [] };
   let groupSnap = null;
@@ -1016,31 +1130,35 @@ exports.getPortalStudent = onCall(CALLABLE_OPTIONS, async request => {
   if (approved) {
     [attempts, records, groupSnap, transferSnap, assignmentDocs] = await Promise.all([
       attemptSummaries(studentCode),
-      studentRecords(studentCode, student),
-      mode === 'student' ? db.collection('groups').limit(300).get().catch(() => null) : Promise.resolve(null),
-      mode === 'student' ? db.collection('student_transfer_requests').where('studentCode', '==', studentCode).limit(20).get().catch(() => null) : Promise.resolve(null),
+      studentRecords(studentCode, secureStudent),
+      includeTransfers ? db.collection('groups').limit(300).get().catch(() => null) : Promise.resolve(null),
+      includeTransfers ? db.collection('student_transfer_requests').where('studentCode', '==', studentCode).limit(20).get().catch(() => null) : Promise.resolve(null),
       targetedLearningDocs('assignments', student).catch(() => null)
     ]);
   }
   const schedules = groupSnap ? groupSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-    .filter(item => scheduleMatchesStudent(item, student))
-    .filter(item => student.scheduleId ? item.id !== student.scheduleId : !sameAcademicValue(item.name, student.group)) : [];
-  const transferOptions = (await Promise.all(schedules.map(async schedule => {
+    .filter(item => scheduleMatchesStudent(item, secureStudent))
+    .filter(item => secureStudent.scheduleId ? item.id !== secureStudent.scheduleId : !sameAcademicValue(item.name, secureStudent.group)) : [];
+  const transferOptions = schedules.map(schedule => {
     const capacity = Math.max(0, Math.min(500, Number(schedule.capacity || 0)));
     if (!capacity) return publicSchedule({ ...schedule, availableSeats: null });
-    const enrolled = await scheduleEnrollment(schedule, schedule.id, studentCode);
-    return enrolled.length >= capacity ? null : publicSchedule({ ...schedule, capacity, availableSeats: capacity - enrolled.length });
-  }))).filter(Boolean).sort((a, b) => `${a.days} ${a.startTime}`.localeCompare(`${b.days} ${b.startTime}`, 'ar'));
+    const enrolledCount = Math.max(0, Number(schedule.enrolledCount || 0));
+    return enrolledCount >= capacity ? null : publicSchedule({ ...schedule, capacity, availableSeats: capacity - enrolledCount });
+  }).filter(Boolean).sort((a, b) => `${a.days} ${a.startTime}`.localeCompare(`${b.days} ${b.startTime}`, 'ar'));
   const requests = transferSnap ? transferSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     .sort((a, b) => firestoreMillis(b.createdAt) - firestoreMillis(a.createdAt)) : [];
   const nextAssignment = assignmentDocs ? assignmentDocs.map(doc => ({ id: doc.id, ...doc.data() }))
-    .filter(item => learningTargetMatchesStudent(item, student))
+    .filter(item => learningTargetMatchesStudent(item, secureStudent))
     .map(item => scheduledTimeMillis(item.publishAt)).filter(value => value > Date.now()).sort((a, b) => a - b)[0] || 0 : 0;
+  const portalSession = await createPortalSession(studentCode, mode, request);
   return {
-    ...portalResponse(student, attempts, records),
+    ...portalResponse(secureStudent, attempts, records),
     accessStatus: approved ? 'approved' : 'pending',
+    portalSessionToken: portalSession.token,
+    portalSessionExpiresAt: portalSession.expiresAt,
     transferOptions,
     transferRequest: requests.length ? publicTransferRequest(requests[0]) : null,
+    transferDataLoaded: includeTransfers,
     nextAssignmentPublishAt: nextAssignment ? new Date(nextAssignment).toISOString() : ''
   };
 });
@@ -1048,6 +1166,7 @@ exports.getPortalStudent = onCall(CALLABLE_OPTIONS, async request => {
 exports.createStudentTransferRequest = onCall(CALLABLE_OPTIONS, async request => {
   const body = request.data || {};
   const studentCode = normalizeCode(body.studentCode);
+  await requirePortalSession(request, studentCode, ['student']);
   await rateLimitPublic('student-transfer', studentCode, request, 3, 8, 60 * 60 * 1000);
   const found = await getStudentPortalByCode(studentCode);
   const canonicalSnap = await db.collection('students').doc(cleanDocId(studentCode)).get().catch(() => null);
@@ -1067,7 +1186,7 @@ exports.createStudentTransferRequest = onCall(CALLABLE_OPTIONS, async request =>
   if ((student.scheduleId && target.id === student.scheduleId) || (!student.scheduleId && sameAcademicValue(target.name, student.group))) throw new HttpsError('already-exists', 'الطالب موجود بالفعل في هذه المجموعة.');
   if (existingSnap.docs.some(doc => doc.data().status === 'pending')) throw new HttpsError('already-exists', 'يوجد طلب نقل قيد المراجعة بالفعل.');
   const capacity = Math.max(0, Math.min(500, Number(target.capacity || 0)));
-  if (capacity && (await scheduleEnrollment(target, target.id, studentCode)).length >= capacity) throw new HttpsError('resource-exhausted', 'اكتمل عدد الطلاب في هذه المجموعة.');
+  if (capacity && Math.max(0, Number(target.enrolledCount || 0)) >= capacity) throw new HttpsError('resource-exhausted', 'اكتمل عدد الطلاب في هذه المجموعة.');
   const ref = db.collection('student_transfer_requests').doc();
   const payload = {
     id: ref.id,
@@ -1120,11 +1239,8 @@ exports.reviewStudentTransferRequest = onCall(CALLABLE_OPTIONS, async request =>
     const schedule = { id: scheduleSnap.id, ...scheduleSnap.data() };
     if (!scheduleMatchesStudent(schedule, student)) throw new HttpsError('failed-precondition', 'المجموعة لم تعد مطابقة لمسار الطالب.');
     const capacity = Math.max(0, Math.min(500, Number(schedule.capacity || 0)));
-    if (capacity) {
-      const enrolledSnap = await tx.get(db.collection('students').where('group', '==', text(schedule.name, 100)).limit(1000));
-      const enrolled = enrolledSnap.docs.filter(doc => doc.id !== studentSnap.id && doc.data().active !== false).length;
-      if (enrolled >= capacity) throw new HttpsError('resource-exhausted', 'اكتمل عدد الطلاب في المجموعة قبل اعتماد الطلب.');
-    }
+    const enrolled = Math.max(0, Number(schedule.enrolledCount || 0));
+    if (capacity && enrolled >= capacity) throw new HttpsError('resource-exhausted', 'اكتمل عدد الطلاب في المجموعة قبل اعتماد الطلب.');
     const patch = {
       group: text(schedule.name, 100),
       groupId: schedule.id,
@@ -1138,6 +1254,11 @@ exports.reviewStudentTransferRequest = onCall(CALLABLE_OPTIONS, async request =>
     const legacyParentCode = normalizeCode(student.parentCode);
     const parentCode = studentCode;
     tx.set(studentRef, { ...patch, parentCode }, { merge: true });
+    tx.set(scheduleRef, { enrolledCount: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    const previousScheduleId = cleanDocId(text(student.scheduleId || student.groupId, 100));
+    if (previousScheduleId && previousScheduleId !== schedule.id) {
+      tx.set(db.collection('groups').doc(previousScheduleId), { enrolledCount: FieldValue.increment(-1), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    }
     tx.set(db.collection('student_portal').doc(cleanDocId(studentCode)), { ...patch, studentCode, parentCode }, { merge: true });
     tx.set(db.collection('parent_portal').doc(cleanDocId(parentCode)), { ...patch, studentCode, parentCode }, { merge: true });
     if (legacyParentCode && legacyParentCode !== parentCode) tx.delete(db.collection('parent_portal').doc(cleanDocId(legacyParentCode)));
@@ -1230,6 +1351,138 @@ exports.upsertGroupSchedule = onCall(CALLABLE_OPTIONS, async request => {
   return { ...payload, updatedAt: new Date().toISOString(), affectedStudents: studentDocs.size };
 });
 
+const VERSIONED_CONTENT_COLLECTIONS = new Set(['assignments', 'exams', 'materials']);
+
+function versionedContentStatus(collection, payload) {
+  if (payload.archived === true) return 'archived';
+  const now = Date.now();
+  const opens = scheduledTimeMillis(payload.publishAt || payload.openAt);
+  if (collection === 'assignments' && assignmentDueDatePassed(payload, cairoDateKey(new Date()))) return 'ended';
+  const closes = scheduledTimeMillis(payload.closeAt || (/^\d{4}-\d{2}-\d{2}$/.test(String(payload.dueDate || '')) ? '' : payload.dueDate));
+  if (opens && opens > now) return 'scheduled';
+  if (closes && closes < now) return 'ended';
+  if (payload.active === false || payload.published === false) return 'draft';
+  return collection === 'materials' ? 'published' : 'open';
+}
+
+function contentQuestionsFingerprint(collection, value = {}) {
+  const sensitive = collection === 'exams'
+    ? { text: value.text || value.questionsText || '', questions: value.questions || [] }
+    : collection === 'assignments' ? { type: value.type, questions: value.questions || [], choices: value.choices || [], correctIndex: value.correctIndex, modelAnswer: value.modelAnswer || '' } : {};
+  return hash(JSON.stringify(sensitive));
+}
+
+exports.upsertVersionedContent = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request, ['admin', 'teacher']);
+  const collection = text(request.data?.collection, 40);
+  const input = request.data?.item && typeof request.data.item === 'object' ? request.data.item : {};
+  if (!VERSIONED_CONTENT_COLLECTIONS.has(collection)) throw new HttpsError('invalid-argument', 'نوع المحتوى غير مدعوم.');
+  const id = cleanDocId(text(input.id, 120));
+  if (!id) throw new HttpsError('invalid-argument', 'رقم المحتوى غير صالح.');
+  if (jsonByteSize(input) > 900 * 1024) throw new HttpsError('invalid-argument', 'حجم بيانات المحتوى أكبر من الحد المسموح.');
+  const ref = db.collection(collection).doc(id);
+  const activitySnap = collection === 'assignments'
+    ? await db.collection('homework_submissions').where('assignmentId', '==', id).limit(1).get().catch(() => null)
+    : collection === 'exams' ? await db.collection('exam_attempts').where('examId', '==', id).limit(1).get().catch(() => null) : null;
+  const hasStudentActivity = !!activitySnap && !activitySnap.empty;
+  const result = await db.runTransaction(async tx => {
+    const currentSnap = await tx.get(ref);
+    const current = currentSnap.exists ? currentSnap.data() : {};
+    const oldFingerprint = contentQuestionsFingerprint(collection, current);
+    const newFingerprint = contentQuestionsFingerprint(collection, input);
+    const questionChanged = currentSnap.exists && oldFingerprint !== newFingerprint;
+    const currentVersion = Math.max(1, Number(current.version || 1));
+    const nextVersion = questionChanged ? currentVersion + 1 : currentVersion;
+    if (currentSnap.exists && questionChanged) {
+      const versionRef = db.collection('assessment_versions').doc(cleanDocId(`${collection}_${id}_v${currentVersion}`));
+      tx.set(versionRef, {
+        id: versionRef.id,
+        collection,
+        contentId: id,
+        version: currentVersion,
+        snapshot: current,
+        preservedBecauseStudentActivity: hasStudentActivity,
+        supersededByVersion: nextVersion,
+        createdAt: FieldValue.serverTimestamp(),
+        createdBy: staff.email || staff.uid
+      });
+    }
+    const scheduleId = text(input.scheduleId || input.groupId, 100);
+    const payload = {
+      ...input,
+      id,
+      grade: input.grade ? canonicalAcademicLabel(input.grade) : '',
+      groupId: scheduleId,
+      scheduleId,
+      version: nextVersion,
+      previousVersion: questionChanged ? currentVersion : Number(current.previousVersion || 0),
+      audienceKeys: collection === 'materials' || collection === 'assignments' || collection === 'exams' ? academicAudienceKeysForItem({ ...input, scheduleId, groupId: scheduleId }) : [],
+      archived: false,
+      archivedAt: FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: staff.email || staff.uid
+    };
+    payload.lifecycleStatus = versionedContentStatus(collection, payload);
+    if (!currentSnap.exists) payload.createdAt = FieldValue.serverTimestamp();
+    tx.set(ref, payload, { merge: true });
+    return { ...input, id, version: nextVersion, previousVersion: payload.previousVersion, lifecycleStatus: payload.lifecycleStatus, hasStudentActivity, versionCreated: questionChanged };
+  });
+  await serverActivity(staff, result.versionCreated ? 'تعديل محتوى مع حفظ نسخة تاريخية' : 'حفظ محتوى', { collection, id, version: result.version, hasStudentActivity });
+  return { ...result, updatedAt: new Date().toISOString() };
+});
+
+exports.archiveContentItem = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request, ['admin', 'teacher']);
+  const collection = text(request.data?.collection, 40);
+  const id = cleanDocId(text(request.data?.id, 120));
+  const reason = text(request.data?.reason, 500) || 'أرشفة من لوحة الإدارة';
+  if (!VERSIONED_CONTENT_COLLECTIONS.has(collection) || !id) throw new HttpsError('invalid-argument', 'بيانات الأرشفة غير مكتملة.');
+  const ref = db.collection(collection).doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'العنصر غير موجود.');
+  const cleanupRequested = request.data?.cleanupStorage === true && !!text(snap.data().filePath || snap.data().path, 500);
+  await ref.set({
+    archived: true,
+    active: false,
+    published: false,
+    lifecycleStatus: 'archived',
+    archiveReason: reason,
+    archivedBy: staff.email || staff.uid,
+    archivedAt: FieldValue.serverTimestamp(),
+    storageCleanupEligibleAt: cleanupRequested ? Timestamp.fromMillis(Date.now() + 30 * 24 * 60 * 60 * 1000) : FieldValue.delete(),
+    updatedAt: FieldValue.serverTimestamp()
+  }, { merge: true });
+  await serverActivity(staff, 'أرشفة محتوى', { collection, id, reason, cleanupRequested });
+  return { ok: true, collection, id, archived: true, cleanupRequested };
+});
+
+exports.getAdminCollectionPage = onCall(CALLABLE_OPTIONS, async request => {
+  await requireStaff(request);
+  const collection = text(request.data?.collection, 60);
+  const allowed = new Set(['students','bookings','assignments','exams','materials','homework_submissions','exam_attempts','grades','attendance','recitations','student_transfer_requests']);
+  if (!allowed.has(collection)) throw new HttpsError('invalid-argument', 'القائمة المطلوبة غير مدعومة.');
+  const pageSize = Math.max(10, Math.min(100, Number(request.data?.pageSize || 50)));
+  const orderField = ['students','assignments','exams','materials'].includes(collection) ? 'updatedAt' : collection === 'attendance' || collection === 'grades' || collection === 'recitations' ? 'date' : collection === 'bookings' || collection === 'student_transfer_requests' ? 'createdAt' : 'submittedAt';
+  let query = db.collection(collection);
+  const filters = request.data?.filters && typeof request.data.filters === 'object' ? request.data.filters : {};
+  for (const field of ['studentCode','grade','group','status','assignmentId','examId']) {
+    const value = text(filters[field], 120);
+    if (value) query = query.where(field, '==', field === 'studentCode' ? normalizeCode(value) : value);
+  }
+  query = query.orderBy(orderField, 'desc').orderBy(admin.firestore.FieldPath.documentId(), 'desc');
+  const cursor = request.data?.cursor;
+  if (cursor?.orderValue !== undefined && cursor?.id) query = query.startAfter(cursor.orderValue, cursor.id);
+  const snap = await query.limit(pageSize).get();
+  const rows = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const last = snap.docs[snap.docs.length - 1];
+  return {
+    rows,
+    nextCursor: last && snap.size === pageSize ? { orderValue: last.get(orderField) || '', id: last.id } : null,
+    orderBy: `${orderField} desc`,
+    pageSize
+  };
+});
+
 function studentResourcePayload(doc, kind) {
   const data = doc.data() || {};
   const fileUrl = safePublicUrl(data.fileUrl || data.url);
@@ -1254,6 +1507,7 @@ function studentResourcePayload(doc, kind) {
 
 exports.getStudentResources = onCall(CALLABLE_OPTIONS, async request => {
   const code = normalizeCode(request.data && request.data.code);
+  await requirePortalSession(request, code, ['student']);
   await rateLimitPublic('student-resources', code, request, 15, 60, 60 * 1000);
   const found = await getStudentPortalByCode(code);
   requireApprovedStudent(found.data);
@@ -1288,6 +1542,7 @@ exports.submitAssignmentAnswer = onCall(CALLABLE_OPTIONS, async request => {
   const studentCode = normalizeCode(body.studentCode);
   const assignmentId = cleanDocId(text(body.assignmentId, 120));
   if (!validLegacyOrStrongCode(studentCode) || !assignmentId) throw new HttpsError('invalid-argument', 'بيانات الواجب غير مكتملة.');
+  await requirePortalSession(request, studentCode, ['student']);
   await rateLimitPublic('assignment-answer', `${studentCode}:${assignmentId}`, request, 8, 30, 60 * 60 * 1000);
   const [found, assignmentSnap] = await Promise.all([
     getStudentPortalByCode(studentCode),
@@ -1300,14 +1555,22 @@ exports.submitAssignmentAnswer = onCall(CALLABLE_OPTIONS, async request => {
   if (!assignmentIsReleased(assignment) || !learningTargetMatchesStudent(assignment, found.data)) {
     throw new HttpsError('permission-denied', 'هذا الواجب غير متاح لمسار الطالب.');
   }
-  if (assignmentDueDatePassed(assignment, cairoDateKey(new Date()))) throw new HttpsError('deadline-exceeded', 'انتهى موعد تسليم هذا الواجب.');
+  const assignmentClosed = assignmentDueDatePassed(assignment, cairoDateKey(new Date()));
   const multiQuestions = Array.isArray(assignment.questions) ? assignment.questions.slice(0, 100) : [];
+  let answerType = 'text';
+  let answer = '';
+  let selectedOption = null;
+  let score = null;
+  let autoScore = 0;
+  let maxScore = Math.max(0.25, Number(assignment.totalScore || 1));
+  let needsManualReview = false;
+  let review = [];
+
   if (multiQuestions.length) {
     const rawAnswers = body.answers && typeof body.answers === 'object' && !Array.isArray(body.answers) ? body.answers : {};
     if (jsonByteSize(rawAnswers) > 96 * 1024) throw new HttpsError('invalid-argument', 'حجم إجابات الواجب أكبر من الحد المسموح.');
-    let score = 0;
-    let needsManualReview = false;
-    const review = multiQuestions.map((question, index) => {
+    answerType = 'multi';
+    review = multiQuestions.map((question, index) => {
       const qType = ['mcq','truefalse','code','text'].includes(question.type) ? question.type : 'text';
       const mark = Math.max(0.25, Math.min(100, Number(question.mark || 1)));
       const raw = rawAnswers[String(index)] ?? rawAnswers[index] ?? '';
@@ -1316,7 +1579,7 @@ exports.submitAssignmentAnswer = onCall(CALLABLE_OPTIONS, async request => {
         const choices = Array.isArray(question.choices) ? question.choices.slice(0, 8) : [];
         if (!Number.isInteger(selectedOption) || selectedOption < 0 || selectedOption >= choices.length) throw new HttpsError('invalid-argument', `أجب عن السؤال ${index + 1}.`);
         const correct = selectedOption === Number(question.correctIndex);
-        if (correct) score += mark;
+        if (correct) autoScore += mark;
         return { question: text(question.question,1500), type:qType, answer:text(choices[selectedOption],700), correct, correctAnswer:text(choices[Number(question.correctIndex)]||'',700), mark, awardedMark:correct?mark:0 };
       }
       const answer = text(raw, qType === 'code' ? 20000 : 5000);
@@ -1324,54 +1587,129 @@ exports.submitAssignmentAnswer = onCall(CALLABLE_OPTIONS, async request => {
       needsManualReview = true;
       return { question:text(question.question,1500), type:qType, answer, correct:null, correctAnswer:text(question.modelAnswer,2000)||'يصححها المدرس', mark, awardedMark:null };
     });
-    const maxScore = review.reduce((sum, row) => sum + row.mark, 0);
-    const submissionId = hash(`${assignmentId}|${studentCode}`).slice(0, 48);
-    await db.collection('homework_submissions').doc(submissionId).set({id:submissionId,assignmentId,homeworkTitle:text(assignment.title,200),title:text(assignment.title,200),type:'homework',answerType:'multi',answers:review,score:needsManualReview?null:score,autoScore:score,maxScore,needsManualReview,status:needsManualReview?'بانتظار تصحيح المدرس':'تم تصحيح الواجب',completed:true,approved:!needsManualReview,studentCode,studentName:text(found.data.studentName||found.data.name,100),grade,group:text(found.data.group,100),method:'student_assignment_answer',submittedAt:new Date().toISOString(),attemptCount:FieldValue.increment(1),updatedAt:FieldValue.serverTimestamp()},{merge:true});
-    await markLeaderboardDirty('assignment-submitted');
-    return {ok:true,assignmentId,submissionId,score:needsManualReview?null:score,autoScore:score,maxScore,needsManualReview,review};
+    maxScore = review.reduce((sum, row) => sum + row.mark, 0);
+    score = needsManualReview ? null : autoScore;
+  } else {
+    const type = ['mcq', 'truefalse', 'code', 'text'].includes(assignment.type) ? assignment.type : 'text';
+    answerType = type;
+    answer = text(body.answer, type === 'code' ? 20000 : 5000);
+    if (type === 'mcq' || type === 'truefalse') {
+      selectedOption = Number(body.selectedOption);
+      const choices = Array.isArray(assignment.choices) ? assignment.choices.slice(0, 8) : [];
+      if (!Number.isInteger(selectedOption) || selectedOption < 0 || selectedOption >= choices.length) throw new HttpsError('invalid-argument', 'اختار إجابة من الاختيارات.');
+      answer = text(choices[selectedOption], 700);
+      const correct = selectedOption === Number(assignment.correctIndex);
+      autoScore = correct ? maxScore : 0;
+      score = autoScore;
+      review = [{ question: text(assignment.question || assignment.title, 1500), type, answer, correct, correctAnswer: text(choices[Number(assignment.correctIndex)] || '', 700), mark: maxScore, awardedMark: autoScore }];
+    } else {
+      if (!answer) throw new HttpsError('invalid-argument', type === 'code' ? 'اكتب الكود قبل التسليم.' : 'اكتب إجابة الواجب.');
+      needsManualReview = true;
+      review = [{ question: text(assignment.question || assignment.title, 1500), type, answer, correct: null, correctAnswer: text(assignment.modelAnswer, 2000) || 'يصححها المدرس', mark: maxScore, awardedMark: null }];
+    }
   }
-  const type = ['mcq', 'truefalse', 'code', 'text'].includes(assignment.type) ? assignment.type : 'text';
-  let answer = text(body.answer, type === 'code' ? 20000 : 5000);
-  let selectedOption = null;
-  let score = null;
-  if (type === 'mcq' || type === 'truefalse') {
-    selectedOption = Number(body.selectedOption);
-    const choices = Array.isArray(assignment.choices) ? assignment.choices.slice(0, 8) : [];
-    if (!Number.isInteger(selectedOption) || selectedOption < 0 || selectedOption >= choices.length) throw new HttpsError('invalid-argument', 'اختار إجابة من الاختيارات.');
-    answer = text(choices[selectedOption], 700);
-    score = selectedOption === Number(assignment.correctIndex) ? 100 : 0;
-  } else if (!answer) {
-    throw new HttpsError('invalid-argument', type === 'code' ? 'اكتب الكود قبل التسليم.' : 'اكتب إجابة الواجب.');
-  }
-  const submissionId = hash(`${assignmentId}|${studentCode}`).slice(0, 48);
-  await db.collection('homework_submissions').doc(submissionId).set({
-    id: submissionId,
+
+  const lockId = homeworkLockId(assignmentId, studentCode);
+  const lockRef = db.collection('homework_submission_locks').doc(lockId);
+  const firstSubmissionRef = db.collection('homework_submissions').doc(lockId);
+  const submittedAt = new Date().toISOString();
+  const assignmentSnapshot = {
     assignmentId,
-    homeworkTitle: text(assignment.title, 200),
     title: text(assignment.title, 200),
-    type: 'homework',
-    answerType: type,
-    answer,
-    selectedOption,
-    score,
-    studentCode,
-    studentName: text(found.data.studentName || found.data.name, 100),
-    grade,
-    group: text(found.data.group, 100),
-    status: 'تم تسليم الواجب',
-    completed: true,
-    approved: type === 'mcq',
-    method: 'student_assignment_answer',
-    submittedAt: new Date().toISOString(),
-    attemptCount: FieldValue.increment(1),
-    updatedAt: FieldValue.serverTimestamp()
-  }, { merge: true });
+    version: Math.max(1, Number(assignment.version || 1)),
+    publishAt: text(assignment.publishAt, 60),
+    dueDate: text(assignment.dueDate, 60),
+    closeAt: text(assignment.closeAt, 60),
+    totalScore: maxScore,
+    questions: multiQuestions.length ? multiQuestions : [{ type: answerType, question: assignment.question || assignment.title, choices: assignment.choices || [], correctIndex: assignment.correctIndex, modelAnswer: assignment.modelAnswer || '', mark: maxScore }]
+  };
+
+  const committed = await db.runTransaction(async tx => {
+    const [lockSnap, firstSubmissionSnap] = await Promise.all([tx.get(lockRef), tx.get(firstSubmissionRef)]);
+    const lock = lockSnap.exists ? lockSnap.data() : null;
+    const submittedAttempts = Math.max(firstSubmissionSnap.exists ? 1 : 0, Number(lock?.submittedAttempts || 0));
+    const nextAttempt = submittedAttempts + 1;
+    const grantRef = nextAttempt > 1 ? db.collection('homework_attempt_grants').doc(`${lockId}_${nextAttempt}`) : null;
+    const grantSnap = grantRef ? await tx.get(grantRef) : null;
+    const grant = grantSnap?.exists ? { id: grantSnap.id, ...grantSnap.data() } : null;
+    const decision = decideHomeworkAttempt({ lock, legacySubmissionExists: firstSubmissionSnap.exists, grant });
+    if (!decision.allowed) throw new HttpsError('already-exists', 'تم تسليم الواجب بالفعل ولا يمكن استبدال الإجابة أو الدرجة.');
+    if (assignmentClosed && decision.attemptNumber === 1) throw new HttpsError('deadline-exceeded', 'انتهى موعد تسليم هذا الواجب.');
+    const submissionId = submissionIdForAttempt(lockId, decision.attemptNumber);
+    const submissionRef = db.collection('homework_submissions').doc(submissionId);
+    if (decision.attemptNumber > 1) {
+      const existingAttempt = await tx.get(submissionRef);
+      if (existingAttempt.exists) throw new HttpsError('already-exists', 'تم استخدام المحاولة الإضافية بالفعل.');
+    }
+    const submission = {
+      id: submissionId,
+      lockId,
+      assignmentId,
+      assignmentVersion: assignmentSnapshot.version,
+      assignmentSnapshot,
+      homeworkTitle: assignmentSnapshot.title,
+      title: assignmentSnapshot.title,
+      type: 'homework',
+      answerType,
+      answer,
+      selectedOption,
+      answers: review,
+      score,
+      autoScore,
+      maxScore,
+      revealCorrectAnswersAfterClose: assignment.revealCorrectAnswersAfterClose === true,
+      needsManualReview,
+      status: needsManualReview ? 'بانتظار تصحيح المدرس' : 'تم تصحيح الواجب',
+      completed: true,
+      approved: !needsManualReview,
+      attemptNumber: decision.attemptNumber,
+      studentCode,
+      studentName: text(found.data.studentName || found.data.name, 100),
+      grade,
+      group: text(found.data.group, 100),
+      method: 'student_assignment_answer',
+      submittedAt,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
+    };
+    tx.create(submissionRef, submission);
+    tx.set(lockRef, {
+      lockId,
+      assignmentId,
+      studentCode,
+      submittedAttempts: decision.attemptNumber,
+      latestSubmissionId: submissionId,
+      latestAttemptNumber: decision.attemptNumber,
+      latestSubmittedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      createdAt: lock?.createdAt || FieldValue.serverTimestamp()
+    }, { merge: true });
+    if (grantRef) tx.update(grantRef, { status: 'used', usedAt: FieldValue.serverTimestamp(), submissionId, updatedAt: FieldValue.serverTimestamp() });
+    return { submissionId, submission };
+  });
   await markLeaderboardDirty('assignment-submitted');
-  return { ok: true, assignmentId, submissionId, score, correct: score === null ? null : score === 100 };
+  const publicSubmission = publicHomeworkProjection(committed.submission);
+  return {
+    ok: true,
+    assignmentId,
+    submissionId: committed.submissionId,
+    attemptNumber: publicSubmission.attemptNumber,
+    score: publicSubmission.score,
+    maxScore: publicSubmission.maxScore,
+    needsManualReview: publicSubmission.needsManualReview,
+    status: publicSubmission.status,
+    submission: publicSubmission
+  };
 });
 
 exports.reviewHomeworkSubmission = onCall(CALLABLE_OPTIONS, async request => {
   const staff = await requireStaff(request);
+  const assistantPermissions = Array.isArray(staff.permissions)
+    ? staff.permissions
+    : Array.isArray(staff.permissions?.homework) ? staff.permissions.homework.map(value => `homework.${value}`) : [];
+  if (staff.role === 'assistant' && !assistantPermissions.includes('homework.review')) {
+    throw new HttpsError('permission-denied', 'المساعد لا يملك صلاحية تعديل درجات الواجبات.');
+  }
   const submissionId = cleanDocId(text(request.data?.submissionId, 120));
   const awarded = request.data?.awarded && typeof request.data.awarded === 'object' ? request.data.awarded : {};
   if (!submissionId) throw new HttpsError('invalid-argument', 'رقم تسليم الواجب غير صالح.');
@@ -1386,8 +1724,112 @@ exports.reviewHomeworkSubmission = onCall(CALLABLE_OPTIONS, async request => {
   }) : [];
   const maxScore = answers.reduce((sum, answer) => sum + Number(answer.mark || 1), 0);
   const score = answers.reduce((sum, answer) => sum + Number(answer.awardedMark || 0), 0);
-  await ref.set({answers,score,maxScore,needsManualReview:false,approved:true,status:'تم تصحيح الواجب',reviewedBy:staff.email||staff.uid,reviewedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()},{merge:true});
+  const reviewRef = db.collection('homework_review_history').doc();
+  const batch = db.batch();
+  batch.set(ref, {answers,score,maxScore,needsManualReview:false,approved:true,status:'تم تصحيح الواجب',reviewedBy:staff.email||staff.uid,reviewedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()},{merge:true});
+  batch.create(reviewRef, {id:reviewRef.id,submissionId,assignmentId:text(submission.assignmentId,120),studentCode:normalizeCode(submission.studentCode),score,maxScore,reviewedBy:staff.email||staff.uid,reviewedByUid:staff.uid,createdAt:FieldValue.serverTimestamp()});
+  await batch.commit();
   return {ok:true,submissionId,score,maxScore};
+});
+
+exports.grantHomeworkRetake = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request, ['admin', 'teacher']);
+  const assignmentId = cleanDocId(text(request.data?.assignmentId, 120));
+  const studentCode = normalizeCode(request.data?.studentCode);
+  const reason = text(request.data?.reason, 800);
+  if (!assignmentId || !validLegacyOrStrongCode(studentCode)) throw new HttpsError('invalid-argument', 'بيانات الطالب أو الواجب غير مكتملة.');
+  if (reason.length < 3) throw new HttpsError('invalid-argument', 'اكتب سبب فتح المحاولة الإضافية.');
+  const lockId = homeworkLockId(assignmentId, studentCode);
+  const lockRef = db.collection('homework_submission_locks').doc(lockId);
+  const firstSubmissionRef = db.collection('homework_submissions').doc(lockId);
+  const result = await db.runTransaction(async tx => {
+    const [lockSnap, firstSubmissionSnap] = await Promise.all([tx.get(lockRef), tx.get(firstSubmissionRef)]);
+    const lock = lockSnap.exists ? lockSnap.data() : {};
+    const submittedAttempts = Math.max(firstSubmissionSnap.exists ? 1 : 0, Number(lock.submittedAttempts || 0));
+    if (!submittedAttempts) throw new HttpsError('failed-precondition', 'لا يوجد تسليم سابق لفتح محاولة إضافية بعده.');
+    const attemptNumber = submittedAttempts + 1;
+    const grantRef = db.collection('homework_attempt_grants').doc(`${lockId}_${attemptNumber}`);
+    const existingGrant = await tx.get(grantRef);
+    if (existingGrant.exists && existingGrant.data().status === 'open') throw new HttpsError('already-exists', 'توجد محاولة إضافية مفتوحة بالفعل لهذا الطالب.');
+    if (existingGrant.exists && existingGrant.data().status === 'used') throw new HttpsError('already-exists', 'تم استخدام هذه المحاولة الإضافية بالفعل.');
+    tx.create(grantRef, {
+      id: grantRef.id,
+      lockId,
+      assignmentId,
+      studentCode,
+      attemptNumber,
+      reason,
+      status: 'open',
+      openedBy: staff.email || staff.uid,
+      openedByUid: staff.uid,
+      openedAt: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
+    });
+    tx.set(lockRef, { lockId, assignmentId, studentCode, submittedAttempts, openAttemptNumber: attemptNumber, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return { grantId: grantRef.id, attemptNumber };
+  });
+  await serverActivity(staff, 'فتح محاولة واجب إضافية', { assignmentId, studentCode, attemptNumber: result.attemptNumber, reason });
+  return { ok: true, assignmentId, studentCode, ...result, reason, openedBy: staff.email || staff.uid, openedAt: new Date().toISOString() };
+});
+
+exports.migratePlatformV63 = onCall({ region: 'europe-west1', timeoutSeconds: 540, memory: '1GiB', invoker: 'public' }, async request => {
+  const staff = await requireStaff(request, ['admin']);
+  const apply = request.data?.apply === true;
+  if (apply && request.data?.confirmation !== 'MIGRATE-PLATFORM-V63') throw new HttpsError('failed-precondition', 'اكتب رمز تأكيد ترحيل V63.');
+  const [studentsSnap, submissionsSnap, groupsSnap, locksSnap] = await Promise.all([
+    db.collection('students').get(),
+    db.collection('homework_submissions').where('method', '==', 'student_assignment_answer').get(),
+    db.collection('groups').get(),
+    db.collection('homework_submission_locks').get()
+  ]);
+  const report = { apply, studentsScanned: studentsSnap.size, attendanceCodesCreated: 0, homeworkLocksCreated: 0, groupsRecounted: groupsSnap.size, backupName: '' };
+  if (apply) report.backupName = (await createPlatformBackup('pre-platform-v63-migration', staff)).name;
+  const groupCounts = new Map(groupsSnap.docs.map(doc => [doc.id, 0]));
+  studentsSnap.docs.forEach(doc => {
+    const student = doc.data() || {};
+    const scheduleId = text(student.scheduleId || student.groupId, 100);
+    if (student.active !== false && scheduleId && groupCounts.has(scheduleId)) groupCounts.set(scheduleId, groupCounts.get(scheduleId) + 1);
+  });
+  const lockData = new Map(locksSnap.docs.map(doc => [doc.id, doc.data()]));
+  const existingLockIds = new Set(locksSnap.docs.map(doc => doc.id));
+  submissionsSnap.docs.forEach(doc => {
+    const row = doc.data() || {};
+    if (!row.assignmentId || !row.studentCode) return;
+    const lockId = homeworkLockId(row.assignmentId, normalizeCode(row.studentCode));
+    const attemptNumber = Math.max(1, Number(row.attemptNumber || 1));
+    const current = lockData.get(lockId) || {};
+    if (attemptNumber >= Number(current.submittedAttempts || 0)) lockData.set(lockId, { ...current, lockId, assignmentId: row.assignmentId, studentCode: normalizeCode(row.studentCode), submittedAttempts: attemptNumber, latestAttemptNumber: attemptNumber, latestSubmissionId: doc.id });
+  });
+  const writes = [];
+  studentsSnap.docs.forEach(doc => {
+    const student = doc.data() || {};
+    if (student.attendanceCode) return;
+    report.attendanceCodesCreated += 1;
+    const attendanceCode = randomAttendanceCode();
+    const studentCode = normalizeCode(student.studentCode || student.code || doc.id);
+    const patch = { attendanceCode, securitySchemaVersion: 63, securityMigratedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
+    writes.push(batch => batch.set(doc.ref, patch, { merge: true }));
+    if (studentCode) {
+      writes.push(batch => batch.set(db.collection('student_portal').doc(cleanDocId(studentCode)), patch, { merge: true }));
+      writes.push(batch => batch.set(db.collection('parent_portal').doc(cleanDocId(studentCode)), patch, { merge: true }));
+    }
+  });
+  lockData.forEach((row, lockId) => {
+    if (!existingLockIds.has(lockId)) report.homeworkLocksCreated += 1;
+    writes.push(batch => batch.set(db.collection('homework_submission_locks').doc(lockId), { ...row, updatedAt: FieldValue.serverTimestamp() }, { merge: true }));
+  });
+  groupCounts.forEach((count, groupId) => writes.push(batch => batch.set(db.collection('groups').doc(groupId), { enrolledCount: count, countUpdatedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true })));
+  writes.push(batch => batch.set(db.collection('settings').doc('platform'), {
+    schemaVersion: 63,
+    gradingWeights: { exam: 40, homework: 25, practical: 15, manual: 20 },
+    securityMigrationV63: apply ? 'applied' : 'dry-run',
+    securityMigrationV63At: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp()
+  }, { merge: true }));
+  if (apply && writes.length) await commitServerWrites(writes, 380);
+  await serverActivity(staff, apply ? 'تنفيذ ترحيل المنصة V63' : 'فحص ترحيل المنصة V63', report);
+  return report;
 });
 
 const leaderboardStateRef = db.collection('_system').doc('leaderboard');
@@ -1421,6 +1863,19 @@ function leaderboardRecordDate(row = {}) {
   return cairoDateKey(row.date || row.submittedAt || row.createdAt || row.updatedAt || '');
 }
 
+async function fetchAllCollectionDocuments(collection, configure = query => query, pageSize = 500) {
+  const docs = [];
+  let cursor = null;
+  do {
+    let query = configure(db.collection(collection)).orderBy(admin.firestore.FieldPath.documentId()).limit(pageSize);
+    if (cursor) query = query.startAfter(cursor);
+    const snap = await query.get();
+    docs.push(...snap.docs);
+    cursor = snap.size === pageSize ? snap.docs[snap.docs.length - 1] : null;
+  } while (cursor);
+  return { docs };
+}
+
 exports.getPublicLeaderboard = onCall(CALLABLE_OPTIONS, async request => {
   // The old shared identity "all" imposed one 30-request limit on the whole
   // website. Limit per visitor IP instead so simultaneous students can load it.
@@ -1432,13 +1887,14 @@ exports.getPublicLeaderboard = onCall(CALLABLE_OPTIONS, async request => {
   if (!ACADEMIC_GRADES.includes(requestedGrade)) throw new HttpsError('invalid-argument', 'اختر مسارًا صحيحًا من المسارات المتاحة.');
   const selectGradeLeaders = items => (items || []).filter(row => canonicalLeaderboardGrade(row.grade) === requestedGrade).slice(0, 5);
   if (leaderboardCache.expiresAt > Date.now() && leaderboardCache.version === stateVersion) return selectGradeLeaders(leaderboardCache.rows);
-  const [studentsSnap, attendanceSnap, gradesSnap, examAttemptsSnap, homeworkSnap, recitationSnap] = await Promise.all([
-    db.collection('students').where('active', '==', true).limit(500).get(),
-    db.collection('attendance').limit(2000).get(),
-    db.collection('grades').limit(2000).get(),
-    db.collection('exam_attempts').limit(2000).get(),
-    db.collection('homework_submissions').limit(2000).get(),
-    db.collection('recitations').limit(2000).get()
+  const [studentsSnap, attendanceSnap, gradesSnap, examAttemptsSnap, homeworkSnap, recitationSnap, assignmentSnap] = await Promise.all([
+    fetchAllCollectionDocuments('students', query => query.where('active', '==', true)),
+    fetchAllCollectionDocuments('attendance'),
+    fetchAllCollectionDocuments('grades'),
+    fetchAllCollectionDocuments('exam_attempts'),
+    fetchAllCollectionDocuments('homework_submissions'),
+    fetchAllCollectionDocuments('recitations'),
+    fetchAllCollectionDocuments('assignments')
   ]);
   const grouped = snap => { const map = new Map(); snap.docs.forEach(doc => { const row=doc.data()||{},code=normalizeCode(row.studentCode); if(!code)return; if(!map.has(code))map.set(code,[]); map.get(code).push(row); }); return map; };
   const attendance=grouped(attendanceSnap),grades=grouped(gradesSnap),examAttempts=grouped(examAttemptsSnap),homeworks=grouped(homeworkSnap),recitations=grouped(recitationSnap);
@@ -1450,10 +1906,12 @@ exports.getPublicLeaderboard = onCall(CALLABLE_OPTIONS, async request => {
     const st=doc.data()||{},code=normalizeCode(st.studentCode||st.code||doc.id);
     const att=currentMonthRows(attendance.get(code)||st.attendance||[]),present=att.filter(x=>['present','حاضر','متأخر'].includes(x.status)).length,attendancePct=att.length?Math.round(present/att.length*100):0;
     const gradeRows=[...currentMonthRows(grades.get(code)||st.grades||[]),...currentMonthRows(examAttempts.get(code)||[])].filter(x=>Number.isFinite(Number(x.score))),gradePct=gradeRows.length?Math.round(gradeRows.reduce((sum,x)=>sum+(Number(x.maxScore)>0?Number(x.score)/Number(x.maxScore)*100:Number(x.score)),0)/gradeRows.length):0;
-    const hw=currentMonthRows(homeworks.get(code)||st.homeworks||[]).filter(complete),rec=currentMonthRows(recitations.get(code)||st.recitations||[]).filter(complete);
-    const classDates=new Set(att.map(recordDate).filter(Boolean));hw.forEach(row=>{const date=recordDate(row);if(date)classDates.add(date);});rec.forEach(row=>{const date=recordDate(row);if(date)classDates.add(date);});
+    const allStudentHomework=homeworks.get(code)||st.homeworks||[],hw=currentMonthRows(allStudentHomework).filter(complete),rec=currentMonthRows(recitations.get(code)||st.recitations||[]).filter(complete);
+    const requiredAssignments=assignmentSnap.docs.map(item=>({id:item.id,...item.data()})).filter(item=>assignmentIsReleased(item)&&learningTargetMatchesStudent(item,st)&&cairoDateKey(item.publishAt||item.createdAt||item.dueDate).slice(0,7)===currentMonth);
+    const homeworkSummary=homeworkMetrics(requiredAssignments,allStudentHomework);
+    const classDates=new Set(att.map(recordDate).filter(Boolean));rec.forEach(row=>{const date=recordDate(row);if(date)classDates.add(date);});
     const sessions=classDates.size,completedDates=items=>new Set(items.map(recordDate).filter(Boolean)).size;
-    const homeworkPct=sessions?Math.min(100,Math.round(completedDates(hw)/sessions*100)):0,recitationPct=sessions?Math.min(100,Math.round(completedDates(rec)/sessions*100)):0;
+    const homeworkPct=Math.round(homeworkSummary.submissionPercentage),recitationPct=sessions?Math.min(100,Math.round(completedDates(rec)/sessions*100)):0;
     const score=Math.round(attendancePct*.30+gradePct*.40+homeworkPct*.15+recitationPct*.15);
     return {name:publicStudentName(st.studentName||st.name),grade:canonicalLeaderboardGrade(st.grade),score,attendancePct,gradePct,homeworkPct,recitationPct,activity:att.length+gradeRows.length+hw.length+rec.length};
   }).filter(x=>x.name&&x.activity>0).sort((a,b)=>b.score-a.score||b.attendancePct-a.attendancePct||b.gradePct-a.gradePct);
@@ -1485,10 +1943,13 @@ exports.createStudentAccess = onCall(CALLABLE_OPTIONS, async request => {
     const studentPortalRef = db.collection('student_portal').doc(cleanDocId(studentCode));
     const parentPortalRef = db.collection('parent_portal').doc(cleanDocId(parentCode));
     const paymentRef = db.collection('payments').doc(cleanDocId(studentCode));
+    const attendanceCode = randomAttendanceCode();
     const student = {
       studentCode,
       code: studentCode,
       parentCode,
+      attendanceCode,
+      securitySchemaVersion: 63,
       studentName: name,
       name,
       nameKey,
@@ -1516,6 +1977,7 @@ exports.createStudentAccess = onCall(CALLABLE_OPTIONS, async request => {
     batch.create(studentRef, student);
     batch.create(studentPortalRef, { ...portal, studentCode, parentCode, active: student.active, updatedAt: FieldValue.serverTimestamp() });
     batch.create(parentPortalRef, { ...portal, studentCode, parentCode, active: student.active, updatedAt: FieldValue.serverTimestamp() });
+    if (student.scheduleId) batch.set(db.collection('groups').doc(cleanDocId(student.scheduleId)), { enrolledCount: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     batch.create(nameRegistryRef, { name, nameKey, studentCode, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
     batch.set(paymentRef, {
       studentCode,
@@ -1685,6 +2147,7 @@ exports.createBooking = onCall(CALLABLE_OPTIONS, async request => {
   const studentCode = code;
   // One numeric code opens the student and parent portals.
   const parentCode = studentCode;
+  const attendanceCode = randomAttendanceCode();
   const payload = {
     id: code,
     code,
@@ -1706,6 +2169,8 @@ exports.createBooking = onCall(CALLABLE_OPTIONS, async request => {
     notes: text(body.notes, 1000),
     studentCode,
     parentCode,
+    attendanceCode,
+    securitySchemaVersion: 63,
     status: 'قيد التسجيل',
     date: new Date().toISOString().slice(0, 10),
     createdAt: FieldValue.serverTimestamp(),
@@ -1818,6 +2283,7 @@ exports.approveBooking = onCall(CALLABLE_OPTIONS, async request => {
     };
     const portal = portalResponse(student, []);
     tx.set(db.collection('students').doc(studentCode), student, { merge: true });
+    if (student.scheduleId) tx.set(db.collection('groups').doc(cleanDocId(student.scheduleId)), { enrolledCount: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.set(db.collection('student_portal').doc(studentCode), { ...portal, parentCode, active: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.set(db.collection('parent_portal').doc(parentCode), { ...portal, parentCode, active: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     if (oldParentCode && oldParentCode !== parentCode) tx.delete(db.collection('parent_portal').doc(cleanDocId(oldParentCode)));
@@ -1947,6 +2413,103 @@ exports.recordClassProgress = onCall(CALLABLE_OPTIONS, async request => {
   return { ...payload, updatedAt: new Date().toISOString() };
 });
 
+async function validateAttendanceSchedule(student, date) {
+  let days = configuredScheduleDays(student.scheduleDays);
+  if (!days.length && student.scheduleId) {
+    const groupSnap = await db.collection('groups').doc(cleanDocId(student.scheduleId)).get().catch(() => null);
+    if (groupSnap?.exists) days = configuredScheduleDays(groupSnap.data().days);
+  }
+  if (!days.length) throw new HttpsError('failed-precondition', 'لم يتم ضبط أيام المجموعة. أضف يومًا واحدًا على الأقل.');
+  const weekday = cairoWeekdayForDate(date);
+  if (!days.includes(weekday)) throw new HttpsError('failed-precondition', `هذا اليوم ليس من مواعيد المجموعة (${days.join('، ')}).`);
+  return { days, weekday };
+}
+
+function attendanceServerPayload(student, date, status, method, staff) {
+  const studentCode = normalizeCode(student.studentCode || student.code || student.id);
+  return {
+    id: cleanDocId(`${studentCode}_${date}`),
+    studentId: studentCode,
+    studentCode,
+    studentName: text(student.studentName || student.name, 100),
+    grade: text(canonicalAcademicLabel(student.grade), 80),
+    group: text(student.group, 100),
+    scheduleId: text(student.scheduleId || student.groupId, 100),
+    status,
+    date,
+    time: status === 'present' ? new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date()) : '',
+    timeZone: 'Africa/Cairo',
+    method,
+    scannedBy: staff.email || staff.uid,
+    recordedByUid: staff.uid,
+    recordedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp()
+  };
+}
+
+exports.recordAttendance = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request);
+  const body = request.data || {};
+  const date = text(body.date, 10) || cairoDateKey(new Date());
+  const status = body.status === 'absent' ? 'absent' : 'present';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpsError('invalid-argument', 'تاريخ الحضور غير صالح.');
+  let studentSnap = null;
+  const attendanceCode = text(body.attendanceCode || body.qrCode, 60).toUpperCase();
+  if (attendanceCode) {
+    const match = await db.collection('students').where('attendanceCode', '==', attendanceCode).limit(1).get();
+    if (!match.empty) studentSnap = match.docs[0];
+    if (!studentSnap && validLegacyOrStrongCode(attendanceCode)) {
+      const legacy = await db.collection('students').doc(cleanDocId(attendanceCode)).get();
+      if (legacy.exists && !legacy.data().attendanceCode) studentSnap = legacy;
+    }
+  } else {
+    const studentCode = normalizeCode(body.studentCode);
+    if (validLegacyOrStrongCode(studentCode)) studentSnap = await db.collection('students').doc(cleanDocId(studentCode)).get();
+  }
+  if (!studentSnap?.exists || studentSnap.data().active === false) throw new HttpsError('not-found', 'الطالب غير موجود أو غير نشط.');
+  const student = { id: studentSnap.id, ...studentSnap.data() };
+  await validateAttendanceSchedule(student, date);
+  const payload = attendanceServerPayload(student, date, status, attendanceCode ? 'qr_scan' : 'manual_button', staff);
+  await db.collection('attendance').doc(payload.id).set(payload, { merge: true });
+  await markLeaderboardDirty('attendance');
+  return { ...payload, recordedAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+});
+
+exports.bulkMarkAttendance = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 60, memory: '512MiB' }, async request => {
+  const staff = await requireStaff(request);
+  const body = request.data || {};
+  const date = text(body.date, 10) || cairoDateKey(new Date());
+  const group = text(body.group, 100);
+  const scheduleId = cleanDocId(text(body.scheduleId, 100));
+  const grade = text(canonicalAcademicLabel(body.grade), 80);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || (!group && !scheduleId)) throw new HttpsError('invalid-argument', 'اختر المجموعة وتاريخ الحضور.');
+  const studentsQuery = scheduleId
+    ? db.collection('students').where('scheduleId', '==', scheduleId).limit(1000)
+    : db.collection('students').where('group', '==', group).limit(1000);
+  const [studentsSnap, attendanceSnap] = await Promise.all([
+    studentsQuery.get(),
+    db.collection('attendance').where('date', '==', date).where('group', '==', group).limit(1000).get().catch(() => null)
+  ]);
+  const students = studentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(student =>
+    student.active !== false && (!grade || sameAcademicValue(student.grade, grade))
+  );
+  if (!students.length) throw new HttpsError('not-found', 'لا يوجد طلاب نشطون في هذه المجموعة.');
+  await validateAttendanceSchedule(students[0], date);
+  const existingCodes = new Set(attendanceSnap ? attendanceSnap.docs.map(doc => normalizeCode(doc.data().studentCode)) : []);
+  const missing = students.filter(student => !existingCodes.has(normalizeCode(student.studentCode || student.id)));
+  for (let index = 0; index < missing.length; index += 420) {
+    const batch = db.batch();
+    missing.slice(index, index + 420).forEach(student => {
+      const payload = attendanceServerPayload(student, date, 'absent', 'bulk_absent', staff);
+      batch.set(db.collection('attendance').doc(payload.id), payload, { merge: true });
+    });
+    await batch.commit();
+  }
+  if (missing.length) await markLeaderboardDirty('bulk-attendance');
+  await serverActivity(staff, 'تسجيل غياب جماعي', { date, group, scheduleId, count: missing.length });
+  return { ok: true, date, group, totalStudents: students.length, alreadyRecorded: students.length - missing.length, saved: missing.length, timeZone: 'Africa/Cairo' };
+});
+
 function examMatchesStudent(exam, student) {
   return learningTargetMatchesStudent(exam, student);
 }
@@ -1963,6 +2526,7 @@ function examScheduleState(exam, now = Date.now()) {if(exam.active===false)retur
 
 exports.getExamDashboard = onCall(CALLABLE_OPTIONS, async request => {
   const studentCode = normalizeCode(request.data && request.data.studentCode);
+  await requirePortalSession(request, studentCode, ['student']);
   await rateLimitPublic('exam-dashboard', studentCode, request, 10, 35, 60 * 1000);
   const found = await getStudentPortalByCode(studentCode);
   requireApprovedStudent(found.data);
@@ -1994,6 +2558,7 @@ exports.getExamDashboard = onCall(CALLABLE_OPTIONS, async request => {
 exports.startExam = onCall(CALLABLE_OPTIONS, async request => {
   const studentCode = normalizeCode(request.data && request.data.studentCode);
   const examId = cleanDocId(request.data && request.data.examId);
+  await requirePortalSession(request, studentCode, ['student']);
   await rateLimitPublic('exam-start', `${studentCode}:${examId}`, request, 5, 20, 10 * 60 * 1000);
   const found = await getStudentPortalByCode(studentCode);
   requireApprovedStudent(found.data);
@@ -2046,6 +2611,7 @@ exports.startExam = onCall(CALLABLE_OPTIONS, async request => {
       academicYear: text(found.data.academicYear, 20),
       term: text(found.data.term, 40),
       examTitle: text(exam.title, 200),
+      examVersion: Math.max(1, Number(exam.version || 1)),
       instructions: text(exam.instructions, 1500),
       pdfUrl: safePublicUrl(exam.pdfUrl || exam.examPdfUrl),
       pdfName: text(exam.pdfName || exam.examPdfName, 220),
@@ -2085,6 +2651,7 @@ exports.submitExam = onCall(CALLABLE_OPTIONS, async request => {
   const body = request.data || {};
   const sessionId = cleanDocId(body.sessionId);
   const studentCode = normalizeCode(body.studentCode);
+  await requirePortalSession(request, studentCode, ['student']);
   const rawAnswers = body.answers && typeof body.answers === 'object' && !Array.isArray(body.answers) ? body.answers : {};
   if (jsonByteSize(rawAnswers) > 64 * 1024) throw new HttpsError('invalid-argument', 'حجم الإجابات أكبر من الحد المسموح.');
   await rateLimitPublic('exam-submit', `${studentCode}:${sessionId}`, request, 4, 20, 10 * 60 * 1000);
@@ -2160,6 +2727,7 @@ exports.submitExam = onCall(CALLABLE_OPTIONS, async request => {
     id: attemptRef.id,
     examId: session.examId,
     examTitle: text(exam.title, 200),
+    examVersion: Math.max(1, Number(session.examVersion || exam.version || 1)),
     studentCode,
     studentName: text(session.studentName, 100),
     grade: text(session.grade, 80),
@@ -2178,6 +2746,7 @@ exports.submitExam = onCall(CALLABLE_OPTIONS, async request => {
     needsManualReview,
     status: needsManualReview ? 'pending_manual' : 'submitted',
     answers: staffAnswers,
+    questionsSnapshot: questions,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp()
   };
@@ -2189,7 +2758,9 @@ exports.submitExam = onCall(CALLABLE_OPTIONS, async request => {
     score,
     autoScore,
     maxScore,
-    review: staffAnswers.map(answer => ({ question: answer.question, type: answer.type, answer: answer.answer, correct: answer.correct, correctAnswer: answer.correctAnswer, mark: answer.mark, awardedMark: answer.awardedMark })),
+    // Public/student projection deliberately excludes correctAnswer. The full
+    // correction remains only in exam_attempts for authorized staff.
+    review: staffAnswers.map(answer => ({ question: answer.question, type: answer.type, answer: answer.answer, mark: answer.mark })),
     needsManualReview,
     status: attempt.status,
     academicYear: attempt.academicYear,
@@ -2220,6 +2791,7 @@ exports.submitExam = onCall(CALLABLE_OPTIONS, async request => {
 exports.prepareHomeworkUpload = onCall(CALLABLE_OPTIONS, async request => {
   const body = request.data || {};
   const studentCode = normalizeCode(body.studentCode);
+  await requirePortalSession(request, studentCode, ['student']);
   await rateLimitPublic('homework-prepare', studentCode, request, 5, 15, 60 * 60 * 1000);
   const found = await getStudentPortalByCode(studentCode);
   requireApprovedStudent(found.data);
@@ -2244,6 +2816,7 @@ exports.prepareHomeworkUpload = onCall(CALLABLE_OPTIONS, async request => {
 exports.registerHomeworkSubmission = onCall(CALLABLE_OPTIONS, async request => {
   const body = request.data || {};
   const studentCode = normalizeCode(body.studentCode);
+  await requirePortalSession(request, studentCode, ['student']);
   await rateLimitPublic('homework-submit', studentCode, request, 5, 15, 60 * 60 * 1000);
   const found = await getStudentPortalByCode(studentCode);
   requireApprovedStudent(found.data);
@@ -2319,7 +2892,7 @@ const BACKUP_COLLECTIONS = [
   'settings','users','students','student_portal','parent_portal','bookings','booking_status','reviews',
   'materials','questions','groups','assignments','exams','exam_attempts','homework_submissions',
   'attendance','recitations','grades','payments','monthly_payments','payment_transactions','reports','activityLog','client_errors',
-  'student_attempts','exam_locks'
+  'student_attempts','exam_locks','homework_submission_locks','homework_attempt_grants','homework_review_history','assessment_versions'
   ,'curriculum','units','lectures','lecture_materials','assignments_v2','assignment_questions',
   'question_banks','bank_questions','monthly_exams','exam_questions_v2','teacher_files','student_progress'
 ];
@@ -2370,7 +2943,7 @@ async function createPlatformBackup(reason, actor = {}) {
   const collections = {};
   for (const name of BACKUP_COLLECTIONS) collections[name] = await exportCollection(name);
   const payload = {
-    schemaVersion: 61,
+    schemaVersion: 63,
     backupFormatVersion: 2,
     project: process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || 'eng-amr-khaled-academy',
     reason: text(reason, 100),
@@ -2382,7 +2955,7 @@ async function createPlatformBackup(reason, actor = {}) {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const name = `automatic-backups/${stamp}-${text(reason || 'scheduled', 40).replace(/[^a-zA-Z0-9_-]/g, '-')}.json.gz`;
   const bucket = admin.storage().bucket();
-  await bucket.file(name).save(buffer, { resumable: false, contentType: 'application/gzip', metadata: { cacheControl: 'private, max-age=0', metadata: { schemaVersion: '60', reason: text(reason, 100) } } });
+  await bucket.file(name).save(buffer, { resumable: false, contentType: 'application/gzip', metadata: { cacheControl: 'private, max-age=0', metadata: { schemaVersion: '63', reason: text(reason, 100) } } });
   await db.collection('backup_runs').add({ name, reason: text(reason, 100), size: buffer.length, createdAt: FieldValue.serverTimestamp(), actorUid: text(actor.uid, 120) });
   return { name, size: buffer.length, createdAt: payload.createdAt };
 }
@@ -2399,6 +2972,35 @@ exports.scheduledPlatformBackup = onSchedule({ schedule: '30 2 * * *', timeZone:
   const retentionDays = settings?.exists ? Number(settings.data().backupRetentionDays || 14) : 14;
   await createPlatformBackup('scheduled');
   await pruneBackups(retentionDays);
+});
+
+exports.cleanupArchivedStorage = onSchedule({ schedule: '20 3 * * *', timeZone: 'Africa/Cairo', region: 'europe-west1', timeoutSeconds: 300, memory: '512MiB' }, async () => {
+  const now = Timestamp.now();
+  const candidates = [];
+  for (const collection of VERSIONED_CONTENT_COLLECTIONS) {
+    const snap = await db.collection(collection).where('storageCleanupEligibleAt', '<=', now).limit(40).get().catch(() => null);
+    if (snap) snap.docs.forEach(doc => candidates.push({ collection, doc }));
+  }
+  const bucket = admin.storage().bucket();
+  for (const candidate of candidates.slice(0, 100)) {
+    const data = candidate.doc.data() || {};
+    const filePath = text(data.filePath || data.path, 500);
+    if (!data.archived || data.storageCleanedAt || !/^(teacher-uploads|public\/uploads|curriculum|teacher-files)\//.test(filePath)) continue;
+    let referenced = false;
+    for (const collection of VERSIONED_CONTENT_COLLECTIONS) {
+      const refs = await db.collection(collection).where('filePath', '==', filePath).limit(5).get().catch(() => null);
+      if (refs?.docs.some(doc => doc.ref.path !== candidate.doc.ref.path && doc.data().archived !== true && doc.data().active !== false)) {
+        referenced = true;
+        break;
+      }
+    }
+    if (referenced) {
+      await candidate.doc.ref.set({ storageCleanupSkipped: 'still-referenced', storageCleanupCheckedAt: FieldValue.serverTimestamp(), storageCleanupEligibleAt: FieldValue.delete() }, { merge: true });
+      continue;
+    }
+    await bucket.file(filePath).delete({ ignoreNotFound: true });
+    await candidate.doc.ref.set({ storageCleanedAt: FieldValue.serverTimestamp(), storageCleanupEligibleAt: FieldValue.delete(), fileUrl: FieldValue.delete(), url: FieldValue.delete() }, { merge: true });
+  }
 });
 
 exports.createBackupNow = onCall({ region: 'europe-west1', timeoutSeconds: 540, memory: '512MiB' }, async request => {
@@ -2967,9 +3569,9 @@ exports.deleteCurriculumEntity = onCall(CALLABLE_OPTIONS, async request => {
   const ref = db.collection(collection).doc(id);
   const snap = await ref.get();
   if (!snap.exists) return { ok: true, alreadyDeleted: true };
-  await ref.delete();
-  await serverActivity(staff, 'حذف محتوى تعليمي', { collection, id, title: text(snap.data().title, 220) });
-  return { ok: true };
+  await ref.set({ archived:true,active:false,published:false,status:'hidden',archivedAt:FieldValue.serverTimestamp(),archivedBy:staff.email||staff.uid,updatedAt:FieldValue.serverTimestamp() },{merge:true});
+  await serverActivity(staff, 'أرشفة محتوى تعليمي', { collection, id, title: text(snap.data().title, 220) });
+  return { ok: true, archived:true };
 });
 
 exports.createMonthlyExamPlan = onCall(CALLABLE_OPTIONS, async request => {
@@ -3027,6 +3629,7 @@ function publicLecture(data, id, progress = {}) {
 
 exports.getStudentCurriculum = onCall(CALLABLE_OPTIONS, async request => {
   const code = normalizeCode(request.data?.studentCode);
+  await requirePortalSession(request, code, ['student']);
   await rateLimitPublic('student-curriculum', code, request, 20, 60, 60 * 1000);
   const found = await getStudentPortalByCode(code);
   const student = found.data || {};
@@ -3047,6 +3650,7 @@ exports.getStudentCurriculum = onCall(CALLABLE_OPTIONS, async request => {
 
 exports.getLectureContent = onCall(CALLABLE_OPTIONS, async request => {
   const code = normalizeCode(request.data?.studentCode);
+  await requirePortalSession(request, code, ['student']);
   const lectureId = curriculumId(request.data?.lectureId);
   await rateLimitPublic('lecture-content', `${code}:${lectureId}`, request, 30, 80, 60 * 1000);
   const [found, lectureSnap] = await Promise.all([getStudentPortalByCode(code), db.collection('lectures').doc(lectureId).get()]);
@@ -3071,6 +3675,7 @@ exports.getLectureContent = onCall(CALLABLE_OPTIONS, async request => {
 
 exports.recordLectureProgress = onCall(CALLABLE_OPTIONS, async request => {
   const code = normalizeCode(request.data?.studentCode), lectureId = curriculumId(request.data?.lectureId);
+  await requirePortalSession(request, code, ['student']);
   await rateLimitPublic('lecture-progress', `${code}:${lectureId}`, request, 30, 80, 60 * 1000);
   const [found, lectureSnap] = await Promise.all([getStudentPortalByCode(code), db.collection('lectures').doc(lectureId).get()]);
   requireApprovedStudent(found.data);
@@ -3090,6 +3695,7 @@ exports.recordLectureProgress = onCall(CALLABLE_OPTIONS, async request => {
 
 exports.getCurriculumFileUrl = onCall(CALLABLE_OPTIONS, async request => {
   const code = normalizeCode(request.data?.studentCode), collection = text(request.data?.collection, 80), id = curriculumId(request.data?.id);
+  await requirePortalSession(request, code, ['student']);
   await rateLimitPublic('curriculum-file', `${code}:${collection}:${id}`, request, 20, 50, 60 * 1000);
   if (!['lectures','lecture_materials','assignments_v2','bank_questions','monthly_exams'].includes(collection)) throw new HttpsError('invalid-argument', 'نوع الملف غير صالح.');
   const [found, snap] = await Promise.all([getStudentPortalByCode(code), db.collection(collection).doc(id).get()]);

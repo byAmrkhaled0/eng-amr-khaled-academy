@@ -20,10 +20,11 @@ test('exam builder supports mcq true-false essay and code questions', () => {
   assert.match(admin, /data-question-mark/);
 });
 
-test('student correction and admin attendance filters are present', () => {
+test('student correction privacy and admin attendance filters are present', () => {
   const app = read('assets/app.js');
   const workflow = read('assets/v60-admin-workflow.js');
-  assert.match(app, /عرض التصحيح التفصيلي/);
+  assert.match(app, /بيانات التصحيح محمية وفق سياسة المدرس/);
+  assert.match(app, /التصحيح مؤمّن/);
   assert.match(app, /انتهى الوقت، لم تستطع الامتحان هذه المرة/);
   assert.match(workflow, /مين امتحن ومين لسه/);
   assert.match(workflow, /examAttendanceGrade/);

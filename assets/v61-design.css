@@ -390,3 +390,18 @@ html[data-theme="dark"] .admin-mobile-header{border-color:#23374f!important;back
   .homework-admin-answer-list input[type="number"]{width:100%!important;margin:0!important}
   .homework-admin-answer-list .btn{width:100%!important;position:sticky;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:4}
 }
+
+/* V63 secure assessment and mobile portal layer. */
+:root{--tm-space-1:.375rem;--tm-space-2:.75rem;--tm-space-3:1rem;--tm-space-4:1.5rem;--tm-radius-card:18px;--tm-success:#15803d;--tm-warning:#b45309;--tm-danger:#b91c1c;--tm-focus:#22d3ee}
+:where(button,a,input,select,textarea,summary):focus-visible{outline:3px solid var(--tm-focus);outline-offset:3px}
+body.dialog-open{overflow:hidden}
+[role="dialog"]{overscroll-behavior:contain}
+.assignment-locked{padding:var(--tm-space-3);border:1px solid color-mix(in srgb,var(--tm-success) 35%,transparent);border-radius:12px;background:color-mix(in srgb,var(--tm-success) 10%,transparent);color:var(--tm-success);font-weight:800}
+.student-assignment-list details>summary{cursor:pointer;list-style:none}
+.student-assignment-list details>summary::-webkit-details-marker{display:none}
+.homework-metric-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--tm-space-2);margin-block:var(--tm-space-3)}
+.homework-metric-pair>span,.student-secondary-kpis>div>span{padding:var(--tm-space-2);border:1px solid var(--tm-line,rgba(148,163,184,.2));border-radius:12px;background:var(--tm-surface,#fff)}
+.student-secondary-kpis>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--tm-space-2);margin-top:var(--tm-space-2)}
+html[data-theme="dark"] .homework-metric-pair>span,html[data-theme="dark"] .student-secondary-kpis>div>span{background:#0f1d2e;color:#e5eefb}
+@media(max-width:700px){.student-tabbar{position:sticky;bottom:env(safe-area-inset-bottom);z-index:20;display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;padding:6px;background:color-mix(in srgb,var(--tm-navy) 92%,transparent);border-radius:16px}.student-tabbar button{min-width:0!important;padding:9px 3px!important;font-size:.72rem!important}.student-tabbar button[data-secondary-tab]{display:none}.student-app-dashboard.show-secondary-tabs .student-tabbar button[data-secondary-tab]{display:block}.student-secondary-kpis>div,.homework-metric-pair{grid-template-columns:1fr}.site-header{position:relative}.student-page-v32{padding-bottom:max(12px,env(safe-area-inset-bottom))}.floating-help,.back-to-top{transform:scale(.88);transform-origin:bottom left}}
+@media(max-width:340px){.student-tabbar{grid-template-columns:repeat(4,minmax(0,1fr))}.student-tabbar button{font-size:.66rem!important}.metric-grid{grid-template-columns:1fr!important}.container{padding-inline:10px}}

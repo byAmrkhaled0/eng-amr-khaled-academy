@@ -24,14 +24,14 @@ test('homework and exams are interactive while PDF remains lecture-only',()=>{
   assert.match(workflow,/رفع محاضرة أو PDF/);
 });
 
-test('admin reports homework completion and QR attendance is limited to two scheduled days',()=>{
+test('admin reports homework completion and QR attendance supports one or more scheduled days',()=>{
   const workflow=read('assets/v60-admin-workflow.js'),admin=read('assets/admin.js');
   assert.match(workflow,/مين سلّم الواجب ومين لسه/);
   assert.match(workflow,/homeworkAttendanceGrade/);
   assert.match(workflow,/homeworkAttendanceGroup/);
   assert.match(admin,/attendanceScheduleDays/);
-  assert.match(admin,/days\.length!==2/);
-  assert.match(admin,/auto_absent/);
+  assert.match(admin,/days\.length<1/);
+  assert.match(admin,/bulk_absent/);
 });
 
 test('student code can resolve the parent portal and legacy grade naming stays compatible',()=>{
@@ -54,5 +54,5 @@ test('pending booking code opens the student portal while learning actions stay 
   assert.ok((backend.match(/requireApprovedStudent\(found\.data\)/g)||[]).length>=7);
   assert.match(app,/لم يتم قبول الحجز حتى الآن/);
   assert.match(app,/ستتفعّل المحاضرات والواجبات والاختبارات بعد قبول الحجز/);
-  assert.match(worker,/technominds-v62-9-0-unified-access/);
+  assert.match(worker,/technominds-v63-0-0-secure-assessments/);
 });

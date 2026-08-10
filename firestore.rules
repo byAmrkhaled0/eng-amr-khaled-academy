@@ -31,9 +31,10 @@ service cloud.firestore {
         && request.resource.data.studentCode == studentCode
         && request.resource.data.parentCode == studentCode;
       allow update: if isTeacher() || (isAssistant()
-        && request.resource.data.studentCode == resource.data.studentCode
-        && request.resource.data.parentCode == resource.data.parentCode
-        && request.resource.data.active == resource.data.active);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name','studentName','phone','studentPhone','parentPhone','group','groupId',
+          'scheduleId','scheduleDays','scheduleStartTime','scheduleEndTime','notes','updatedAt'
+        ]));
       allow delete: if isTeacher();
     }
     match /student_portal/{studentCode} {
@@ -41,9 +42,10 @@ service cloud.firestore {
       allow create: if isStaff() && request.resource.data.studentCode == studentCode
         && request.resource.data.parentCode == studentCode;
       allow update: if isTeacher() || (isAssistant()
-        && request.resource.data.studentCode == resource.data.studentCode
-        && request.resource.data.parentCode == resource.data.parentCode
-        && request.resource.data.active == resource.data.active);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name','studentName','phone','studentPhone','parentPhone','group','groupId',
+          'scheduleId','scheduleDays','scheduleStartTime','scheduleEndTime','notes','updatedAt'
+        ]));
       allow delete: if isTeacher();
     }
     match /parent_portal/{parentCode} {
@@ -52,9 +54,10 @@ service cloud.firestore {
         && request.resource.data.studentCode == parentCode
         && request.resource.data.parentCode == parentCode;
       allow update: if isTeacher() || (isAssistant()
-        && request.resource.data.studentCode == resource.data.studentCode
-        && request.resource.data.parentCode == resource.data.parentCode
-        && request.resource.data.active == resource.data.active);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name','studentName','phone','studentPhone','parentPhone','group','groupId',
+          'scheduleId','scheduleDays','scheduleStartTime','scheduleEndTime','notes','updatedAt'
+        ]));
       allow delete: if isTeacher();
     }
 
@@ -67,7 +70,9 @@ service cloud.firestore {
     match /booking_status/{bookingCode} {
       // Status lookup is server-only through a rate-limited callable function.
       allow read, create: if false;
-      allow update: if isStaff();
+      allow update: if isTeacher()
+        || (isAssistant() && resource.data.method == 'teacher_class_check'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['completed','approved','status','updatedAt']));
       allow delete: if isTeacher();
     }
     match /_student_names/{nameHash} {
@@ -129,7 +134,9 @@ service cloud.firestore {
         || (isAssistant() && resource.data.method == 'teacher_class_check');
     }
 
-    match /attendance/{id} { allow read, create, update: if isStaff(); allow delete: if isTeacher(); }
+    // Attendance mutations run through callable Functions so day/QR/timezone
+    // validation and bulk writes cannot be bypassed from the browser.
+    match /attendance/{id} { allow read: if isStaff(); allow write: if false; }
     match /recitations/{id} {
       allow read, create, update: if isStaff();
       allow delete: if isTeacher()
@@ -160,6 +167,12 @@ service cloud.firestore {
     match /_booking_requests/{id} { allow read, write: if false; }
     match /_homework_upload_tokens/{id} { allow read, write: if false; }
     match /_payment_dedup/{id} { allow read, write: if false; }
+    match /_portal_sessions/{id} { allow read, write: if false; }
+    match /homework_submission_locks/{id} { allow read, write: if false; }
+    match /homework_attempt_grants/{id} { allow read, write: if false; }
+    match /homework_review_history/{id} { allow read, write: if false; }
+    match /assessment_versions/{id} { allow read, write: if false; }
+    match /content_cleanup_queue/{id} { allow read, write: if false; }
     match /deleted_students/{id} { allow read, write: if false; }
     match /backup_runs/{id} { allow read, write: if false; }
     match /staff_push_tokens/{id} { allow read, write: if false; }

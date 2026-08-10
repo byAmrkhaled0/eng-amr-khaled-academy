@@ -1,6 +1,6 @@
 {
   "name": "techno-minds-platform",
-  "version": "62.9.0",
+  "version": "63.0.0",
   "private": true,
   "scripts": {
     "dev": "node local-server.js",
@@ -9,7 +9,7 @@
     "firebase:rules": "firebase deploy --only firestore:rules,firestore:indexes,storage",
     "firebase:functions": "firebase deploy --only functions",
     "firebase:hosting": "npm run build && firebase deploy --only hosting",
-    "test": "node scripts/verify.js && node scripts/payment-domain.test.js && node scripts/curriculum-v61.test.js && node --test scripts/academic-workflow-v62.test.js scripts/exam-workflow-v621.test.js scripts/homework-workflow-v622.test.js scripts/platform-workflow-v623.test.js scripts/live-audit-v625.test.js scripts/visibility-workflow-v626.test.js scripts/performance-delivery-v627.test.js scripts/booking-homework-v628.test.js scripts/unified-access-v629.test.js",
+    "test": "node scripts/verify.js && node scripts/payment-domain.test.js && node scripts/curriculum-v61.test.js && node --test scripts/academic-workflow-v62.test.js scripts/exam-workflow-v621.test.js scripts/homework-workflow-v622.test.js scripts/platform-workflow-v623.test.js scripts/live-audit-v625.test.js scripts/visibility-workflow-v626.test.js scripts/performance-delivery-v627.test.js scripts/booking-homework-v628.test.js scripts/unified-access-v629.test.js scripts/platform-v63.behavior.test.js",
     "verify:dist": "node scripts/verify-dist.js",
     "firebase:deploy:backend": "firebase deploy --only firestore:rules,firestore:indexes,storage,functions",
     "firebase:deploy:all": "npm run test && npm run build && firebase deploy --only firestore:rules,firestore:indexes,storage,functions,hosting",

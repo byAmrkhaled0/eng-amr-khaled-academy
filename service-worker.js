@@ -1,5 +1,5 @@
-const CACHE_NAME = "technominds-v62-9-0-unified-access";
-const ASSET_VERSION = "62.9.0";
+const CACHE_NAME = "technominds-v63-0-0-secure-assessments";
+const ASSET_VERSION = "63.0.0";
 const APP_SHELL = [
   "/", "/index.html", "/student.html", "/exams.html", "/materials.html", "/questions.html",
   "/learning-path.html", "/about.html", "/practical.html", "/parent.html", "/reviews.html", "/privacy.html",
@@ -71,7 +71,8 @@ self.addEventListener("fetch", event => {
     event.respondWith((async()=>{
       try{
         const response=await fetch(request);
-        if(response.ok){const cache=await caches.open(CACHE_NAME);cache.put(request,response.clone());}
+        // Never cache a URL carrying a student/parent access code.
+        if(response.ok && !url.search) { const cache=await caches.open(CACHE_NAME);cache.put(url.pathname,response.clone()); }
         return response;
       }catch(_){
         // Query strings such as ?code=12345678 must fall back to the cached
