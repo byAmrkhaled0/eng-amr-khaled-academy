@@ -1,4 +1,4 @@
-const CACHE_NAME = "technominds-v63-0-2-production-fixed";
+const CACHE_NAME = "technominds-v63-0-3-production-fixed";
 const ASSET_VERSION = "63.0.3";
 const APP_SHELL = [
   "/", "/index.html", "/learning-path.html", "/about.html", "/practical.html", "/reviews.html", "/privacy.html",
