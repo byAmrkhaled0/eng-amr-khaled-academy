@@ -48,3 +48,32 @@ test('mobile homework correction binds the tapped button and remains server conf
   assert.match(functions, /reviewerUid:staff\.uid/);
   assert.match(functions, /action:'تصحيح واجب'/);
 });
+
+test('homework correction updates only the affected card instead of rebuilding the full section', () => {
+  const workflow = read('assets/v60-admin-workflow.js');
+  const handler = workflow.slice(workflow.indexOf('window.saveHomeworkCorrection='), workflow.indexOf('function renderMaterialsV6061'));
+  assert.match(handler, /await window\.MFCloud\.reviewHomeworkSubmission/);
+  assert.match(handler, /activeCard\.replaceWith\(replacement\)/);
+  assert.match(handler, /for\(const student of adminData\.students\|\|\[\]\)/);
+  assert.doesNotMatch(handler, /renderMaterialsV6061\(\)/);
+});
+
+test('admin shows only the current homework submissions while preserving historical filtering', () => {
+  const workflow = read('assets/v60-admin-workflow.js');
+  const css = read('assets/site.css');
+  assert.match(workflow, /const currentAssignment=assignments\.find/);
+  assert.match(workflow, /currentSubmissions=currentAssignment\?submissions\.filter/);
+  assert.match(workflow, /تسليمات الواجب الحالي/);
+  assert.match(workflow, /السجلات السابقة محفوظة في فلتر المتابعة/);
+  assert.match(workflow, /homeworkAttendanceAssignment/);
+  assert.match(css, /\[hidden\]\{display:none!important\}/);
+});
+
+test('admin exam workspace keeps current work primary and bounds historical rendering', () => {
+  const workflow = read('assets/v60-admin-workflow.js');
+  assert.match(workflow, /const liveExams=availableExams\.filter/);
+  assert.match(workflow, /const currentAttempts=currentExam\?attempts\.filter/);
+  assert.match(workflow, /محاولات الامتحان الحالي/);
+  assert.match(workflow, /historicalAttempts\.slice\(0,30\)/);
+  assert.match(workflow, /المغلق يظل محفوظًا في السجل/);
+});

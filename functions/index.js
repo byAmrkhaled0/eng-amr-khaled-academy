@@ -50,7 +50,7 @@ const PAYMENT_MONTH_NAMES = ['يناير','فبراير','مارس','أبريل'
 // Callable endpoints must accept the browser's unauthenticated CORS preflight.
 // Sensitive operations still enforce staff authentication inside each handler.
 const CALLABLE_OPTIONS = { region: 'europe-west1', timeoutSeconds: 30, invoker: 'public' };
-const API_SCHEMA_VERSION = 'portal-v63.0.4';
+const API_SCHEMA_VERSION = 'portal-v63.0.5';
 
 function apiMetadata() {
   return { frontendVersion: PLATFORM_VERSION, backendVersion: PLATFORM_VERSION, apiSchemaVersion: API_SCHEMA_VERSION };
