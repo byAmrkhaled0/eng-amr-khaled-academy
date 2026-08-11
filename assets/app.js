@@ -12,7 +12,7 @@ var EXAM_DRAFT_PREFIX = 'mf_exam_draft_v2_';
 var PENDING_BOOKING_REQUEST_KEY = 'mf_pending_booking_request_v1';
 var cloudSaveTimer = null;
 var staffCacheTimer = null;
-var MF_ASSET_VERSION = '63.0.4';
+var MF_ASSET_VERSION = '63.0.5';
 var mfLazyScriptPromises = Object.create(null);
 var publicScheduleUnsubscribe = null;
 
@@ -79,7 +79,7 @@ var PRODUCTION_MODE = true;
 var appDataLoadFailed = false;
 
 function iconNameToKey(name){return String(name||'').replace(/-([a-z])/g,(_,c)=>c.toUpperCase());}
-function hydrateIcons(){document.querySelectorAll('[data-icon]').forEach(el=>{const key=iconNameToKey(el.dataset.icon); if(icons[key]) el.innerHTML=icons[key];});}
+function hydrateIcons(){document.querySelectorAll('[data-icon]').forEach(el=>{const key=iconNameToKey(el.dataset.icon);if(!icons[key]||el.dataset.iconRendered===key)return;el.innerHTML=icons[key];el.dataset.iconRendered=key;});}
 function toast(msg){const t=document.getElementById('toast'); if(!t) return; t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2800);}
 function firebaseFriendlyError(err,fallback){const raw=`${err?.code||''} ${err?.message||''}`;if(/BACKEND_VERSION_MISMATCH/i.test(raw))return 'يوجد تحديث غير مكتمل للمنصة. حاول لاحقًا أو تواصل مع الإدارة.';if(/functions\/not-found|function.*unavailable|service.*unavailable/i.test(raw))return 'الخدمة غير مفعّلة حاليًا. تواصل مع المدرس أو حاول لاحقًا.';if(/resource-exhausted/i.test(raw))return 'محاولات كثيرة. انتظر قليلًا ثم حاول مرة أخرى.';if(/failed-precondition/i.test(raw))return raw.split(':').pop().trim()||'الاختيار لم يعد متاحًا. حدّث الصفحة وحاول مرة أخرى.';if(/invalid-argument/i.test(raw)){const message=raw.split(':').pop().trim();return /firebase|firestore|function|permission|internal/i.test(message)?(fallback||'تعذر إتمام الطلب. راجع البيانات وحاول مرة أخرى.'):message;}if(/deadline-exceeded/i.test(raw))return 'انتهى وقت الامتحان.';if(/already-exists/i.test(raw)){const message=raw.split(':').pop().trim();return /الطالب موجود|كود الطالب|رقم الطالب|ولي الأمر/.test(message)?message:'تم تنفيذ العملية بالفعل.';}if(/permission-denied|unauthenticated/i.test(raw))return 'لا يمكن تنفيذ الطلب حاليًا. حدّث الصفحة ثم حاول مرة أخرى.';if(/unavailable|network|internal|fetch|offline|timeout/i.test(raw))return 'تعذر الاتصال بالخدمة. تحقق من الإنترنت وحاول مرة أخرى.';if(/not-found/i.test(raw))return 'الكود غير صحيح أو غير موجود.';return fallback||'حدث خطأ غير متوقع.';}
 function studentCodeFriendlyError(err,fallback){const raw=`${err?.code||''} ${err?.message||''}`;if(/functions\/not-found|\bnot-found\b/i.test(raw))return 'الكود غير صحيح أو غير موجود.';return firebaseFriendlyError(err,fallback);}

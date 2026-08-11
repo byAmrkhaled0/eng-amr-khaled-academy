@@ -17,6 +17,7 @@
   --radius:26px;
   color-scheme:light;
 }
+[hidden]{display:none!important}
 :root[data-theme="dark"]{
   --bg:#061022;
   --surface:#0d1b34;
