@@ -12,14 +12,19 @@
   function bindAcademicTarget(formId){
     const form=document.getElementById(formId),grade=form?.elements?.grade,group=form?.elements?.group;
     if(!grade||!group)return;
+    let preview=form.querySelector('[data-target-preview]');
+    if(!preview){preview=document.createElement('div');preview.className='admin-target-preview';preview.dataset.targetPreview='true';const field=group.closest('.field');if(field)field.insertAdjacentElement('afterend',preview);else form.appendChild(preview);}
     const refresh=()=>{
       [...group.options].forEach((option,index)=>{
         const matches=index===0||grade.value==='كل المسارات'||!option.dataset.grade||(typeof adminSameAcademic==='function'?adminSameAcademic(option.dataset.grade,grade.value):option.dataset.grade===grade.value);
         option.hidden=!matches;option.disabled=!matches;
       });
       if(group.selectedOptions[0]?.disabled)group.value='';
+      const selected=group.selectedOptions[0],scheduleId=String(selected?.dataset?.scheduleId||''),groupName=String(group.value||''),gradeName=String(grade.value||'');
+      const students=(adminData.students||[]).filter(student=>student.active!==false&&(gradeName==='كل المسارات'||!gradeName||(typeof adminSameAcademic==='function'?adminSameAcademic(student.grade||student.track,gradeName):String(student.grade||student.track)===gradeName))&&(!groupName||String(student.scheduleId||student.groupId||'')===scheduleId||String(student.group||'')===groupName));
+      if(preview){preview.innerHTML=`<span data-icon="users"></span><div><b>سيصل إلى ${students.length} طالب</b><small>${safe(gradeName||'كل المسارات')} · ${safe(groupName||'كل المجموعات')}</small></div>`;}
     };
-    grade.addEventListener('change',refresh);refresh();
+    grade.addEventListener('change',refresh);group.addEventListener('change',refresh);refresh();
   }
 
   async function uploadTeacherFile(file,acceptPdfOnly=false){
@@ -209,11 +214,11 @@
   async function saveMaterialV6061(event){
     event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type="submit"]'),file=form.elements.file.files?.[0];
     button.disabled=true;button.classList.add('is-loading');let item=null;
-    try{const uploaded=await uploadTeacherFile(file);const values=Object.fromEntries(new FormData(form).entries());delete values.file;item={...values,id:`mat-${Date.now()}`,scheduleId:selectedScheduleId(form),groupId:selectedScheduleId(form),fileUrl:uploaded.url,fileName:uploaded.fileName||file.name,filePath:uploaded.path||'',fileType:file.type||'',active:true,published:true,createdAt:new Date().toISOString()};if(!window.MFCloud?.saveContent)throw new Error('Content service unavailable');const saved=await window.MFCloud.saveContent('materials',item);adminData.materials.push({...item,...saved});saveData(adminData);window.MFCloud?.logActivity?.('تم رفع محاضرة',{materialId:item.id,grade:item.grade,group:item.group}).catch(()=>{});aToast('تم رفع المحاضرة وستظهر لطلاب الصف والمجموعة المحددين');renderLecturesV623();}catch(error){aToast(adminActionErrorMessage(error,error?.message||'تعذر رفع المحاضرة.'));}finally{button.disabled=false;button.classList.remove('is-loading');}
+    try{const uploaded=await uploadTeacherFile(file),ctx=nowContext();const values=Object.fromEntries(new FormData(form).entries());delete values.file;item={...values,id:`mat-${Date.now()}`,academicYear:ctx.academicYear,term:ctx.term,scheduleId:selectedScheduleId(form),groupId:selectedScheduleId(form),fileUrl:uploaded.url,fileName:uploaded.fileName||file.name,filePath:uploaded.path||'',fileType:file.type||'',active:true,published:true,createdAt:new Date().toISOString()};if(!window.MFCloud?.saveContent)throw new Error('Content service unavailable');const saved=await window.MFCloud.saveContent('materials',item);adminData.materials.push({...item,...saved});saveData(adminData);window.MFCloud?.logActivity?.('تم رفع محاضرة',{materialId:item.id,grade:item.grade,group:item.group,scheduleId:item.scheduleId,academicYear:item.academicYear,term:item.term}).catch(()=>{});aToast('تم رفع المحاضرة وستظهر لطلاب الصف والمجموعة المحددين');renderLecturesV623();}catch(error){aToast(adminActionErrorMessage(error,error?.message||'تعذر رفع المحاضرة.'));}finally{button.disabled=false;button.classList.remove('is-loading');}
   }
 
   async function saveQuestionV6061(event){
-    event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type="submit"]'),values=Object.fromEntries(new FormData(form).entries()),item={...values,id:`q-${Date.now()}`,scheduleId:selectedScheduleId(form),groupId:selectedScheduleId(form),active:true,published:true,createdAt:new Date().toISOString()};button.disabled=true;
+    event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type="submit"]'),values=Object.fromEntries(new FormData(form).entries()),ctx=nowContext(),item={...values,id:`q-${Date.now()}`,academicYear:ctx.academicYear,term:ctx.term,scheduleId:selectedScheduleId(form),groupId:selectedScheduleId(form),active:true,published:true,createdAt:new Date().toISOString()};button.disabled=true;
     try{if(!window.MFCloud?.saveContent)throw new Error('Content service unavailable');const saved=await window.MFCloud.saveContent('questions',item);adminData.questions.push({...item,...saved});saveData(adminData);aToast('تم حفظ السؤال وسيظهر للفئة المحددة');renderMaterialsV6061();}catch(error){aToast(adminActionErrorMessage(error,'تعذر حفظ السؤال.'));}finally{button.disabled=false;}
   }
 
@@ -224,7 +229,7 @@
     if(values.publishAt&&values.dueDate&&values.dueDate<values.publishAt.slice(0,10))return aToast('آخر موعد للتسليم يجب أن يكون بعد وقت ظهور الواجب');
     button.disabled=true;button.classList.add('is-loading');let assignment=null;
     try{
-      assignment={id:`hw-${Date.now()}`,title:String(values.title||'').trim(),lessonTitle:String(values.lessonTitle||'').trim(),lessonNumber:String(values.lessonNumber||'').trim(),grade:String(values.grade||'').trim(),group:String(values.group||'').trim(),scheduleId:selectedScheduleId(form),groupId:selectedScheduleId(form),type:'multi',description:String(values.description||'').trim(),publishAt:values.publishAt?(typeof localDateTimeToIso==='function'?localDateTimeToIso(values.publishAt):new Date(values.publishAt).toISOString()):new Date().toISOString(),dueDate:values.dueDate||'',revealCorrectAnswersAfterGrading:values.revealCorrectAnswersAfterGrading==='true',revealCorrectAnswersAfterClose:values.revealCorrectAnswersAfterClose==='true',questions:questions.filter(Boolean),questionCount:questions.length,totalScore:questions.reduce((sum,question)=>sum+Number(question.mark||1),0),active:true,published:true,createdAt:new Date().toISOString()};
+      const ctx=nowContext();assignment={id:`hw-${Date.now()}`,title:String(values.title||'').trim(),lessonTitle:String(values.lessonTitle||'').trim(),lessonNumber:String(values.lessonNumber||'').trim(),academicYear:ctx.academicYear,term:ctx.term,grade:String(values.grade||'').trim(),group:String(values.group||'').trim(),scheduleId:selectedScheduleId(form),groupId:selectedScheduleId(form),type:'multi',description:String(values.description||'').trim(),publishAt:values.publishAt?(typeof localDateTimeToIso==='function'?localDateTimeToIso(values.publishAt):new Date(values.publishAt).toISOString()):new Date().toISOString(),dueDate:values.dueDate||'',revealCorrectAnswersAfterGrading:values.revealCorrectAnswersAfterGrading==='true',revealCorrectAnswersAfterClose:values.revealCorrectAnswersAfterClose==='true',questions:questions.filter(Boolean),questionCount:questions.length,totalScore:questions.reduce((sum,question)=>sum+Number(question.mark||1),0),active:true,published:true,createdAt:new Date().toISOString()};
       if(!window.MFCloud?.saveContent)throw new Error('Content service unavailable');const saved=await window.MFCloud.saveContent('assignments',assignment);adminData.assignments.push({...assignment,...saved});saveData(adminData);window.MFCloud?.logActivity?.('تم نشر واجب',{assignmentId:assignment.id,grade:assignment.grade,group:assignment.group,type:assignment.type}).catch(()=>{});aToast('تم نشر الواجب وسيظهر للصف والمجموعة المحددين');renderAssignmentsV622();
     }catch(error){aToast(adminActionErrorMessage(error,error?.message||'تعذر نشر الواجب.'));}finally{button.disabled=false;button.classList.remove('is-loading');}
   }

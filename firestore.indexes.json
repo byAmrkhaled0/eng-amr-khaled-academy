@@ -186,6 +186,14 @@
     {
       "collectionGroup": "student_transfer_requests", "queryScope": "COLLECTION",
       "fields": [{ "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "motivation_monthly", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "academicYear", "order": "ASCENDING" }, { "fieldPath": "month", "order": "ASCENDING" }, { "fieldPath": "scheduleId", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "motivation_monthly", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "academicYear", "order": "ASCENDING" }, { "fieldPath": "month", "order": "ASCENDING" }, { "fieldPath": "grade", "order": "ASCENDING" }]
     }
   ],
   "fieldOverrides": [

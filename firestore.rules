@@ -158,6 +158,8 @@ service cloud.firestore {
     // so an immutable audit trail and idempotency checks cannot be bypassed.
     match /monthly_payments/{id} { allow read: if isStaff(); allow write: if false; }
     match /payment_transactions/{id} { allow read: if isStaff(); allow write: if false; }
+    match /motivation_monthly/{id} { allow read: if isStaff(); allow write: if false; }
+    match /motivation_transactions/{id} { allow read: if isStaff(); allow write: if false; }
     match /reports/{id} { allow read, create, update: if isStaff(); allow delete: if isTeacher(); }
     // Audit entries are created by Cloud Functions so staff cannot forge actors/timestamps.
     match /activityLog/{id} { allow read: if isStaff(); allow write: if false; }

@@ -10,6 +10,10 @@ let bookingNotificationUnsubscribe = null;
 let adminGroupsUnsubscribe = null;
 let adminStudentsUnsubscribe = null;
 let adminTransferRequestsUnsubscribe = null;
+let adminHomeworkSubmissionsUnsubscribe = null;
+let adminExamAttemptsUnsubscribe = null;
+let adminMotivationUnsubscribe = null;
+let adminAcademicListenersReady = false;
 let bookingListenerReady = false;
 let adminRecordsLoadToken = 0;
 const bookingActionPending = new Set();
@@ -21,18 +25,54 @@ let adminDrawerReturnFocus = null;
 const adminSections = [
   ['overview','bar-chart','الرئيسية'],
   ['students','users','الطلاب'],
-  ['bookings','calendar','الحجوزات'],
   ['schedules','calendar','المواعيد'],
   ['attendance','qr','الحضور والغياب'],
-  ['warnings','alert-triangle','تحذيرات الغياب'],
-  ['studentRequests','user-check','طلبات الطلاب'],
-  ['assignments','file-text','الواجبات'],
-  ['payments','database','حالة الدفع'],
-  ['exams','clipboard','الاختبارات'],
   ['materials','book-open','المحاضرات'],
+  ['assignments','file-text','الواجبات'],
+  ['exams','clipboard','الاختبارات'],
+  ['payments','database','المدفوعات'],
+  ['bookings','calendar','طلبات التسجيل'],
+  ['studentRequests','user-check','طلبات النقل'],
+  ['warnings','alert-triangle','متابعة الغياب'],
   ['curriculum','book-open','المنهج وبنك الأسئلة'],
-  ['reviews','star','التقييمات']
+  ['reviews','star','التقييمات'],
+  ['backup','database','النسخ والسجل'],
+  ['settings','settings','الإعدادات']
 ];
+const adminSectionGroups = [
+  ['اليوم', ['overview','students','schedules','attendance']],
+  ['التعليم', ['materials','assignments','exams','curriculum']],
+  ['الإدارة', ['payments','bookings','studentRequests','warnings']],
+  ['النظام', ['reviews','backup','settings']]
+];
+
+function calculatedAdminAcademicYear(date=new Date()){
+  const year=date.getFullYear();return date.getMonth()>=6?`${year}/${year+1}`:`${year-1}/${year}`;
+}
+function adminWorkspaceContext(){
+  const settings=adminData?.settings||{},fallbackYear=/^20\d{2}\/20\d{2}$/.test(String(settings.academicYear||''))?settings.academicYear:calculatedAdminAcademicYear();
+  return {
+    academicYear:sessionStorage.getItem('tm-admin-academic-year')||fallbackYear,
+    term:sessionStorage.getItem('tm-admin-term')||settings.term||'الترم الأول',
+    month:sessionStorage.getItem('tm-admin-month')||(Array.isArray(MONTHS)?MONTHS[new Date().getMonth()]:'')
+  };
+}
+window.adminWorkspaceContext=adminWorkspaceContext;
+window.currentAcademicContext=()=>{const value=adminWorkspaceContext();return {academicYear:value.academicYear,term:value.term};};
+function adminAcademicYearOptions(selected){
+  const start=Number(calculatedAdminAcademicYear().slice(0,4)),values=[];for(let year=start-2;year<=start+2;year+=1)values.push(`${year}/${year+1}`);
+  if(selected&&!values.includes(selected))values.push(selected);
+  return values.sort().map(value=>`<option ${value===selected?'selected':''}>${safe(value)}</option>`).join('');
+}
+function adminWorkspaceBar(){
+  const context=adminWorkspaceContext();
+  return `<section class="admin-workspace-bar" aria-label="فترة العمل الحالية"><div><small>فترة العمل</small><strong>${safe(context.academicYear)} · ${safe(context.term)} · ${safe(context.month)}</strong></div><label><span>العام</span><select id="adminWorkspaceYear">${adminAcademicYearOptions(context.academicYear)}</select></label><label><span>الترم</span><select id="adminWorkspaceTerm"><option ${context.term==='الترم الأول'?'selected':''}>الترم الأول</option><option ${context.term==='الترم الثاني'?'selected':''}>الترم الثاني</option></select></label><label><span>الشهر</span><select id="adminWorkspaceMonth">${(Array.isArray(MONTHS)?MONTHS:[]).map(month=>`<option ${month===context.month?'selected':''}>${safe(month)}</option>`).join('')}</select></label></section>`;
+}
+function bindAdminWorkspaceBar(){
+  const year=document.getElementById('adminWorkspaceYear'),term=document.getElementById('adminWorkspaceTerm'),month=document.getElementById('adminWorkspaceMonth');
+  const apply=()=>{sessionStorage.setItem('tm-admin-academic-year',year?.value||'');sessionStorage.setItem('tm-admin-term',term?.value||'');sessionStorage.setItem('tm-admin-month',month?.value||'');document.dispatchEvent(new CustomEvent('technominds:admin-context-change',{detail:adminWorkspaceContext()}));renderAdmin();};
+  [year,term,month].forEach(element=>element?.addEventListener('change',apply));
+}
 
 function aToast(msg){const t=document.getElementById('toast'); if(!t) return; t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2800);}
 function safe(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
@@ -260,7 +300,7 @@ function renderAdmin(){
         <div class="logo admin-brand"><img class="admin-brand-logo" src="assets/technominds-logo.webp" alt="Techno Minds"><span>لوحة Techno Minds <small>حساب ${safe(currentStaff?.role||'staff')}</small></span></div>
         <button class="admin-sidebar-close" type="button" aria-label="إغلاق القائمة" onclick="toggleAdminDrawer(false)">×</button>
       </div>
-      <div class="admin-nav">${adminSections.map(([id,ic,name])=>`<button type="button" data-admin-nav="${id}" class="${id===currentSection?'active':''}"><span data-icon="${ic}"></span><span>${name}</span></button>`).join('')}</div>
+      <div class="admin-nav">${adminSectionGroups.map(([label,ids])=>`<div class="admin-nav-group"><small>${label}</small>${ids.map(id=>{const section=adminSections.find(item=>item[0]===id);if(!section)return '';const [,icon,name]=section;return `<button type="button" data-admin-nav="${id}" class="${id===currentSection?'active':''}"><span data-icon="${icon}"></span><span>${name}</span></button>`;}).join('')}</div>`).join('')}</div>
       <div class="admin-sidebar-footer">
         <span class="admin-live-state"><i></i> متصل مباشرة بالموقع</span>
         <button class="btn dark" type="button" onclick="adminLogout()">تسجيل الخروج</button>
@@ -276,15 +316,16 @@ function renderAdmin(){
         <div class="admin-welcome">
           <span class="kicker">لوحة الإدارة</span>
           <h1 id="adminDesktopSectionLabel">${safe(adminSectionName(currentSection))}</h1>
-          <p>مرحبًا ${safe(currentStaff?.name||'م. عمرو خالد')} — التغييرات متصلة بالموقع مباشرة.</p>
+          <p>مرحبًا ${safe(currentStaff?.name||'م. عمرو خالد')} — كل عملية ناجحة تتحدث في المنصة مباشرة.</p>
         </div>
         <div class="header-actions admin-command-actions">
           <button class="admin-hero-theme-icon" id="themeToggleAdmin" type="button" aria-label="تغيير الوضع" title="تغيير الوضع"></button>
           <button class="btn ghost admin-booking-alert" id="adminBookingAlertButton" type="button" onclick="enableBookingNotifications()"><span data-icon="calendar"></span><span>تنبيهات الحجز</span><b id="adminBookingAlertCount" class="admin-alert-count" hidden>0</b></button>
-          <button class="btn primary" id="adminSaveButton" type="button" onclick="forceFirestoreSync()"><span data-icon="refresh-cw"></span><span class="admin-save-label">حفظ التغييرات</span></button>
+          <button class="btn primary" id="adminSaveButton" type="button" onclick="forceFirestoreSync()"><span data-icon="refresh-cw"></span><span class="admin-save-label">تحديث البيانات</span></button>
           <button class="btn ghost" type="button" onclick="location.href='index.html'"><span data-icon="external-link"></span><span>معاينة الموقع</span></button>
         </div>
       </header>
+      ${adminWorkspaceBar()}
       <div id="adminContent"></div>
     </main>
     <nav class="admin-mobile-bottom" aria-label="التنقل السريع في لوحة التحكم">
@@ -293,6 +334,7 @@ function renderAdmin(){
     </nav>`;
   setupTheme();
   bindNav();
+  bindAdminWorkspaceBar();
   setAdminDrawer(false);
   renderSection();
   syncAdminChrome();
@@ -326,6 +368,11 @@ function startAdminLiveData(){
       if(currentSection==='studentRequests'&&adminCanRefreshLiveSection())renderStudentRequests();
     });
   }
+  const activityNotice=(type,row)=>{adminData.adminNotifications=adminData.adminNotifications||[];const id=`${type}:${row.id||row.studentCode||Date.now()}`;if(adminData.adminNotifications.some(item=>item.id===id))return;const title=type==='homework'?'تسليم واجب جديد':type==='exam'?'محاولة امتحان جديدة':'حركة تحفيز جديدة';adminData.adminNotifications.unshift({id,type,title,studentCode:row.studentCode||'',studentName:row.studentName||'',createdAt:new Date().toISOString(),read:false});adminData.adminNotifications=adminData.adminNotifications.slice(0,100);saveData(adminData);aToast(`${title}: ${row.studentName||row.studentCode||'طالب'}`);};
+  if(!adminHomeworkSubmissionsUnsubscribe&&window.MFCloud?.subscribeToHomeworkSubmissions){adminHomeworkSubmissionsUnsubscribe=window.MFCloud.subscribeToHomeworkSubmissions((rows,changes,error)=>{if(error)return console.warn('homework-live',error);adminData.homeworkSubmissions=rows||[];(adminAcademicListenersReady?changes:[]).filter(change=>change.type==='added').forEach(change=>activityNotice('homework',{id:change.doc.id,...change.doc.data()}));saveData(adminData);if(currentSection==='assignments'&&adminCanRefreshLiveSection())renderAssignments();});}
+  if(!adminExamAttemptsUnsubscribe&&window.MFCloud?.subscribeToExamAttempts){adminExamAttemptsUnsubscribe=window.MFCloud.subscribeToExamAttempts((rows,changes,error)=>{if(error)return console.warn('exam-live',error);adminData.examAttempts=rows||[];(adminAcademicListenersReady?changes:[]).filter(change=>change.type==='added').forEach(change=>activityNotice('exam',{id:change.doc.id,...change.doc.data()}));saveData(adminData);if(currentSection==='exams'&&adminCanRefreshLiveSection())renderExams();});}
+  if(!adminMotivationUnsubscribe&&window.MFCloud?.subscribeToMotivationTransactions){adminMotivationUnsubscribe=window.MFCloud.subscribeToMotivationTransactions((rows,changes,error)=>{if(error)return console.warn('motivation-live',error);adminData.motivationTransactions=rows||[];(adminAcademicListenersReady?changes:[]).filter(change=>change.type==='added').forEach(change=>activityNotice('motivation',{id:change.doc.id,...change.doc.data()}));saveData(adminData);});}
+  setTimeout(()=>{adminAcademicListenersReady=true;},0);
 }
 
 function bindNav(){
@@ -336,11 +383,14 @@ function bindNav(){
     window.__adminEscapeBound=true;
   }
 }
-window.adminLogout=async function(){try{bookingNotificationUnsubscribe?.();adminGroupsUnsubscribe?.();adminStudentsUnsubscribe?.();adminTransferRequestsUnsubscribe?.();window.stopMonthlyPaymentListeners?.();await window.MFCloud?.unregisterTeacherPushToken?.();await window.MFCloud?.signOut?.();}catch(e){} location.reload();};
+window.adminLogout=async function(){try{bookingNotificationUnsubscribe?.();adminGroupsUnsubscribe?.();adminStudentsUnsubscribe?.();adminTransferRequestsUnsubscribe?.();adminHomeworkSubmissionsUnsubscribe?.();adminExamAttemptsUnsubscribe?.();adminMotivationUnsubscribe?.();window.stopMonthlyPaymentListeners?.();await window.MFCloud?.unregisterTeacherPushToken?.();await window.MFCloud?.signOut?.();}catch(e){} location.reload();};
 window.forceFirestoreSync=async function(){const button=document.getElementById('adminSaveButton'),label=button?.querySelector('.admin-save-label');if(button?.disabled)return;try{if(!window.MFCloud?.saveSiteData)throw new Error('Sync service unavailable');if(button)button.disabled=true;if(label)label.textContent='جارٍ الحفظ…';await window.MFCloud.saveSiteData(adminData);saveData(adminData);if(label)label.textContent='تم الحفظ';aToast('تم حفظ جميع التغييرات');setTimeout(()=>{if(label)label.textContent='حفظ التغييرات';},1600);}catch(error){if(label)label.textContent='إعادة المحاولة';aToast(adminActionErrorMessage(error,'تعذر حفظ التغييرات.'));}finally{if(button)button.disabled=false;}};
 
 function stats(){fresh(); const today=isoDateAdmin(); const att=(adminData.students||[]).filter(s=>(s.attendance||[]).some(a=>String(a.date)===today&&a.status==='present')).length; const bookings=adminData.bookings.filter(b=>!String(b.status||'').includes('تم القبول')).length; return {students:adminData.students.length,bookings,unpaid:adminData.students.filter(s=>!s.paid).length,att};}
-function renderOverview(){const s=stats(); content(`<div class="section-head"><div><span class="kicker"><span data-icon="bar-chart"></span> ملخص المنصة</span><h2 class="section-title">جاهزية الموقع للتشغيل الحقيقي</h2><p class="section-desc">كل بيانات الطلاب والحضور محفوظة ومتاحة لفريق العمل حسب الصلاحيات.</p></div></div><div class="grid grid-4"><div class="card"><h3>الطلاب</h3><b class="big-num">${s.students}</b></div><div class="card"><h3>الحجوزات</h3><b class="big-num">${s.bookings}</b></div><div class="card"><h3>غير مشترك</h3><b class="big-num">${s.unpaid}</b></div><div class="card"><h3>حضور اليوم</h3><b class="big-num">${s.att}</b></div></div><div class="card" style="margin-top:18px"><h3>اختصارات سريعة</h3><div class="admin-task-grid-v37"><button class="btn primary" onclick="goAdminSection('attendance')"><span data-icon="qr"></span> فتح ماسح QR</button><button class="btn ghost" onclick="goAdminSection('students')"><span data-icon="users"></span> إدارة الطلاب</button><button class="btn ghost" onclick="goAdminSection('bookings')"><span data-icon="calendar"></span> مراجعة الحجوزات</button></div></div>`);}
+function renderOverview(){
+  const s=stats(),pendingExam=(adminData.examAttempts||[]).filter(row=>row.needsManualReview||row.status==='pending_manual').length,pendingTransfers=(adminData.studentTransferRequests||[]).filter(row=>!row.status||row.status==='pending').length;
+  content(`<div class="section-head"><div><span class="kicker"><span data-icon="bar-chart"></span> مركز العمل</span><h2 class="section-title">ما يحتاج تدخلك الآن</h2><p class="section-desc">الأرقام تخص البيانات الحالية، والسجلات السابقة تظل محفوظة داخل كل قسم.</p></div></div><div class="grid grid-4 admin-action-kpis"><button class="card" onclick="goAdminSection('bookings')"><small>طلبات تسجيل</small><b class="big-num">${s.bookings}</b><span>مراجعة الطلبات</span></button><button class="card" onclick="goAdminSection('exams')"><small>تصحيح امتحانات</small><b class="big-num">${pendingExam}</b><span>فتح التصحيح</span></button><button class="card" onclick="goAdminSection('studentRequests')"><small>طلبات نقل</small><b class="big-num">${pendingTransfers}</b><span>مراجعة الطلبات</span></button><button class="card" onclick="goAdminSection('payments')"><small>الدفع الشهري</small><b class="big-num">${s.unpaid}</b><span>متابعة الشهر الحالي</span></button></div><div class="card admin-daily-actions"><div><h3>إجراءات سريعة</h3><p class="section-desc">ابدأ المهمة مباشرة دون البحث في القائمة.</p></div><div class="admin-task-grid-v37"><button class="btn primary" onclick="goAdminSection('attendance')"><span data-icon="qr"></span> تسجيل الحضور</button><button class="btn ghost" onclick="goAdminSection('materials')"><span data-icon="book-open"></span> إضافة محاضرة</button><button class="btn ghost" onclick="goAdminSection('assignments')"><span data-icon="file-text"></span> إضافة واجب</button><button class="btn ghost" onclick="goAdminSection('exams')"><span data-icon="clipboard"></span> إضافة امتحان</button></div></div><div class="grid grid-3 admin-overview-summary"><article class="card"><small>إجمالي الطلاب</small><b class="big-num">${s.students}</b></article><article class="card"><small>حضور اليوم</small><b class="big-num">${s.att}</b></article><article class="card"><small>المجموعات النشطة</small><b class="big-num">${(adminData.groups||[]).filter(group=>group.active!==false).length}</b></article></div>`);
+}
 
 function studentRow(st){const s=normalizeStudent(st), c=calcStudentAdmin(s); return `<tr><td><b>${safe(s.studentCode)}</b><small style="display:block">موحّد للطالب وولي الأمر</small></td><td>${safe(s.name)}</td><td>${safe(s.grade)}</td><td>${safe(s.group||'بدون مجموعة')}</td><td><span class="badge ${badgeStatus(s.paid)}">${s.paid?'تم الدفع':'لم يتم الدفع'}</span></td><td>${c.attendancePct||0}%</td><td>${c.avg||0}%</td><td><div class="pay-row"><button class="small-btn primary" onclick="moveStudentToGroup('${safe(s.studentCode)}')">نقل لمجموعة</button><button class="small-btn" onclick="editStudent('${safe(s.studentCode)}')">تعديل</button><button class="small-btn" onclick="copyStudentCodes('${safe(s.studentCode)}')">نسخ الكود</button><button class="small-btn danger" onclick="regenerateStudentCode('${safe(s.studentCode)}')">تغيير الكود الموحّد</button><button class="small-btn" onclick="quickPresent('${safe(s.studentCode)}')">حضور</button><button class="small-btn" onclick="printStudentReport('${safe(s.studentCode)}')">تفاصيل</button><button class="small-btn whatsapp-report-btn" onclick="sendParentMonthlyReport('${safe(s.studentCode)}')">واتساب</button><button class="small-btn danger" onclick="deleteStudent('${safe(s.studentCode)}')">حذف</button></div></td></tr>`;}
 function studentMobileCards(rows){return `<div class="student-mobile-cards">${rows.map(st=>{const s=normalizeStudent(st),c=calcStudentAdmin(s); return `<article class="mobile-admin-card"><div class="mobile-admin-card-head"><div><b>${safe(s.name)}</b><small>${safe(s.studentCode)} · ${safe(s.grade)} · ${safe(s.group||'بدون مجموعة')}</small></div><span class="badge ${badgeStatus(s.paid)}">${s.paid?'تم الدفع':'لم يتم الدفع'}</span></div><div class="mobile-card-kpis"><span><small>الحضور</small><b>${c.attendancePct||0}%</b></span><span><small>الدرجات</small><b>${c.avg||0}%</b></span><span><small>التطبيق العملي</small><b>${c.recitationPct||0}%</b></span><span><small>الواجب</small><b>${c.homeworkPct||0}%</b></span></div><div class="mobile-primary-actions"><button type="button" class="small-btn primary" onclick="moveStudentToGroup('${safe(s.studentCode)}')">نقل لمجموعة</button><button type="button" class="small-btn" onclick="editStudent('${safe(s.studentCode)}')">تعديل</button><button type="button" class="small-btn" onclick="quickPresent('${safe(s.studentCode)}')">حضور</button></div><details class="admin-more-actions"><summary>المزيد من الإجراءات</summary><div class="mobile-actions"><button type="button" class="small-btn whatsapp-report-btn" onclick="sendParentMonthlyReport('${safe(s.studentCode)}')">واتساب</button><button type="button" class="small-btn" onclick="copyStudentCodes('${safe(s.studentCode)}')">نسخ الكود</button><button type="button" class="small-btn danger" onclick="regenerateStudentCode('${safe(s.studentCode)}')">تغيير الكود الموحّد</button><button type="button" class="small-btn" onclick="printStudentReport('${safe(s.studentCode)}')">التفاصيل</button><button type="button" class="small-btn danger" onclick="deleteStudent('${safe(s.studentCode)}')">حذف الطالب</button></div></details></article>`;}).join('')||'<p class="section-desc">لا يوجد طلاب.</p>'}</div>`;}
@@ -663,7 +713,7 @@ function bindAdminGradeGroupPicker(){
   };
   grade.addEventListener('change',refresh);refresh();
 }
-function renderSection(){({overview:renderOverview,students:renderStudents,bookings:renderBookings,schedules:renderSchedules,attendance:renderAttendance,warnings:renderWarnings,studentRequests:renderStudentRequests,assignments:renderAssignments,payments:renderPayments,exams:renderExams,materials:renderMaterials,curriculum:()=>window.renderCurriculumAdmin?.(),reviews:renderReviewsAdmin}[currentSection]||renderOverview)();if(currentSection==='students')bindAdminGradeGroupPicker();}
+function renderSection(){({overview:renderOverview,students:renderStudents,bookings:renderBookings,schedules:renderSchedules,attendance:renderAttendance,warnings:renderWarnings,studentRequests:renderStudentRequests,assignments:renderAssignments,payments:renderPayments,exams:renderExams,materials:renderMaterials,curriculum:()=>window.renderCurriculumAdmin?.(),reviews:renderReviewsAdmin,backup:renderBackup,settings:renderSettings}[currentSection]||renderOverview)();if(currentSection==='students')bindAdminGradeGroupPicker();}
 function exportCSV(name, rows){const csv=rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'})); a.download=name; a.click();}
 window.exportBookingsCSV=function(){exportCSV('bookings.csv',[['code','name','grade','month','group','parentPhone','status'],...adminData.bookings.map(b=>[b.code,b.name,b.grade,b.month,b.group,b.parentPhone,b.status])]);};
 

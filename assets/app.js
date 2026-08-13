@@ -12,7 +12,7 @@ var EXAM_DRAFT_PREFIX = 'mf_exam_draft_v2_';
 var PENDING_BOOKING_REQUEST_KEY = 'mf_pending_booking_request_v1';
 var cloudSaveTimer = null;
 var staffCacheTimer = null;
-var MF_ASSET_VERSION = '63.0.5';
+var MF_ASSET_VERSION = '63.0.7';
 var mfLazyScriptPromises = Object.create(null);
 var publicScheduleUnsubscribe = null;
 
@@ -459,6 +459,10 @@ function studentProfileHTML(raw, isParent=false){
     const max=Number(g.maxScore||100),percent=hasScore&&max>0?Math.round(Number(g.score)/max*100):Number(g.score||0);return `<article class="student-record-card grade-record-card"><div><span class="record-eyebrow">${esc(g.typeLabel||({exam:'امتحان',homework:'واجب',practical:'عملي',manual:'درجة يدوية'}[g.type])||'نتيجة')} · ${esc(formatPortalDate(g.date||g.submittedAt))}</span><h4>${esc(g.activityName||g.exam||g.examTitle||g.homeworkTitle||g.title||'نشاط')}</h4><small>${hasScore?`${esc(g.score)} من ${esc(max)} — ${esc(percent)}%`:'سيظهر التقييم بعد تصحيح المدرس'}</small></div><strong class="score-pill ${hasScore?scoreClass(percent):'warn'}">${hasScore?`${esc(percent)}%`:'قيد التصحيح'}</strong></article>`;
   }).join(''):'<div class="portal-empty"><span class="iconbox" data-icon="bar-chart"></span><h3>لا توجد درجات بعد</h3><p>ستظهر نتائج الامتحانات والواجبات والعملي هنا بعد تسجيلها.</p></div>';
   const attendanceCards=attendance.length?attendance.slice(0,14).map(r=>`<article class="student-record-card"><div><span class="record-eyebrow">${esc(formatTime12(r.time)||'موعد الحصة')}</span><h4>${esc(r.date||'-')}</h4><small>${esc(r.group||st.group||'-')}</small></div><span class="badge ${statusClass(r.status)}">${arStatus(r.status)}</span></article>`).join(''):'<div class="portal-empty"><span class="iconbox" data-icon="calendar"></span><h3>لا توجد سجلات حضور</h3><p>يضيف المدرس سجل الحضور، وسيظهر هنا تلقائيًا.</p></div>';
+  const cairoParts=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit'}).formatToParts(new Date()),currentAttendanceMonth=`${cairoParts.find(x=>x.type==='year')?.value}-${cairoParts.find(x=>x.type==='month')?.value}`;
+  const attendanceMonthKeys=[...new Set([currentAttendanceMonth,...attendance.map(row=>String(row.date||'').slice(0,7)).filter(key=>/^\d{4}-\d{2}$/.test(key))])].sort().reverse();
+  const attendanceMonthLabel=key=>{const [year,month]=key.split('-').map(Number);return new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',year:'numeric',month:'long'}).format(new Date(Date.UTC(year,month-1,2)));};
+  const attendanceMonthView=key=>{const rows=attendance.filter(row=>String(row.date||'').startsWith(key)),present=rows.filter(row=>['present','حاضر','متأخر'].includes(row.status)).length,absent=rows.filter(row=>['absent','غائب'].includes(row.status)).length,total=rows.length,pct=total?Math.round(present/total*100):0,cards=rows.length?rows.map(r=>`<article class="student-record-card"><div><span class="record-eyebrow">${esc(formatTime12(r.time)||'موعد الحصة')}</span><h4>${esc(r.date||'-')}</h4><small>${esc(r.group||st.group||'-')}</small></div><span class="badge ${statusClass(r.status)}">${arStatus(r.status)}</span></article>`).join(''):'<div class="portal-empty"><span class="iconbox" data-icon="calendar"></span><h3>لا توجد حصص مسجلة في هذا الشهر</h3><p>يبدأ عداد كل شهر من الصفر وتظل الشهور السابقة محفوظة في الفلتر.</p></div>';return `<div class="attendance-month-view ${key===currentAttendanceMonth?'show':''}" data-attendance-month-view="${esc(key)}"><div class="attendance-mini-kpis"><span><b>${total}</b> إجمالي الحصص</span><span><b>${present}</b> حضور</span><span><b>${absent}</b> غياب</span><span><b>${pct}%</b> النسبة</span></div><div class="student-record-list">${cards}</div></div>`;};
   const homeworkCards=homeworks.length?homeworks.slice(0,12).map(h=>`<article class="student-record-card"><div><span class="record-eyebrow">واجب دراسي</span><h4>${esc(h.title||h.homeworkTitle||'واجب')}</h4><small>${esc(h.notes||formatPortalDate(h.date||h.submittedAt)||'')}</small></div><span class="badge ${classRecordComplete(h)?'good':'warn'}">${esc(h.status||(classRecordComplete(h)?'تم عمل الواجب':'قيد المتابعة'))}</span></article>`).join(''):'<div class="portal-empty"><span class="iconbox" data-icon="file-text"></span><h3>لا توجد واجبات مسجلة</h3><p>يمكنك رفع ملف الواجب من الزر الموجود بالأسفل.</p></div>';
   const submissionByAssignment=new Map();homeworks.filter(row=>row.assignmentId).forEach(row=>{const key=String(row.assignmentId),current=submissionByAssignment.get(key);if(!current||Number(row.attemptNumber||1)>=Number(current.attemptNumber||1))submissionByAssignment.set(key,row);});
   const assignmentGroups={required:[],pending:[],graded:[],missed:[],extra:[]};
@@ -468,8 +472,15 @@ function studentProfileHTML(raw, isParent=false){
   const materialCards=materials.length?materials.map(item=>`<article class="student-record-card"><div><span class="record-eyebrow">${esc(item.lecture||item.lessonTitle||'محاضرة')}</span><h4>${esc(item.title||'محاضرة')}</h4><small>${esc(item.desc||item.fileName||'ملف المحاضرة')}</small></div>${item.fileUrl?`<a class="small-btn primary" href="${esc(item.fileUrl)}" target="_blank" rel="noopener noreferrer">فتح المحاضرة</a>`:''}</article>`).join(''):'<div class="portal-empty"><span class="iconbox" data-icon="book-open"></span><h3>لا توجد محاضرات منشورة لصفك ومجموعتك</h3><p>ستظهر المحاضرات هنا فور نشرها من المدرس.</p></div>';
   const recitationCards=recitations.length?recitations.slice(0,12).map(r=>`<article class="student-record-card"><div><span class="record-eyebrow">متابعة التطبيق العملي</span><h4>${esc(r.title||'تطبيق عملي الحصة')}</h4><small>${esc(formatPortalDate(r.date||r.createdAt))}</small></div><span class="badge ${classRecordComplete(r)?'good':'warn'}">${esc(r.status||(classRecordComplete(r)?'تم التطبيق العملي':'قيد المتابعة'))}</span></article>`).join(''):'<div class="portal-empty"><span class="iconbox" data-icon="book-open"></span><h3>لا يوجد تطبيق عملي مسجل</h3><p>عندما يعلّم المدرس على التطبيق العملي سيظهر هنا تلقائيًا.</p></div>';
   const paymentCards=monthlyPayments.length?monthlyPayments.slice(0,24).map(row=>{const status=row.status==='paid'?'مدفوع بالكامل':row.status==='partial'?'دفع جزئي':'لم يدفع',badge=row.status==='paid'?'good':row.status==='partial'?'warn':'danger';return `<article class="student-record-card"><div><span class="record-eyebrow">${esc(row.academicYear||'-')} · ${esc(row.course||st.grade||'-')}</span><h4>${esc(row.month||'-')}</h4><small>المطلوب ${esc(formatPortalMoney(row.expectedAmount))} · المدفوع ${esc(formatPortalMoney(row.paidAmount))} · المتبقي ${esc(formatPortalMoney(row.remainingAmount))}</small></div><span class="badge ${badge}">${status}</span></article>`;}).join(''):'<div class="portal-empty"><span class="iconbox" data-icon="clipboard"></span><h3>لا توجد دفعات شهرية مسجلة</h3><p>ستظهر هنا كل دفعة شهرية فور تسجيلها من الإدارة.</p></div>';
+  const motivationSummaries=Array.isArray(st.motivation?.summaries)?st.motivation.summaries:[],motivationTransactions=Array.isArray(st.motivation?.transactions)?st.motivation.transactions:[];
+  const motivationCurrent=motivationSummaries.find(row=>String(row.academicYear)===String(st.academicYear)&&String(row.month)===String(st.month))||motivationSummaries[0]||null;
+  const motivationCards=motivationTransactions.length?motivationTransactions.slice(0,20).map(row=>`<article class="student-record-card motivation-record"><div><span class="record-eyebrow">${esc(row.month||'-')} · ${esc(row.academicYear||'-')}</span><h4>${esc(row.reason||'نقاط تحفيز')}</h4><small>${esc(row.notes||formatPortalDate(row.createdAt)||'')}</small></div><strong class="score-pill ${Number(row.points)>=0?'good':'danger'}">${Number(row.points)>=0?'+':''}${esc(row.points)} نقطة</strong></article>`).join(''):'<div class="portal-empty"><span class="iconbox" data-icon="star"></span><h3>لا توجد نقاط تحفيز بعد</h3><p>ستظهر هنا نقاط الحضور والمشاركة والالتزام عند تسجيلها من المدرس.</p></div>';
+  const now=Date.now(),soonAssignments=assignmentGroups.required.filter(item=>{const time=Date.parse(item.dueDate||'');return Number.isFinite(time)&&time>=now&&time-now<=3*86400000;}),latestMotivation=motivationTransactions[0],latestMotivationTime=Date.parse(latestMotivation?.createdAt||'');
+  const deadlineAlert=soonAssignments.length?`<section class="portal-action-alert deadline"><span data-icon="alert-circle"></span><div><b>${soonAssignments.length===1?'واجب يقترب موعد إغلاقه':`${soonAssignments.length} واجبات تقترب مواعيد إغلاقها`}</b><small>افتح قسم الواجبات وسلّم قبل الموعد المحدد.</small></div></section>`:'';
+  const motivationAlert=latestMotivation&&Number.isFinite(latestMotivationTime)&&now-latestMotivationTime<7*86400000?`<section class="portal-action-alert motivation"><span data-icon="star"></span><div><b>لديك ${Number(latestMotivation.points)>=0?'نقاط تحفيز جديدة':'تحديث جديد في نقاط التحفيز'}</b><small>${Number(latestMotivation.points)>=0?'+':''}${esc(latestMotivation.points)} — ${esc(latestMotivation.reason)}</small></div></section>`:'';
   return `<div class="student-app-dashboard">
     ${pending?`<section class="portal-pending-banner" role="status"><span data-icon="alert-circle"></span><div><b>لم يتم قبول الحجز حتى الآن</b><small>تم تسجيل بياناتك ويمكنك فتح بوابة الطالب بنفس الكود. ستتفعّل المحاضرات والواجبات والاختبارات بعد قبول الحجز.</small></div></section>`:''}
+    ${pending?'':deadlineAlert}${motivationAlert}
     <section class="student-app-header">
       <div class="student-identity"><span class="student-avatar">${esc(initials||'ط')}</span><div><span class="kicker"><span data-icon="user-check"></span> ${isParent?'تقرير ولي الأمر':'مرحبًا بك'}</span><h2>${esc(st.name)}</h2><p>${esc(st.grade||'-')} <span>•</span> ${esc(st.group||'-')}${st.scheduleDays?` <span>•</span> ${esc(st.scheduleDays)}`:''}${st.scheduleStartTime?` <span>•</span> ${esc(formatTime12(st.scheduleStartTime))}`:''}</p><code>${esc(st.studentCode)}</code></div></div>
       <details class="student-qr-details"><summary><span data-icon="qr"></span> عرض QR الحضور</summary><div class="real-qr-wrap">${makeQR(qrValue(st))}<small>رمز الحضور منفصل عن كود فتح البوابة</small></div></details>
@@ -478,6 +489,7 @@ function studentProfileHTML(raw, isParent=false){
       <article><span data-icon="bar-chart"></span><b>${c.final}%</b><small>المستوى العام</small></article>
       <article><span data-icon="star"></span><b>${c.avg}%</b><small>متوسط الدرجات</small></article>
       <article><span data-icon="calendar"></span><b>${c.attendancePct}%</b><small>نسبة الحضور</small></article>
+      <article class="motivation-kpi"><span data-icon="star"></span><b>${esc(motivationCurrent?.totalPoints||0)}</b><small>نقاط تحفيز الشهر</small></article>
     </section>
     <details class="student-secondary-kpis"><summary>عرض باقي المؤشرات</summary><div><span><b>${c.homeworkPct}%</b> نسبة تسليم الواجبات</span><span><b>${c.homeworkGradeAvg}%</b> متوسط درجات الواجبات</span><span><b>${c.recitationPct}%</b> انتظام العملي</span><span><b>${st.paid?'تم الدفع':'لم يتم الدفع'}</b> حالة الدفع</span></div></details>
     <nav class="student-tabbar" aria-label="أقسام ملف الطالب">
@@ -485,11 +497,10 @@ function studentProfileHTML(raw, isParent=false){
       <button type="button" data-student-tab="homework"><span data-icon="file-text"></span><span>الواجبات</span></button>
       <button type="button" data-student-tab="grades"><span data-icon="bar-chart"></span><span>الدرجات</span></button>
       <button type="button" data-student-tab="attendance"><span data-icon="calendar"></span><span>الحضور</span></button>
-      <button type="button" data-student-more-toggle><span data-icon="menu"></span><span>المزيد</span></button>
-      <button type="button" data-student-tab="recitation" data-secondary-tab><span data-icon="book-open"></span><span>التطبيق العملي</span></button>
-      <button type="button" data-student-tab="lectures" data-secondary-tab><span data-icon="book-open"></span><span>المحاضرات</span></button>
-      <button type="button" data-student-tab="payments" data-secondary-tab><span data-icon="database"></span><span>المدفوعات</span></button>
-      ${isParent||pending?'':'<button type="button" data-student-tab="transfer" data-secondary-tab><span data-icon="user-check"></span><span>طلب نقل</span></button>'}
+      <button type="button" data-student-tab="motivation"><span data-icon="star"></span><span>التحفيز</span></button>
+      <button type="button" data-student-tab="recitation"><span data-icon="book-open"></span><span>العملي</span></button>
+      <button type="button" data-student-tab="payments"><span data-icon="database"></span><span>المدفوعات</span></button>
+      ${isParent||pending?'':'<button type="button" data-student-tab="transfer"><span data-icon="user-check"></span><span>طلب نقل</span></button>'}
     </nav>
     <section class="student-tab-panel show" data-student-panel="overview">
       <div class="student-overview-grid">
@@ -500,8 +511,9 @@ function studentProfileHTML(raw, isParent=false){
       ${pending?'<div class="portal-empty"><span class="iconbox" data-icon="calendar"></span><h3>الخدمات التعليمية في انتظار القبول</h3><p>بعد قبول الحجز ستظهر هنا روابط المحاضرات والأسئلة والاختبارات تلقائيًا.</p></div>':`<div class="student-quick-links"><a href="${esc(portalUrl('materials.html',st.studentCode))}"><span data-icon="book-open"></span><b>محاضرات المسار</b><small>راجع شرح وملفات مسارك</small></a><a href="${esc(portalUrl('questions.html',st.studentCode))}"><span data-icon="help-circle"></span><b>أسئلة المسار</b><small>تدرب على أسئلة ومراجعات مسارك</small></a><a href="${esc(portalUrl('exams.html',st.studentCode))}"><span data-icon="clipboard"></span><b>الاختبارات</b><small>ابدأ امتحانك بالكود</small></a><a href="index.html#contact"><span data-icon="phone"></span><b>تواصل مع المدرس</b><small>للاستفسار والمتابعة</small></a></div>`}
     </section>
     <section class="student-tab-panel" data-student-panel="grades"><div class="student-panel-title"><div><span class="kicker"><span data-icon="bar-chart"></span> سجل موحد</span><h3>درجات الامتحانات والواجبات والعملي</h3></div><span class="badge">${grades.length} نتيجة</span></div><div class="homework-metric-pair"><span><b>${c.homeworkPct}%</b> نسبة تسليم الواجبات</span><span><b>${c.homeworkGradeAvg}%</b> متوسط درجات الواجبات</span></div><div class="student-record-list">${gradeCards}</div></section>
-    <section class="student-tab-panel" data-student-panel="attendance"><div class="student-panel-title"><div><span class="kicker"><span data-icon="calendar"></span> المتابعة</span><h3>سجل الحضور والغياب</h3></div><span class="badge good">${c.present} حضور</span></div><div class="attendance-mini-kpis"><span><b>${c.totalAttendance}</b> إجمالي</span><span><b>${c.present}</b> حاضر</span><span><b>${c.absent}</b> غائب</span></div><div class="student-record-list">${attendanceCards}</div></section>
+    <section class="student-tab-panel" data-student-panel="attendance"><div class="student-panel-title"><div><span class="kicker"><span data-icon="calendar"></span> المتابعة الشهرية</span><h3>سجل الحضور والغياب</h3><p>كل شهر له عداد مستقل، مع الاحتفاظ بسجل الشهور السابقة.</p></div><label class="attendance-month-filter"><span>الشهر</span><select data-attendance-month-select>${attendanceMonthKeys.map(key=>`<option value="${esc(key)}" ${key===currentAttendanceMonth?'selected':''}>${esc(attendanceMonthLabel(key))}</option>`).join('')}</select></label></div>${attendanceMonthKeys.map(attendanceMonthView).join('')}</section>
     <section class="student-tab-panel" data-student-panel="recitation"><div class="student-panel-title"><div><span class="kicker"><span data-icon="book-open"></span> التطبيق العملي</span><h3>سجل تطبيق عملي الطالب</h3></div><span class="badge good">${c.recitationCount} مرة</span></div><div class="student-record-list">${recitationCards}</div></section>
+    <section class="student-tab-panel" data-student-panel="motivation"><div class="student-panel-title"><div><span class="kicker"><span data-icon="star"></span> التحفيز الشهري</span><h3>نقاط المشاركة والالتزام</h3><p>هذه النقاط مستقلة تمامًا ولا تدخل في متوسط الدرجات الأكاديمية.</p></div><span class="badge good">${esc(motivationCurrent?.totalPoints||0)} نقطة</span></div><div class="student-record-list">${motivationCards}</div></section>
     <section class="student-tab-panel" data-student-panel="homework"><div class="student-panel-title"><div><span class="kicker"><span data-icon="file-text"></span> الواجبات</span><h3>واجباتك حسب الحالة</h3></div><span class="badge warn">${assignments.length} واجب</span></div><div class="homework-metric-pair"><span><b>${c.homeworkCount} من ${c.homeworkRequired}</b> تم تسليمها</span><span><b>${c.homeworkGradeAvg}%</b> متوسط الدرجات</span></div><div class="student-assignment-list">${assignmentCards}</div><details class="student-homework-history"><summary>سجل المتابعة السابق</summary><div class="student-record-list">${homeworkCards}</div></details></section>
     <section class="student-tab-panel" data-student-panel="lectures"><div class="student-panel-title"><div><span class="kicker"><span data-icon="book-open"></span> المحاضرات</span><h3>محاضرات صفك ومجموعتك</h3></div><span class="badge good">${materials.length} محاضرة</span></div><div class="student-record-list">${materialCards}</div></section>
     <section class="student-tab-panel" data-student-panel="payments"><div class="student-panel-title"><div><span class="kicker"><span data-icon="database"></span> السجل المالي</span><h3>تاريخ الدفعات الشهرية</h3></div><span class="badge">${monthlyPayments.length} شهر</span></div><div class="student-record-list">${paymentCards}</div></section>
@@ -512,14 +524,13 @@ function bindStudentDashboard(){
   const dashboard=document.querySelector('.student-app-dashboard'); if(!dashboard)return;
   const buttons=[...dashboard.querySelectorAll('[data-student-tab]')];
   const panels=[...dashboard.querySelectorAll('[data-student-panel]')];
-  const more=dashboard.querySelector('[data-student-more-toggle]');
-  more?.addEventListener('click',()=>{const expanded=dashboard.classList.toggle('show-secondary-tabs');more.setAttribute('aria-expanded',String(expanded));});
+  const attendanceMonthSelect=dashboard.querySelector('[data-attendance-month-select]');
+  attendanceMonthSelect?.addEventListener('change',()=>dashboard.querySelectorAll('[data-attendance-month-view]').forEach(view=>view.classList.toggle('show',view.dataset.attendanceMonthView===attendanceMonthSelect.value)));
   buttons.forEach(btn=>btn.addEventListener('click',async()=>{
     const key=btn.dataset.studentTab;
     buttons.forEach(x=>x.classList.toggle('active',x===btn));
     panels.forEach(x=>x.classList.toggle('show',x.dataset.studentPanel===key));
     const target=dashboard.querySelector(`[data-student-panel="${key}"]`);
-    if(btn.hasAttribute('data-secondary-tab')&&window.innerWidth<700)dashboard.classList.remove('show-secondary-tabs');
     if(window.innerWidth<700) target?.scrollIntoView({behavior:'smooth',block:'start'});
     if(key==='transfer'&&lastPortalStudent&&!lastPortalStudent.transferDataLoaded&&window.MFCloud?.getStudentByCode){
       if(target)target.innerHTML='<div class="portal-loading"><span></span><b>جاري تحميل المجموعات المتاحة…</b></div>';
@@ -580,6 +591,7 @@ async function setupStudent(){
     finally{button?.classList.remove('is-loading'); if(button)button.disabled=false; form.removeAttribute('aria-busy');}
   });
   if(quickCode&&!form.dataset.autoLoaded){form.dataset.autoLoaded='true';setTimeout(()=>form.requestSubmit(),120);}
+  if(!window.__studentPortalAutoRefreshBound){let lastRefresh=0;const refresh=async()=>{if(document.hidden||!lastPortalStudent||Date.now()-lastRefresh<15000)return;lastRefresh=Date.now();const dashboard=document.querySelector('.student-app-dashboard'),active=dashboard?.querySelector('[data-student-tab].active')?.dataset.studentTab||'overview';try{const refreshed=await loadStudentForPortal(lastPortalStudent.studentCode,{force:true});lastPortalStudent=refreshed;const box=document.getElementById('studentResult');if(box){box.innerHTML=studentProfileHTML(refreshed,false);bindStudentDashboard();bindHomeworkForms();bindStudentTransferForms(form,refreshed.studentCode);hydrateIcons();box.querySelector(`[data-student-tab="${active}"]`)?.click();}}catch(error){console.warn('student-portal-background-refresh',error?.code||error?.message||error);}};document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});window.addEventListener('focus',refresh);window.setInterval(refresh,60000);window.__studentPortalAutoRefreshBound=true;}
 }
 var parentQrScanner = null;
 var lastParentStudent = null;
@@ -602,10 +614,19 @@ function parentReportText(raw){
   return `تقرير متابعة شهر ${monthLabel(st)}\n\nالطالب: ${st.name || '-'}\nالكود الموحد: ${st.studentCode || '-'}\nالمسار: ${st.grade || '-'}\nالمجموعة: ${st.group || '-'}\n\nملخص الحالة:\n- المستوى العام: ${c.final}% - ${c.level}\n- نسبة الحضور: ${c.attendancePct}%\n- متوسط الدرجات: ${c.avg}%\n- انتظام التطبيق العملي: ${c.recitationPct}% (${c.recitationCount} مرة)\n- نسبة تسليم الواجبات: ${c.homeworkPct}%\n- متوسط درجات الواجبات: ${c.homeworkGradeAvg}%\n- حالة الدفع: ${st.paid ? 'تم الدفع' : 'لم يتم الدفع'}\n\nآخر درجة: ${lastGradeText}\n\nالحضور والغياب:\n${lastAttendance}\n\nملاحظات المدرس:\n${st.notes || 'لا توجد ملاحظات حالية.'}\n\nمع تحيات م. عمرو خالد`;
 }
 
-function parentReportHTML(raw){
+function parentReportHTML(raw,selectedMonth=''){
   const st = normalizedStudent(raw);
   const c = calcStudent(st);
-  const rows = studentReportRows(st);
+  const allRows = studentReportRows(st);
+  const currentMonth=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit'}).format(new Date());
+  const monthKey=selectedMonth||currentMonth,recordMonth=row=>String(row.date||row.submittedAt||row.createdAt||'').slice(0,7);
+  const rows={attendance:allRows.attendance.filter(row=>recordMonth(row)===monthKey),grades:allRows.grades.filter(row=>recordMonth(row)===monthKey),homeworks:allRows.homeworks.filter(row=>recordMonth(row)===monthKey),recitations:allRows.recitations.filter(row=>recordMonth(row)===monthKey)};
+  const parentMonthKeys=[...new Set([currentMonth,...Object.values(allRows).flat().map(recordMonth).filter(key=>/^\d{4}-\d{2}$/.test(key))])].sort().reverse();
+  const parentMonthLabel=key=>{const [year,month]=key.split('-').map(Number);return new Intl.DateTimeFormat('ar-EG',{year:'numeric',month:'long',timeZone:'Africa/Cairo'}).format(new Date(Date.UTC(year,month-1,2)));};
+  const monthPresent=rows.attendance.filter(row=>['present','حاضر','متأخر'].includes(row.status)).length,monthAttendancePct=rows.attendance.length?Math.round(monthPresent/rows.attendance.length*100):0;
+  const scoredRows=rows.grades.filter(row=>row.score!==null&&row.score!==undefined&&row.score!==''),monthGradeAvg=scoredRows.length?Math.round(scoredRows.reduce((sum,row)=>sum+(Number(row.maxScore||100)>0?Number(row.score||0)/Number(row.maxScore||100)*100:0),0)/scoredRows.length):0;
+  const monthAssignments=(st.assignments||[]).filter(row=>recordMonth(row)===monthKey),submittedIds=new Set(rows.homeworks.map(row=>String(row.assignmentId||'')).filter(Boolean)),monthHomeworkPct=monthAssignments.length?Math.round(monthAssignments.filter(row=>submittedIds.has(String(row.id))).length/monthAssignments.length*100):0;
+  const monthHomeworkGrades=rows.homeworks.filter(row=>row.score!==null&&row.score!==undefined),monthHomeworkAvg=monthHomeworkGrades.length?Math.round(monthHomeworkGrades.reduce((sum,row)=>sum+Number(row.score||0)/Math.max(1,Number(row.maxScore||100))*100,0)/monthHomeworkGrades.length):0;
   const grades = rows.grades.slice(0,8);
   const hw = rows.homeworks.slice(-6).reverse();
   const latestSubmissionByAssignment=new Map();
@@ -622,6 +643,7 @@ function parentReportHTML(raw){
   const teacherName = appData.settings?.teacherName || 'م. عمرو خالد';
   const today = new Date().toLocaleDateString('ar-EG');
   return `<div class="parent-monthly-report-v40" id="parentMonthlyReport">
+    <label class="parent-month-filter-v637"><span>عرض تقرير شهر</span><select onchange="renderParentMonth(this.value)">${parentMonthKeys.map(key=>`<option value="${esc(key)}" ${key===monthKey?'selected':''}>${esc(parentMonthLabel(key))}</option>`).join('')}</select></label>
     <div class="parent-report-cover-v40">
       <div class="parent-report-brand-v40">
         <span class="teacher-name-v40">${esc(teacherName)}</span>
@@ -648,11 +670,11 @@ function parentReportHTML(raw){
     </div>
     <div class="metric-grid parent-report-metrics-v40">
       <div class="metric main-metric-v40"><b>${c.final}%</b><small>المستوى العام</small></div>
-      <div class="metric"><b>${c.attendancePct}%</b><small>نسبة الحضور</small></div>
-      <div class="metric"><b>${c.avg}%</b><small>متوسط الدرجات</small></div>
+      <div class="metric"><b>${monthAttendancePct}%</b><small>نسبة الحضور</small></div>
+      <div class="metric"><b>${monthGradeAvg}%</b><small>متوسط الدرجات</small></div>
       <div class="metric"><b>${c.recitationPct}%</b><small>انتظام التطبيق العملي</small></div>
-      <div class="metric"><b>${c.homeworkPct}%</b><small>نسبة تسليم الواجبات</small></div>
-      <div class="metric"><b>${c.homeworkGradeAvg}%</b><small>متوسط درجات الواجبات</small></div>
+      <div class="metric"><b>${monthHomeworkPct}%</b><small>نسبة تسليم الواجبات</small></div>
+      <div class="metric"><b>${monthHomeworkAvg}%</b><small>متوسط درجات الواجبات</small></div>
       <div class="metric"><b>${c.totalAttendance}</b><small>إجمالي الحصص</small></div>
     </div>
     <div class="parent-status-card-v40 ${c.final>=75?'good':'warn'}">
@@ -731,7 +753,10 @@ async function setupParent(){
     finally{button?.classList.remove('is-loading');if(button)button.disabled=false;form.removeAttribute('aria-busy');}
   });
   if(quickCode&&!form.dataset.autoLoaded){form.dataset.autoLoaded='true';setTimeout(()=>form.requestSubmit(),120);}
+  if(!window.__parentPortalAutoRefreshBound){let lastRefresh=0;const refresh=async()=>{if(document.hidden||!lastParentStudent||Date.now()-lastRefresh<15000)return;lastRefresh=Date.now();try{await showParentReportByCode(lastParentStudent.studentCode);}catch(error){console.warn('parent-portal-background-refresh',error?.code||error?.message||error);}};document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});window.addEventListener('focus',refresh);window.setInterval(refresh,60000);window.__parentPortalAutoRefreshBound=true;}
 }
+
+window.renderParentMonth=function(month){const box=document.getElementById('parentResult');if(box&&lastParentStudent){box.innerHTML=parentReportHTML(lastParentStudent,month);hydrateIcons();}};
 
 window.copyParentReport = async function(code){
   const st = (lastParentStudent && lastParentStudent.studentCode===code) ? lastParentStudent : (window.MF_FIREBASE_CONFIG?.useSecureFunctions===false ? findStudentByCode(code) : null);

@@ -5,8 +5,8 @@
   const number=value=>{const normalized=String(value??'').replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-1632)).replace(/[۰-۹]/g,d=>String(d.charCodeAt(0)-1776));const parsed=Number(normalized.replace(/[^0-9.-]/g,''));return Number.isFinite(parsed)&&parsed>=0?Math.round((parsed+Number.EPSILON)*100)/100:0;};
   const money=value=>`${new Intl.NumberFormat('ar-EG',{maximumFractionDigits:2}).format(number(value))} ج.م`;
   const cairoNowParts=()=>{const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()),get=type=>Number(parts.find(item=>item.type===type)?.value||0);return {year:get('year'),month:get('month'),day:get('day')};};
-  const currentMonth=()=>{const now=cairoNowParts();return Array.isArray(MONTHS)?MONTHS[Math.max(0,now.month-1)]:'';};
-  const schoolYear=()=>{const now=cairoNowParts(),start=now.month>=7?now.year:now.year-1;return `${start}/${start+1}`;};
+  const currentMonth=()=>{const selected=window.adminWorkspaceContext?.().month;if(selected)return selected;const now=cairoNowParts();return Array.isArray(MONTHS)?MONTHS[Math.max(0,now.month-1)]:'';};
+  const schoolYear=()=>{const selected=window.adminWorkspaceContext?.().academicYear;if(selected)return selected;const now=cairoNowParts(),start=now.month>=7?now.year:now.year-1;return `${start}/${start+1}`;};
   const cairoDate=()=>{const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const get=type=>parts.find(item=>item.type===type)?.value||'';return `${get('year')}-${get('month')}-${get('day')}`;};
   const statusOf=(expected,paid)=>number(paid)<=0?'unpaid':number(expected)>number(paid)?'partial':'paid';
   const statusLabel=status=>status==='paid'?'مدفوع بالكامل':status==='partial'?'دفع جزئي':'لم يدفع';

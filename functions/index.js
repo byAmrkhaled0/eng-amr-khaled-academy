@@ -50,7 +50,7 @@ const PAYMENT_MONTH_NAMES = ['يناير','فبراير','مارس','أبريل'
 // Callable endpoints must accept the browser's unauthenticated CORS preflight.
 // Sensitive operations still enforce staff authentication inside each handler.
 const CALLABLE_OPTIONS = { region: 'europe-west1', timeoutSeconds: 30, invoker: 'public' };
-const API_SCHEMA_VERSION = 'portal-v63.0.5';
+const API_SCHEMA_VERSION = 'portal-v63.0.7';
 
 function apiMetadata() {
   return { frontendVersion: PLATFORM_VERSION, backendVersion: PLATFORM_VERSION, apiSchemaVersion: API_SCHEMA_VERSION };
@@ -623,6 +623,125 @@ exports.cancelPaymentTransaction = onCall(CALLABLE_OPTIONS, async request => {
   return result;
 });
 
+function motivationPeriodId(studentCode, academicYear, month) {
+  return hash([normalizeCode(studentCode), text(academicYear, 30), text(month, 40)].join('|')).slice(0, 48);
+}
+
+function publicMotivationTransaction(id, row = {}) {
+  return {
+    id: text(id, 100),
+    studentCode: text(row.studentCode, 40),
+    academicYear: text(row.academicYear, 30),
+    month: text(row.month, 40),
+    points: Math.max(-1000, Math.min(1000, Number(row.points || 0))),
+    reason: text(row.reason, 160),
+    notes: text(row.notes, 800),
+    createdAt: firestoreMillis(row.createdAt) ? new Date(firestoreMillis(row.createdAt)).toISOString() : '',
+    reversed: row.reversed === true,
+    reversalOf: text(row.reversalOf, 100),
+    reversedByTransactionId: text(row.reversedByTransactionId, 100)
+  };
+}
+
+exports.addStudentMotivationPoints = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request, ['admin']);
+  await rateLimit('admin-motivation-points', staff.uid, 120, 60 * 1000);
+  const body = request.data || {}, studentCode = normalizeCode(body.studentCode), requestId = text(body.requestId, 100);
+  const points = Math.trunc(Number(body.points || 0));
+  if (!validLegacyOrStrongCode(studentCode)) throw new HttpsError('invalid-argument', 'كود الطالب غير صالح.');
+  if (!requestId || !Number.isInteger(points) || points === 0 || Math.abs(points) > 1000) throw new HttpsError('invalid-argument', 'النقاط يجب أن تكون عددًا صحيحًا من -1000 إلى 1000 وألا تساوي صفرًا.');
+  const reason = text(body.reason, 160), notes = text(body.notes, 800);
+  if (!reason) throw new HttpsError('invalid-argument', 'اكتب سبب إضافة أو خصم النقاط.');
+  const studentRef = db.collection('students').doc(cleanDocId(studentCode));
+  const studentSnap = await studentRef.get();
+  if (!studentSnap.exists || studentSnap.data().active === false) throw new HttpsError('not-found', 'الطالب غير موجود أو غير نشط.');
+  const student = studentSnap.data(), academicYear = text(body.academicYear || student.academicYear, 30), month = text(body.month || student.month, 40);
+  if (!/^20\d{2}\/20\d{2}$/.test(academicYear) || !month) throw new HttpsError('invalid-argument', 'حدد العام الدراسي والشهر.');
+  const periodId = motivationPeriodId(studentCode, academicYear, month), summaryRef = db.collection('motivation_monthly').doc(periodId);
+  const transactionRef = db.collection('motivation_transactions').doc(hash(`${staff.uid}|${requestId}`).slice(0, 48));
+  let result;
+  await db.runTransaction(async tx => {
+    const [existing, summarySnap] = await Promise.all([tx.get(transactionRef), tx.get(summaryRef)]);
+    if (existing.exists) {
+      const row = existing.data();result = { duplicate: true, transaction: publicMotivationTransaction(existing.id, row), totalPoints: Number(row.totalAfter || 0) };return;
+    }
+    const current = summarySnap.exists ? summarySnap.data() : {}, totalPoints = Math.max(-100000, Math.min(100000, Number(current.totalPoints || 0) + points));
+    const transaction = {
+      studentCode, studentName: text(student.studentName || student.name, 100), grade: text(student.grade, 80), group: text(student.group, 100),
+      scheduleId: text(student.scheduleId || student.groupId, 100), academicYear, month, periodId, points, reason, notes,
+      totalAfter: totalPoints, requestId, recordedByUid: staff.uid, recordedByEmail: staff.email || '', recordedByRole: 'admin',
+      createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+    };
+    const summary = {
+      periodId, studentCode, studentName: transaction.studentName, grade: transaction.grade, group: transaction.group, scheduleId: transaction.scheduleId,
+      academicYear, month, totalPoints, transactionCount: Number(current.transactionCount || 0) + 1,
+      lastReason: reason, lastPoints: points, createdAt: current.createdAt || FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+    };
+    tx.create(transactionRef, transaction);tx.set(summaryRef, summary, { merge: true });
+    tx.create(db.collection('activityLog').doc(), { action: points > 0 ? 'إضافة نقاط تحفيز' : 'خصم نقاط تحفيز', actorUid: staff.uid, actorEmail: staff.email || '', actorRole: 'admin', metadata: { studentCode, academicYear, month, points, reason, totalAfter: totalPoints }, createdAt: FieldValue.serverTimestamp() });
+    result = { duplicate: false, transaction: { ...publicMotivationTransaction(transactionRef.id, transaction), createdAt: new Date().toISOString() }, totalPoints };
+  });
+  return result;
+});
+
+exports.getStudentMotivationAdmin = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request, ['admin']);
+  await rateLimit('admin-motivation-read', staff.uid, 180, 60 * 1000);
+  const studentCode = normalizeCode(request.data?.studentCode);
+  if (!validLegacyOrStrongCode(studentCode)) throw new HttpsError('invalid-argument', 'كود الطالب غير صالح.');
+  const [summariesSnap, transactionsSnap] = await Promise.all([
+    db.collection('motivation_monthly').where('studentCode', '==', studentCode).limit(60).get(),
+    db.collection('motivation_transactions').where('studentCode', '==', studentCode).limit(160).get()
+  ]);
+  const summaries = summariesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a,b)=>firestoreMillis(b.updatedAt)-firestoreMillis(a.updatedAt)).map(row => ({ id: text(row.id, 100), academicYear: text(row.academicYear, 30), month: text(row.month, 40), totalPoints: Number(row.totalPoints || 0), transactionCount: Number(row.transactionCount || 0), lastReason: text(row.lastReason, 160) }));
+  const transactions = transactionsSnap.docs.map(doc => publicMotivationTransaction(doc.id, doc.data())).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  return { studentCode, summaries, transactions };
+});
+
+exports.reverseStudentMotivationTransaction = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request, ['admin']);
+  await rateLimit('admin-motivation-reverse', staff.uid, 60, 60 * 1000);
+  const transactionId = cleanDocId(text(request.data?.transactionId, 100));
+  const requestId = text(request.data?.requestId, 100);
+  const reason = text(request.data?.reason, 300) || 'تصحيح حركة تحفيز';
+  if (!transactionId || !requestId) throw new HttpsError('invalid-argument', 'حدد حركة التحفيز وسبب التراجع.');
+  const originalRef = db.collection('motivation_transactions').doc(transactionId);
+  const reversalRef = db.collection('motivation_transactions').doc(hash(`${staff.uid}|reverse|${requestId}`).slice(0, 48));
+  let result;
+  await db.runTransaction(async tx => {
+    const originalSnap = await tx.get(originalRef);
+    if (!originalSnap.exists) throw new HttpsError('not-found', 'حركة التحفيز غير موجودة.');
+    const original = originalSnap.data();
+    if (original.reversed === true) { result = { duplicate: true, transactionId: original.reversedByTransactionId || '' }; return; }
+    const existing = await tx.get(reversalRef);
+    if (existing.exists) { result = { duplicate: true, transactionId: existing.id }; return; }
+    const summaryRef = db.collection('motivation_monthly').doc(original.periodId);
+    const summarySnap = await tx.get(summaryRef);
+    if (!summarySnap.exists) throw new HttpsError('failed-precondition', 'ملخص نقاط الشهر غير موجود.');
+    const current = summarySnap.data(), points = -Math.trunc(Number(original.points || 0));
+    const totalPoints = Math.max(-100000, Math.min(100000, Number(current.totalPoints || 0) + points));
+    const reversal = { ...original, points, reason, notes: `عملية عكسية للحركة ${transactionId}`, totalAfter: totalPoints, requestId, reversalOf: transactionId, reversed: false, recordedByUid: staff.uid, recordedByEmail: staff.email || '', recordedByRole: 'admin', createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
+    delete reversal.reversedByTransactionId; delete reversal.reversedAt;
+    tx.create(reversalRef, reversal);
+    tx.set(originalRef, { reversed: true, reversedAt: FieldValue.serverTimestamp(), reversedByUid: staff.uid, reversedByTransactionId: reversalRef.id, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    tx.set(summaryRef, { totalPoints, transactionCount: Number(current.transactionCount || 0) + 1, lastReason: reason, lastPoints: points, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    tx.create(db.collection('activityLog').doc(), { action: 'عكس حركة تحفيز', actorUid: staff.uid, actorEmail: staff.email || '', actorRole: 'admin', metadata: { transactionId, reversalId: reversalRef.id, studentCode: original.studentCode, points, totalAfter: totalPoints }, createdAt: FieldValue.serverTimestamp() });
+    result = { duplicate: false, transactionId: reversalRef.id, totalPoints };
+  });
+  return result;
+});
+
+exports.getMotivationLeaderboardAdmin = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request, ['admin']);
+  await rateLimit('admin-motivation-leaderboard', staff.uid, 120, 60 * 1000);
+  const academicYear = text(request.data?.academicYear, 30), month = text(request.data?.month, 40), grade = text(canonicalAcademicLabel(request.data?.grade), 80), scheduleId = text(request.data?.scheduleId, 100);
+  if (!academicYear || !month) throw new HttpsError('invalid-argument', 'حدد العام الدراسي والشهر.');
+  let query = db.collection('motivation_monthly').where('academicYear', '==', academicYear).where('month', '==', month);
+  if (scheduleId) query = query.where('scheduleId', '==', scheduleId); else if (grade) query = query.where('grade', '==', grade);
+  const snap = await query.limit(500).get();
+  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a,b)=>Number(b.totalPoints||0)-Number(a.totalPoints||0)).slice(0,50).map((row,index)=>({ rank:index+1, studentCode:text(row.studentCode,40), studentName:text(row.studentName,100), grade:text(row.grade,80), group:text(row.group,100), totalPoints:Number(row.totalPoints||0), transactionCount:Number(row.transactionCount||0) }));
+});
+
 function publicExamSession(sessionId, exam, questions, startedAtMs, expiresAtMs) {
   return {
     sessionId,
@@ -771,6 +890,13 @@ function portalResponse(data, attempts, records = {}) {
       extraAttemptNumber: Math.max(0, Number(openGrantByAssignment.get(String(row.id))?.attemptNumber || 0))
     })),
     materials: (Array.isArray(records.materials) ? records.materials : []).slice(0, 120),
+    motivation: {
+      summaries: (Array.isArray(records.motivationSummaries) ? records.motivationSummaries : []).slice(0, 36).map(row => ({
+        id: text(row.id || row.periodId, 100), academicYear: text(row.academicYear, 30), month: text(row.month, 40),
+        totalPoints: Number(row.totalPoints || 0), transactionCount: Number(row.transactionCount || 0), lastReason: text(row.lastReason, 160)
+      })),
+      transactions: (Array.isArray(records.motivationTransactions) ? records.motivationTransactions : []).slice(0, 80).map(row => publicMotivationTransaction(row.id, row))
+    },
     examAttempts,
     results,
     homeworkMetrics: homeworkSummary,
@@ -1051,11 +1177,24 @@ async function studentRecords(studentCode, student = {}) {
     const snap = ordered || await base.limit(160).get().catch(() => null);
     return snap ? snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) : [];
   };
-  const [attendance, grades, homeworks, recitations, monthlyPayments, assignments, materials, platformSettingsSnap, homeworkGrantsSnap] = await Promise.all([
-    load('attendance'), load('grades'), load('homework_submissions'), load('recitations'), load('monthly_payments'), assignmentsForStudent(student), materialsForStudent(student), db.collection('settings').doc('platform').get().catch(() => null), db.collection('homework_attempt_grants').where('studentCode', '==', normalized).where('status', '==', 'open').limit(30).get().catch(() => null)
+  // Attendance existed in several legacy schemas (studentCode/studentId/code).
+  // Merge all matching rows by document id so every class date remains visible
+  // after upgrading, without duplicating the same attendance record.
+  const loadAttendance = async () => {
+    const snapshots = await Promise.all(['studentCode','studentId','code'].map(field =>
+      db.collection('attendance').where(field, '==', normalized).limit(240).get().catch(() => null)
+    ));
+    const rows = new Map();
+    snapshots.filter(Boolean).forEach(snap => snap.docs.forEach(doc => rows.set(doc.id, { id: doc.id, ...doc.data() })));
+    return [...rows.values()];
+  };
+  const [attendance, grades, homeworks, recitations, monthlyPayments, assignments, materials, platformSettingsSnap, homeworkGrantsSnap, motivationSummariesSnap, motivationTransactionsSnap] = await Promise.all([
+    loadAttendance(), load('grades'), load('homework_submissions'), load('recitations'), load('monthly_payments'), assignmentsForStudent(student), materialsForStudent(student), db.collection('settings').doc('platform').get().catch(() => null), db.collection('homework_attempt_grants').where('studentCode', '==', normalized).where('status', '==', 'open').limit(30).get().catch(() => null), db.collection('motivation_monthly').where('studentCode', '==', normalized).limit(36).get().catch(() => null), db.collection('motivation_transactions').where('studentCode', '==', normalized).limit(80).get().catch(() => null)
   ]);
   const byDate = rows => rows.sort((a, b) => String(a.date || a.submittedAt || a.createdAt || '').localeCompare(String(b.date || b.submittedAt || b.createdAt || '')));
-  return { attendance: byDate(attendance), grades: byDate(grades), homeworks: byDate(homeworks), recitations: byDate(recitations), monthlyPayments: monthlyPayments.sort((a, b) => String(a.academicYear + a.month).localeCompare(String(b.academicYear + b.month))), assignments, materials, platformSettings: platformSettingsSnap?.exists ? platformSettingsSnap.data() : {}, homeworkGrants: homeworkGrantsSnap ? homeworkGrantsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) : [] };
+  const motivationSummaries = motivationSummariesSnap ? motivationSummariesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a,b)=>firestoreMillis(b.updatedAt)-firestoreMillis(a.updatedAt)) : [];
+  const motivationTransactions = motivationTransactionsSnap ? motivationTransactionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a,b)=>firestoreMillis(b.createdAt)-firestoreMillis(a.createdAt)) : [];
+  return { attendance: byDate(attendance), grades: byDate(grades), homeworks: byDate(homeworks), recitations: byDate(recitations), monthlyPayments: monthlyPayments.sort((a, b) => String(a.academicYear + a.month).localeCompare(String(b.academicYear + b.month))), assignments, materials, motivationSummaries, motivationTransactions, platformSettings: platformSettingsSnap?.exists ? platformSettingsSnap.data() : {}, homeworkGrants: homeworkGrantsSnap ? homeworkGrantsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) : [] };
 }
 
 function publicSchedule(schedule = {}) {
@@ -1494,6 +1633,31 @@ exports.getAdminCollectionPage = onCall(CALLABLE_OPTIONS, async request => {
     orderBy: `${orderField} desc`,
     pageSize
   };
+});
+
+exports.searchStudentsAdmin = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request, ['admin']);
+  await rateLimit('admin-student-search', staff.uid, 180, 60 * 1000);
+  const raw = text(request.data?.query, 100).trim(), normalized = normalizeCode(raw), nameKey = studentNameKey(raw);
+  const grade = text(canonicalAcademicLabel(request.data?.grade), 80), scheduleId = text(request.data?.scheduleId, 100);
+  if (raw.length < 2) throw new HttpsError('invalid-argument', 'اكتب حرفين على الأقل للبحث.');
+  const queries = [];
+  if (validLegacyOrStrongCode(normalized)) queries.push(db.collection('students').where('studentCode','==',normalized).limit(10).get().catch(()=>null));
+  const phone = digits(raw); if (phone.length >= 7) queries.push(db.collection('students').where('parentPhone','==',phone).limit(20).get().catch(()=>null), db.collection('students').where('studentPhone','==',phone).limit(20).get().catch(()=>null));
+  if (nameKey) queries.push(db.collection('students').orderBy('nameKey').startAt(nameKey).endAt(`${nameKey}\uf8ff`).limit(50).get().catch(()=>null));
+  const snapshots = await Promise.all(queries.length ? queries : [Promise.resolve(null)]), rows = new Map();
+  snapshots.filter(Boolean).forEach(snap=>snap.docs.forEach(doc=>rows.set(doc.id,{id:doc.id,...doc.data()})));
+  return [...rows.values()].filter(row=>(!grade||sameAcademicValue(row.grade,grade))&&(!scheduleId||String(row.scheduleId||row.groupId||'')===scheduleId)).slice(0,50).map(row=>({ studentCode:text(row.studentCode||row.code||row.id,40), studentName:text(row.studentName||row.name,100), parentPhone:digits(row.parentPhone), studentPhone:digits(row.studentPhone), grade:text(canonicalAcademicLabel(row.grade),80), group:text(row.group,100), scheduleId:text(row.scheduleId||row.groupId,100), active:row.active!==false, paid:row.paid===true, academicYear:text(row.academicYear,30), term:text(row.term,40) }));
+});
+
+exports.getStudentAdminProfile = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request, ['admin']);
+  await rateLimit('admin-student-profile', staff.uid, 180, 60 * 1000);
+  const studentCode = normalizeCode(request.data?.studentCode), academicYear = text(request.data?.academicYear,30), month = text(request.data?.month,40);
+  if (!validLegacyOrStrongCode(studentCode)) throw new HttpsError('invalid-argument','كود الطالب غير صالح.');
+  const found = await getStudentPortalByCode(studentCode), records = await studentRecords(studentCode, found.data);
+  const filterPeriod = rows => (rows||[]).filter(row=>(!academicYear||!row.academicYear||String(row.academicYear)===academicYear)&&(!month||!row.month||String(row.month)===month));
+  return { student: portalResponse(found.data, await attemptSummaries(studentCode), records), period:{academicYear,month}, attendance:filterPeriod(records.attendance).slice(-80).reverse(), grades:filterPeriod(records.grades).slice(-80).reverse(), homeworks:filterPeriod(records.homeworks).slice(-80).reverse(), recitations:filterPeriod(records.recitations).slice(-80).reverse(), monthlyPayments:filterPeriod(records.monthlyPayments).slice(-36).reverse(), motivationSummaries:filterPeriod(records.motivationSummaries).slice(0,36), motivationTransactions:filterPeriod(records.motivationTransactions).slice(0,80) };
 });
 
 function studentResourcePayload(doc, kind) {
