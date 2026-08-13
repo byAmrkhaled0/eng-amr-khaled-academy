@@ -59,7 +59,8 @@ test('student portal keeps essential tabs without a more menu and shows motivati
   const app=read('assets/app.js');
   assert.doesNotMatch(app,/data-student-more-toggle/);
   assert.match(app,/data-student-panel="motivation"/);
-  assert.match(app,/مستقلة تمامًا ولا تدخل في متوسط الدرجات الأكاديمية/);
+  assert.match(app,/تُحتسب كبونص شهري يساعدك في ترتيب طلاب مسارك/);
+  assert.match(app,/getStudentLeaderboardPosition/);
 });
 
 test('attendance persists one record per class date and reads legacy identities',()=>{
@@ -75,6 +76,10 @@ test('attendance persists one record per class date and reads legacy identities'
 test('advanced admin workflows are server-backed, realtime and auditable',()=>{
   const backend=read('functions/index.js'),sync=read('assets/firebase-sync.js'),admin=read('assets/admin.js'),experience=read('assets/v63-admin-experience.js');
   for(const endpoint of ['reverseStudentMotivationTransaction','getMotivationLeaderboardAdmin','searchStudentsAdmin','getStudentAdminProfile'])assert.match(backend,new RegExp(`exports\\.${endpoint}`));
+  assert.match(backend,/exports\.getStudentLeaderboardPosition/);
+  assert.match(backend,/motivationBonus/);
+  assert.match(admin,/\['motivation','star','التحفيز والترتيب'\]/);
+  assert.match(admin,/renderMotivationAdmin/);
   assert.match(backend,/reversalOf/);
   assert.match(sync,/subscribeToHomeworkSubmissions/);
   assert.match(sync,/subscribeToExamAttempts/);

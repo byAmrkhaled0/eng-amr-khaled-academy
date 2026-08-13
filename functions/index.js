@@ -681,6 +681,7 @@ exports.addStudentMotivationPoints = onCall(CALLABLE_OPTIONS, async request => {
     tx.create(db.collection('activityLog').doc(), { action: points > 0 ? 'إضافة نقاط تحفيز' : 'خصم نقاط تحفيز', actorUid: staff.uid, actorEmail: staff.email || '', actorRole: 'admin', metadata: { studentCode, academicYear, month, points, reason, totalAfter: totalPoints }, createdAt: FieldValue.serverTimestamp() });
     result = { duplicate: false, transaction: { ...publicMotivationTransaction(transactionRef.id, transaction), createdAt: new Date().toISOString() }, totalPoints };
   });
+  if (!result?.duplicate) await markLeaderboardDirty('motivation-points');
   return result;
 });
 
@@ -728,6 +729,7 @@ exports.reverseStudentMotivationTransaction = onCall(CALLABLE_OPTIONS, async req
     tx.create(db.collection('activityLog').doc(), { action: 'عكس حركة تحفيز', actorUid: staff.uid, actorEmail: staff.email || '', actorRole: 'admin', metadata: { transactionId, reversalId: reversalRef.id, studentCode: original.studentCode, points, totalAfter: totalPoints }, createdAt: FieldValue.serverTimestamp() });
     result = { duplicate: false, transactionId: reversalRef.id, totalPoints };
   });
+  if (!result?.duplicate) await markLeaderboardDirty('motivation-reversal');
   return result;
 });
 
@@ -2125,30 +2127,28 @@ async function fetchAllCollectionDocuments(collection, configure = query => quer
   return { docs };
 }
 
-exports.getPublicLeaderboard = onCall(CALLABLE_OPTIONS, async request => {
-  // The old shared identity "all" imposed one 30-request limit on the whole
-  // website. Limit per visitor IP instead so simultaneous students can load it.
-  await rateLimit('public-leaderboard-ip', requestIp(request), 60, 60 * 1000);
+const canonicalLeaderboardGrade = value => text(canonicalAcademicLabel(value), 50);
+
+async function currentLeaderboardRows() {
   const stateSnap = await leaderboardStateRef.get().catch(() => null);
   const stateVersion = stateSnap?.exists ? Number(stateSnap.data()?.version || 0) : 0;
-  const canonicalLeaderboardGrade = value => text(canonicalAcademicLabel(value), 50);
-  const requestedGrade = canonicalLeaderboardGrade(request.data?.grade);
-  if (!ACADEMIC_GRADES.includes(requestedGrade)) throw new HttpsError('invalid-argument', 'اختر مسارًا صحيحًا من المسارات المتاحة.');
-  const selectGradeLeaders = items => (items || []).filter(row => canonicalLeaderboardGrade(row.grade) === requestedGrade).slice(0, 5);
-  if (leaderboardCache.expiresAt > Date.now() && leaderboardCache.version === stateVersion) return selectGradeLeaders(leaderboardCache.rows);
-  const [studentsSnap, attendanceSnap, gradesSnap, examAttemptsSnap, homeworkSnap, recitationSnap, assignmentSnap] = await Promise.all([
+  if (leaderboardCache.expiresAt > Date.now() && leaderboardCache.version === stateVersion) return leaderboardCache.rows;
+  const currentMonth=cairoDateKey(new Date()).slice(0,7);
+  const currentMotivationMonth=PAYMENT_MONTH_NAMES[Math.max(0,Number(currentMonth.slice(5,7))-1)]||'';
+  const currentAcademicYear=(()=>{const year=Number(currentMonth.slice(0,4)),month=Number(currentMonth.slice(5,7));return month>=7?`${year}/${year+1}`:`${year-1}/${year}`;})();
+  const [studentsSnap, attendanceSnap, gradesSnap, examAttemptsSnap, homeworkSnap, recitationSnap, assignmentSnap, motivationSnap] = await Promise.all([
     fetchAllCollectionDocuments('students', query => query.where('active', '==', true)),
     fetchAllCollectionDocuments('attendance'),
     fetchAllCollectionDocuments('grades'),
     fetchAllCollectionDocuments('exam_attempts'),
     fetchAllCollectionDocuments('homework_submissions'),
     fetchAllCollectionDocuments('recitations'),
-    fetchAllCollectionDocuments('assignments')
+    fetchAllCollectionDocuments('assignments'),
+    fetchAllCollectionDocuments('motivation_monthly',query=>query.where('academicYear','==',currentAcademicYear).where('month','==',currentMotivationMonth))
   ]);
   const grouped = snap => { const map = new Map(); snap.docs.forEach(doc => { const row=doc.data()||{},code=normalizeCode(row.studentCode); if(!code)return; if(!map.has(code))map.set(code,[]); map.get(code).push(row); }); return map; };
-  const attendance=grouped(attendanceSnap),grades=grouped(gradesSnap),examAttempts=grouped(examAttemptsSnap),homeworks=grouped(homeworkSnap),recitations=grouped(recitationSnap);
+  const attendance=grouped(attendanceSnap),grades=grouped(gradesSnap),examAttempts=grouped(examAttemptsSnap),homeworks=grouped(homeworkSnap),recitations=grouped(recitationSnap),motivation=grouped(motivationSnap);
   const complete=row=>row.completed===true||row.approved===true||String(row.status||'').startsWith('تم');
-  const currentMonth=cairoDateKey(new Date()).slice(0,7);
   const currentMonthRows=items=>(items||[]).filter(row=>leaderboardRecordDate(row).slice(0,7)===currentMonth);
   const recordDate=leaderboardRecordDate;
   const rows=studentsSnap.docs.map(doc=>{
@@ -2161,11 +2161,42 @@ exports.getPublicLeaderboard = onCall(CALLABLE_OPTIONS, async request => {
     const classDates=new Set(att.map(recordDate).filter(Boolean));rec.forEach(row=>{const date=recordDate(row);if(date)classDates.add(date);});
     const sessions=classDates.size,completedDates=items=>new Set(items.map(recordDate).filter(Boolean)).size;
     const homeworkPct=Math.round(homeworkSummary.submissionPercentage),recitationPct=sessions?Math.min(100,Math.round(completedDates(rec)/sessions*100)):0;
-    const score=Math.round(attendancePct*.30+gradePct*.40+homeworkPct*.15+recitationPct*.15);
-    return {name:publicStudentName(st.studentName||st.name),grade:canonicalLeaderboardGrade(st.grade),score,attendancePct,gradePct,homeworkPct,recitationPct,activity:att.length+gradeRows.length+hw.length+rec.length};
+    const motivationRow=(motivation.get(code)||[]).find(row=>String(row.month||'')===currentMotivationMonth&&String(row.academicYear||'')===currentAcademicYear);
+    const motivationPoints=Math.trunc(Number(motivationRow?.totalPoints||0));
+    // Motivation is a visible monthly bonus/penalty in the platform ranking,
+    // while academic percentages keep their original meaning. Cap its effect
+    // to protect the leaderboard from an accidental oversized admin entry.
+    const motivationBonus=Math.max(-20,Math.min(20,motivationPoints));
+    const baseScore=Math.round(attendancePct*.30+gradePct*.40+homeworkPct*.15+recitationPct*.15);
+    const score=Math.max(0,Math.min(100,baseScore+motivationBonus));
+    return {studentCode:code,name:publicStudentName(st.studentName||st.name),grade:canonicalLeaderboardGrade(st.grade),score,baseScore,motivationPoints,motivationBonus,attendancePct,gradePct,homeworkPct,recitationPct,activity:att.length+gradeRows.length+hw.length+rec.length+Math.abs(motivationPoints)};
   }).filter(x=>x.name&&x.activity>0).sort((a,b)=>b.score-a.score||b.attendancePct-a.attendancePct||b.gradePct-a.gradePct);
   leaderboardCache = { expiresAt: Date.now() + 5 * 60 * 1000, version: stateVersion, rows };
-  return selectGradeLeaders(rows);
+  return rows;
+}
+
+exports.getPublicLeaderboard = onCall(CALLABLE_OPTIONS, async request => {
+  // The old shared identity "all" imposed one 30-request limit on the whole
+  // website. Limit per visitor IP instead so simultaneous students can load it.
+  await rateLimit('public-leaderboard-ip', requestIp(request), 60, 60 * 1000);
+  const requestedGrade = canonicalLeaderboardGrade(request.data?.grade);
+  if (!ACADEMIC_GRADES.includes(requestedGrade)) throw new HttpsError('invalid-argument', 'اختر مسارًا صحيحًا من المسارات المتاحة.');
+  const rows = await currentLeaderboardRows();
+  return rows.filter(row => canonicalLeaderboardGrade(row.grade) === requestedGrade).slice(0, 5).map(({ studentCode, ...row }) => row);
+});
+
+exports.getStudentLeaderboardPosition = onCall(CALLABLE_OPTIONS, async request => {
+  const studentCode = normalizeCode(request.data?.studentCode);
+  await requirePortalSession(request, studentCode, ['student']);
+  await rateLimitPublic('student-leaderboard-position', studentCode, request, 12, 30, 60 * 60 * 1000);
+  const studentSnap = await db.collection('students').doc(cleanDocId(studentCode)).get();
+  if (!studentSnap.exists || studentSnap.data().active === false) throw new HttpsError('not-found', 'الطالب غير موجود أو غير نشط.');
+  const grade = canonicalLeaderboardGrade(studentSnap.data().grade);
+  const gradeRows = (await currentLeaderboardRows()).filter(row => canonicalLeaderboardGrade(row.grade) === grade);
+  const index = gradeRows.findIndex(row => row.studentCode === studentCode);
+  if (index < 0) return { rank: null, totalStudents: gradeRows.length, score: 0, baseScore: 0, motivationPoints: 0, motivationBonus: 0, grade };
+  const row = gradeRows[index];
+  return { rank: index + 1, totalStudents: gradeRows.length, score: row.score, baseScore: row.baseScore, motivationPoints: row.motivationPoints, motivationBonus: row.motivationBonus, grade };
 });
 
 exports.createStudentAccess = onCall(CALLABLE_OPTIONS, async request => {
