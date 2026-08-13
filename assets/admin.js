@@ -25,6 +25,7 @@ let adminDrawerReturnFocus = null;
 const adminSections = [
   ['overview','bar-chart','الرئيسية'],
   ['students','users','الطلاب'],
+  ['motivation','star','التحفيز والترتيب'],
   ['schedules','calendar','المواعيد'],
   ['attendance','qr','الحضور والغياب'],
   ['materials','book-open','المحاضرات'],
@@ -40,7 +41,7 @@ const adminSections = [
   ['settings','settings','الإعدادات']
 ];
 const adminSectionGroups = [
-  ['اليوم', ['overview','students','schedules','attendance']],
+  ['اليوم', ['overview','students','motivation','schedules','attendance']],
   ['التعليم', ['materials','assignments','exams','curriculum']],
   ['الإدارة', ['payments','bookings','studentRequests','warnings']],
   ['النظام', ['reviews','backup','settings']]
@@ -713,7 +714,21 @@ function bindAdminGradeGroupPicker(){
   };
   grade.addEventListener('change',refresh);refresh();
 }
-function renderSection(){({overview:renderOverview,students:renderStudents,bookings:renderBookings,schedules:renderSchedules,attendance:renderAttendance,warnings:renderWarnings,studentRequests:renderStudentRequests,assignments:renderAssignments,payments:renderPayments,exams:renderExams,materials:renderMaterials,curriculum:()=>window.renderCurriculumAdmin?.(),reviews:renderReviewsAdmin,backup:renderBackup,settings:renderSettings}[currentSection]||renderOverview)();if(currentSection==='students')bindAdminGradeGroupPicker();}
+async function refreshMotivationAdminRanking(){
+  const box=document.getElementById('motivationAdminRanking');if(!box)return;
+  const context=adminWorkspaceContext(),grade=document.getElementById('motivationAdminGrade')?.value||GRADES[0];
+  box.innerHTML='<div class="portal-loading"><span></span><b>جارٍ تحميل ترتيب الشهر…</b></div>';
+  try{const rows=await window.MFCloud.getMotivationLeaderboardAdmin({academicYear:context.academicYear,month:context.month,grade});box.innerHTML=rows.length?rows.map(row=>`<article><span class="leaderboard-rank">${safe(row.rank)}</span><div><b>${safe(row.studentName)}</b><small>${safe(row.grade)} · ${safe(row.group||'بدون مجموعة')}</small></div><strong>${safe(row.totalPoints)} نقطة</strong><button class="small-btn ghost" type="button" onclick="editStudent('${safe(row.studentCode)}')">السجل</button></article>`).join(''):'<div class="portal-empty"><h3>لا توجد نقاط مسجلة</h3><p>اختر طالبًا وسجل له نقاط أو بونص للشهر الحالي.</p></div>';}
+  catch(error){box.innerHTML=`<div class="portal-empty"><h3>تعذر تحميل الترتيب</h3><p>${safe(adminActionErrorMessage(error,'حاول مرة أخرى.'))}</p></div>`;}
+}
+function renderMotivationAdmin(){
+  const context=adminWorkspaceContext(),students=(adminData.students||[]).filter(student=>student.active!==false).map(normalizeStudent).sort((a,b)=>a.name.localeCompare(b.name,'ar'));
+  content(`<div class="section-head"><div><span class="kicker"><span data-icon="star"></span> التحفيز الشهري</span><h2 class="section-title">نقاط وبونص الطلاب المتميزين</h2><p class="section-desc">أي نقاط تسجلها هنا تظهر للطالب وتدخل كبونص في ترتيب المنصة لهذا الشهر، من دون تغيير درجاته الأكاديمية.</p></div></div><div class="motivation-admin-layout"><form id="motivationQuickForm" class="card grid"><div class="grid grid-2"><label class="field"><span>الطالب</span><select name="studentCode" required><option value="">اختر الطالب</option>${students.map(student=>`<option value="${safe(student.studentCode)}">${safe(student.name)} — ${safe(student.grade)}</option>`).join('')}</select></label><label class="field"><span>النقاط أو البونص</span><input name="points" type="number" inputmode="numeric" min="-1000" max="1000" step="1" required placeholder="مثال: 5"></label></div><label class="field"><span>السبب</span><select name="reason" required><option value="">اختر السبب</option><option>مشاركة داخل الحصة</option><option>حضور منتظم</option><option>تفوق في الامتحان</option><option>حل الواجب</option><option>التطبيق العملي</option><option>الالتزام والسلوك</option><option>مساعدة الزملاء</option><option>بونص إضافي</option></select></label><label class="field"><span>ملاحظة اختيارية</span><textarea name="notes" maxlength="800" rows="3"></textarea></label><div class="form-state" id="motivationQuickState" aria-live="polite"></div><button class="btn primary" type="submit"><span data-icon="star"></span> إضافة النقاط وتحديث الترتيب</button><small>فترة العمل: ${safe(context.academicYear)} · ${safe(context.month)}. استخدم رقمًا سالبًا للخصم.</small></form><section class="card motivation-ranking-panel"><div class="student-panel-title"><div><span class="kicker">الترتيب المباشر</span><h3>طلاب الشهر المتميزون</h3></div><select id="motivationAdminGrade">${GRADES.map(grade=>`<option>${safe(grade)}</option>`).join('')}</select></div><div id="motivationAdminRanking" class="motivation-admin-ranking"></div></section></div>`);
+  const form=document.getElementById('motivationQuickForm'),state=document.getElementById('motivationQuickState');
+  form.onsubmit=async event=>{event.preventDefault();const values=Object.fromEntries(new FormData(form).entries()),points=Number(values.points),button=form.querySelector('[type="submit"]');if(!Number.isInteger(points)||points===0){state.className='form-state error';state.textContent='اكتب عدد نقاط صحيحًا لا يساوي صفرًا.';return;}button.disabled=true;button.classList.add('is-loading');state.className='form-state loading';state.textContent='جارٍ تسجيل النقاط وتحديث الترتيب…';try{await window.MFCloud.addStudentMotivationPoints({studentCode:values.studentCode,academicYear:context.academicYear,month:context.month,points,reason:values.reason,notes:values.notes,requestId:`motivation-${Date.now()}-${Math.random().toString(36).slice(2)}`});state.className='form-state success';state.textContent='تم تسجيل النقاط وتحديث ترتيب المنصة.';form.elements.points.value='';form.elements.notes.value='';await refreshMotivationAdminRanking();}catch(error){state.className='form-state error';state.textContent=adminActionErrorMessage(error,'تعذر تسجيل النقاط.');}finally{button.disabled=false;button.classList.remove('is-loading');}};
+  document.getElementById('motivationAdminGrade').onchange=refreshMotivationAdminRanking;refreshMotivationAdminRanking();hydrateIcons();
+}
+function renderSection(){({overview:renderOverview,students:renderStudents,motivation:renderMotivationAdmin,bookings:renderBookings,schedules:renderSchedules,attendance:renderAttendance,warnings:renderWarnings,studentRequests:renderStudentRequests,assignments:renderAssignments,payments:renderPayments,exams:renderExams,materials:renderMaterials,curriculum:()=>window.renderCurriculumAdmin?.(),reviews:renderReviewsAdmin,backup:renderBackup,settings:renderSettings}[currentSection]||renderOverview)();if(currentSection==='students')bindAdminGradeGroupPicker();}
 function exportCSV(name, rows){const csv=rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'})); a.download=name; a.click();}
 window.exportBookingsCSV=function(){exportCSV('bookings.csv',[['code','name','grade','month','group','parentPhone','status'],...adminData.bookings.map(b=>[b.code,b.name,b.grade,b.month,b.group,b.parentPhone,b.status])]);};
 
