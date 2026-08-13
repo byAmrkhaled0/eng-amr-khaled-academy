@@ -738,10 +738,9 @@ exports.getMotivationLeaderboardAdmin = onCall(CALLABLE_OPTIONS, async request =
   await rateLimit('admin-motivation-leaderboard', staff.uid, 120, 60 * 1000);
   const academicYear = text(request.data?.academicYear, 30), month = text(request.data?.month, 40), grade = text(canonicalAcademicLabel(request.data?.grade), 80), scheduleId = text(request.data?.scheduleId, 100);
   if (!academicYear || !month) throw new HttpsError('invalid-argument', 'حدد العام الدراسي والشهر.');
-  let query = db.collection('motivation_monthly').where('academicYear', '==', academicYear).where('month', '==', month);
-  if (scheduleId) query = query.where('scheduleId', '==', scheduleId); else if (grade) query = query.where('grade', '==', grade);
-  const snap = await query.limit(500).get();
-  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a,b)=>Number(b.totalPoints||0)-Number(a.totalPoints||0)).slice(0,50).map((row,index)=>({ rank:index+1, studentCode:text(row.studentCode,40), studentName:text(row.studentName,100), grade:text(row.grade,80), group:text(row.group,100), totalPoints:Number(row.totalPoints||0), transactionCount:Number(row.transactionCount||0) }));
+  let rows=await leaderboardRowsForPeriod(academicYear,month);
+  if(scheduleId)rows=rows.filter(row=>String(row.scheduleId||'')===scheduleId);else if(grade)rows=rows.filter(row=>canonicalLeaderboardGrade(row.grade)===canonicalLeaderboardGrade(grade));
+  return rows.slice(0,100).map((row,index)=>({rank:index+1,studentCode:row.studentCode,studentName:row.name,grade:row.grade,group:row.group||'',scheduleId:row.scheduleId||'',score:Number(row.score||0),baseScore:Number(row.baseScore||0),totalPoints:Number(row.motivationPoints||0),motivationBonus:Number(row.motivationBonus||0),attendancePct:Number(row.attendancePct||0),gradePct:Number(row.gradePct||0),homeworkPct:Number(row.homeworkPct||0),recitationPct:Number(row.recitationPct||0)}));
 });
 
 function publicExamSession(sessionId, exam, questions, startedAtMs, expiresAtMs) {
@@ -2084,7 +2083,7 @@ exports.migratePlatformV63 = onCall({ region: 'europe-west1', timeoutSeconds: 54
 });
 
 const leaderboardStateRef = db.collection('_system').doc('leaderboard');
-let leaderboardCache = { expiresAt: 0, version: -1, rows: [] };
+let leaderboardCache = { expiresAt: 0, version: -1, periodKey: '', rows: [] };
 
 async function markLeaderboardDirty(reason = 'activity') {
   try {
@@ -2129,13 +2128,22 @@ async function fetchAllCollectionDocuments(collection, configure = query => quer
 
 const canonicalLeaderboardGrade = value => text(canonicalAcademicLabel(value), 50);
 
-async function currentLeaderboardRows() {
+function leaderboardPeriod(academicYear='',monthName='') {
+  if(!academicYear||!monthName){
+    const monthKey=cairoDateKey(new Date()).slice(0,7),year=Number(monthKey.slice(0,4)),month=Number(monthKey.slice(5,7));
+    return {monthKey,monthName:PAYMENT_MONTH_NAMES[month-1]||'',academicYear:month>=7?`${year}/${year+1}`:`${year-1}/${year}`};
+  }
+  const startYear=Number(String(academicYear).match(/^\d{4}/)?.[0]),monthIndex=PAYMENT_MONTH_NAMES.indexOf(monthName);
+  if(!Number.isInteger(startYear)||monthIndex<0)throw new HttpsError('invalid-argument','اختر عامًا دراسيًا وشهرًا صحيحين.');
+  const calendarYear=monthIndex>=6?startYear:startYear+1;
+  return {monthKey:`${calendarYear}-${String(monthIndex+1).padStart(2,'0')}`,monthName,academicYear};
+}
+
+async function leaderboardRowsForPeriod(academicYear='',monthName='') {
+  const period=leaderboardPeriod(academicYear,monthName);
   const stateSnap = await leaderboardStateRef.get().catch(() => null);
   const stateVersion = stateSnap?.exists ? Number(stateSnap.data()?.version || 0) : 0;
-  if (leaderboardCache.expiresAt > Date.now() && leaderboardCache.version === stateVersion) return leaderboardCache.rows;
-  const currentMonth=cairoDateKey(new Date()).slice(0,7);
-  const currentMotivationMonth=PAYMENT_MONTH_NAMES[Math.max(0,Number(currentMonth.slice(5,7))-1)]||'';
-  const currentAcademicYear=(()=>{const year=Number(currentMonth.slice(0,4)),month=Number(currentMonth.slice(5,7));return month>=7?`${year}/${year+1}`:`${year-1}/${year}`;})();
+  if (leaderboardCache.expiresAt > Date.now() && leaderboardCache.version === stateVersion && leaderboardCache.periodKey === period.monthKey) return leaderboardCache.rows;
   const [studentsSnap, attendanceSnap, gradesSnap, examAttemptsSnap, homeworkSnap, recitationSnap, assignmentSnap, motivationSnap] = await Promise.all([
     fetchAllCollectionDocuments('students', query => query.where('active', '==', true)),
     fetchAllCollectionDocuments('attendance'),
@@ -2144,24 +2152,24 @@ async function currentLeaderboardRows() {
     fetchAllCollectionDocuments('homework_submissions'),
     fetchAllCollectionDocuments('recitations'),
     fetchAllCollectionDocuments('assignments'),
-    fetchAllCollectionDocuments('motivation_monthly',query=>query.where('academicYear','==',currentAcademicYear).where('month','==',currentMotivationMonth))
+    fetchAllCollectionDocuments('motivation_monthly',query=>query.where('academicYear','==',period.academicYear).where('month','==',period.monthName))
   ]);
   const grouped = snap => { const map = new Map(); snap.docs.forEach(doc => { const row=doc.data()||{},code=normalizeCode(row.studentCode); if(!code)return; if(!map.has(code))map.set(code,[]); map.get(code).push(row); }); return map; };
   const attendance=grouped(attendanceSnap),grades=grouped(gradesSnap),examAttempts=grouped(examAttemptsSnap),homeworks=grouped(homeworkSnap),recitations=grouped(recitationSnap),motivation=grouped(motivationSnap);
   const complete=row=>row.completed===true||row.approved===true||String(row.status||'').startsWith('تم');
-  const currentMonthRows=items=>(items||[]).filter(row=>leaderboardRecordDate(row).slice(0,7)===currentMonth);
+  const currentMonthRows=items=>(items||[]).filter(row=>leaderboardRecordDate(row).slice(0,7)===period.monthKey);
   const recordDate=leaderboardRecordDate;
   const rows=studentsSnap.docs.map(doc=>{
     const st=doc.data()||{},code=normalizeCode(st.studentCode||st.code||doc.id);
     const att=currentMonthRows(attendance.get(code)||st.attendance||[]),present=att.filter(x=>['present','حاضر','متأخر'].includes(x.status)).length,attendancePct=att.length?Math.round(present/att.length*100):0;
     const gradeRows=[...currentMonthRows(grades.get(code)||st.grades||[]),...currentMonthRows(examAttempts.get(code)||[])].filter(x=>Number.isFinite(Number(x.score))),gradePct=gradeRows.length?Math.round(gradeRows.reduce((sum,x)=>sum+(Number(x.maxScore)>0?Number(x.score)/Number(x.maxScore)*100:Number(x.score)),0)/gradeRows.length):0;
     const allStudentHomework=homeworks.get(code)||st.homeworks||[],hw=currentMonthRows(allStudentHomework).filter(complete),rec=currentMonthRows(recitations.get(code)||st.recitations||[]).filter(complete);
-    const requiredAssignments=assignmentSnap.docs.map(item=>({id:item.id,...item.data()})).filter(item=>assignmentIsReleased(item)&&learningTargetMatchesStudent(item,st)&&cairoDateKey(item.publishAt||item.createdAt||item.dueDate).slice(0,7)===currentMonth);
+    const requiredAssignments=assignmentSnap.docs.map(item=>({id:item.id,...item.data()})).filter(item=>assignmentIsReleased(item)&&learningTargetMatchesStudent(item,st)&&cairoDateKey(item.publishAt||item.createdAt||item.dueDate).slice(0,7)===period.monthKey);
     const homeworkSummary=homeworkMetrics(requiredAssignments,allStudentHomework);
     const classDates=new Set(att.map(recordDate).filter(Boolean));rec.forEach(row=>{const date=recordDate(row);if(date)classDates.add(date);});
     const sessions=classDates.size,completedDates=items=>new Set(items.map(recordDate).filter(Boolean)).size;
     const homeworkPct=Math.round(homeworkSummary.submissionPercentage),recitationPct=sessions?Math.min(100,Math.round(completedDates(rec)/sessions*100)):0;
-    const motivationRow=(motivation.get(code)||[]).find(row=>String(row.month||'')===currentMotivationMonth&&String(row.academicYear||'')===currentAcademicYear);
+    const motivationRow=(motivation.get(code)||[]).find(row=>String(row.month||'')===period.monthName&&String(row.academicYear||'')===period.academicYear);
     const motivationPoints=Math.trunc(Number(motivationRow?.totalPoints||0));
     // Motivation is a visible monthly bonus/penalty in the platform ranking,
     // while academic percentages keep their original meaning. Cap its effect
@@ -2169,11 +2177,13 @@ async function currentLeaderboardRows() {
     const motivationBonus=Math.max(-20,Math.min(20,motivationPoints));
     const baseScore=Math.round(attendancePct*.30+gradePct*.40+homeworkPct*.15+recitationPct*.15);
     const score=Math.max(0,Math.min(100,baseScore+motivationBonus));
-    return {studentCode:code,name:publicStudentName(st.studentName||st.name),grade:canonicalLeaderboardGrade(st.grade),score,baseScore,motivationPoints,motivationBonus,attendancePct,gradePct,homeworkPct,recitationPct,activity:att.length+gradeRows.length+hw.length+rec.length+Math.abs(motivationPoints)};
+    return {studentCode:code,name:publicStudentName(st.studentName||st.name),grade:canonicalLeaderboardGrade(st.grade),group:text(st.group,100),scheduleId:text(st.scheduleId||st.groupId,100),score,baseScore,motivationPoints,motivationBonus,attendancePct,gradePct,homeworkPct,recitationPct,activity:att.length+gradeRows.length+hw.length+rec.length+Math.abs(motivationPoints)};
   }).filter(x=>x.name&&x.activity>0).sort((a,b)=>b.score-a.score||b.attendancePct-a.attendancePct||b.gradePct-a.gradePct);
-  leaderboardCache = { expiresAt: Date.now() + 5 * 60 * 1000, version: stateVersion, rows };
+  leaderboardCache = { expiresAt: Date.now() + 5 * 60 * 1000, version: stateVersion, periodKey: period.monthKey, rows };
   return rows;
 }
+
+async function currentLeaderboardRows(){return leaderboardRowsForPeriod();}
 
 exports.getPublicLeaderboard = onCall(CALLABLE_OPTIONS, async request => {
   // The old shared identity "all" imposed one 30-request limit on the whole
@@ -2182,7 +2192,7 @@ exports.getPublicLeaderboard = onCall(CALLABLE_OPTIONS, async request => {
   const requestedGrade = canonicalLeaderboardGrade(request.data?.grade);
   if (!ACADEMIC_GRADES.includes(requestedGrade)) throw new HttpsError('invalid-argument', 'اختر مسارًا صحيحًا من المسارات المتاحة.');
   const rows = await currentLeaderboardRows();
-  return rows.filter(row => canonicalLeaderboardGrade(row.grade) === requestedGrade).slice(0, 5).map(({ studentCode, ...row }) => row);
+  return rows.filter(row => canonicalLeaderboardGrade(row.grade) === requestedGrade).slice(0, 5).map(({ studentCode, scheduleId, group, ...row }) => row);
 });
 
 exports.getStudentLeaderboardPosition = onCall(CALLABLE_OPTIONS, async request => {

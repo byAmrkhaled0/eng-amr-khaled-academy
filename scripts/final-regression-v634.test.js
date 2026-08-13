@@ -69,11 +69,12 @@ test('admin shows only the current homework submissions while preserving histori
   assert.match(css, /\[hidden\]\{display:none!important\}/);
 });
 
-test('admin exam workspace keeps current work primary and bounds historical rendering', () => {
+test('admin exam workspace hides student data until one isolated exam is opened', () => {
   const workflow = read('assets/v60-admin-workflow.js');
-  assert.match(workflow, /const liveExams=availableExams\.filter/);
+  assert.match(workflow, /tm-admin-open-exam/);
+  assert.match(workflow, /openAdminExamDetails/);
   assert.match(workflow, /const currentAttempts=currentExam\?attempts\.filter/);
-  assert.match(workflow, /محاولات الامتحان الحالي/);
-  assert.match(workflow, /historicalAttempts\.slice\(0,30\)/);
-  assert.match(workflow, /المغلق يظل محفوظًا في السجل/);
+  assert.match(workflow, /افتح امتحانًا واحدًا لعرض بياناته وطلابه ومحاولاته فقط/);
+  assert.match(workflow, /currentExam\?`<section class="admin-selected-exam"/);
+  assert.doesNotMatch(workflow, /historicalAttempts/);
 });

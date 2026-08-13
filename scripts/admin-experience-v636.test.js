@@ -100,6 +100,6 @@ test('student and parent portals refresh in place and expose monthly alerts',()=
 
 test('admin preview asset and cache use release 63.0.7',()=>{
   assert.match(read('teacher-login.html'),/v63-admin-experience\.js\?v=63\.0\.7/);
-  assert.match(read('service-worker.js'),/technominds-v63-0-7-production-fixed/);
+  assert.match(read('service-worker.js'),/technominds-v63-0-7-ranking-unified/);
   assert.equal(require(path.join(root,'package.json')).version,'63.0.7');
 });
