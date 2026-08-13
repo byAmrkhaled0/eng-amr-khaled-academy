@@ -61,12 +61,12 @@ test('admin navigation yields a paint before heavy section rendering and icons a
   assert.match(app, /el\.dataset\.iconRendered=key/);
 });
 
-test('assessment filters open the latest work and exam grading updates only affected rows', () => {
+test('assessment filters isolate an explicitly opened exam and grading updates only affected rows', () => {
   const workflow = read('assets/v60-admin-workflow.js');
   const admin = read('assets/admin.js');
-  assert.match(workflow, /tm-admin-current-exam/);
+  assert.match(workflow, /tm-admin-open-exam/);
   assert.match(workflow, /tm-admin-current-homework/);
-  assert.match(workflow, /if\(preferred\)renderExamAttendanceRows\(\)/);
+  assert.match(workflow, /if\(currentExam\)renderExamAttendanceRows\(\)/);
   assert.match(workflow, /if\(select\.value\)renderHomeworkAttendanceRows\(\)/);
   assert.match(admin, /data-exam-attempt-id/);
   assert.match(admin, /row\.replaceWith\(shell\.firstElementChild\)/);
@@ -90,7 +90,7 @@ test('refresh, admin curriculum and requested visual fixes are part of the relea
   const css = read('assets/v61-design.css');
   assert.match(app, /MF_ASSET_VERSION = '63\.0\.7'/);
   assert.match(app, /loadStudentForPortal\(code,\{force:true\}\)/);
-  assert.match(worker, /technominds-v63-0-7-production-fixed/);
+  assert.match(worker, /technominds-v63-0-7-ranking-unified/);
   const assetFetch = worker.slice(worker.indexOf('if(url.pathname.startsWith("/assets/")'));
   assert.doesNotMatch(assetFetch, /ignoreSearch:true/);
   assert.match(login, /assets\/curriculum-admin\.js\?v=63\.0\.7/);

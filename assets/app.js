@@ -47,6 +47,26 @@ async function ensureQrScannerLibrary(){
   catch(error){console.warn('QR scanner library failed to initialize; trying the browser fallback.',error);}
   return typeof window.Html5Qrcode==='function';
 }
+async function startCompatibleQrCamera(scanner,onDecoded,size=240){
+  const config={fps:10,qrbox:{width:size,height:size},aspectRatio:1};
+  const attempts=[{facingMode:'environment'},{facingMode:{ideal:'environment'}}];
+  let lastError=null;
+  for(const camera of attempts){try{await scanner.start(camera,config,onDecoded,()=>{});return true;}catch(error){lastError=error;}}
+  const cameras=await window.Html5Qrcode.getCameras().catch(error=>{lastError=error;return[];});
+  const back=(cameras||[]).find(item=>/back|rear|environment|خلف/i.test(item.label||''))||(cameras||[]).at(-1);
+  if(back){try{await scanner.start(back.id,config,onDecoded,()=>{});return true;}catch(error){lastError=error;}}
+  throw lastError||new Error('camera-unavailable');
+}
+window.startCompatibleQrCamera=startCompatibleQrCamera;
+function cameraStartMessage(error){
+  const name=String(error?.name||''),message=String(error?.message||error||'');
+  if(!window.isSecureContext)return 'الكاميرا تحتاج فتح الموقع من رابط HTTPS الآمن.';
+  if(/NotAllowed|Permission|denied/i.test(name+' '+message))return 'إذن الكاميرا مرفوض. افتح إعدادات الموقع وفعّل الكاميرا ثم أعد المحاولة.';
+  if(/NotFound|DevicesNotFound|no camera/i.test(name+' '+message))return 'لم يتم العثور على كاميرا متاحة على هذا الجهاز.';
+  if(/NotReadable|TrackStart|in use|Could not start/i.test(name+' '+message))return 'الكاميرا مستخدمة في تطبيق آخر. أغلقه ثم أعد المحاولة.';
+  return 'تعذر تشغيل الكاميرا. فعّل إذن الكاميرا أو استخدم إدخال الكود يدويًا.';
+}
+window.cameraStartMessage=cameraStartMessage;
 var icons = {
   atom: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="2"></circle><path d="M12 2c3 3.8 5 7.1 5 10s-2 6.2-5 10c-3-3.8-5-7.1-5-10s2-6.2 5-10Z"></path><path d="M2 12c3.8-3 7.1-5 10-5s6.2 2 10 5c-3.8 3-7.1 5-10 5S5.8 15 2 12Z"></path></svg>',
   calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M8 2v4M16 2v4M3 10h18"></path><rect x="3" y="5" width="18" height="17" rx="3"></rect></svg>',
@@ -798,7 +818,7 @@ window.openParentQrScanner = async function(){
     reader.innerHTML='';
     if(typeof window.Html5Qrcode==='function'){
       parentQrScanner = new window.Html5Qrcode('parentQrReader');
-      await parentQrScanner.start({facingMode:{ideal:'environment'}},{fps:10,qrbox:{width:250,height:250}}, onDecoded);
+      await startCompatibleQrCamera(parentQrScanner,onDecoded,250);
     } else if(navigator.mediaDevices?.getUserMedia && 'BarcodeDetector' in window){
       reader.innerHTML='<video id="parentQrVideo" autoplay playsinline></video>';
       const video=document.getElementById('parentQrVideo');
@@ -816,7 +836,7 @@ window.openParentQrScanner = async function(){
     const video=document.getElementById('parentQrVideo');
     if(video?.srcObject){video.srcObject.getTracks().forEach(track=>track.stop());video.srcObject=null;}
     console.warn('Parent QR scanner failed to start.',error);
-    reader.innerHTML='<p class="section-desc">تعذر فتح الكاميرا. افتح الموقع من HTTPS واسمح باستخدام الكاميرا.</p>';
+    reader.innerHTML=`<p class="section-desc">${esc(cameraStartMessage(error))}</p><button class="btn ghost small" type="button" onclick="openParentQrScanner()">إعادة المحاولة</button>`;
   }
 };
 
@@ -1140,7 +1160,7 @@ window.startStudentScanner=async function(){
     reader.innerHTML='';
     if(typeof window.Html5Qrcode==='function'){
       video.hidden=true;reader.hidden=false;studentQrScanner=new window.Html5Qrcode('studentQrReader');
-      await studentQrScanner.start({facingMode:{ideal:'environment'}},{fps:10,qrbox:{width:240,height:240},aspectRatio:1},decoded,()=>{});
+      await startCompatibleQrCamera(studentQrScanner,decoded,240);
       toast('وجّه الكاميرا على QR الطالب');return;
     }
     if(!navigator.mediaDevices?.getUserMedia)throw new Error('camera-unavailable');
@@ -1150,7 +1170,7 @@ window.startStudentScanner=async function(){
     const loop=async()=>{if(box.hidden||studentQrDecoded)return;const codes=await detector.detect(video).catch(()=>[]);if(codes.length)return decoded(codes[0].rawValue);setTimeout(loop,250);};
     toast('وجّه الكاميرا على QR الطالب');loop();
   }catch(error){
-    await window.stopStudentScanner();box.hidden=false;reader.hidden=false;reader.innerHTML='<p class="section-desc">تعذر تشغيل ماسح QR. اسمح للمتصفح باستخدام الكاميرا أو اكتب الكود يدويًا.</p>';toast('تعذر فتح الكاميرا أو قراءة QR');
+    console.warn('Student QR scanner failed to start.',error);await window.stopStudentScanner();box.hidden=false;reader.hidden=false;reader.innerHTML=`<p class="section-desc">${esc(cameraStartMessage(error))}</p><button class="btn ghost small" type="button" onclick="startStudentScanner()">إعادة المحاولة</button>`;toast(cameraStartMessage(error));
   }
 };
 window.stopStudentScanner=async function(){
