@@ -2,8 +2,8 @@
   'use strict';
 
   const cfg=window.MF_FIREBASE_CONFIG||{};
-  const FRONTEND_VERSION='63.0.5';
-  const API_SCHEMA_VERSION='portal-v63.0.5';
+  const FRONTEND_VERSION='63.0.7';
+  const API_SCHEMA_VERSION='portal-v63.0.7';
   if(!cfg.enabled||typeof firebase==='undefined'){
     window.MFCloud={ready:false,error:'Firebase غير مفعل'};
     return;
@@ -105,6 +105,12 @@
       createPaymentTransaction:callable('createPaymentTransaction'),
       editPaymentTransaction:callable('editPaymentTransaction'),
       cancelPaymentTransaction:callable('cancelPaymentTransaction'),
+      addStudentMotivationPoints:callable('addStudentMotivationPoints'),
+      getStudentMotivationAdmin:callable('getStudentMotivationAdmin'),
+      reverseStudentMotivationTransaction:callable('reverseStudentMotivationTransaction'),
+      getMotivationLeaderboardAdmin:callable('getMotivationLeaderboardAdmin'),
+      searchStudentsAdmin:callable('searchStudentsAdmin'),
+      getStudentAdminProfile:callable('getStudentAdminProfile'),
       migrateLegacyPayments:callable('migrateLegacyPayments'),
       getBookingStatus:callable('getBookingStatus'),
       createReview:callable('createReview'),
@@ -638,6 +644,9 @@
       subscribeToStudentTransferRequests:handler=>db.collection('student_transfer_requests').limit(1000).onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>console.warn('student-transfer-listener',error)),
       subscribeMonthlyPayments:handler=>db.collection('monthly_payments').orderBy('updatedAt','desc').limit(500).onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>handler(null,[],error)),
       subscribePaymentTransactions:handler=>db.collection('payment_transactions').orderBy('paymentDate','desc').limit(500).onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>handler(null,[],error)),
+      subscribeToHomeworkSubmissions:(handler,assignmentId='')=>{let query=db.collection('homework_submissions').orderBy('submittedAt','desc').limit(120);if(assignmentId)query=db.collection('homework_submissions').where('assignmentId','==',String(assignmentId)).orderBy('submittedAt','desc').limit(120);return query.onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>handler(null,[],error));},
+      subscribeToExamAttempts:(handler,examId='')=>{let query=db.collection('exam_attempts').orderBy('submittedAt','desc').limit(120);if(examId)query=db.collection('exam_attempts').where('examId','==',String(examId)).orderBy('submittedAt','desc').limit(120);return query.onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>handler(null,[],error));},
+      subscribeToMotivationTransactions:handler=>db.collection('motivation_transactions').orderBy('createdAt','desc').limit(120).onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>handler(null,[],error)),
       getStudentPaymentHistory:async code=>{
         const normalized=normalizeCode(code);
         const [summaries,transactions]=await Promise.all([
@@ -649,6 +658,12 @@
       createPaymentTransaction:payload=>{if(!calls.createPaymentTransaction)throw new Error('Payment service unavailable');return calls.createPaymentTransaction(payload);},
       editPaymentTransaction:payload=>{if(!calls.editPaymentTransaction)throw new Error('Payment edit service unavailable');return calls.editPaymentTransaction(payload);},
       cancelPaymentTransaction:(transactionId,reason)=>{if(!calls.cancelPaymentTransaction)throw new Error('Payment cancellation service unavailable');return calls.cancelPaymentTransaction({transactionId,reason});},
+      addStudentMotivationPoints:payload=>{if(!calls.addStudentMotivationPoints)throw new Error('Motivation service unavailable');return calls.addStudentMotivationPoints(payload||{});},
+      getStudentMotivationAdmin:studentCode=>{if(!calls.getStudentMotivationAdmin)throw new Error('Motivation history service unavailable');return calls.getStudentMotivationAdmin({studentCode:normalizeCode(studentCode)});},
+      reverseStudentMotivationTransaction:payload=>{if(!calls.reverseStudentMotivationTransaction)throw new Error('Motivation reversal service unavailable');return calls.reverseStudentMotivationTransaction(payload||{});},
+      getMotivationLeaderboardAdmin:payload=>{if(!calls.getMotivationLeaderboardAdmin)throw new Error('Motivation leaderboard service unavailable');return calls.getMotivationLeaderboardAdmin(payload||{});},
+      searchStudentsAdmin:payload=>{if(!calls.searchStudentsAdmin)throw new Error('Student search service unavailable');return calls.searchStudentsAdmin(payload||{});},
+      getStudentAdminProfile:payload=>{if(!calls.getStudentAdminProfile)throw new Error('Student profile service unavailable');return calls.getStudentAdminProfile(payload||{});},
       migrateLegacyPayments:()=>{if(!calls.migrateLegacyPayments)throw new Error('Payment migration service unavailable');return calls.migrateLegacyPayments({confirmation:'MIGRATE-PAYMENTS-V60.6'});},
       registerTeacherPushToken:async()=>{
         if(!cfg.messagingVapidKey||!calls.registerTeacherPushToken)throw new Error('VAPID_KEY_REQUIRED');

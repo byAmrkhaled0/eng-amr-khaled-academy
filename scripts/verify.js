@@ -48,7 +48,7 @@ const htmlFiles = fs.readdirSync(root).filter(name => name.endsWith('.html'));
 const localRefPattern = /(?:src|href)=["']([^"'#?]+)["']/g;
 for (const htmlFile of htmlFiles) {
   const html = read(htmlFile);
-  if (!html.includes('assets/v61-design.css?v=63.0.5')) {
+  if (!html.includes('assets/v61-design.css?v=63.0.7')) {
     fail(`Unified V61.1 design is not loaded by ${htmlFile}`);
   }
   const ids = [...html.matchAll(/\sid=["']([^"']+)["']/g)].map(match => match[1]);
@@ -159,7 +159,7 @@ const appSourceCode = read('assets/app.js');
 const fixesSourceCode = read('assets/v56-fixes.js');
 if (!adminSourceCode.includes("loadSiteData({fast:true})") || !adminSourceCode.includes('hydrateAdminRecords')) fail('Staged admin loading is missing');
 if (!appSourceCode.includes('staffCacheOnly') || !appSourceCode.includes('if(isStaffWorkspace())return;')) fail('Compact staff browser cache protection is missing');
-if (!appSourceCode.includes("MF_ASSET_VERSION = '63.0.5'")) fail('Lazy asset loader version is stale');
+if (!appSourceCode.includes("MF_ASSET_VERSION = '63.0.7'")) fail('Lazy asset loader version is stale');
 if (!fixesSourceCode.includes('showMoreAdminStudents') || !fixesSourceCode.includes('slice(0,adminStudentVisible)')) fail('Paginated student rendering is missing');
 if (!appSourceCode.includes('ensureQrScannerLibrary') || !appSourceCode.includes("loadQrScanner:()=>loadLazyScript('qr-scanner'")) fail('Cross-browser lazy QR scanner fallback is missing');
 for (const page of ['student.html','parent.html','teacher-login.html']) {
@@ -204,7 +204,7 @@ if (manifest.display !== 'standalone' || manifest.scope !== '/' || !Array.isArra
 if (!manifest.icons.some(icon => String(icon.purpose || '').includes('maskable') && icon.sizes === '512x512')) fail('Maskable PWA icon is missing');
 const sw = read('service-worker.js');
 const appShellSource = sw.slice(0,sw.indexOf('];')+2);
-if (!/technominds-v63-0-5-production-fixed/.test(sw) || !sw.includes('/assets/v61-design.css') || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/curriculum-student.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes("'/practical.html'") || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell or sensitive portal exclusions are incomplete');
+if (!/technominds-v63-0-7-production-fixed/.test(sw) || !sw.includes('/assets/v61-design.css') || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/curriculum-student.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes("'/practical.html'") || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell or sensitive portal exclusions are incomplete');
 if (/assets\/vendor|assets\/admin\.js|teacher-login\.html/.test(appShellSource) || !sw.includes('event.waitUntil(network.catch')) fail('Large admin assets are still precached or repeat-visit caching is missing');
 if (!read('index.html').includes('<script defer src="https://www.gstatic.com/firebasejs/')) fail('Firebase scripts are not downloaded in parallel with deferred execution');
 const upgrade = read('assets/v53-upgrades.js');
