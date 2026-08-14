@@ -1561,15 +1561,19 @@ exports.upsertVersionedContent = onCall(CALLABLE_OPTIONS, async request => {
       });
     }
     const scheduleId = text(input.scheduleId || input.groupId, 100);
+    const targetStudentCodes = collection === 'assignments' && Array.isArray(input.targetStudentCodes)
+      ? [...new Set(input.targetStudentCodes.map(normalizeCode).filter(validLegacyOrStrongCode))].slice(0, 500)
+      : [];
     const payload = {
       ...input,
       id,
       grade: input.grade ? canonicalAcademicLabel(input.grade) : '',
       groupId: scheduleId,
       scheduleId,
+      targetStudentCodes,
       version: nextVersion,
       previousVersion: questionChanged ? currentVersion : Number(current.previousVersion || 0),
-      audienceKeys: collection === 'materials' || collection === 'assignments' || collection === 'exams' ? academicAudienceKeysForItem({ ...input, scheduleId, groupId: scheduleId }) : [],
+      audienceKeys: collection === 'materials' || collection === 'assignments' || collection === 'exams' ? academicAudienceKeysForItem({ ...input, scheduleId, groupId: scheduleId, targetStudentCodes }) : [],
       archived: false,
       archivedAt: FieldValue.delete(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -1582,6 +1586,33 @@ exports.upsertVersionedContent = onCall(CALLABLE_OPTIONS, async request => {
   });
   await serverActivity(staff, result.versionCreated ? 'تعديل محتوى مع حفظ نسخة تاريخية' : 'حفظ محتوى', { collection, id, version: result.version, hasStudentActivity });
   return { ...result, updatedAt: new Date().toISOString() };
+});
+
+exports.getHomeworkAdminWorkspace = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request, ['admin']);
+  await rateLimit('admin-homework-workspace', staff.uid, 120, 60 * 1000);
+  const assignmentId = cleanDocId(text(request.data?.assignmentId, 120));
+  if (!assignmentId) {
+    const snapshot = await fetchAllCollectionDocuments('assignments');
+    return snapshot.docs.map(doc => {
+      const row = doc.data() || {};
+      return { id: doc.id, title: text(row.title, 200), lessonTitle: text(row.lessonTitle, 200), lessonNumber: text(row.lessonNumber, 30), grade: text(canonicalAcademicLabel(row.grade), 80), group: text(row.group, 100), targetStudentCodes: Array.isArray(row.targetStudentCodes) ? row.targetStudentCodes.slice(0, 500).map(normalizeCode) : [], questionCount: Number(row.questionCount || (Array.isArray(row.questions) ? row.questions.length : 1)), totalScore: Number(row.totalScore || 1), dueDate: text(row.dueDate, 40), publishAt: text(row.publishAt, 60), lifecycleStatus: text(row.lifecycleStatus, 30), active: row.active !== false, archived: row.archived === true, updatedAt: row.updatedAt || row.createdAt || '' };
+    }).sort((a,b)=>String(b.updatedAt||b.publishAt||'').localeCompare(String(a.updatedAt||a.publishAt||''))).slice(0,500);
+  }
+  const assignmentSnap = await db.collection('assignments').doc(assignmentId).get();
+  if (!assignmentSnap.exists) throw new HttpsError('not-found', 'الواجب غير موجود.');
+  const assignment = { id: assignmentSnap.id, ...assignmentSnap.data() };
+  const [studentsSnap, submissionsSnap] = await Promise.all([
+    fetchAllCollectionDocuments('students', query => query.where('active', '==', true)),
+    fetchAllCollectionDocuments('homework_submissions', query => query.where('assignmentId', '==', assignmentId))
+  ]);
+  const submissionByStudent = new Map();
+  submissionsSnap.docs.forEach(doc => { const row={id:doc.id,...doc.data()},code=normalizeCode(row.studentCode);if(code&&!submissionByStudent.has(code))submissionByStudent.set(code,row); });
+  const students = studentsSnap.docs.map(doc => ({ id:doc.id,...doc.data() })).filter(student => learningTargetMatchesStudent(assignment, student)).map(student => {
+    const studentCode=normalizeCode(student.studentCode||student.code||student.id),submission=submissionByStudent.get(studentCode)||null;
+    return { studentCode, name:text(student.studentName||student.name,100), grade:text(canonicalAcademicLabel(student.grade),80), group:text(student.group,100), submission };
+  });
+  return { assignment, students };
 });
 
 exports.archiveContentItem = onCall(CALLABLE_OPTIONS, async request => {
@@ -1612,10 +1643,10 @@ exports.archiveContentItem = onCall(CALLABLE_OPTIONS, async request => {
 exports.getAdminCollectionPage = onCall(CALLABLE_OPTIONS, async request => {
   await requireStaff(request);
   const collection = text(request.data?.collection, 60);
-  const allowed = new Set(['students','bookings','assignments','exams','materials','homework_submissions','exam_attempts','grades','attendance','recitations','student_transfer_requests']);
+  const allowed = new Set(['students','bookings','assignments','exams','materials','homework_submissions','exam_attempts','grades','attendance','recitations','student_transfer_requests','class_sessions','student_notes']);
   if (!allowed.has(collection)) throw new HttpsError('invalid-argument', 'القائمة المطلوبة غير مدعومة.');
   const pageSize = Math.max(10, Math.min(100, Number(request.data?.pageSize || 50)));
-  const orderField = ['students','assignments','exams','materials'].includes(collection) ? 'updatedAt' : collection === 'attendance' || collection === 'grades' || collection === 'recitations' ? 'date' : collection === 'bookings' || collection === 'student_transfer_requests' ? 'createdAt' : 'submittedAt';
+  const orderField = ['students','assignments','exams','materials'].includes(collection) ? 'updatedAt' : collection === 'attendance' || collection === 'grades' || collection === 'recitations' || collection === 'class_sessions' ? 'date' : collection === 'bookings' || collection === 'student_transfer_requests' || collection === 'student_notes' ? 'createdAt' : 'submittedAt';
   let query = db.collection(collection);
   const filters = request.data?.filters && typeof request.data.filters === 'object' ? request.data.filters : {};
   for (const field of ['studentCode','grade','group','status','assignmentId','examId']) {
@@ -1656,9 +1687,67 @@ exports.getStudentAdminProfile = onCall(CALLABLE_OPTIONS, async request => {
   await rateLimit('admin-student-profile', staff.uid, 180, 60 * 1000);
   const studentCode = normalizeCode(request.data?.studentCode), academicYear = text(request.data?.academicYear,30), month = text(request.data?.month,40);
   if (!validLegacyOrStrongCode(studentCode)) throw new HttpsError('invalid-argument','كود الطالب غير صالح.');
-  const found = await getStudentPortalByCode(studentCode), records = await studentRecords(studentCode, found.data);
-  const filterPeriod = rows => (rows||[]).filter(row=>(!academicYear||!row.academicYear||String(row.academicYear)===academicYear)&&(!month||!row.month||String(row.month)===month));
-  return { student: portalResponse(found.data, await attemptSummaries(studentCode), records), period:{academicYear,month}, attendance:filterPeriod(records.attendance).slice(-80).reverse(), grades:filterPeriod(records.grades).slice(-80).reverse(), homeworks:filterPeriod(records.homeworks).slice(-80).reverse(), recitations:filterPeriod(records.recitations).slice(-80).reverse(), monthlyPayments:filterPeriod(records.monthlyPayments).slice(-36).reverse(), motivationSummaries:filterPeriod(records.motivationSummaries).slice(0,36), motivationTransactions:filterPeriod(records.motivationTransactions).slice(0,80) };
+  const found = await getStudentPortalByCode(studentCode), [records, notesSnap] = await Promise.all([studentRecords(studentCode, found.data), db.collection('student_notes').where('studentCode','==',studentCode).orderBy('createdAt','desc').limit(80).get().catch(()=>null)]);
+  const periodKey=academicYear&&month?leaderboardPeriod(academicYear,month).monthKey:'';
+  const filterPeriod = rows => (rows||[]).filter(row=>{if(academicYear&&row.academicYear&&String(row.academicYear)!==academicYear)return false;if(month&&row.month&&String(row.month)!==month)return false;const recordMonth=leaderboardRecordDate(row).slice(0,7);return !periodKey||!recordMonth||recordMonth===periodKey;});
+  return { student: portalResponse(found.data, await attemptSummaries(studentCode), records), period:{academicYear,month}, attendance:filterPeriod(records.attendance).slice(-80).reverse(), grades:filterPeriod(records.grades).slice(-80).reverse(), homeworks:filterPeriod(records.homeworks).slice(-80).reverse(), recitations:filterPeriod(records.recitations).slice(-80).reverse(), monthlyPayments:filterPeriod(records.monthlyPayments).slice(-36).reverse(), motivationSummaries:filterPeriod(records.motivationSummaries).slice(0,36), motivationTransactions:filterPeriod(records.motivationTransactions).slice(0,80), privateNotes:notesSnap?notesSnap.docs.map(doc=>({id:doc.id,...doc.data()})):[] };
+});
+
+exports.saveStudentPrivateNote = onCall(CALLABLE_OPTIONS, async request => {
+  const staff=await requireStaff(request,['admin']);
+  await rateLimit('admin-student-note',staff.uid,120,60*1000);
+  const studentCode=normalizeCode(request.data?.studentCode),note=text(request.data?.note,1200),category=text(request.data?.category,40)||'متابعة';
+  if(!validLegacyOrStrongCode(studentCode)||note.length<2)throw new HttpsError('invalid-argument','اكتب ملاحظة صحيحة وحدد الطالب.');
+  const studentSnap=await db.collection('students').doc(cleanDocId(studentCode)).get();
+  if(!studentSnap.exists||studentSnap.data().active===false)throw new HttpsError('not-found','الطالب غير موجود أو غير نشط.');
+  const ref=db.collection('student_notes').doc();
+  const payload={id:ref.id,studentCode,studentName:text(studentSnap.data().studentName||studentSnap.data().name,100),category,note,createdByUid:staff.uid,createdByEmail:staff.email||'',createdAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()};
+  await ref.set(payload);await serverActivity(staff,'إضافة ملاحظة خاصة للطالب',{studentCode,category,noteId:ref.id});
+  return {...payload,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+});
+
+exports.getAdminOperationsDashboard = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 60, memory: '512MiB' }, async request => {
+  const staff=await requireStaff(request,['admin']);
+  await rateLimit('admin-operations-dashboard',staff.uid,90,60*1000);
+  const date=text(request.data?.date,10)||cairoDateKey(new Date());
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw new HttpsError('invalid-argument','تاريخ يوم العمل غير صالح.');
+  const monthStart=`${date.slice(0,8)}01`;
+  const [studentsSnap,attendanceSnap,monthAttendanceSnap,homeworkSnap,examSnap,bookingsSnap,transferSnap,sessionsSnap]=await Promise.all([
+    fetchAllCollectionDocuments('students',query=>query.where('active','==',true)),
+    fetchAllCollectionDocuments('attendance',query=>query.where('date','==',date)),
+    db.collection('attendance').where('date','>=',monthStart).where('date','<=',date).orderBy('date','desc').limit(5000).get(),
+    db.collection('homework_submissions').where('needsManualReview','==',true).limit(120).get().catch(()=>null),
+    db.collection('exam_attempts').where('needsManualReview','==',true).limit(120).get().catch(()=>null),
+    db.collection('bookings').where('status','==','pending').limit(100).get().catch(()=>null),
+    db.collection('student_transfer_requests').where('status','==','pending').limit(100).get().catch(()=>null),
+    db.collection('class_sessions').where('date','==',date).limit(100).get().catch(()=>null)
+  ]);
+  const students=studentsSnap.docs.map(doc=>({id:doc.id,...doc.data()})),attendance=attendanceSnap.docs.map(doc=>({id:doc.id,...doc.data()})),absenceCounts=new Map();
+  monthAttendanceSnap.docs.forEach(doc=>{const row=doc.data()||{},code=normalizeCode(row.studentCode);if(code&&row.status==='absent')absenceCounts.set(code,(absenceCounts.get(code)||0)+1);});
+  const pendingHomework=homeworkSnap?homeworkSnap.docs.map(doc=>({id:doc.id,...doc.data()})):[],pendingExams=examSnap?examSnap.docs.map(doc=>({id:doc.id,...doc.data()})):[];
+  const atRisk=students.map(row=>({studentCode:normalizeCode(row.studentCode||row.code||row.id),studentName:text(row.studentName||row.name,100),grade:text(canonicalAcademicLabel(row.grade),80),group:text(row.group,100),absenceCount:absenceCounts.get(normalizeCode(row.studentCode||row.code||row.id))||0})).filter(row=>row.absenceCount>=2).sort((a,b)=>b.absenceCount-a.absenceCount).slice(0,50);
+  return {date,students:students.map(row=>({studentCode:text(row.studentCode||row.code||row.id,40),studentName:text(row.studentName||row.name,100),grade:text(canonicalAcademicLabel(row.grade),80),group:text(row.group,100),scheduleId:text(row.scheduleId||row.groupId,100),parentPhone:digits(row.parentPhone),paid:row.paid===true})),attendance,sessions:sessionsSnap?sessionsSnap.docs.map(doc=>({id:doc.id,...doc.data()})):[],corrections:{homework:pendingHomework,exams:pendingExams,total:pendingHomework.length+pendingExams.length},alerts:{pendingBookings:bookingsSnap?.size||0,pendingTransfers:transferSnap?.size||0,unpaidStudents:students.filter(row=>row.paid!==true).length,unrecordedToday:Math.max(0,students.length-new Set(attendance.map(row=>normalizeCode(row.studentCode))).size),atRisk}};
+});
+
+exports.upsertClassSession = onCall(CALLABLE_OPTIONS, async request => {
+  const staff=await requireStaff(request,['admin']);
+  await rateLimit('admin-class-session',staff.uid,120,60*1000);
+  const date=text(request.data?.date,10)||cairoDateKey(new Date()),scheduleId=cleanDocId(text(request.data?.scheduleId,100)),title=text(request.data?.title,160)||'حصة برمجة';
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!scheduleId)throw new HttpsError('invalid-argument','اختر المجموعة وتاريخ الحصة.');
+  const groupSnap=await db.collection('groups').doc(scheduleId).get();if(!groupSnap.exists)throw new HttpsError('not-found','المجموعة غير موجودة.');
+  const group=groupSnap.data()||{},id=cleanDocId(text(request.data?.id,120)||`${scheduleId}_${date}`),ref=db.collection('class_sessions').doc(id);
+  const payload={id,date,title,scheduleId,groupId:scheduleId,group:text(group.name||group.group,100),grade:text(canonicalAcademicLabel(group.grade),80),academicYear:text(request.data?.academicYear,30),term:text(request.data?.term,40),assignmentId:text(request.data?.assignmentId,120),examId:text(request.data?.examId,120),status:['open','closed'].includes(request.data?.status)?request.data.status:'open',updatedByUid:staff.uid,updatedByEmail:staff.email||'',updatedAt:FieldValue.serverTimestamp()};
+  await ref.set({...payload,createdAt:FieldValue.serverTimestamp()},{merge:true});await serverActivity(staff,'حفظ جلسة حصة',{sessionId:id,date,scheduleId});return {...payload,updatedAt:new Date().toISOString()};
+});
+
+exports.getClassSessionWorkspace = onCall(CALLABLE_OPTIONS, async request => {
+  const staff=await requireStaff(request,['admin']);await rateLimit('admin-class-session-read',staff.uid,180,60*1000);
+  const sessionId=cleanDocId(text(request.data?.sessionId,120));if(!sessionId)throw new HttpsError('invalid-argument','حدد جلسة الحصة.');
+  const sessionSnap=await db.collection('class_sessions').doc(sessionId).get();if(!sessionSnap.exists)throw new HttpsError('not-found','جلسة الحصة غير موجودة.');
+  const session={id:sessionSnap.id,...sessionSnap.data()},scheduleId=text(session.scheduleId||session.groupId,100),date=text(session.date,10);
+  const [studentsSnap,attendanceSnap,recitationsSnap]=await Promise.all([db.collection('students').where('scheduleId','==',scheduleId).limit(1000).get(),db.collection('attendance').where('date','==',date).where('scheduleId','==',scheduleId).limit(1000).get().catch(()=>null),db.collection('recitations').where('date','==',date).where('scheduleId','==',scheduleId).limit(1000).get().catch(()=>null)]);
+  const attendance=new Map((attendanceSnap?.docs||[]).map(doc=>[normalizeCode(doc.data().studentCode),{id:doc.id,...doc.data()}])),recitations=new Map((recitationsSnap?.docs||[]).map(doc=>[normalizeCode(doc.data().studentCode),{id:doc.id,...doc.data()}]));
+  return {session,students:studentsSnap.docs.map(doc=>({id:doc.id,...doc.data()})).filter(row=>row.active!==false).map(row=>{const studentCode=normalizeCode(row.studentCode||row.code||row.id);return {studentCode,studentName:text(row.studentName||row.name,100),grade:text(canonicalAcademicLabel(row.grade),80),group:text(row.group,100),attendance:attendance.get(studentCode)||null,recitation:recitations.get(studentCode)||null};})};
 });
 
 function studentResourcePayload(doc, kind) {
@@ -2312,7 +2401,7 @@ exports.migrateStudentCodeSafely = onCall(CALLABLE_OPTIONS, async request => {
     throw new HttpsError('invalid-argument', 'الكود القديم أو الجديد غير صالح.');
   }
   const oldId=cleanDocId(oldCode),newId=cleanDocId(newCode);
-  const rootCollections=['attendance','grades','recitations','homework_submissions','exam_attempts','monthly_payments','payment_transactions','bookings','booking_status','student_transfer_requests','homework_attempt_grants'];
+  const rootCollections=['attendance','grades','recitations','homework_submissions','exam_attempts','monthly_payments','payment_transactions','bookings','booking_status','student_transfer_requests','homework_attempt_grants','student_notes'];
   const result=await db.runTransaction(async tx=>{
     const oldStudentRef=db.collection('students').doc(oldId),newStudentRef=db.collection('students').doc(newId);
     const oldAttemptsRef=db.collection('student_attempts').doc(oldId),newAttemptsRef=db.collection('student_attempts').doc(newId);
@@ -2730,6 +2819,8 @@ exports.recordClassProgress = onCall(CALLABLE_OPTIONS, async request => {
     studentName: text(student.studentName || student.name, 100),
     grade: text(student.grade, 80),
     group: text(student.group, 100),
+    scheduleId: text(student.scheduleId || student.groupId, 100),
+    classSessionId: cleanDocId(text(body.classSessionId, 120)),
     academicYear: text(student.academicYear, 20),
     term: text(student.term, 40),
     date,
@@ -2804,6 +2895,7 @@ exports.recordAttendance = onCall(CALLABLE_OPTIONS, async request => {
   const student = { id: studentSnap.id, ...studentSnap.data() };
   await validateAttendanceSchedule(student, date);
   const payload = attendanceServerPayload(student, date, status, attendanceCode ? 'qr_scan' : 'manual_button', staff);
+  payload.classSessionId = cleanDocId(text(body.classSessionId, 120));
   await db.collection('attendance').doc(payload.id).set(payload, { merge: true });
   await markLeaderboardDirty('attendance');
   return { ...payload, recordedAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
@@ -2835,6 +2927,7 @@ exports.bulkMarkAttendance = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 60, m
     const batch = db.batch();
     missing.slice(index, index + 420).forEach(student => {
       const payload = attendanceServerPayload(student, date, 'absent', 'bulk_absent', staff);
+      payload.classSessionId = cleanDocId(text(body.classSessionId, 120));
       batch.set(db.collection('attendance').doc(payload.id), payload, { merge: true });
     });
     await batch.commit();
@@ -3235,7 +3328,7 @@ const BACKUP_COLLECTIONS = [
   'settings','users','students','student_portal','parent_portal','bookings','booking_status','reviews',
   'materials','questions','groups','assignments','exams','exam_attempts','homework_submissions',
   'attendance','recitations','grades','payments','monthly_payments','payment_transactions','reports','activityLog','client_errors',
-  'student_attempts','exam_locks','homework_submission_locks','homework_attempt_grants','homework_review_history','assessment_versions'
+  'student_attempts','exam_locks','homework_submission_locks','homework_attempt_grants','homework_review_history','assessment_versions','class_sessions','student_notes'
   ,'curriculum','units','lectures','lecture_materials','assignments_v2','assignment_questions',
   'question_banks','bank_questions','monthly_exams','exam_questions_v2','teacher_files','student_progress'
 ];
@@ -3562,7 +3655,7 @@ exports.deleteStudentSafely = onCall({ region: 'europe-west1', timeoutSeconds: 1
   const studentSnap = await studentRef.get();
   if (!studentSnap.exists) throw new HttpsError('not-found', 'الطالب غير موجود.');
   const student = studentSnap.data();
-  const relatedCollections = ['attendance','grades','recitations','homework_submissions','exam_attempts','monthly_payments','payment_transactions'];
+  const relatedCollections = ['attendance','grades','recitations','homework_submissions','exam_attempts','monthly_payments','payment_transactions','student_notes'];
   const relatedEntries = {};
   const relatedDocs = [];
   for (const collection of relatedCollections) {

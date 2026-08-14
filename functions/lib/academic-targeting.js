@@ -90,6 +90,11 @@ function scheduleMatchesStudent(schedule, student) {
 
 function learningTargetMatchesStudent(item, student) {
   if (!item || !student) return false;
+  const studentCode = normalizeDigits(student.studentCode || student.code || student.id).trim().toUpperCase();
+  const targetStudentCodes = Array.isArray(item.targetStudentCodes)
+    ? item.targetStudentCodes.map(value => normalizeDigits(value).trim().toUpperCase()).filter(Boolean)
+    : [];
+  if (targetStudentCodes.length && !targetStudentCodes.includes(studentCode)) return false;
   const grade = wildcard(item.grade, ['كل الصفوف', 'كل المسارات', 'all']) || sameAcademicValue(item.grade, student.grade);
   const targetScheduleId = String(item.scheduleId || item.groupId || '').trim();
   const studentScheduleId = String(student.scheduleId || student.groupId || '').trim();
@@ -112,6 +117,7 @@ function academicAudienceKeysForStudent(student = {}) {
   const group = baseAcademicValue(student.group);
   return [...new Set([
     'all',
+    student.studentCode || student.code || student.id ? `student:${normalizeDigits(student.studentCode || student.code || student.id).trim().toUpperCase()}` : '',
     grade ? `grade:${grade}` : '',
     scheduleId ? `schedule:${scheduleId}` : '',
     group ? `group:${group}` : ''
@@ -119,6 +125,10 @@ function academicAudienceKeysForStudent(student = {}) {
 }
 
 function academicAudienceKeysForItem(item = {}) {
+  const targetStudentCodes = Array.isArray(item.targetStudentCodes)
+    ? item.targetStudentCodes.map(value => normalizeDigits(value).trim().toUpperCase()).filter(Boolean).slice(0, 500)
+    : [];
+  if (targetStudentCodes.length) return [...new Set(targetStudentCodes.map(code => `student:${code}`))];
   const scheduleId = String(item.scheduleId || item.groupId || '').trim();
   const group = baseAcademicValue(item.group);
   const grade = normalizeAcademicValue(item.grade);
