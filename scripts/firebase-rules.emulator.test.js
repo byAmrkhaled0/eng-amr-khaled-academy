@@ -23,6 +23,8 @@ test.before(async () => {
     await setDoc(doc(db,'students/12345678'),{studentCode:'12345678',name:'Test Student'});
     await setDoc(doc(db,'exam_attempts/attempt-1'),{studentCode:'12345678',score:null,maxScore:10});
     await setDoc(doc(db,'settings/platform'),{siteName:'Techno Minds'});
+    await setDoc(doc(db,'class_sessions/session-1'),{date:'2026-08-14',scheduleId:'group-1'});
+    await setDoc(doc(db,'student_notes/note-1'),{studentCode:'12345678',note:'Private'});
     await uploadBytes(ref(context.storage(),'teacher-files/admin-test.pdf'),Buffer.from('%PDF-test'),{contentType:'application/pdf'});
   });
 });
@@ -44,6 +46,16 @@ test('only the verified active Admin can read student data',async()=>{
 test('exam grading cannot be written directly even by Admin',async()=>{
   await assertSucceeds(getDoc(doc(adminDb(),'exam_attempts/attempt-1')));
   await assertFails(updateDoc(doc(adminDb(),'exam_attempts/attempt-1'),{score:10}));
+});
+
+test('class sessions and private notes are Admin-readable but server-write-only',async()=>{
+  await assertSucceeds(getDoc(doc(adminDb(),'class_sessions/session-1')));
+  await assertSucceeds(getDoc(doc(adminDb(),'student_notes/note-1')));
+  await assertFails(setDoc(doc(adminDb(),'class_sessions/session-2'),{date:'2026-08-14'}));
+  await assertFails(setDoc(doc(adminDb(),'student_notes/note-2'),{studentCode:'12345678',note:'Bypass'}));
+  const publicDb=env.unauthenticatedContext().firestore();
+  await assertFails(getDoc(doc(publicDb,'class_sessions/session-1')));
+  await assertFails(getDoc(doc(publicDb,'student_notes/note-1')));
 });
 
 test('only the intended public settings document is anonymous-readable',async()=>{

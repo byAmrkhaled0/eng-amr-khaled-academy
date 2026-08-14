@@ -27,7 +27,9 @@ test('homework and exams are interactive while PDF remains lecture-only',()=>{
 
 test('admin reports homework completion and QR attendance supports one or more scheduled days',()=>{
   const workflow=read('assets/v60-admin-workflow.js'),admin=read('assets/admin.js');
-  assert.match(workflow,/مين سلّم الواجب ومين لسه/);
+  assert.match(workflow,/ملفات الواجبات والمتابعة/);
+  assert.match(workflow,/targetStudentCodes/);
+  assert.match(workflow,/getHomeworkAdminWorkspace/);
   assert.match(workflow,/homeworkAttendanceGrade/);
   assert.match(workflow,/homeworkAttendanceGroup/);
   assert.match(admin,/attendanceScheduleDays/);
@@ -55,5 +57,5 @@ test('pending booking code opens the student portal while learning actions stay 
   assert.ok((backend.match(/requireApprovedStudent\(found\.data\)/g)||[]).length>=7);
   assert.match(app,/لم يتم قبول الحجز حتى الآن/);
   assert.match(app,/ستتفعّل المحاضرات والواجبات والاختبارات بعد قبول الحجز/);
-  assert.match(worker,/technominds-v63-0-7-ranking-unified/);
+  assert.match(worker,/technominds-v63-0-7-operations-final/);
 });

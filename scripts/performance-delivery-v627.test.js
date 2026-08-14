@@ -90,7 +90,7 @@ test('refresh, admin curriculum and requested visual fixes are part of the relea
   const css = read('assets/v61-design.css');
   assert.match(app, /MF_ASSET_VERSION = '63\.0\.7'/);
   assert.match(app, /loadStudentForPortal\(code,\{force:true\}\)/);
-  assert.match(worker, /technominds-v63-0-7-ranking-unified/);
+  assert.match(worker, /technominds-v63-0-7-operations-final/);
   const assetFetch = worker.slice(worker.indexOf('if(url.pathname.startsWith("/assets/")'));
   assert.doesNotMatch(assetFetch, /ignoreSearch:true/);
   assert.match(login, /assets\/curriculum-admin\.js\?v=63\.0\.7/);

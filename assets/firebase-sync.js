@@ -112,6 +112,10 @@
       getMotivationLeaderboardAdmin:callable('getMotivationLeaderboardAdmin'),
       searchStudentsAdmin:callable('searchStudentsAdmin'),
       getStudentAdminProfile:callable('getStudentAdminProfile'),
+      saveStudentPrivateNote:callable('saveStudentPrivateNote'),
+      getAdminOperationsDashboard:callable('getAdminOperationsDashboard'),
+      upsertClassSession:callable('upsertClassSession'),
+      getClassSessionWorkspace:callable('getClassSessionWorkspace'),
       migrateLegacyPayments:callable('migrateLegacyPayments'),
       getBookingStatus:callable('getBookingStatus'),
       createReview:callable('createReview'),
@@ -133,6 +137,7 @@
       recordAttendance:callable('recordAttendance'),
       bulkMarkAttendance:callable('bulkMarkAttendance'),
       upsertVersionedContent:callable('upsertVersionedContent'),
+      getHomeworkAdminWorkspace:callable('getHomeworkAdminWorkspace'),
       archiveContentItem:callable('archiveContentItem'),
       getAdminCollectionPage:callable('getAdminCollectionPage'),
       migratePlatformV63:callable('migratePlatformV63'),
@@ -473,7 +478,7 @@
 
     async function upsertAttendance(record){
       if(!calls.recordAttendance)throw new Error('Secure attendance service unavailable');
-      return calls.recordAttendance({studentCode:normalizeCode(record.studentId||record.studentCode),date:record.date,status:record.status});
+      return calls.recordAttendance({studentCode:normalizeCode(record.studentId||record.studentCode),date:record.date,status:record.status,classSessionId:String(record.classSessionId||'')});
     }
     async function markLeaderboardDirty(reason='activity'){
       try{
@@ -665,6 +670,10 @@
       getMotivationLeaderboardAdmin:payload=>{if(!calls.getMotivationLeaderboardAdmin)throw new Error('Motivation leaderboard service unavailable');return calls.getMotivationLeaderboardAdmin(payload||{});},
       searchStudentsAdmin:payload=>{if(!calls.searchStudentsAdmin)throw new Error('Student search service unavailable');return calls.searchStudentsAdmin(payload||{});},
       getStudentAdminProfile:payload=>{if(!calls.getStudentAdminProfile)throw new Error('Student profile service unavailable');return calls.getStudentAdminProfile(payload||{});},
+      saveStudentPrivateNote:payload=>{if(!calls.saveStudentPrivateNote)throw new Error('Student note service unavailable');return calls.saveStudentPrivateNote(payload||{});},
+      getAdminOperationsDashboard:payload=>{if(!calls.getAdminOperationsDashboard)throw new Error('Operations dashboard service unavailable');return calls.getAdminOperationsDashboard(payload||{});},
+      upsertClassSession:payload=>{if(!calls.upsertClassSession)throw new Error('Class session service unavailable');return calls.upsertClassSession(payload||{});},
+      getClassSessionWorkspace:payload=>{if(!calls.getClassSessionWorkspace)throw new Error('Class session workspace unavailable');return calls.getClassSessionWorkspace(payload||{});},
       migrateLegacyPayments:()=>{if(!calls.migrateLegacyPayments)throw new Error('Payment migration service unavailable');return calls.migrateLegacyPayments({confirmation:'MIGRATE-PAYMENTS-V60.6'});},
       registerTeacherPushToken:async()=>{
         if(!cfg.messagingVapidKey||!calls.registerTeacherPushToken)throw new Error('VAPID_KEY_REQUIRED');
@@ -730,6 +739,7 @@
       submitAssignmentAnswer:async payload=>{if(!calls.submitAssignmentAnswer)throw new Error('Assignment answer service unavailable');const normalized=normalizeCode(payload?.studentCode);return calls.submitAssignmentAnswer(await portalPayload(normalized,{...payload,studentCode:normalized}));},
       reviewHomeworkSubmission:async payload=>{if(!calls.reviewHomeworkSubmission){const error=new Error('خدمة تصحيح الواجبات غير متاحة. يجب نشر Firebase Functions المتوافقة.');error.code='BACKEND_VERSION_MISMATCH';throw error;}return retryTransient(()=>calls.reviewHomeworkSubmission(payload||{}),1);},
       grantHomeworkRetake:payload=>{if(!calls.grantHomeworkRetake)throw new Error('Homework retake service unavailable');return calls.grantHomeworkRetake(payload||{});},
+      getHomeworkAdminWorkspace:payload=>{if(!calls.getHomeworkAdminWorkspace)throw new Error('Homework workspace service unavailable');return calls.getHomeworkAdminWorkspace(payload||{});},
       getAdminCollectionPage:payload=>{if(!calls.getAdminCollectionPage)throw new Error('Admin pagination service unavailable');return calls.getAdminCollectionPage(payload||{});},
       migratePlatformV63:apply=>{if(!calls.migratePlatformV63)throw new Error('V63 migration service unavailable');return calls.migratePlatformV63({apply:apply===true,confirmation:apply===true?'MIGRATE-PLATFORM-V63':''});},
       uploadAttachment:(file,folder)=>upload(file,folder||'teacher-uploads'),logActivity,
