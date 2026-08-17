@@ -4,7 +4,7 @@ let adminData = typeof loadData === 'function' ? loadData() : {students:[],booki
 let currentSection = 'overview';
 let currentStaff = null;
 let qrScanner = null;
-let attendanceDate = new Date().toISOString().slice(0,10);
+let attendanceDate = isoDateAdmin();
 let adminCloudSaveTimer = null;
 let bookingNotificationUnsubscribe = null;
 let adminGroupsUnsubscribe = null;
@@ -85,6 +85,15 @@ function adminActionErrorMessage(error,fallback='تعذر تنفيذ العمل�
   if(/functions\/not-found|function.*unavailable|service.*unavailable|not found$/i.test(raw))return 'الخدمة المطلوبة غير منشورة. انشر Firebase Functions والقواعد من النسخة الجديدة.';
   if(/unauthenticated|auth\/user-token-expired/i.test(raw))return 'انتهت جلسة الدخول. سجّل دخول المدرس مرة أخرى.';
   if(/permission-denied|insufficient permissions|not authorized/i.test(raw))return 'الحساب لا يملك الصلاحية أو قواعد Firebase الجديدة لم تُنشر بعد.';
+  if(/failed-precondition/i.test(raw)){
+    const serverMessage=nested.map(item=>String(item?.message||'').trim()).find(Boolean)||'';
+    const cleaned=serverMessage
+      .replace(/^FirebaseError:\s*/i,'')
+      .replace(/^functions\/failed-precondition[:\s-]*/i,'')
+      .replace(/^failed-precondition[:\s-]*/i,'')
+      .trim();
+    return cleaned||'لا يمكن تنفيذ العملية بالحالة الحالية. راجع موعد المجموعة وتاريخ الحصة.';
+  }
   if(/invalid-argument|كود.*غير صالح|بيانات.*غير مكتملة/i.test(raw))return 'البيانات غير مكتملة أو غير صحيحة. راجع المدخلات وحاول مرة أخرى.';
   if(/already-exists/i.test(raw)){const message=raw.split(':').pop().trim();return /الطالب موجود|كود الطالب/.test(message)?message:'السجل موجود بالفعل ولم يتم إنشاء نسخة مكررة.';}
   if(/resource-exhausted|too many/i.test(raw))return 'تم تنفيذ محاولات كثيرة بسرعة. انتظر قليلًا ثم حاول مرة أخرى.';
@@ -106,7 +115,12 @@ function persist(msg,meta){
 }
 function deferAdminRender(fn){setTimeout(fn,40);}
 function phoneDigits(v){return (typeof toEnglishDigits==='function'?toEnglishDigits(v):String(v||'').replace(/[٠-٩]/g,digit=>String(digit.charCodeAt(0)-1632)).replace(/[۰-۹]/g,digit=>String(digit.charCodeAt(0)-1776))).replace(/\D/g,'');}
-function isoDateAdmin(d=new Date()){return d.toISOString().slice(0,10);}
+function isoDateAdmin(d=new Date()){
+  const date=d instanceof Date?d:new Date(d);
+  if(!Number.isFinite(date.getTime()))return '';
+  const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date).reduce((out,part)=>{out[part.type]=part.value;return out;},{});
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
 function timeNow(){return new Date().toLocaleTimeString('ar-EG',{hour:'numeric',minute:'2-digit',hour12:true});}
 function randomAccessCode(){const bytes=new Uint32Array(8);if(window.crypto?.getRandomValues)window.crypto.getRandomValues(bytes);else for(let i=0;i<bytes.length;i++)bytes[i]=Math.floor(Math.random()*0xffffffff);return String((bytes[0]%9)+1)+[...bytes.slice(1)].map(x=>String(x%10)).join('');}
 function uniqueAccessCode(prefix,field){let code;do{code=randomAccessCode(prefix);}while(adminData.students.some(s=>String(s[field]||'').toUpperCase()===code));return code;}
@@ -274,6 +288,7 @@ let adminRenderVersion=0;
 window.goAdminSection=function(id){
   if(!adminSections.some(([sectionId])=>sectionId===id))return;
   if(currentSection==='payments'&&id!=='payments')window.stopMonthlyPaymentListeners?.();
+  if(id==='attendance'&&currentSection!=='attendance')attendanceDate=isoDateAdmin();
   currentSection=id;
   syncAdminChrome();
   setAdminDrawer(false);
@@ -483,15 +498,72 @@ function findAttendance(st,date){return (st.attendance||[]).find(a=>String(a.dat
 function classProgressRows(st,type){return type==='recitation'?(st.recitations||[]):(st.homeworks||[]);}
 function findClassProgress(st,type,date=attendanceDate){return classProgressRows(st,type).find(row=>String(row.date||'')===String(date)&&(row.completed===true||row.approved===true||String(row.status||'').startsWith('تم')));}
 function attendanceRecord(st,status,method){const s=normalizeStudent(st); st.studentCode=s.studentCode; st.code=s.studentCode; st.name=s.name; st.studentName=s.name; return {studentId:s.studentCode,studentCode:s.studentCode,studentName:s.name,grade:s.grade,group:s.group,status,date:attendanceDate,time:status==='present'?timeNow():null,method,scannedBy:currentStaff?.email||currentStaff?.uid||'teacher',createdAt:new Date().toISOString()};}
-function attendanceScheduleDays(st){const group=(adminData.groups||[]).find(item=>String(item.name||item.group||'')===String(st.group||''));const raw=String(st.scheduleDays||group?.days||'');const names=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];return names.filter(name=>raw.includes(name));}
-function attendanceDayAllowed(st){const days=attendanceScheduleDays(st);if(days.length<1)return {ok:false,message:'يجب ضبط يوم واحد على الأقل للحضور في موعد المجموعة أولًا.'};const day=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'][new Date(`${attendanceDate}T12:00:00`).getDay()];return days.includes(day)?{ok:true}:{ok:false,message:`هذا اليوم ليس من مواعيد المجموعة (${days.join(' و')}).`};}
+function attendanceScheduleDays(st){
+  const groups=adminData.groups||[];
+  const scheduleId=String(st?.scheduleId||st?.groupId||'').trim();
+  let group=null;
+  if(scheduleId){
+    group=groups.find(item=>String(item?.id||item?.scheduleId||item?.groupId||'').trim()===scheduleId)||null;
+  }
+  if(!group&&st?.group){
+    const groupName=String(st.group);
+    const matching=groups.filter(item=>String(item?.name||item?.group||'')===groupName);
+    group=matching.find(item=>!st.grade||!item?.grade||adminSameAcademic(item.grade,st.grade))||matching[0]||null;
+  }
+  const raw=String(st?.scheduleDays||group?.days||group?.scheduleDays||'');
+  const names=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+  return names.filter(name=>raw.includes(name));
+}
+function attendanceDayAllowed(st,date=attendanceDate){
+  const days=attendanceScheduleDays(st);
+  if(days.length<1)return {ok:false,message:'يجب ضبط يوم واحد على الأقل للحضور في موعد المجموعة أولًا.',days,day:''};
+  const parsed=new Date(`${date}T12:00:00Z`);
+  const day=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'][Number.isFinite(parsed.getTime())?parsed.getUTCDay():-1]||'';
+  if(!day)return {ok:false,message:'تاريخ الحصة غير صالح.',days,day:''};
+  return days.includes(day)?{ok:true,days,day}:{ok:false,days,day,message:`لا يمكن تسجيل الحضور يوم ${day}. موعد المجموعة: ${days.join(' و')}.`};
+}
+function attendanceSelectedDateLabel(){
+  const parsed=new Date(`${attendanceDate}T12:00:00Z`);
+  if(!Number.isFinite(parsed.getTime()))return attendanceDate||'-';
+  const day=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'][parsed.getUTCDay()]||'';
+  return `${day} · ${attendanceDate}`;
+}
 async function saveAttendanceRecord(st,status,method,attendanceCode=''){st.attendance=st.attendance||[];const before=st.attendance.map(item=>({...item})),record=attendanceRecord(st,status,method),existing=findAttendance(st,attendanceDate);if(existing)Object.assign(existing,record);else st.attendance.push(record);saveData(adminData);try{const saved=method==='qr_scan'?await window.MFCloud?.recordAttendanceByQr?.(attendanceCode,attendanceDate):await window.MFCloud?.upsertAttendance?.(record);if(!saved?.id)throw new Error('تعذر تأكيد حفظ الحضور');return saved;}catch(error){st.attendance=before;saveData(adminData);throw error;}}
 async function registerQrAttendance(code){fresh();const scanned=String(code||'').trim().toUpperCase();const st=adminData.students.map(normalizeStudent).find(s=>String(s.attendanceCode||(!s.attendanceCode?s.studentCode:'')).trim().toUpperCase()===scanned);if(!st){aToast('رمز الحضور غير صحيح أو لم يتم ترحيل حساب الطالب بعد.');return;}const original=adminData.students.find(s=>stCode(s)===st.studentCode);const allowed=attendanceDayAllowed(original);if(!allowed.ok){aToast(allowed.message);return;}const existing=findAttendance(original,attendanceDate);if(existing?.status==='present'){aToast('الطالب مسجل حضور بالفعل اليوم.');return;}try{await saveAttendanceRecord(original,'present','qr_scan',scanned);aToast(`تم تسجيل حضور ${st.name}`);}catch(error){aToast(adminActionErrorMessage(error,'تعذر تسجيل الحضور.'));}renderAttendance();}
 window.quickPresent=function(code){attendanceDate=isoDateAdmin(); registerQrAttendance(code);};
 window.markAbsentForMissing=async function(){fresh();const grade=selectedGrade(),group=selectedGroup();if(grade==='all'||group==='all')return aToast('اختر الصف والمجموعة قبل إنهاء الحضور.');const students=filterStudents(grade,group);if(!students.length)return aToast('لا يوجد طلاب في هذه المجموعة.');const allowed=attendanceDayAllowed(students[0]);if(!allowed.ok)return aToast(allowed.message);if(!confirm('تأكيد إنهاء الحضور وتسجيل كل طالب لم يُمسح QR الخاص به غائبًا؟'))return;const scheduleId=String(students[0].scheduleId||students[0].groupId||'');try{if(!window.MFCloud?.bulkMarkAttendance)throw new Error('Bulk attendance service unavailable');const result=await window.MFCloud.bulkMarkAttendance({date:attendanceDate,grade,group,scheduleId});students.forEach(st=>{const original=adminData.students.find(item=>stCode(item)===st.studentCode);if(original&&!findAttendance(original,attendanceDate)){original.attendance=original.attendance||[];original.attendance.push(attendanceRecord(original,'absent','bulk_absent'));}});saveData(adminData);aToast(result.saved?`تم تسجيل غياب ${result.saved} طالب في عملية واحدة`:'كل الطلاب لديهم حالة مسجلة لهذا اليوم');renderAttendance();}catch(error){aToast(adminActionErrorMessage(error,'تعذر تسجيل الغياب الجماعي. لم تُحفظ تغييرات جزئية.'));}};
 function todayAttendanceRows(){const grade=selectedGrade(), group=selectedGroup(); return filterStudents(grade,group).flatMap(st=>(st.attendance||[]).filter(a=>String(a.date)===attendanceDate).map(a=>({...a,studentName:st.name,studentCode:st.studentCode,grade:st.grade,group:st.group})));}
-function attendanceRosterHTML(){const rows=filterStudents(selectedGrade(),selectedGroup());return `<div class="attendance-roster">${rows.map(st=>{const record=findAttendance(st,attendanceDate),status=record?.status||'',recited=!!findClassProgress(st,'recitation'),homework=!!findClassProgress(st,'homework');return `<article class="attendance-student ${status||'pending'}"><span class="student-avatar">${safe(String(st.name||'ط').trim().charAt(0))}</span><div><b>${safe(st.name)}</b><small>${safe(st.studentCode)} · ${safe(st.group||'-')}</small><small>${recited?'✓ سمّع':'لم يسمّع'} · ${homework?'✓ عمل الواجب':'لم يعمل الواجب'}</small></div><span class="badge ${status?badgeStatus(status):'warn'}">${status==='present'?'حاضر':status==='absent'?'غائب':'لم يسجل'}</span><div class="attendance-row-actions class-progress-actions"><button class="small-btn primary" onclick="setAttendanceStatus('${safe(st.studentCode)}','present')">حاضر</button><button class="small-btn danger" onclick="setAttendanceStatus('${safe(st.studentCode)}','absent')">غائب</button><button class="small-btn ${recited?'primary':'ghost'}" onclick="toggleClassProgress('${safe(st.studentCode)}','recitation')">${recited?'تم التطبيق العملي ✓':'تطبيق عملي'}</button><button class="small-btn ${homework?'primary':'ghost'}" onclick="toggleClassProgress('${safe(st.studentCode)}','homework')">${homework?'تم الواجب ✓':'عمل الواجب'}</button></div></article>`;}).join('')||'<p class="section-desc">لا يوجد طلاب مطابقون للاختيار.</p>'}</div>`;}
-window.setAttendanceStatus=async function(code,status){const st=adminData.students.find(item=>String(stCode(item))===String(code));if(!st)return aToast('الطالب غير موجود');try{await saveAttendanceRecord(st,status,'manual_button');aToast(status==='present'?'تم تسجيل الحضور':'تم تسجيل الغياب');}catch(error){aToast(adminActionErrorMessage(error,'تعذر حفظ حالة الحضور.'));}renderAttendance();};
+function attendanceRosterHTML(){
+  const rows=filterStudents(selectedGrade(),selectedGroup());
+  return `<div class="attendance-roster">${rows.map(st=>{
+    const record=findAttendance(st,attendanceDate),status=record?.status||'',recited=!!findClassProgress(st,'recitation'),homework=!!findClassProgress(st,'homework'),allowed=attendanceDayAllowed(st);
+    const scheduleHint=allowed.ok?`موعد اليوم مطابق للمجموعة (${allowed.days.join(' و')})`:(allowed.message||'راجع موعد المجموعة');
+    return `<article class="attendance-student ${status||'pending'}">
+      <span class="student-avatar">${safe(String(st.name||'ط').trim().charAt(0))}</span>
+      <div><b>${safe(st.name)}</b><small>${safe(st.studentCode)} · ${safe(st.group||'-')}</small><small>${recited?'✓ سمّع':'لم يسمّع'} · ${homework?'✓ عمل الواجب':'لم يعمل الواجب'}</small><small class="${allowed.ok?'':'attendance-schedule-warning'}">${safe(scheduleHint)}</small></div>
+      <span class="badge ${status?badgeStatus(status):'warn'}">${status==='present'?'حاضر':status==='absent'?'غائب':'لم يسجل'}</span>
+      <div class="attendance-row-actions class-progress-actions">
+        <button class="small-btn primary" ${allowed.ok?'':`disabled title="${safe(scheduleHint)}"`} onclick="setAttendanceStatus('${safe(st.studentCode)}','present')">حاضر</button>
+        <button class="small-btn danger" ${allowed.ok?'':`disabled title="${safe(scheduleHint)}"`} onclick="setAttendanceStatus('${safe(st.studentCode)}','absent')">غائب</button>
+        <button class="small-btn ${recited?'primary':'ghost'}" onclick="toggleClassProgress('${safe(st.studentCode)}','recitation')">${recited?'تم التطبيق العملي ✓':'تطبيق عملي'}</button>
+        <button class="small-btn ${homework?'primary':'ghost'}" onclick="toggleClassProgress('${safe(st.studentCode)}','homework')">${homework?'تم الواجب ✓':'عمل الواجب'}</button>
+      </div>
+    </article>`;
+  }).join('')||'<p class="section-desc">لا يوجد طلاب مطابقون للاختيار.</p>'}</div>`;
+}
+window.setAttendanceStatus=async function(code,status){
+  const st=adminData.students.find(item=>String(stCode(item))===String(code));
+  if(!st)return aToast('الطالب غير موجود');
+  const allowed=attendanceDayAllowed(st);
+  if(!allowed.ok)return aToast(allowed.message);
+  try{
+    await saveAttendanceRecord(st,status,'manual_button');
+    aToast(status==='present'?'تم تسجيل الحضور':'تم تسجيل الغياب');
+  }catch(error){
+    aToast(adminActionErrorMessage(error,'تعذر حفظ حالة الحضور.'));
+  }
+  renderAttendance();
+};
 window.toggleClassProgress=async function(code,type){
   const student=adminData.students.find(item=>String(stCode(item))===String(code));if(!student)return aToast('الطالب غير موجود');
   const actionKey=`${code}:${type}:${attendanceDate}`;
@@ -695,7 +767,38 @@ async function renderBackup(loading=false){
 
 function renderSettings(){fresh(); content(`<div class="section-head"><div><span class="kicker"><span data-icon="sparkles"></span> الإعدادات</span><h2 class="section-title">إعدادات الموقع والرابط</h2></div></div><div class="card"><form id="settingsForm" class="grid"><input name="siteUrl" value="${safe(adminData.settings.siteUrl||DEFAULT_SITE_URL||'')}" placeholder="رابط الموقع الأساسي"><input name="teacherPhone" value="${safe(adminData.settings.teacherPhone||TEACHER_WHATSAPP||'')}" placeholder="رقم واتساب المدرس"><textarea name="homeNotice" placeholder="رسالة تنبيه للطلاب">${safe(adminData.settings.homeNotice||'')}</textarea><button class="btn primary"><span data-icon="sparkles"></span> حفظ الإعدادات</button></form></div><div class="grid grid-2" style="margin-top:18px"><div class="seo-card"><h3>الظهور في البحث</h3><p>صفحة المدرس خاصة ولا تظهر في نتائج البحث أو داخل الموقع العام.</p></div><div class="seo-card"><h3>حماية المنصة</h3><p>صلاحيات الدخول والحفظ مفعّلة لحماية بيانات الطلاب وفريق العمل.</p></div></div>`); document.getElementById('settingsForm').onsubmit=e=>{e.preventDefault(); adminData.settings={...adminData.settings,...Object.fromEntries(new FormData(e.target).entries())}; persist('تم حفظ الإعدادات');};}
 
-function renderAttendance(){fresh();const gOpts=['all',...GRADES],grpOpts=['all',...groupOptions()];content(`<div class="section-head compact-admin-head"><div><span class="kicker"><span data-icon="qr"></span> متابعة الحصة</span><h2 class="section-title">الحضور والتطبيق العملي والواجب</h2><p class="section-desc">سجّل حضور الطالب، ثم علّم على التطبيق العملي والواجب؛ كل علامة تُضاف لملفه وتدخل في ترتيب الانتظام.</p></div></div><div class="card attendance-control-card"><div class="attendance-filters"><select id="attendanceGrade">${gOpts.map(g=>`<option value="${safe(g)}">${g==='all'?'كل المسارات':safe(g)}</option>`).join('')}</select><select id="attendanceGroup">${grpOpts.map(g=>`<option value="${safe(g)}">${g==='all'?'كل المجموعات':safe(g)}</option>`).join('')}</select><input id="attendanceDate" type="date" value="${attendanceDate}"></div><div class="attendance-actions"><button class="btn primary qr-open-btn" onclick="openQrScanner()"><span data-icon="qr"></span> مسح QR</button><button class="btn ghost" onclick="manualAttendancePrompt()"><span data-icon="user-check"></span> إدخال الكود</button><button class="btn ghost" onclick="markAbsentForMissing()"><span data-icon="calendar"></span> إنهاء الحضور وتسجيل الباقي غياب</button></div></div><div class="attendance-summary-card card">${attendanceReportHTML()}</div><div class="card attendance-roster-card"><div class="profile-top"><div><h3>طلاب المجموعة</h3><p class="section-desc">الأزرار المعلّمة بعلامة ✓ محفوظة في ملف الطالب لنفس تاريخ الحصة.</p></div></div>${attendanceRosterHTML()}</div><details class="card attendance-history"><summary>عرض سجل اليوم بالتفصيل</summary>${attendanceLogHTML()}</details><div id="qrScannerModal" class="qr-modal" hidden><div class="card qr-modal-card"><div class="profile-top"><h3>ماسح QR الطالب</h3><button class="small-btn danger" onclick="closeQrScanner()">إغلاق</button></div><div id="adminQrReader"></div><p class="section-desc">وجّه كاميرا الموبايل على QR الطالب لتسجيل الحضور.</p></div></div>`);const gd=document.getElementById('attendanceGrade'),gr=document.getElementById('attendanceGroup'),date=document.getElementById('attendanceDate');if(gd)gd.value=sessionStorage.getItem('attGrade')||'all';if(gr)gr.value=sessionStorage.getItem('attGroup')||'all';if(date)date.onchange=()=>{attendanceDate=date.value;renderAttendance();};if(gd)gd.onchange=()=>{sessionStorage.setItem('attGrade',gd.value);renderAttendance();};if(gr)gr.onchange=()=>{sessionStorage.setItem('attGroup',gr.value);renderAttendance();};hydrateIcons();}
+function renderAttendance(){
+  fresh();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(attendanceDate||'')))attendanceDate=isoDateAdmin();
+  const gOpts=['all',...GRADES],grpOpts=['all',...groupOptions()];
+  const today=isoDateAdmin(),isToday=attendanceDate===today;
+  content(`<div class="section-head compact-admin-head"><div><span class="kicker"><span data-icon="qr"></span> متابعة الحصة</span><h2 class="section-title">الحضور والتطبيق العملي والواجب</h2><p class="section-desc">سجّل حضور الطالب، ثم علّم على التطبيق العملي والواجب؛ كل علامة تُضاف لملفه وتدخل في ترتيب الانتظام.</p></div></div>
+  <div class="card attendance-control-card">
+    <div class="attendance-filters">
+      <select id="attendanceGrade">${gOpts.map(g=>`<option value="${safe(g)}">${g==='all'?'كل المسارات':safe(g)}</option>`).join('')}</select>
+      <select id="attendanceGroup">${grpOpts.map(g=>`<option value="${safe(g)}">${g==='all'?'كل المجموعات':safe(g)}</option>`).join('')}</select>
+      <label class="attendance-date-field"><span>تاريخ الحصة</span><input id="attendanceDate" type="date" value="${safe(attendanceDate)}" max="${safe(today)}"></label>
+    </div>
+    <p class="section-desc attendance-date-summary"><b>الحصة المحددة:</b> ${safe(attendanceSelectedDateLabel())}${isToday?' · اليوم بتوقيت القاهرة':' · تاريخ سابق'}</p>
+    <div class="attendance-actions">
+      <button class="btn primary qr-open-btn" onclick="openQrScanner()"><span data-icon="qr"></span> مسح QR</button>
+      <button class="btn ghost" onclick="manualAttendancePrompt()"><span data-icon="user-check"></span> إدخال الكود</button>
+      <button class="btn ghost" onclick="markAbsentForMissing()"><span data-icon="calendar"></span> إنهاء الحضور وتسجيل الباقي غياب</button>
+      ${isToday?'':`<button class="btn ghost" type="button" onclick="attendanceDate=isoDateAdmin();renderAttendance();"><span data-icon="calendar"></span> العودة لليوم</button>`}
+    </div>
+  </div>
+  <div class="attendance-summary-card card">${attendanceReportHTML()}</div>
+  <div class="card attendance-roster-card"><div class="profile-top"><div><h3>طلاب المجموعة</h3><p class="section-desc">الأزرار المعلّمة بعلامة ✓ محفوظة في ملف الطالب لنفس تاريخ الحصة. أزرار الحضور تتوقف تلقائيًا إذا كان التاريخ خارج موعد المجموعة.</p></div></div>${attendanceRosterHTML()}</div>
+  <details class="card attendance-history"><summary>عرض سجل اليوم بالتفصيل</summary>${attendanceLogHTML()}</details>
+  <div id="qrScannerModal" class="qr-modal" hidden><div class="card qr-modal-card"><div class="profile-top"><h3>ماسح QR الطالب</h3><button class="small-btn danger" onclick="closeQrScanner()">إغلاق</button></div><div id="adminQrReader"></div><p class="section-desc">وجّه كاميرا الموبايل على QR الطالب لتسجيل الحضور.</p></div></div>`);
+  const gd=document.getElementById('attendanceGrade'),gr=document.getElementById('attendanceGroup'),date=document.getElementById('attendanceDate');
+  if(gd)gd.value=sessionStorage.getItem('attGrade')||'all';
+  if(gr)gr.value=sessionStorage.getItem('attGroup')||'all';
+  if(date)date.onchange=()=>{attendanceDate=date.value||isoDateAdmin();renderAttendance();};
+  if(gd)gd.onchange=()=>{sessionStorage.setItem('attGrade',gd.value);renderAttendance();};
+  if(gr)gr.onchange=()=>{sessionStorage.setItem('attGroup',gr.value);renderAttendance();};
+  hydrateIcons();
+}
 function examBuilderCard(index){return `<article class="exam-builder-question" data-exam-question><div class="exam-question-head"><b>السؤال <span data-question-number>${index+1}</span></b><button class="small-btn danger" type="button" onclick="removeExamQuestion(this)">حذف</button></div><div class="exam-meta-grid"><div class="field"><label>نوع السؤال</label><select data-question-type onchange="updateExamQuestionType(this)"><option value="mcq">اختياري</option><option value="truefalse">صح أو غلط</option><option value="essay">مقالي</option><option value="code">كتابة كود</option></select></div><div class="field"><label>درجة السؤال</label><input data-question-mark type="number" min="0.25" step="0.25" value="1" required oninput="updateExamTotal()"></div></div><div class="field"><label>نص السؤال</label><textarea data-question-text rows="2" required placeholder="اكتب السؤال هنا"></textarea></div><div data-auto-answer><div class="exam-options-grid">${['أ','ب','ج','د'].map((label,i)=>`<label><span>${label}</span><input data-question-option="${i}" required placeholder="الإجابة ${label}"></label>`).join('')}</div><div class="field correct-answer-field"><label>الإجابة الصحيحة</label><select data-correct-answer required><option value="">اختار الإجابة الصحيحة</option>${['أ','ب','ج','د'].map(label=>`<option value="${label}">${label}</option>`).join('')}</select></div></div><div class="field" data-model-answer hidden><label>إجابة نموذجية اختيارية للمدرس</label><textarea data-question-model rows="2"></textarea></div><button class="btn ghost add-question-under" type="button" onclick="addExamQuestionAfter(this)">+ إضافة سؤال تحت ده</button></article>`;}
 function renumberExamQuestions(){document.querySelectorAll('[data-exam-question]').forEach((card,index)=>{const number=card.querySelector('[data-question-number]');if(number)number.textContent=index+1;});}
 window.addExamQuestion=function(){const list=document.getElementById('examQuestionsBuilder');if(!list)return;list.insertAdjacentHTML('beforeend',examBuilderCard(list.children.length));renumberExamQuestions();list.lastElementChild?.scrollIntoView({behavior:'smooth',block:'center'});};

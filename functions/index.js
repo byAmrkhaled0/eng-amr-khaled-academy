@@ -2841,14 +2841,80 @@ exports.recordClassProgress = onCall(CALLABLE_OPTIONS, async request => {
 
 async function validateAttendanceSchedule(student, date) {
   let days = configuredScheduleDays(student.scheduleDays);
-  if (!days.length && student.scheduleId) {
-    const groupSnap = await db.collection('groups').doc(cleanDocId(student.scheduleId)).get().catch(() => null);
-    if (groupSnap?.exists) days = configuredScheduleDays(groupSnap.data().days);
+  let resolvedScheduleId = text(student.scheduleId || student.groupId, 100);
+
+  // Current records: resolve the group by scheduleId/groupId.
+  if (!days.length && resolvedScheduleId) {
+    const groupSnap = await db.collection('groups').doc(cleanDocId(resolvedScheduleId)).get().catch(() => null);
+    if (groupSnap?.exists) {
+      const groupData = groupSnap.data() || {};
+      days = configuredScheduleDays(groupData.days || groupData.scheduleDays);
+      resolvedScheduleId = groupSnap.id;
+    }
   }
-  if (!days.length) throw new HttpsError('failed-precondition', 'لم يتم ضبط أيام المجموعة. أضف يومًا واحدًا على الأقل.');
+
+  // Legacy records may contain only the readable group name.
+  if (!days.length && student.group) {
+    const groupName = text(student.group, 100);
+    const candidates = new Map();
+
+    const byName = await db.collection('groups')
+      .where('name', '==', groupName)
+      .limit(10)
+      .get()
+      .catch(() => null);
+    if (byName) byName.docs.forEach(doc => candidates.set(doc.id, doc));
+
+    const byLegacyGroup = await db.collection('groups')
+      .where('group', '==', groupName)
+      .limit(10)
+      .get()
+      .catch(() => null);
+    if (byLegacyGroup) byLegacyGroup.docs.forEach(doc => candidates.set(doc.id, doc));
+
+    const matching = [...candidates.values()].find(doc => {
+      const groupData = doc.data() || {};
+      return !student.grade || !groupData.grade || sameAcademicValue(groupData.grade, student.grade);
+    }) || [...candidates.values()][0];
+
+    if (matching) {
+      const groupData = matching.data() || {};
+      days = configuredScheduleDays(groupData.days || groupData.scheduleDays);
+      resolvedScheduleId = matching.id;
+    }
+  }
+
+  if (!days.length) {
+    throw new HttpsError(
+      'failed-precondition',
+      'لم يتم ضبط أيام المجموعة لهذا الطالب. راجع مجموعة الطالب وأيام الحضور من لوحة الإدارة.'
+    );
+  }
+
   const weekday = cairoWeekdayForDate(date);
-  if (!days.includes(weekday)) throw new HttpsError('failed-precondition', `هذا اليوم ليس من مواعيد المجموعة (${days.join('، ')}).`);
-  return { days, weekday };
+  if (!days.includes(weekday)) {
+    throw new HttpsError(
+      'failed-precondition',
+      `هذا اليوم ليس من مواعيد المجموعة (${days.join('، ')}).`
+    );
+  }
+
+  return { days, weekday, scheduleId: resolvedScheduleId };
+}
+
+async function findAttendanceStudentSnapshot(studentCodeValue) {
+  const studentCode = normalizeCode(studentCodeValue);
+  if (!validLegacyOrStrongCode(studentCode)) return null;
+
+  const direct = await db.collection('students').doc(cleanDocId(studentCode)).get().catch(() => null);
+  if (direct?.exists) return direct;
+
+  for (const field of ['studentCode', 'code', 'id']) {
+    const match = await db.collection('students').where(field, '==', studentCode).limit(1).get().catch(() => null);
+    if (match && !match.empty) return match.docs[0];
+  }
+
+  return null;
 }
 
 function attendanceServerPayload(student, date, status, method, staff) {
@@ -2879,27 +2945,40 @@ exports.recordAttendance = onCall(CALLABLE_OPTIONS, async request => {
   const date = text(body.date, 10) || cairoDateKey(new Date());
   const status = body.status === 'absent' ? 'absent' : 'present';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpsError('invalid-argument', 'تاريخ الحضور غير صالح.');
+
   let studentSnap = null;
   const attendanceCode = text(body.attendanceCode || body.qrCode, 60).toUpperCase();
+
   if (attendanceCode) {
     const match = await db.collection('students').where('attendanceCode', '==', attendanceCode).limit(1).get();
     if (!match.empty) studentSnap = match.docs[0];
+
     if (!studentSnap && validLegacyOrStrongCode(attendanceCode)) {
-      const legacy = await db.collection('students').doc(cleanDocId(attendanceCode)).get();
-      if (legacy.exists && !legacy.data().attendanceCode) studentSnap = legacy;
+      const legacy = await findAttendanceStudentSnapshot(attendanceCode);
+      if (legacy?.exists && !legacy.data()?.attendanceCode) studentSnap = legacy;
     }
   } else {
-    const studentCode = normalizeCode(body.studentCode);
-    if (validLegacyOrStrongCode(studentCode)) studentSnap = await db.collection('students').doc(cleanDocId(studentCode)).get();
+    studentSnap = await findAttendanceStudentSnapshot(body.studentCode);
   }
-  if (!studentSnap?.exists || studentSnap.data().active === false) throw new HttpsError('not-found', 'الطالب غير موجود أو غير نشط.');
+
+  if (!studentSnap?.exists || studentSnap.data().active === false) {
+    throw new HttpsError('not-found', 'الطالب غير موجود أو غير نشط.');
+  }
+
   const student = { id: studentSnap.id, ...studentSnap.data() };
-  await validateAttendanceSchedule(student, date);
+  const attendanceSchedule = await validateAttendanceSchedule(student, date);
   const payload = attendanceServerPayload(student, date, status, attendanceCode ? 'qr_scan' : 'manual_button', staff);
+  if (!payload.scheduleId && attendanceSchedule.scheduleId) payload.scheduleId = attendanceSchedule.scheduleId;
   payload.classSessionId = cleanDocId(text(body.classSessionId, 120));
+
   await db.collection('attendance').doc(payload.id).set(payload, { merge: true });
   await markLeaderboardDirty('attendance');
-  return { ...payload, recordedAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+
+  return {
+    ...payload,
+    recordedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
 });
 
 exports.bulkMarkAttendance = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 60, memory: '512MiB' }, async request => {
