@@ -25,7 +25,7 @@ test('homework and exams are interactive while PDF remains lecture-only',()=>{
   assert.match(workflow,/رفع محاضرة أو PDF/);
 });
 
-test('admin reports homework completion and QR attendance supports one or more scheduled days',()=>{
+test('admin reports homework completion and QR attendance keeps schedule metadata without blocking other days',()=>{
   const workflow=read('assets/v60-admin-workflow.js'),admin=read('assets/admin.js');
   assert.match(workflow,/ملفات الواجبات والمتابعة/);
   assert.match(workflow,/targetStudentCodes/);
@@ -33,7 +33,9 @@ test('admin reports homework completion and QR attendance supports one or more s
   assert.match(workflow,/homeworkAttendanceGrade/);
   assert.match(workflow,/homeworkAttendanceGroup/);
   assert.match(admin,/attendanceScheduleDays/);
-  assert.match(admin,/days\.length<1/);
+  assert.doesNotMatch(admin,/days\.length<1/);
+  assert.match(admin,/return \{ok:true,days,day\};/);
+  assert.match(admin,/الحضور متاح في أي يوم/);
   assert.match(admin,/bulk_absent/);
 });
 

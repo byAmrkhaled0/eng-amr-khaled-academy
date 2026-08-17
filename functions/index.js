@@ -2884,21 +2884,7 @@ async function validateAttendanceSchedule(student, date) {
     }
   }
 
-  if (!days.length) {
-    throw new HttpsError(
-      'failed-precondition',
-      'لم يتم ضبط أيام المجموعة لهذا الطالب. راجع مجموعة الطالب وأيام الحضور من لوحة الإدارة.'
-    );
-  }
-
   const weekday = cairoWeekdayForDate(date);
-  if (!days.includes(weekday)) {
-    throw new HttpsError(
-      'failed-precondition',
-      `هذا اليوم ليس من مواعيد المجموعة (${days.join('، ')}).`
-    );
-  }
-
   return { days, weekday, scheduleId: resolvedScheduleId };
 }
 

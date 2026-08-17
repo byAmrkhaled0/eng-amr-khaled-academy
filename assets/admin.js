@@ -516,11 +516,10 @@ function attendanceScheduleDays(st){
 }
 function attendanceDayAllowed(st,date=attendanceDate){
   const days=attendanceScheduleDays(st);
-  if(days.length<1)return {ok:false,message:'يجب ضبط يوم واحد على الأقل للحضور في موعد المجموعة أولًا.',days,day:''};
   const parsed=new Date(`${date}T12:00:00Z`);
   const day=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'][Number.isFinite(parsed.getTime())?parsed.getUTCDay():-1]||'';
   if(!day)return {ok:false,message:'تاريخ الحصة غير صالح.',days,day:''};
-  return days.includes(day)?{ok:true,days,day}:{ok:false,days,day,message:`لا يمكن تسجيل الحضور يوم ${day}. موعد المجموعة: ${days.join(' و')}.`};
+  return {ok:true,days,day};
 }
 function attendanceSelectedDateLabel(){
   const parsed=new Date(`${attendanceDate}T12:00:00Z`);
@@ -537,7 +536,7 @@ function attendanceRosterHTML(){
   const rows=filterStudents(selectedGrade(),selectedGroup());
   return `<div class="attendance-roster">${rows.map(st=>{
     const record=findAttendance(st,attendanceDate),status=record?.status||'',recited=!!findClassProgress(st,'recitation'),homework=!!findClassProgress(st,'homework'),allowed=attendanceDayAllowed(st);
-    const scheduleHint=allowed.ok?`موعد اليوم مطابق للمجموعة (${allowed.days.join(' و')})`:(allowed.message||'راجع موعد المجموعة');
+    const scheduleHint=allowed.days.length?`مواعيد المجموعة: ${allowed.days.join(' و')} · الحضور متاح في أي يوم`:'الحضور متاح في أي يوم';
     return `<article class="attendance-student ${status||'pending'}">
       <span class="student-avatar">${safe(String(st.name||'ط').trim().charAt(0))}</span>
       <div><b>${safe(st.name)}</b><small>${safe(st.studentCode)} · ${safe(st.group||'-')}</small><small>${recited?'✓ سمّع':'لم يسمّع'} · ${homework?'✓ عمل الواجب':'لم يعمل الواجب'}</small><small class="${allowed.ok?'':'attendance-schedule-warning'}">${safe(scheduleHint)}</small></div>
