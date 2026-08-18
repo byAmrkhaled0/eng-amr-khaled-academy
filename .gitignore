@@ -18,9 +18,3 @@ yarn-error.log*
 Thumbs.db
 
 !functions/.env.example
-
-.vercel
-.env*
-
-.vercel
-.env*

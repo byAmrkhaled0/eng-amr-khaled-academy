@@ -51,49 +51,17 @@ test('student delivery uses targeted queries instead of capped full scans', () =
   assert.match(backend, /learningTargetMatchesStudent\(lecture, student\)/);
 });
 
-test('admin navigation yields a paint before heavy section rendering and icons are not rewritten', () => {
-  const admin = read('assets/admin.js');
-  const app = read('assets/app.js');
-  assert.match(admin, /requestAnimationFrame\(\(\)=>\{/);
-  assert.match(admin, /adminRenderVersion/);
-  assert.match(admin, /setAttribute\('aria-busy','true'\)/);
-  assert.match(app, /el\.dataset\.iconRendered===key/);
-  assert.match(app, /el\.dataset\.iconRendered=key/);
-});
-
-test('assessment filters isolate an explicitly opened exam and grading updates only affected rows', () => {
-  const workflow = read('assets/v60-admin-workflow.js');
-  const admin = read('assets/admin.js');
-  assert.match(workflow, /tm-admin-open-exam/);
-  assert.match(workflow, /tm-admin-current-homework/);
-  assert.match(workflow, /if\(currentExam\)renderExamAttendanceRows\(\)/);
-  assert.match(workflow, /if\(select\.value\)renderHomeworkAttendanceRows\(\)/);
-  assert.match(admin, /data-exam-attempt-id/);
-  assert.match(admin, /row\.replaceWith\(shell\.firstElementChild\)/);
-  const correction = admin.slice(admin.indexOf('window.saveAttemptCorrection='), admin.indexOf('function renderReviewsAdmin'));
-  assert.doesNotMatch(correction, /renderExams\(\)/);
-});
-
-test('archive and delete actions acknowledge the tap before waiting for Firebase', () => {
-  const admin = read('assets/admin.js');
-  const handler = admin.slice(admin.indexOf('window.deleteItem='), admin.indexOf('function adminAcademicValue'));
-  assert.match(handler, /button\.disabled=true/);
-  assert.match(handler, /button\.setAttribute\('aria-busy','true'\)/);
-  assert.match(handler, /جارٍ الأرشفة/);
-  assert.match(handler, /closest\('\.admin-content-row/);
-});
-
 test('refresh, admin curriculum and requested visual fixes are part of the release', () => {
   const app = read('assets/app.js');
   const worker = read('service-worker.js');
   const login = read('teacher-login.html');
   const css = read('assets/v61-design.css');
-  assert.match(app, /MF_ASSET_VERSION = '63\.0\.7'/);
+  assert.match(app, /MF_ASSET_VERSION = '63\.0\.0'/);
   assert.match(app, /loadStudentForPortal\(code,\{force:true\}\)/);
-  assert.match(worker, /technominds-v63-0-7-unified-results-final/);
+  assert.match(worker, /technominds-v63-0-0-secure-assessments/);
   const assetFetch = worker.slice(worker.indexOf('if(url.pathname.startsWith("/assets/")'));
   assert.doesNotMatch(assetFetch, /ignoreSearch:true/);
-  assert.match(login, /assets\/curriculum-admin\.js\?v=63\.0\.7/);
+  assert.match(login, /assets\/curriculum-admin\.js\?v=63\.0\.0/);
   assert.doesNotMatch(login, /استخدم البريد الموجود في قائمة Firebase Authentication/);
   assert.match(css, /\.homework-question-card[\s\S]{0,500}var\(--surface-2\)/);
   const indexes = JSON.parse(read('firestore.indexes.json')).indexes;

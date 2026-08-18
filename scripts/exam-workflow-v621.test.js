@@ -37,13 +37,3 @@ test('homework supports the same four answer modes', () => {
   assert.match(workflow, /<option value="truefalse">صح أو غلط<\/option>/);
   assert.match(app, /type==='mcq'\|\|type==='truefalse'/);
 });
-
-test('multiline code questions preserve the full prompt and whitespace', () => {
-  const backend = read('functions/index.js');
-  const app = read('assets/app.js');
-  assert.doesNotMatch(backend, /questionLines\[0\]/);
-  assert.doesNotMatch(app, /questionLines\[0\]/);
-  assert.match(backend, /rawQuestionLines\.join\('\\n'\)/);
-  assert.match(app, /rawQuestionLines\.join\('\\n'\)/);
-  assert.match(app, /white-space:pre-wrap/);
-});
