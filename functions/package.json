@@ -2,12 +2,12 @@
   "name": "technominds-platform-functions",
   "version": "63.0.7",
   "private": true,
-  "main": "index.js",
+  "main": "entry.js",
   "engines": {
     "node": "22"
   },
   "scripts": {
-    "lint": "node --check index.js",
+    "lint": "node --check entry.js && node --check index.js",
     "serve": "firebase emulators:start --only functions,firestore",
     "deploy": "firebase deploy --only functions"
   },
