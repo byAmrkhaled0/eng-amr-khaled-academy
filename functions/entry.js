@@ -1,6 +1,5 @@
 'use strict';
 
-const crypto = require('crypto');
 const zlib = require('zlib');
 const admin = require('firebase-admin');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
@@ -99,7 +98,7 @@ function optionLine(line){
   const raw=String(line||'').trim();let m=raw.match(/^([A-Da-dأإابجدهـه]|[1-4])\s*[\)\.\-:：]\s*(.+)$/);if(m)return {label:m[1],text:m[2].trim()};
   m=raw.match(/^-\s*(.+)$/);return m?{label:'',text:m[1].trim()}:null;
 }
-function isStructuredExam(source){return /(?:^|\n)\s*(?:النوع|type)\s*[:=：-]?/i.test(source)&&/(?:^|\n)\s*(?:الدرجة|mark|points)\s*[:=：-]?/i.test(source);}
+function isStructuredExam(source){return /(?:^|\n)\s*(?:النوع|type)\s*[:=：-]?/i.test(String(source||''))&&/(?:^|\n)\s*(?:الدرجة|mark|points)\s*[:=：-]?/i.test(String(source||''));}
 function upgradeLegacyExamText(source){
   const blocks=String(source||'').replace(/\r\n?/g,'\n').split(/\n\s*\n/).map(x=>x.trim()).filter(Boolean);if(!blocks.length)return '';
   return blocks.map(block=>{
@@ -120,7 +119,7 @@ const restoreAutomaticBackup = onCall({region:'europe-west1',timeoutSeconds:540,
   const [compressed]=await file.download();let payload;try{payload=JSON.parse(zlib.gunzipSync(compressed).toString('utf8'));}catch(_){throw new HttpsError('data-loss','تعذر قراءة النسخة الاحتياطية.');}
   if(!payload||![53,54,60,63].includes(payload.schemaVersion)||payload.backupFormatVersion!==2||!payload.collections)throw new HttpsError('failed-precondition','هذه النسخة ليست بصيغة استعادة مدعومة.');
   const safety=await createSafetyBackup('pre-restore',staff);
-  for(const name of BACKUP_COLLECTIONS)await restoreCollection(name,payload.collections[name]||[]);
+  for(const collectionName of BACKUP_COLLECTIONS)await restoreCollection(collectionName,payload.collections[collectionName]||[]);
   await db.collection('activityLog').add({action:'تمت استعادة نسخة احتياطية سحابية',meta:{restoredFrom:name,safetyBackup:safety.name,schemaVersion:payload.schemaVersion},actorUid:staff.uid,actorEmail:staff.email,actorRole:'admin',createdAt:FieldValue.serverTimestamp()});
   return {ok:true,restoredFrom:name,safetyBackup:safety.name,schemaVersion:payload.schemaVersion};
 });
@@ -135,12 +134,23 @@ const restoreContentItem = onCall(CALLABLE,async request=>{
   return {ok:true,restored:true,id,collection};
 });
 
-const repairLegacyExamFormats = onCall({region:'europe-west1',timeoutSeconds:120,invoker:'public'},async request=>{
-  const staff=await requireAdmin(request),snap=await db.collection('exams').limit(1000).get();let repaired=0,scanned=0;const batchWrites=[];
-  for(const doc of snap.docs){scanned+=1;const row=doc.data()||{},source=String(row.text||row.questionsText||'');if(!source||isStructuredExam(source))continue;const upgraded=upgradeLegacyExamText(source);if(!upgraded||upgraded===source)continue;batchWrites.push({ref:doc.ref,data:{text:upgraded,questionsText:upgraded,legacyFormatRepairedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()}});}
-  while(batchWrites.length){const batch=db.batch();batchWrites.splice(0,350).forEach(item=>batch.set(item.ref,item.data,{merge:true}));await batch.commit();repaired+=Math.min(350,batchWrites.length+350);}
-  await db.collection('activityLog').add({action:'إصلاح صيغة الاختبارات القديمة',meta:{scanned,repaired},actorUid:staff.uid,actorEmail:staff.email,actorRole:'admin',createdAt:FieldValue.serverTimestamp()});
-  return {ok:true,scanned,repaired};
+const repairLegacyExamFormats = onCall({region:'europe-west1',timeoutSeconds:540,memory:'512MiB',invoker:'public'},async request=>{
+  const staff=await requireAdmin(request),snap=await db.collection('exams').limit(1000).get();let repaired=0,scanned=0;const writes=[];
+  for(const doc of snap.docs){
+    scanned+=1;const row=doc.data()||{},source=String(row.text||row.questionsText||'');
+    if(!source||isStructuredExam(source))continue;
+    const upgraded=upgradeLegacyExamText(source);if(!upgraded||upgraded===source)continue;
+    writes.push({ref:doc.ref,data:{text:upgraded,questionsText:upgraded,legacyFormatRepairedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()}});
+  }
+  if(!writes.length)return {ok:true,scanned,repaired:0,safetyBackup:''};
+  const safety=await createSafetyBackup('pre-exam-format-repair',staff);
+  while(writes.length){
+    const chunk=writes.splice(0,350),batch=db.batch();
+    chunk.forEach(item=>batch.set(item.ref,item.data,{merge:true}));
+    await batch.commit();repaired+=chunk.length;
+  }
+  await db.collection('activityLog').add({action:'إصلاح صيغة الاختبارات القديمة',meta:{scanned,repaired,safetyBackup:safety.name},actorUid:staff.uid,actorEmail:staff.email,actorRole:'admin',createdAt:FieldValue.serverTimestamp()});
+  return {ok:true,scanned,repaired,safetyBackup:safety.name};
 });
 
 module.exports={...base,restoreAutomaticBackup,restoreContentItem,repairLegacyExamFormats};
