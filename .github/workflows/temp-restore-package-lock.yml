@@ -1,35 +1,13 @@
-name: Temp restore exact package lock
+name: Temp restore paused
 
 on:
-  pull_request:
-    branches:
-      - main
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  restore-lock:
+  paused:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: restore/original-v63-from-chat
-          fetch-depth: 0
-      - name: Recreate exact v63.0.0 functions lockfile
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat .restore_payload/lockparts/part* | base64 -d | gzip -d > functions/package-lock.json
-          test "$(git hash-object functions/package-lock.json)" = "b04779e3ae7b6ff4f95b671ffaf68eb4de247bdf"
-      - name: Commit exact blob
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add functions/package-lock.json
-          if ! git diff --cached --quiet; then
-            git commit -m "Materialize exact original v63.0.0 functions lockfile"
-            git push origin HEAD:restore/original-v63-from-chat
-          fi
+      - run: echo "Restore payload upload in progress; do not run."
