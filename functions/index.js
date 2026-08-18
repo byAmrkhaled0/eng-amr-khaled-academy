@@ -779,40 +779,88 @@ function parseOptionLine(line) {
 }
 
 function parseExamQuestions(source) {
-  const blocks = normalizeDigits(source).split(/\n\s*\n/).map(x => x.trim()).filter(Boolean).slice(0, 200);
-  return blocks.map(block => {
-    const lines = block.split('\n').map(x => x.trim()).filter(Boolean);
-    const answerLine = lines.find(line => /^(answer|correct|الإجابة|الاجابة|الإجابة الصحيحة|الاجابة الصحيحة)\s*[:=：-]?/i.test(line));
-    const typeLine = lines.find(line => /^(type|النوع)\s*[:=：-]?/i.test(line));
-    const markLine = lines.find(line => /^(mark|points|الدرجة)\s*[:=：-]?/i.test(line));
-    const modelLine = lines.find(line => /^(model|النموذج|الإجابة النموذجية)\s*[:=：-]?/i.test(line));
-    const answer = answerLine ? cleanAnswerLine(answerLine) : '';
-    const declaredType = typeLine ? String(typeLine).replace(/^(type|النوع)\s*[:=：-]?\s*/i, '').trim().toLowerCase() : '';
-    const mark = Math.max(0.25, Math.min(1000, Number(String(markLine || '').replace(/^(mark|points|الدرجة)\s*[:=：-]?\s*/i, '')) || 1));
-    const modelAnswer = modelLine ? String(modelLine).replace(/^(model|النموذج|الإجابة النموذجية)\s*[:=：-]?\s*/i, '').trim() : '';
-    const options = [];
-    const questionLines = [];
-    for (const line of lines) {
-      if (line === answerLine || line === typeLine || line === markLine || line === modelLine) continue;
-      const option = parseOptionLine(line);
-      if (option) options.push(option);
-      else questionLines.push(line.replace(/^س\d*\s*[:\-]?\s*/, '').trim());
+  const lines = normalizeDigits(source).replace(/\r\n?/g, '\n').split('\n');
+  const questions = [];
+  let cursor = 0;
+  const typePattern = /^(type|النوع)\s*[:=：-]?/i;
+  const markPattern = /^(mark|points|الدرجة)\s*[:=：-]?/i;
+  const answerPattern = /^(answer|correct|الإجابة|الاجابة|الإجابة الصحيحة|الاجابة الصحيحة)\s*[:=：-]?/i;
+  const modelPattern = /^(model|النموذج|الإجابة النموذجية)\s*[:=：-]?/i;
+  const findMetadata = start => {
+    for (let index = start; index < lines.length; index += 1) {
+      const current = lines[index].trim();
+      if (!typePattern.test(current)) continue;
+      let markIndex = index + 1;
+      while (markIndex < lines.length && !lines[markIndex].trim()) markIndex += 1;
+      if (markIndex < lines.length && markPattern.test(lines[markIndex].trim())) return { typeIndex: index, markIndex };
     }
-    const question = text(questionLines[0] || lines[0] || 'سؤال', 1500);
-    if (options.length) {
-      return {
-        type: declaredType === 'truefalse' || declaredType === 'صح وخطأ' ? 'truefalse' : 'mcq',
+    return null;
+  };
+  while (cursor < lines.length && questions.length < 200) {
+    while (cursor < lines.length && !lines[cursor].trim()) cursor += 1;
+    if (cursor >= lines.length) break;
+    const metadata = findMetadata(cursor);
+    if (!metadata) break;
+    const { typeIndex, markIndex } = metadata;
+    const rawQuestionLines = lines.slice(cursor, typeIndex);
+    while (rawQuestionLines.length && !rawQuestionLines[0].trim()) rawQuestionLines.shift();
+    while (rawQuestionLines.length && !rawQuestionLines[rawQuestionLines.length - 1].trim()) rawQuestionLines.pop();
+    if (rawQuestionLines.length) rawQuestionLines[0] = rawQuestionLines[0].replace(/^(\s*)س\d*\s*[:\-]?\s*/, '$1');
+    const question = text(rawQuestionLines.join('\n'), 1500);
+    const declaredType = lines[typeIndex].trim().replace(typePattern, '').trim().toLowerCase();
+    const mark = Math.max(0.25, Math.min(1000, Number(lines[markIndex].trim().replace(markPattern, '').trim()) || 1));
+    const choiceType = ['mcq','truefalse','اختياري','صح وخطأ','صح أو غلط'].includes(declaredType);
+    const options = [];
+    let answer = '';
+    let modelAnswer = '';
+    let blockEnd = markIndex + 1;
+    if (choiceType) {
+      for (let index = markIndex + 1; index < lines.length; index += 1) {
+        const trimmed = lines[index].trim();
+        if (!trimmed) { blockEnd = index; break; }
+        if (answerPattern.test(trimmed)) {
+          answer = cleanAnswerLine(trimmed);
+          blockEnd = index + 1;
+          break;
+        }
+        const option = parseOptionLine(lines[index]);
+        if (option) options.push(option);
+        blockEnd = index + 1;
+      }
+    } else {
+      const candidate = markIndex + 1;
+      if (candidate < lines.length && modelPattern.test(lines[candidate].trim())) {
+        const firstModelLine = lines[candidate].trim().replace(modelPattern, '').trim();
+        let end = candidate + 1;
+        while (end < lines.length && lines[end].trim()) end += 1;
+        modelAnswer = text([firstModelLine, ...lines.slice(candidate + 1, end)].join('\n'), 2000);
+        blockEnd = end;
+      }
+    }
+    if (choiceType && options.length) {
+      questions.push({
+        type: declaredType === 'truefalse' || declaredType === 'صح وخطأ' || declaredType === 'صح أو غلط' ? 'truefalse' : 'mcq',
         question,
-        options: options.slice(0, 8).map(o => text(o.text, 700)),
-        optionLabels: options.slice(0, 8).map(o => text(o.label, 10)),
+        options: options.slice(0, 8).map(option => text(option.text, 700)),
+        optionLabels: options.slice(0, 8).map(option => text(option.label, 10)),
         answer: text(answer, 700),
         mark
-      };
+      });
+    } else {
+      questions.push({
+        type: declaredType === 'code' || declaredType === 'كود' ? 'code' : 'essay',
+        question,
+        options: [],
+        optionLabels: [],
+        answer: '',
+        modelAnswer,
+        mark
+      });
     }
-    return { type: declaredType === 'code' || declaredType === 'كود' ? 'code' : 'essay', question, options: [], optionLabels: [], answer: '', modelAnswer: text(modelAnswer, 2000), mark };
-  }).filter(q => q.question);
+    cursor = Math.max(blockEnd, markIndex + 1);
+  }
+  return questions.filter(item => item.question);
 }
-
 function normalizeAnswer(value) {
   return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/[\)\.\-:：]/g, '').replace(/إ/g, 'أ').replace(/هـ/g, 'ه');
 }

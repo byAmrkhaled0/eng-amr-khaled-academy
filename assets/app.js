@@ -1027,7 +1027,7 @@ function setupStudentResourcesPage(){
   const quickCode=toEnglishDigits(new URLSearchParams(location.search).get('code')||saved).trim().toUpperCase();if(quickCode&&!form.dataset.autoLoaded){form.dataset.autoLoaded='true';input.value=quickCode;setTimeout(()=>form.requestSubmit(),140);}
 }
 function renderExamQuestionHtml(q,i){
-  const written=q.type==='essay'||q.type==='code';return `<article class="exam-question-card" data-question-index="${i}"><div class="exam-question-number">السؤال ${i+1} · ${esc(q.mark||1)} درجة</div><h3>${esc(q.question)}</h3>${written?`<label class="exam-essay-field"><span>${q.type==='code'?'اكتب الكود':'اكتب إجابتك بوضوح'}</span><textarea name="q${i}" rows="${q.type==='code'?10:6}" ${q.type==='code'?'dir="ltr" spellcheck="false"':''} placeholder="${q.type==='code'?'اكتب الكود هنا...':'اكتب إجابتك هنا...'}"></textarea></label>`:`<div class="exam-options">${q.options.map((o,oi)=>`<label class="exam-option"><input type="radio" name="q${i}" value="${oi}"><span class="exam-option-marker">${esc(q.optionLabels?.[oi]||String(oi+1))}</span><span>${esc(o)}</span></label>`).join('')}</div>`}</article>`;
+  const written=q.type==='essay'||q.type==='code';return `<article class="exam-question-card" data-question-index="${i}"><div class="exam-question-number">السؤال ${i+1} · ${esc(q.mark||1)} درجة</div><h3 class="exam-question-prompt" dir="auto" style="white-space:pre-wrap;unicode-bidi:plaintext;tab-size:4">${esc(q.question)}</h3>${written?`<label class="exam-essay-field"><span>${q.type==='code'?'اكتب الكود':'اكتب إجابتك بوضوح'}</span><textarea name="q${i}" rows="${q.type==='code'?10:6}" ${q.type==='code'?'dir="ltr" spellcheck="false"':''} placeholder="${q.type==='code'?'اكتب الكود هنا...':'اكتب إجابتك هنا...'}"></textarea></label>`:`<div class="exam-options">${q.options.map((o,oi)=>`<label class="exam-option"><input type="radio" name="q${i}" value="${oi}"><span class="exam-option-marker">${esc(q.optionLabels?.[oi]||String(oi+1))}</span><span>${esc(o)}</span></label>`).join('')}</div>`}</article>`;
 }
 function cleanAnswerLine(line){return String(line||'').replace(/^(answer|correct|الإجابة|الاجابة|الإجابة الصحيحة|الاجابة الصحيحة)\s*[:=：-]?\s*/i,'').trim();}
 function parseOptionLine(line){
@@ -1039,26 +1039,35 @@ function parseOptionLine(line){
   return null;
 }
 function parseExamQuestions(text){
-  const blocks=toEnglishDigits(text).split(/\n\s*\n/).map(b=>b.trim()).filter(Boolean);
-  return blocks.map(block=>{
-    const lines=block.split('\n').map(x=>x.trim()).filter(Boolean);
-    const answerLine=lines.find(l=>/^(answer|correct|الإجابة|الاجابة|الإجابة الصحيحة|الاجابة الصحيحة)\s*[:=：-]?/i.test(l));
-    const typeLine=lines.find(l=>/^(type|النوع)\s*[:=：-]?/i.test(l));const markLine=lines.find(l=>/^(mark|points|الدرجة)\s*[:=：-]?/i.test(l));const modelLine=lines.find(l=>/^(model|النموذج|الإجابة النموذجية)\s*[:=：-]?/i.test(l));
-    const answer=answerLine?cleanAnswerLine(answerLine):'';
-    const type=typeLine?typeLine.replace(/^(type|النوع)\s*[:=：-]?\s*/i,'').trim().toLowerCase():'';const mark=Math.max(.25,Number(String(markLine||'').replace(/^(mark|points|الدرجة)\s*[:=：-]?\s*/i,''))||1);
-    const optionObjs=[];
-    const questionLines=[];
-    lines.forEach(l=>{
-      if(l===answerLine||l===typeLine||l===markLine||l===modelLine) return;
-      const opt=parseOptionLine(l);
-      if(opt) optionObjs.push(opt); else questionLines.push(l.replace(/^س\d*\s*[:\-]?\s*/,'').trim());
-    });
-    const q=(questionLines[0]||lines[0]||'سؤال').replace(/^س\d*\s*[:\-]?\s*/,'').trim();
-    if(optionObjs.length){
-      return {type:type==='truefalse'?'truefalse':'mcq',question:q,options:optionObjs.map(o=>o.text),optionLabels:optionObjs.map(o=>o.label),answer,mark,modelAnswer:modelLine?modelLine.replace(/^(model|النموذج|الإجابة النموذجية)\s*[:=：-]?\s*/i,'').trim():''};
+  const lines=toEnglishDigits(text).replace(/\r\n?/g,'\n').split('\n'),questions=[];
+  let cursor=0;
+  const typePattern=/^(type|النوع)\s*[:=：-]?/i,markPattern=/^(mark|points|الدرجة)\s*[:=：-]?/i,answerPattern=/^(answer|correct|الإجابة|الاجابة|الإجابة الصحيحة|الاجابة الصحيحة)\s*[:=：-]?/i,modelPattern=/^(model|النموذج|الإجابة النموذجية)\s*[:=：-]?/i;
+  const findMetadata=start=>{for(let index=start;index<lines.length;index+=1){const current=lines[index].trim();if(!typePattern.test(current))continue;let markIndex=index+1;while(markIndex<lines.length&&!lines[markIndex].trim())markIndex+=1;if(markIndex<lines.length&&markPattern.test(lines[markIndex].trim()))return {typeIndex:index,markIndex};}return null;};
+  while(cursor<lines.length&&questions.length<200){
+    while(cursor<lines.length&&!lines[cursor].trim())cursor+=1;
+    if(cursor>=lines.length)break;
+    const metadata=findMetadata(cursor);if(!metadata)break;
+    const {typeIndex,markIndex}=metadata;
+    const rawQuestionLines=lines.slice(cursor,typeIndex);
+    while(rawQuestionLines.length&&!rawQuestionLines[0].trim())rawQuestionLines.shift();
+    while(rawQuestionLines.length&&!rawQuestionLines[rawQuestionLines.length-1].trim())rawQuestionLines.pop();
+    if(rawQuestionLines.length)rawQuestionLines[0]=rawQuestionLines[0].replace(/^(\s*)س\d*\s*[:\-]?\s*/,'$1');
+    const question=rawQuestionLines.join('\n').trim().slice(0,1500);
+    const declaredType=lines[typeIndex].trim().replace(typePattern,'').trim().toLowerCase();
+    const mark=Math.max(.25,Math.min(1000,Number(lines[markIndex].trim().replace(markPattern,'').trim())||1));
+    const choiceType=['mcq','truefalse','اختياري','صح وخطأ','صح أو غلط'].includes(declaredType),optionObjs=[];
+    let answer='',modelAnswer='',blockEnd=markIndex+1;
+    if(choiceType){
+      for(let index=markIndex+1;index<lines.length;index+=1){const trimmed=lines[index].trim();if(!trimmed){blockEnd=index;break;}if(answerPattern.test(trimmed)){answer=cleanAnswerLine(trimmed);blockEnd=index+1;break;}const option=parseOptionLine(lines[index]);if(option)optionObjs.push(option);blockEnd=index+1;}
+    }else{
+      const candidate=markIndex+1;
+      if(candidate<lines.length&&modelPattern.test(lines[candidate].trim())){const firstModelLine=lines[candidate].trim().replace(modelPattern,'').trim();let end=candidate+1;while(end<lines.length&&lines[end].trim())end+=1;modelAnswer=[firstModelLine,...lines.slice(candidate+1,end)].join('\n').trim().slice(0,2000);blockEnd=end;}
     }
-    return {type:type==='code'?'code':'essay',question:q,answer:'',mark,modelAnswer:modelLine?modelLine.replace(/^(model|النموذج|الإجابة النموذجية)\s*[:=：-]?\s*/i,'').trim():''};
-  });
+    if(choiceType&&optionObjs.length)questions.push({type:declaredType==='truefalse'||declaredType==='صح وخطأ'||declaredType==='صح أو غلط'?'truefalse':'mcq',question,options:optionObjs.slice(0,8).map(o=>o.text),optionLabels:optionObjs.slice(0,8).map(o=>o.label),answer,mark,modelAnswer});
+    else questions.push({type:declaredType==='code'||declaredType==='كود'?'code':'essay',question,options:[],optionLabels:[],answer:'',mark,modelAnswer});
+    cursor=Math.max(blockEnd,markIndex+1);
+  }
+  return questions.filter(item=>item.question);
 }
 function hasSubmitted(examId, code){
   const attempts=[...(currentExamStudent?.examAttempts||[]),...(appData.examAttempts||[])];
