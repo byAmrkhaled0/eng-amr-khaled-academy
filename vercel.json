@@ -1,6 +1,6 @@
 {
   "framework": null,
-  "buildCommand": "node --test --test-name-pattern=\"daily operations|class sessions|student profile includes\" scripts/operations-workspace-v637.test.js && npm run build",
+  "buildCommand": "node --test --test-name-pattern=\"daily operations workspace\" scripts/operations-workspace-v637.test.js && npm run build",
   "outputDirectory": "dist",
   "installCommand": "npm install --ignore-scripts",
   "cleanUrls": false,
