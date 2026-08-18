@@ -11,6 +11,7 @@
   };
   const restoreCall=call('restoreContentItem');
   const repairCall=call('repairLegacyExamFormats');
+  let recoveryInstalled=false;
 
   function mergeRows(current,extra){
     const map=new Map((Array.isArray(current)?current:[]).map(row=>[String(row.id||''),row]));
@@ -24,10 +25,11 @@
   function adminRows(collection){return typeof adminData!=='undefined'&&Array.isArray(adminData[collection])?adminData[collection]:[];}
 
   function installDataRecovery(){
-    if(!window.MFCloud?.loadSiteData||window.MFCloud.__auditRecoveryInstalled)return;
-    window.MFCloud.__auditRecoveryInstalled=true;
-    const original=window.MFCloud.loadSiteData.bind(window.MFCloud);
-    window.MFCloud.loadSiteData=async options=>{
+    const cloud=window.MFCloud;
+    if(!cloud?.loadSiteData||recoveryInstalled)return;
+    recoveryInstalled=true;
+    const original=cloud.loadSiteData.bind(cloud);
+    cloud.loadSiteData=async options=>{
       const data=await original(options||{});
       if(!data)return data;
       try{
@@ -48,8 +50,6 @@
       }catch(error){console.warn('admin-legacy-content-load',error);}
       return data;
     };
-    window.MFCloud.restoreContentItem=payload=>restoreCall(payload);
-    window.MFCloud.repairLegacyExamFormats=payload=>repairCall(payload||{});
   }
 
   window.removeLearningContent=async function(collection,id){
@@ -71,7 +71,7 @@
     const label=collection==='exams'?'الامتحان':'الواجب';
     if(!confirm(`استعادة ${label} إلى المنصة وإتاحته للطلاب مرة أخرى؟`))return;
     try{
-      const result=await window.MFCloud?.restoreContentItem?.({collection,id});
+      const result=await restoreCall({collection,id});
       if(!result?.ok)throw new Error('الخادم لم يؤكد الاستعادة');
       const row=adminRows(collection).find(item=>String(item.id)===String(id));
       if(row)Object.assign(row,{archived:false,active:true,published:true,lifecycleStatus:'open'});
@@ -84,7 +84,7 @@
   window.repairLegacyExamsAdmin=async function(){
     const button=document.querySelector('[data-repair-legacy-exams]');if(button){button.disabled=true;button.classList.add('is-loading');}
     try{
-      const result=await window.MFCloud?.repairLegacyExamFormats?.({});
+      const result=await repairCall({});
       sessionStorage.setItem('tm-legacy-exam-repair-v638','1');
       if(typeof reloadFromCloud==='function')await reloadFromCloud();
       if(typeof aToast==='function')aToast(Number(result?.repaired||0)?`تم إصلاح ${Number(result.repaired)} امتحان قديم مع إنشاء نسخة أمان`:'كل الامتحانات بصيغة سليمة');
