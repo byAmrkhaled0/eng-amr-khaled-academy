@@ -1,11 +1,9 @@
 name: Temp restore exact package lock
 
 on:
-  push:
+  pull_request:
     branches:
-      - restore/original-v63-from-chat
-    paths:
-      - .restore_payload/lockparts/**
+      - main
 
 permissions:
   contents: write
