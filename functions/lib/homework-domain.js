@@ -35,10 +35,6 @@ function decideHomeworkAttempt({ lock = null, legacySubmissionExists = false, gr
 }
 
 function correctAnswersMayBeRevealed(submission = {}, now = Date.now()) {
-  const graded = submission.needsManualReview !== true
-    && submission.score !== null
-    && submission.score !== undefined;
-  if (submission.revealCorrectAnswersAfterGrading === true && graded) return true;
   if (submission.revealCorrectAnswersAfterClose !== true) return false;
   const closeValue = submission.assignmentSnapshot?.closeAt
     || submission.assignmentSnapshot?.dueAt
@@ -85,7 +81,7 @@ function publicHomeworkProjection(submission = {}, now = Date.now()) {
     approved: submission.approved === true,
     attemptNumber: Math.max(1, Math.floor(number(submission.attemptNumber, 1))),
     submittedAt: String(submission.submittedAt || '').slice(0, 60),
-    reviewedAt: String(submission.reviewedAt?.toDate?.()?.toISOString?.() || submission.reviewedAt || '').slice(0, 60),
+    reviewedAt: String(submission.reviewedAt || '').slice(0, 60),
     answers,
     answersRevealed: reveal
   };

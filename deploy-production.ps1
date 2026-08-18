@@ -120,9 +120,9 @@ try {
     }
   }
 
-  Set-Content -LiteralPath $SuccessFile -Value "V63.0.7" -Encoding ASCII
+  Set-Content -LiteralPath $SuccessFile -Value "V63.0.0" -Encoding ASCII
   Remove-Item -LiteralPath $StateFile -Force -ErrorAction SilentlyContinue
-  Write-Host "Deployment V63.0.7 completed successfully. No GitHub push was performed." -ForegroundColor Green
+  Write-Host "Deployment V63.0.0 completed successfully. No GitHub push was performed." -ForegroundColor Green
   exit 0
 } catch {
   Write-Host "" 

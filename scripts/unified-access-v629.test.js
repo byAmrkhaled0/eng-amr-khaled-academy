@@ -20,7 +20,7 @@ test('new and existing students use one code for both portals', () => {
   assert.match(sync, /const parentCode=studentCode/);
 });
 
-test('legacy codes migrate only through authenticated server functions', () => {
+test('legacy codes migrate immediately and in the background', () => {
   const backend = read('functions/index.js');
   const sync = read('assets/firebase-sync.js');
   assert.match(backend, /exports\.unifyStudentAccessCodes = onCall/);
@@ -28,9 +28,7 @@ test('legacy codes migrate only through authenticated server functions', () => {
   assert.match(backend, /schedule: 'every 6 hours'/);
   assert.match(backend, /accessCodeVersion: 2/);
   assert.match(sync, /unifyStudentAccessCodes:callable\('unifyStudentAccessCodes'\)/);
-  assert.match(sync, /migrateStudentCodeSafely:callable\('migrateStudentCodeSafely'\)/);
-  assert.match(sync, /Secure student code migration service is unavailable/);
-  assert.doesNotMatch(sync, /legacyParentCode&&legacyParentCode!==oldId/);
+  assert.match(sync, /legacyParentCode&&legacyParentCode!==oldId/);
 });
 
 test('rules and admin UI enforce and present the unified code', () => {
@@ -49,7 +47,7 @@ test('all static routes and Vercel API rewrites point to existing targets', () =
   const build = read('scripts/build.js');
   const vercel = JSON.parse(read('vercel.json'));
   const routes = [...build.matchAll(/^\s*'([^']+\.html)',?$/gm)].map(match => match[1]);
-  assert.equal(routes.length, 15);
+  assert.equal(routes.length, 14);
   routes.forEach(route => assert.equal(fs.existsSync(path.join(root, route)), true, `missing route ${route}`));
   assert.equal(vercel.outputDirectory, 'dist');
   assert.ok(vercel.rewrites.some(item => item.source === '/api/health' && item.destination.includes('getPlatformHealth')));

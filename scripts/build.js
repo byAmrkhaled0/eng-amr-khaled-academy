@@ -24,8 +24,7 @@ const entriesToCopy = [
   'site.webmanifest',
   'teacher.webmanifest',
   'service-worker.js',
-  'offline.html',
-  '404.html'
+  'offline.html'
 ];
 
 fs.rmSync(dist, { recursive: true, force: true });
@@ -49,4 +48,4 @@ for (const entry of entriesToCopy) {
   copyRecursive(path.join(root, entry), path.join(dist, entry));
 }
 
-console.log('Vercel build ready: static files copied to dist/ (v63.0.7)');
+console.log('Vercel build ready: static files copied to dist/ (v63.0.0)');
