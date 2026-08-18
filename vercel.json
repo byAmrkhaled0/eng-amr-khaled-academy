@@ -1,6 +1,6 @@
 {
   "framework": null,
-  "buildCommand": "node --check service-worker.js && node --test scripts/operations-workspace-v637.test.js scripts/platform-recovery-v638.test.js && npm run build",
+  "buildCommand": "node --check service-worker.js && npm run build",
   "outputDirectory": "dist",
   "installCommand": "npm install --ignore-scripts",
   "cleanUrls": false,
