@@ -1,5 +1,5 @@
-const CACHE_NAME = "technominds-v63-0-7-r638-20260818";
-const ASSET_VERSION = "63.0.7-r638";
+const CACHE_NAME = "technominds-v63-0-7-unified-results-final";
+const ASSET_VERSION = "63.0.7";
 const APP_SHELL = [
   "/", "/index.html", "/learning-path.html", "/about.html", "/reviews.html", "/privacy.html",
   "/terms.html", "/offline.html", "/assets/site.css", "/assets/v55.css",
@@ -17,7 +17,7 @@ const SENSITIVE_NAVIGATION=new Set(['/student.html','/parent.html','/exams.html'
 self.addEventListener('push', event => {
   let payload={};
   try{payload=event.data?event.data.json():{};}catch(_){payload={data:{body:event.data?.text?.()||''}};}
-  const data=payload.data||{},notification=payload.notification||data.webpush?.notification||payload.webpush?.notification||{};
+  const data=payload.data||{},notification=payload.notification||payload.webpush?.notification||{};
   const title=notification.title||data.title||'Techno Minds';
   const options={
     body:notification.body||data.body||'يوجد تحديث جديد في لوحة الإدارة.',
@@ -98,9 +98,10 @@ self.addEventListener("fetch", event => {
   }
 
   if(url.pathname.startsWith("/assets/") || url.pathname.endsWith(".webmanifest")){
-    // Keep repeat visits instant, but force the background refresh to revalidate
-    // the network resource even when Vercel marks versioned assets immutable.
-    const network=fetch(request,{cache:"no-cache"}).then(async response=>{
+    // Versioned static assets are returned from cache immediately on repeat
+    // visits while a background request refreshes them. Large QR and Excel
+    // bundles enter this cache only after the user actually opens that tool.
+    const network=fetch(request).then(async response=>{
       if(response.ok){const cache=await caches.open(CACHE_NAME);await cache.put(request,response.clone());}
       return response;
     });
