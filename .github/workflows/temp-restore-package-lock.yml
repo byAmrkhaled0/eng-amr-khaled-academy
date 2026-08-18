@@ -5,7 +5,7 @@ on:
     branches:
       - restore/original-v63-from-chat
     paths:
-      - .restore_payload/functions-package-lock.gz.b64
+      - .restore_payload/lockparts/**
 
 permissions:
   contents: write
@@ -22,7 +22,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base64 -d .restore_payload/functions-package-lock.gz.b64 | gzip -d > functions/package-lock.json
+          cat .restore_payload/lockparts/part* | base64 -d | gzip -d > functions/package-lock.json
           test "$(git hash-object functions/package-lock.json)" = "b04779e3ae7b6ff4f95b671ffaf68eb4de247bdf"
       - name: Commit exact blob
         shell: bash
