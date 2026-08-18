@@ -1,0 +1,184 @@
+name: Temporary multiline exam repair
+
+on:
+  push:
+    branches:
+      - fix/exam-multiline-question
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/exam-multiline-question
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply focused repair
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const read = file => fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+          const write = (file, value) => fs.writeFileSync(file, value, 'utf8');
+          function replaceBetween(source, startMarker, endMarker, replacement, label) {
+            const start = source.indexOf(startMarker);
+            if (start < 0) throw new Error(`${label}: start marker not found`);
+            const end = source.indexOf(endMarker, start);
+            if (end < 0) throw new Error(`${label}: end marker not found`);
+            return source.slice(0, start) + replacement.trimEnd() + '\n\n' + source.slice(end);
+          }
+
+          let backend = read('functions/index.js');
+          const backendParser = String.raw`function parseExamQuestions(source) {
+            const lines = normalizeDigits(source).replace(/\r\n?/g, '\n').split('\n');
+            const questions = [];
+            let cursor = 0;
+            const typePattern = /^(type|النوع)\s*[:=：-]?/i;
+            const markPattern = /^(mark|points|الدرجة)\s*[:=：-]?/i;
+            const answerPattern = /^(answer|correct|الإجابة|الاجابة|الإجابة الصحيحة|الاجابة الصحيحة)\s*[:=：-]?/i;
+            const modelPattern = /^(model|النموذج|الإجابة النموذجية)\s*[:=：-]?/i;
+            const findMetadata = start => {
+              for (let index = start; index < lines.length; index += 1) {
+                const current = lines[index].trim();
+                if (!typePattern.test(current)) continue;
+                let markIndex = index + 1;
+                while (markIndex < lines.length && !lines[markIndex].trim()) markIndex += 1;
+                if (markIndex < lines.length && markPattern.test(lines[markIndex].trim())) return { typeIndex:index, markIndex };
+              }
+              return null;
+            };
+            while (cursor < lines.length && questions.length < 200) {
+              while (cursor < lines.length && !lines[cursor].trim()) cursor += 1;
+              if (cursor >= lines.length) break;
+              const metadata = findMetadata(cursor);
+              if (!metadata) break;
+              const { typeIndex, markIndex } = metadata;
+              const rawQuestionLines = lines.slice(cursor, typeIndex);
+              while (rawQuestionLines.length && !rawQuestionLines[0].trim()) rawQuestionLines.shift();
+              while (rawQuestionLines.length && !rawQuestionLines[rawQuestionLines.length - 1].trim()) rawQuestionLines.pop();
+              if (rawQuestionLines.length) rawQuestionLines[0] = rawQuestionLines[0].replace(/^(\s*)س\d*\s*[:\-]?\s*/, '$1');
+              const question = text(rawQuestionLines.join('\n'), 1500);
+              const typeLine = lines[typeIndex].trim();
+              const declaredType = typeLine.replace(typePattern, '').trim().toLowerCase();
+              const mark = Math.max(0.25, Math.min(1000, Number(lines[markIndex].trim().replace(markPattern, '').trim()) || 1));
+              const choiceType = ['mcq','truefalse','اختياري','صح وخطأ','صح أو غلط'].includes(declaredType);
+              const options = [];
+              let answer = '';
+              let modelAnswer = '';
+              let blockEnd = markIndex + 1;
+              if (choiceType) {
+                for (let index = markIndex + 1; index < lines.length; index += 1) {
+                  const trimmed = lines[index].trim();
+                  if (!trimmed) { blockEnd = index; break; }
+                  if (answerPattern.test(trimmed)) {
+                    answer = cleanAnswerLine(trimmed);
+                    blockEnd = index + 1;
+                    break;
+                  }
+                  const option = parseOptionLine(lines[index]);
+                  if (option) options.push(option);
+                  blockEnd = index + 1;
+                }
+              } else {
+                const candidate = markIndex + 1;
+                if (candidate < lines.length && modelPattern.test(lines[candidate].trim())) {
+                  const firstModelLine = lines[candidate].trim().replace(modelPattern, '').trim();
+                  let end = candidate + 1;
+                  while (end < lines.length && lines[end].trim()) end += 1;
+                  modelAnswer = text([firstModelLine, ...lines.slice(candidate + 1, end)].join('\n'), 2000);
+                  blockEnd = end;
+                }
+              }
+              if (choiceType && options.length) {
+                questions.push({
+                  type: declaredType === 'truefalse' || declaredType === 'صح وخطأ' || declaredType === 'صح أو غلط' ? 'truefalse' : 'mcq',
+                  question,
+                  options: options.slice(0, 8).map(option => text(option.text, 700)),
+                  optionLabels: options.slice(0, 8).map(option => text(option.label, 10)),
+                  answer: text(answer, 700),
+                  mark
+                });
+              } else {
+                questions.push({
+                  type: declaredType === 'code' || declaredType === 'كود' ? 'code' : 'essay',
+                  question,
+                  options: [],
+                  optionLabels: [],
+                  answer: '',
+                  modelAnswer,
+                  mark
+                });
+              }
+              cursor = Math.max(blockEnd, markIndex + 1);
+            }
+            return questions.filter(item => item.question);
+          }`;
+          backend = replaceBetween(backend, 'function parseExamQuestions(source) {', 'function normalizeAnswer(value) {', backendParser, 'backend parser');
+          write('functions/index.js', backend);
+
+          let app = read('assets/app.js');
+          const frontendBlock = String.raw`function renderExamQuestionHtml(q,i){
+            const written=q.type==='essay'||q.type==='code';
+            return \`<article class="exam-question-card" data-question-index="\${i}"><div class="exam-question-number">السؤال \${i+1} · \${esc(q.mark||1)} درجة</div><h3 class="exam-question-prompt" dir="auto" style="white-space:pre-wrap;unicode-bidi:plaintext;tab-size:4">\${esc(q.question)}</h3>\${written?\`<label class="exam-essay-field"><span>\${q.type==='code'?'اكتب الكود':'اكتب إجابتك بوضوح'}</span><textarea name="q\${i}" rows="\${q.type==='code'?10:6}" \${q.type==='code'?'dir="ltr" spellcheck="false"':''} placeholder="\${q.type==='code'?'اكتب الكود هنا...':'اكتب إجابتك هنا...'}"></textarea></label>\`:\`<div class="exam-options">\${q.options.map((o,oi)=>\`<label class="exam-option"><input type="radio" name="q\${i}" value="\${oi}"><span class="exam-option-marker">\${esc(q.optionLabels?.[oi]||String(oi+1))}</span><span>\${esc(o)}</span></label>\`).join('')}</div>\`}</article>\`;
+          }
+          function cleanAnswerLine(line){return String(line||'').replace(/^(answer|correct|الإجابة|الاجابة|الإجابة الصحيحة|الاجابة الصحيحة)\s*[:=：-]?\s*/i,'').trim();}
+          function parseOptionLine(line){
+            const raw=toEnglishDigits(line).trim();
+            let m=raw.match(/^([A-Da-dأإابجدهـه]|[1-4])\s*[\)\.\-:：]\s*(.+)$/);
+            if(m) return {label:m[1].replace('إ','أ').replace('هـ','ه'), text:m[2].trim()};
+            m=raw.match(/^-\s*(.+)$/);
+            if(m) return {label:'', text:m[1].trim()};
+            return null;
+          }
+          function parseExamQuestions(text){
+            const lines=toEnglishDigits(text).replace(/\r\n?/g,'\n').split('\n'),questions=[];
+            let cursor=0;
+            const typePattern=/^(type|النوع)\s*[:=：-]?/i,markPattern=/^(mark|points|الدرجة)\s*[:=：-]?/i,answerPattern=/^(answer|correct|الإجابة|الاجابة|الإجابة الصحيحة|الاجابة الصحيحة)\s*[:=：-]?/i,modelPattern=/^(model|النموذج|الإجابة النموذجية)\s*[:=：-]?/i;
+            const findMetadata=start=>{for(let index=start;index<lines.length;index+=1){const current=lines[index].trim();if(!typePattern.test(current))continue;let markIndex=index+1;while(markIndex<lines.length&&!lines[markIndex].trim())markIndex+=1;if(markIndex<lines.length&&markPattern.test(lines[markIndex].trim()))return {typeIndex:index,markIndex};}return null;};
+            while(cursor<lines.length&&questions.length<200){
+              while(cursor<lines.length&&!lines[cursor].trim())cursor+=1;if(cursor>=lines.length)break;
+              const metadata=findMetadata(cursor);if(!metadata)break;const {typeIndex,markIndex}=metadata;
+              const rawQuestionLines=lines.slice(cursor,typeIndex);while(rawQuestionLines.length&&!rawQuestionLines[0].trim())rawQuestionLines.shift();while(rawQuestionLines.length&&!rawQuestionLines[rawQuestionLines.length-1].trim())rawQuestionLines.pop();if(rawQuestionLines.length)rawQuestionLines[0]=rawQuestionLines[0].replace(/^(\s*)س\d*\s*[:\-]?\s*/,'$1');
+              const question=rawQuestionLines.join('\n').trim().slice(0,1500),declaredType=lines[typeIndex].trim().replace(typePattern,'').trim().toLowerCase(),mark=Math.max(.25,Math.min(1000,Number(lines[markIndex].trim().replace(markPattern,'').trim())||1)),choiceType=['mcq','truefalse','اختياري','صح وخطأ','صح أو غلط'].includes(declaredType),optionObjs=[];
+              let answer='',modelAnswer='',blockEnd=markIndex+1;
+              if(choiceType){for(let index=markIndex+1;index<lines.length;index+=1){const trimmed=lines[index].trim();if(!trimmed){blockEnd=index;break;}if(answerPattern.test(trimmed)){answer=cleanAnswerLine(trimmed);blockEnd=index+1;break;}const option=parseOptionLine(lines[index]);if(option)optionObjs.push(option);blockEnd=index+1;}}
+              else {const candidate=markIndex+1;if(candidate<lines.length&&modelPattern.test(lines[candidate].trim())){const firstModelLine=lines[candidate].trim().replace(modelPattern,'').trim();let end=candidate+1;while(end<lines.length&&lines[end].trim())end+=1;modelAnswer=[firstModelLine,...lines.slice(candidate+1,end)].join('\n').trim().slice(0,2000);blockEnd=end;}}
+              if(choiceType&&optionObjs.length)questions.push({type:declaredType==='truefalse'||declaredType==='صح وخطأ'||declaredType==='صح أو غلط'?'truefalse':'mcq',question,options:optionObjs.slice(0,8).map(o=>o.text),optionLabels:optionObjs.slice(0,8).map(o=>o.label),answer,mark,modelAnswer});
+              else questions.push({type:declaredType==='code'||declaredType==='كود'?'code':'essay',question,options:[],optionLabels:[],answer:'',mark,modelAnswer});
+              cursor=Math.max(blockEnd,markIndex+1);
+            }
+            return questions.filter(item=>item.question);
+          }`;
+          app = replaceBetween(app, 'function renderExamQuestionHtml(q,i){', 'function hasSubmitted(examId, code){', frontendBlock, 'frontend exam parser');
+          write('assets/app.js', app);
+
+          let tests = read('scripts/exam-workflow-v621.test.js');
+          if (!tests.includes('multiline code questions preserve the full prompt')) {
+            tests = tests.trimEnd() + `\n\ntest('multiline code questions preserve the full prompt and whitespace', () => {\n  const backend = read('functions/index.js');\n  const app = read('assets/app.js');\n  assert.doesNotMatch(backend, /questionLines\\[0\\]/);\n  assert.doesNotMatch(app, /questionLines\\[0\\]/);\n  assert.match(backend, /rawQuestionLines\\.join\\('\\\\n'\\)/);\n  assert.match(app, /rawQuestionLines\\.join\\('\\\\n'\\)/);\n  assert.match(app, /white-space:pre-wrap/);\n});\n`;
+            write('scripts/exam-workflow-v621.test.js', tests);
+          }
+          NODE
+      - name: Verify repair
+        shell: bash
+        run: |
+          node --check assets/app.js
+          node --check functions/index.js
+          node --check scripts/exam-workflow-v621.test.js
+          node --test scripts/exam-workflow-v621.test.js
+          npm run build
+          git diff --check
+      - name: Commit verified repair and remove temporary workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/temp-exam-multiline-repair.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/app.js functions/index.js scripts/exam-workflow-v621.test.js .github/workflows/temp-exam-multiline-repair.yml
+          git commit -m "Fix multiline code questions in exams"
+          git push origin HEAD:fix/exam-multiline-question
