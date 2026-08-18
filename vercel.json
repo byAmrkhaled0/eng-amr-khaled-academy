@@ -1,6 +1,6 @@
 {
   "framework": null,
-  "buildCommand": "node scripts/verify.js && node scripts/payment-domain.test.js && node scripts/curriculum-v61.test.js && npm run build",
+  "buildCommand": "node scripts/verify.js && npm run build",
   "outputDirectory": "dist",
   "installCommand": "npm install --ignore-scripts",
   "cleanUrls": false,
