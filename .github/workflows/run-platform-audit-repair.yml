@@ -1,0 +1,49 @@
+name: Run isolated platform audit repair
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/run-platform-audit-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/platform-audit-archive-restore
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply repair
+        run: python3 scripts/apply-platform-audit-repair.py
+      - name: Verify
+        run: |
+          node --check assets/admin.js
+          node --check assets/firebase-sync.js
+          node --check assets/v60-admin-workflow.js
+          node --check functions/index.js
+          node --test scripts/exam-workflow-v621.test.js scripts/final-regression-v634.test.js
+          npm run build
+          git diff --check
+      - name: Commit repair branch
+        run: |
+          rm -f .github/workflows/temp-platform-audit-repair.yml scripts/apply-platform-audit-repair.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix legacy exams backups and content archive restore"
+          git push origin HEAD:fix/platform-audit-archive-restore
+      - name: Remove dispatcher from main
+        run: |
+          git fetch origin main
+          git switch -C main origin/main
+          git rm .github/workflows/run-platform-audit-repair.yml
+          git commit -m "Remove temporary audit repair workflow"
+          git push origin main
