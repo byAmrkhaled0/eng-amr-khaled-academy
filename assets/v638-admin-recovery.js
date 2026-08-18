@@ -57,7 +57,8 @@
     try{
       const result=await window.MFCloud?.restoreContentItem?.({collection,id});
       if(!result?.ok)throw new Error('الخادم لم يؤكد الاستعادة');
-      const row=(window.adminData?.[collection]||[]).find(item=>String(item.id)===String(id));
+      const records=typeof adminData!=='undefined'&&Array.isArray(adminData[collection])?adminData[collection]:[];
+      const row=records.find(item=>String(item.id)===String(id));
       if(row)Object.assign(row,{archived:false,active:true,published:true,lifecycleStatus:'open'});
       if(typeof saveData==='function'&&typeof adminData!=='undefined')saveData(adminData);
       if(typeof aToast==='function')aToast(`تمت استعادة ${label} إلى المنصة`);
@@ -71,15 +72,24 @@
       const result=await window.MFCloud?.repairLegacyExamFormats?.({});
       sessionStorage.setItem('tm-legacy-exam-repair-v638','1');
       if(typeof reloadFromCloud==='function')await reloadFromCloud();
-      if(typeof aToast==='function')aToast(Number(result?.repaired||0)?`تم إصلاح ${Number(result.repaired)} امتحان قديم`:'كل الامتحانات بصيغة سليمة');
+      if(typeof aToast==='function')aToast(Number(result?.repaired||0)?`تم إصلاح ${Number(result.repaired)} امتحان قديم مع إنشاء نسخة أمان`:'كل الامتحانات بصيغة سليمة');
       window.renderExams?.();
     }catch(error){if(typeof aToast==='function')aToast(typeof adminActionErrorMessage==='function'?adminActionErrorMessage(error,'تعذر فحص الامتحانات القديمة.'):'تعذر فحص الامتحانات القديمة.');}
     finally{if(button){button.disabled=false;button.classList.remove('is-loading');}}
   };
 
+  function relabelArchiveButtons(root,collection,title){
+    root.querySelectorAll('button[onclick]').forEach(button=>{
+      const handler=button.getAttribute('onclick')||'';
+      if(!handler.includes(`deleteItem('${collection}'`))return;
+      button.textContent='حذف من المنصة';
+      button.title=title;
+    });
+  }
+
   function enhanceExams(){
     const root=document.getElementById('adminContent');if(!root)return;
-    root.querySelectorAll("button[onclick*='deleteItem(\'exams\'']").forEach(button=>{button.textContent='حذف من المنصة';button.title='يختفي من الطلاب مع الاحتفاظ بالمحاولات والدرجات';});
+    relabelArchiveButtons(root,'exams','يختفي من الطلاب مع الاحتفاظ بالمحاولات والدرجات وإمكانية الاستعادة');
     const head=root.querySelector('.compact-admin-head');
     if(head&&!head.querySelector('[data-repair-legacy-exams]')){
       const button=document.createElement('button');button.type='button';button.className='btn ghost';button.dataset.repairLegacyExams='true';button.textContent='فحص الامتحانات القديمة';button.onclick=window.repairLegacyExamsAdmin;head.appendChild(button);
@@ -94,7 +104,7 @@
 
   function enhanceHomework(){
     const root=document.getElementById('adminContent');if(!root)return;
-    root.querySelectorAll("button[onclick*='deleteItem(\'assignments\'']").forEach(button=>{button.textContent='حذف من المنصة';button.title='يختفي من الطلاب مع الاحتفاظ بالتسليمات والدرجات';});
+    relabelArchiveButtons(root,'assignments','يختفي من الطلاب مع الاحتفاظ بالتسليمات والدرجات وإمكانية الاستعادة');
     const archived=(typeof adminData!=='undefined'&&Array.isArray(adminData.assignments)?adminData.assignments:[]).filter(item=>item.archived===true);
     root.querySelector('[data-archived-homework-v638]')?.remove();
     const lists=root.querySelector('.admin-content-lists,.homework-workspace-list');
@@ -104,7 +114,7 @@
       lists.appendChild(section);
     }
     const selected=document.getElementById('homeworkAttendanceAssignment')?.value||'';
-    const assignment=(typeof adminData!=='undefined'?adminData.assignments||[]:[]).find(item=>String(item.id)===String(selected));
+    const assignment=(typeof adminData!=='undefined'&&Array.isArray(adminData.assignments)?adminData.assignments:[]).find(item=>String(item.id)===String(selected));
     const note=root.querySelector('.homework-archive-note');
     if(note&&assignment?.archived===true&&!note.parentElement?.querySelector('[data-homework-restore-v638]')){
       const button=document.createElement('button');button.type='button';button.className='small-btn primary';button.dataset.homeworkRestoreV638='true';button.textContent='استعادة للمنصة';button.onclick=()=>window.restoreArchivedContent('assignments',assignment.id);note.insertAdjacentElement('afterend',button);
