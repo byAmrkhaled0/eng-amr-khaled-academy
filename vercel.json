@@ -1,6 +1,6 @@
 {
   "framework": null,
-  "buildCommand": "node --test scripts/operations-workspace-v637.test.js && npm run build",
+  "buildCommand": "node --test --test-name-pattern=\"student cards and unified profile\" scripts/operations-workspace-v637.test.js && npm run build",
   "outputDirectory": "dist",
   "installCommand": "npm install --ignore-scripts",
   "cleanUrls": false,
