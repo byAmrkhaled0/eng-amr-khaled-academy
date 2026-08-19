@@ -6,9 +6,10 @@ const root=path.join(__dirname,'..');
 const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 const {studentCanOpenPortal,studentIsApproved}=require('../functions/lib/student-access');
 
-test('lectures are a dedicated grade and group targeted portal section',()=>{
+test('lectures stay directly accessible and grade/group targeted without a duplicate tab',()=>{
   const app=read('assets/app.js'),workflow=read('assets/v60-admin-workflow.js'),backend=read('functions/index.js');
-  assert.match(app,/data-student-tab="lectures"/);
+  assert.match(app,/portalUrl\('materials\.html',st\.studentCode\)/);
+  assert.doesNotMatch(app,/data-student-tab="lectures"/);
   assert.match(workflow,/renderLecturesV623/);
   assert.match(workflow,/name="group"/);
   assert.match(backend,/materialsForStudent/);
@@ -24,13 +25,17 @@ test('homework and exams are interactive while PDF remains lecture-only',()=>{
   assert.match(workflow,/رفع محاضرة أو PDF/);
 });
 
-test('admin reports homework completion and QR attendance supports one or more scheduled days',()=>{
+test('admin reports homework completion and QR attendance keeps schedule metadata without blocking other days',()=>{
   const workflow=read('assets/v60-admin-workflow.js'),admin=read('assets/admin.js');
-  assert.match(workflow,/مين سلّم الواجب ومين لسه/);
+  assert.match(workflow,/ملفات الواجبات والمتابعة/);
+  assert.match(workflow,/targetStudentCodes/);
+  assert.match(workflow,/getHomeworkAdminWorkspace/);
   assert.match(workflow,/homeworkAttendanceGrade/);
   assert.match(workflow,/homeworkAttendanceGroup/);
   assert.match(admin,/attendanceScheduleDays/);
-  assert.match(admin,/days\.length<1/);
+  assert.doesNotMatch(admin,/days\.length<1/);
+  assert.match(admin,/return \{ok:true,days,day\};/);
+  assert.match(admin,/الحضور متاح في أي يوم/);
   assert.match(admin,/bulk_absent/);
 });
 
@@ -54,5 +59,5 @@ test('pending booking code opens the student portal while learning actions stay 
   assert.ok((backend.match(/requireApprovedStudent\(found\.data\)/g)||[]).length>=7);
   assert.match(app,/لم يتم قبول الحجز حتى الآن/);
   assert.match(app,/ستتفعّل المحاضرات والواجبات والاختبارات بعد قبول الحجز/);
-  assert.match(worker,/technominds-v63-0-0-secure-assessments/);
+  assert.match(worker,/technominds-v63-0-7-unified-results-final/);
 });

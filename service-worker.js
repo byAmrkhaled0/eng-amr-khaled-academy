@@ -1,8 +1,7 @@
-const CACHE_NAME = "technominds-v63-0-0-secure-assessments";
-const ASSET_VERSION = "63.0.0";
+const CACHE_NAME = "technominds-v63-0-7-unified-results-final";
+const ASSET_VERSION = "63.0.7";
 const APP_SHELL = [
-  "/", "/index.html", "/student.html", "/exams.html", "/materials.html", "/questions.html",
-  "/learning-path.html", "/about.html", "/practical.html", "/parent.html", "/reviews.html", "/privacy.html",
+  "/", "/index.html", "/learning-path.html", "/about.html", "/reviews.html", "/privacy.html",
   "/terms.html", "/offline.html", "/assets/site.css", "/assets/v55.css",
   "/assets/v56.css", "/assets/v60-technominds.css", "/assets/v61-design.css", "/assets/app.js", "/assets/practical.js", "/assets/firebase-sync.js",
   "/assets/firebase-config.js", "/assets/v53-upgrades.js",
@@ -11,6 +10,7 @@ const APP_SHELL = [
   "/assets/amr-khaled-profile.webp", "/site.webmanifest"
 ];
 const VERSIONED_APP_SHELL=APP_SHELL.map(url=>/\.(?:css|js)$/.test(url)?`${url}?v=${ASSET_VERSION}`:url);
+const SENSITIVE_NAVIGATION=new Set(['/student.html','/parent.html','/exams.html','/materials.html','/questions.html','/practical.html','/teacher-login.html']);
 
 // Background FCM uses the browser's standard Push API with no external worker
 // imports, so a third-party CDN/CORS failure cannot break the PWA worker.
@@ -72,11 +72,12 @@ self.addEventListener("fetch", event => {
       try{
         const response=await fetch(request);
         // Never cache a URL carrying a student/parent access code.
-        if(response.ok && !url.search) { const cache=await caches.open(CACHE_NAME);cache.put(url.pathname,response.clone()); }
+        if(response.ok && !url.search && !SENSITIVE_NAVIGATION.has(url.pathname)) { const cache=await caches.open(CACHE_NAME);cache.put(url.pathname,response.clone()); }
         return response;
       }catch(_){
         // Query strings such as ?code=12345678 must fall back to the cached
         // HTML page, not to offline.html.
+        if(SENSITIVE_NAVIGATION.has(url.pathname)) return caches.match('/offline.html');
         return (await caches.match(url.pathname,{ignoreSearch:true})) ||
           (await caches.match(request,{ignoreSearch:true})) ||
           (await caches.match("/offline.html"));

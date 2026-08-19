@@ -13,15 +13,15 @@
 <link href="assets/technominds-logo.png" rel="icon" type="image/png"/>
 <link href="assets/technominds-logo.png" rel="apple-touch-icon"/>
 <link href="site.webmanifest" rel="manifest"/>
-<link href="assets/site.css?v=63.0.0" rel="stylesheet"/>
-<link href="assets/v55.css?v=63.0.0" rel="stylesheet"/>
-<link href="assets/v56.css?v=63.0.0" rel="stylesheet"/>
+<link href="assets/site.css?v=63.0.7" rel="stylesheet"/>
+<link href="assets/v55.css?v=63.0.7" rel="stylesheet"/>
+<link href="assets/v56.css?v=63.0.7" rel="stylesheet"/>
 <title>بوابة الطالب | م. عمرو خالد</title>
 <meta content="بوابة الطالب الخاصة بم. عمرو خالد للبرمجة لعرض الملف الدراسي بكود الطالب فقط." name="description"/>
 <link rel="canonical" href="https://eng-amr-khaled-academy.vercel.app/student.html"/>
 <meta property="og:type" content="website"/><meta property="og:locale" content="ar_EG"/><meta property="og:site_name" content="Techno Minds"/><meta property="og:title" content="بوابة الطالب | Techno Minds"/><meta property="og:description" content="اعرض ملف الطالب والحضور والواجبات والاختبارات والتقدم باستخدام الكود."/><meta property="og:url" content="https://eng-amr-khaled-academy.vercel.app/student.html"/><meta property="og:image" content="https://eng-amr-khaled-academy.vercel.app/assets/technominds-logo.png"/><meta name="twitter:card" content="summary"/>
-<link href="assets/v60-technominds.css?v=63.0.0" rel="stylesheet"/>
-<link rel="stylesheet" href="assets/v61-design.css?v=63.0.0">
+<link href="assets/v60-technominds.css?v=63.0.7" rel="stylesheet"/>
+<link rel="stylesheet" href="assets/v61-design.css?v=63.0.7">
 </head>
 <body id="top">
 <header class="site-header">
@@ -37,7 +37,7 @@
 <a href="materials.html">المحاضرات</a><a href="questions.html">الأسئلة</a>
 <a href="exams.html">الاختبارات</a>
 </nav>
-<div class="header-actions"><button aria-label="تغيير الوضع" class="theme-toggle" id="themeToggle"></button></div>
+<div class="header-actions"><button aria-label="تغيير الوضع" class="theme-toggle" id="themeToggle" type="button"></button></div>
 </div>
 </header>
 <main class="student-page-v32 parent-page-v29">
@@ -49,7 +49,7 @@
 <p>اكتب كود الطالب أو امسح QR لعرض بياناتك بشكل منظم: الحضور، التطبيق العملي، الدرجات، الواجبات، حالة الدفع، وجدول المجموعة.</p>
 </div>
 <form class="card parent-search-v29 student-search-v32" id="studentSearchForm">
-<div class="field portal-code-field"><label for="studentQuery">كود الطالب</label><div class="code-input-wrap"><span data-icon="user"></span><input id="studentQuery" name="query" placeholder="اكتب كود الطالب الرقمي" inputmode="numeric" data-digits-only maxlength="12" autocomplete="off" spellcheck="false" enterkeyhint="go" required=""/></div><small>اكتب أرقام الكود فقط كما تظهر في لوحة الإدارة.</small></div>
+<div class="field portal-code-field"><label for="studentQuery">كود الطالب</label><div class="code-input-wrap"><span data-icon="user"></span><input id="studentQuery" name="query" placeholder="اكتب كود الطالب الرقمي" inputmode="numeric" data-digits-only maxlength="12" autocomplete="off" spellcheck="false" enterkeyhint="go" required="" type="text" minlength="6" pattern="[0-9٠-٩]{6,12}"/></div><small>اكتب أرقام الكود فقط كما تظهر في لوحة الإدارة.</small></div>
 <div class="student-search-actions-v29">
 <button class="btn primary" type="submit"><span data-icon="search"></span> عرض الملف</button>
 <button class="btn ghost" onclick="startStudentScanner()" type="button"><span data-icon="qr"></span> مسح QR</button>
@@ -95,11 +95,11 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-functions-compat.js"></script>
-<script defer src="assets/firebase-config.js?v=63.0.0"></script>
-<script defer src="assets/firebase-sync.js?v=63.0.0"></script>
-<script defer src="assets/app.js?v=63.0.0"></script>
-<script defer src="assets/v53-upgrades.js?v=63.0.0"></script>
-<script defer src="assets/v56-fixes.js?v=63.0.0"></script>
-<script defer src="assets/curriculum-student.js?v=63.0.0"></script>
+<script defer src="assets/firebase-config.js?v=63.0.7"></script>
+<script defer src="assets/firebase-sync.js?v=63.0.7"></script>
+<script defer src="assets/app.js?v=63.0.7"></script>
+<script defer src="assets/v53-upgrades.js?v=63.0.7"></script>
+<script defer src="assets/v56-fixes.js?v=63.0.7"></script>
+<script defer src="assets/curriculum-student.js?v=63.0.7"></script>
 </body>
 </html>

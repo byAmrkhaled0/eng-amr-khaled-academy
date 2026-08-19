@@ -21,11 +21,11 @@
 <link href="assets/technominds-logo.png" rel="icon" type="image/png"/>
 <link href="assets/technominds-logo.png" rel="apple-touch-icon"/>
 <link href="site.webmanifest" rel="manifest"/>
-<link href="assets/site.css?v=63.0.0" rel="stylesheet"/>
-<link href="assets/v55.css?v=63.0.0" rel="stylesheet"/>
-<link href="assets/v56.css?v=63.0.0" rel="stylesheet"/>
-<link href="assets/v60-technominds.css?v=63.0.0" rel="stylesheet"/>
-<link rel="stylesheet" href="assets/v61-design.css?v=63.0.0">
+<link href="assets/site.css?v=63.0.7" rel="stylesheet"/>
+<link href="assets/v55.css?v=63.0.7" rel="stylesheet"/>
+<link href="assets/v56.css?v=63.0.7" rel="stylesheet"/>
+<link href="assets/v60-technominds.css?v=63.0.7" rel="stylesheet"/>
+<link rel="stylesheet" href="assets/v61-design.css?v=63.0.7">
 </head>
 <body id="top">
 <header class="site-header">
@@ -46,7 +46,7 @@
 <a href="exams.html">الاختبارات</a>
 </nav>
 <div class="header-actions">
-<button aria-label="تغيير الوضع" class="theme-toggle" id="themeToggle"></button>
+<button aria-label="تغيير الوضع" class="theme-toggle" id="themeToggle" type="button"></button>
 
 </div>
 </div>
@@ -91,9 +91,9 @@
 <form class="card grid grid-2 booking-form-compact" id="bookingForm">
 <div class="booking-steps" aria-label="خطوات الحجز"><span class="active" data-booking-indicator="1"><b>1</b><small>بيانات الطالب</small></span><i></i><span data-booking-indicator="2"><b>2</b><small>المجموعة والموعد</small></span><i></i><span data-booking-indicator="3"><b>3</b><small>استلام الكود</small></span></div>
 <div class="booking-step active" data-booking-step="1">
-<div class="field"><label>اسم الطالب</label><input name="name" placeholder="اكتب اسم الطالب" required=""/></div>
-<div class="field"><label for="bookingStudentPhone">رقم الطالب</label><input id="bookingStudentPhone" name="studentPhone" placeholder="مثال: 01012345678" inputmode="tel" data-digits-only minlength="10" maxlength="15" pattern="[0-9]{10,15}" required=""/><small class="field-hint">اكتب من 10 إلى 15 رقمًا بدون مسافات.</small></div>
-<div class="field"><label for="bookingParentPhone">رقم ولي الأمر</label><input id="bookingParentPhone" name="parentPhone" placeholder="مثال: 01123456789" inputmode="tel" data-digits-only minlength="10" maxlength="15" pattern="[0-9]{10,15}" required=""/><small class="field-hint">ينفع نفس رقم الطالب، وينفع تكرار نفس رقم ولي الأمر لأكثر من ابن.</small></div>
+<div class="field"><label>اسم الطالب</label><input name="name" placeholder="اكتب اسم الطالب" required="" type="text" maxlength="100" autocomplete="name"/></div>
+<div class="field"><label for="bookingStudentPhone">رقم الطالب</label><input id="bookingStudentPhone" name="studentPhone" placeholder="مثال: 01012345678" inputmode="tel" data-digits-only minlength="10" maxlength="15" pattern="[0-9]{10,15}" required="" type="tel"/><small class="field-hint">اكتب من 10 إلى 15 رقمًا بدون مسافات.</small></div>
+<div class="field"><label for="bookingParentPhone">رقم ولي الأمر</label><input id="bookingParentPhone" name="parentPhone" placeholder="مثال: 01123456789" inputmode="tel" data-digits-only minlength="10" maxlength="15" pattern="[0-9]{10,15}" required="" type="tel"/><small class="field-hint">ينفع نفس رقم الطالب، وينفع تكرار نفس رقم ولي الأمر لأكثر من ابن.</small></div>
 <button class="btn primary booking-next" type="button" data-booking-next><span data-icon="external-link"></span> التالي: اختار الموعد</button>
 </div>
 <div class="booking-step" data-booking-step="2">
@@ -133,9 +133,9 @@
 </div>
 <div class="portal-shell">
 <form class="card grid grid-2" id="reviewForm">
-<div class="field"><label>الاسم</label><input name="name" placeholder="اسمك" required=""/></div>
+<div class="field"><label for="homeReviewerName">الاسم</label><input id="homeReviewerName" name="name" placeholder="اسمك" required="" type="text" maxlength="100" autocomplete="name"/></div>
 <div class="field"><label>الصفة</label><select name="role"><option>طالب</option><option>ولي أمر</option></select></div>
-<div class="field rating-field"><label>التقييم</label><div class="star-input" data-star-input=""><input name="rating" type="hidden" value="5"/><button data-rate="1" type="button">★</button><button data-rate="2" type="button">★</button><button data-rate="3" type="button">★</button><button data-rate="4" type="button">★</button><button data-rate="5" type="button">★</button><span>5 نجوم</span></div></div>
+<div class="field rating-field"><span class="field-label">التقييم</span><div class="star-input" data-star-input=""><input name="rating" type="hidden" value="5"/><button data-rate="1" type="button" aria-label="تقييم 1 من 5">★</button><button data-rate="2" type="button" aria-label="تقييم 2 من 5">★</button><button data-rate="3" type="button" aria-label="تقييم 3 من 5">★</button><button data-rate="4" type="button" aria-label="تقييم 4 من 5">★</button><button data-rate="5" type="button" aria-label="تقييم 5 من 5">★</button><span>5 نجوم</span></div></div>
 <div class="field" style="grid-column:1/-1"><label>رأيك</label><textarea name="text" placeholder="اكتب تقييمك لم. عمرو خالد" required=""></textarea></div>
 <button class="btn primary" style="grid-column:1/-1" type="submit"><span data-icon="star"></span> إرسال التقييم</button>
 </form>
@@ -187,10 +187,10 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-functions-compat.js"></script>
-<script defer src="assets/firebase-config.js?v=63.0.0"></script>
-<script defer src="assets/firebase-sync.js?v=63.0.0"></script>
-<script defer src="assets/app.js?v=63.0.0"></script>
-<script defer src="assets/v53-upgrades.js?v=63.0.0"></script>
-<script defer src="assets/v56-fixes.js?v=63.0.0"></script>
+<script defer src="assets/firebase-config.js?v=63.0.7"></script>
+<script defer src="assets/firebase-sync.js?v=63.0.7"></script>
+<script defer src="assets/app.js?v=63.0.7"></script>
+<script defer src="assets/v53-upgrades.js?v=63.0.7"></script>
+<script defer src="assets/v56-fixes.js?v=63.0.7"></script>
 </body>
 </html>

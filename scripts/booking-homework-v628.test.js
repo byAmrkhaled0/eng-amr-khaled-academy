@@ -40,12 +40,17 @@ test('booking is deduplicated atomically and returns the existing code', () => {
   assert.match(rules, /allow read, write: if false/);
 });
 
-test('homework correction has callable and authorized Firestore fallback', () => {
+test('homework correction is server-only and cannot bypass audit rules', () => {
   const sync = read('assets/firebase-sync.js');
   const workflow = read('assets/v60-admin-workflow.js');
-  assert.match(sync, /reviewHomeworkSubmissionDirect/);
-  assert.match(sync, /db\.collection\('homework_submissions'\)\.doc\(submissionId\)/);
-  assert.match(sync, /needsManualReview:false,approved:true,status:'تم تصحيح الواجب'/);
+  const rules = read('firestore.rules');
+  const backend = read('functions/index.js');
+  assert.doesNotMatch(sync, /reviewHomeworkSubmissionDirect/);
+  assert.match(sync, /calls\.reviewHomeworkSubmission/);
+  assert.match(rules, /match \/homework_submissions\/\{id\}[\s\S]*?allow update: if false/);
+  assert.match(backend, /db\.runTransaction/);
+  assert.match(backend, /homework_review_history/);
+  assert.match(backend, /oldGrade,oldMaxScore,newGrade:score,newMaxScore:maxScore/);
   assert.match(workflow, /جارٍ حفظ التصحيح/);
   assert.match(workflow, /activeButton\.disabled=true/);
   assert.match(workflow, /Number\.isFinite\(value\)/);

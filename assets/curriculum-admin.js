@@ -2,8 +2,8 @@
   'use strict';
   const safe=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
   const sections=[
-    ['lectures','المحاضرات'],['assignments_v2','الواجبات'],['question_banks','بنوك الأسئلة'],
-    ['bank_questions','الأسئلة'],['lecture_materials','التطبيقات والملفات'],['monthly_exams','الامتحانات الشهرية'],['teacher_files','ملفات المدرس']
+    ['lectures','هيكل المحاضرات'],['lecture_materials','ملفات المحاضرات'],['question_banks','بنوك الأسئلة'],
+    ['bank_questions','أسئلة البنك'],['teacher_files','ملفات المدرس']
   ];
   let active='lectures',rows=[],cursor=null,hasMore=false,editing=null;
 
@@ -13,14 +13,13 @@
   const groupOptions=(grade,selected='')=>`<option value="">كل المجموعات</option>${groupsForGrade(grade).map(group=>`<option value="${safe(group.name||group.group||'')}" data-schedule-id="${safe(group.id||group.scheduleId||'')}" ${String(group.name||group.group||'')===String(selected)?'selected':''}>${safe(group.name||group.group||'')}</option>`).join('')}`;
 
   function shell(){
-    return `<div class="section-head"><div><span class="kicker">Curriculum V61</span><h2>إدارة المحتوى التعليمي</h2><p class="section-desc">الصف ← الترم ← الوحدة ← المحاضرة ← عناصر المحاضرة</p></div><button class="btn primary" type="button" data-new-content>إضافة محتوى</button></div>
+    return `<div class="section-head"><div><span class="kicker">مكتبة المنهج</span><h2>المنهج وبنك الأسئلة</h2><p class="section-desc">نظّم هيكل المنهج وملفات المحاضرات والأسئلة. التسليم والتصحيح يتمان من قسمي الواجبات والاختبارات.</p></div><button class="btn primary" type="button" data-new-content>إضافة محتوى</button></div>
     <div class="curriculum-admin-tabs">${sections.map(item=>`<button type="button" class="${item[0]===active?'active':''}" data-content-section="${item[0]}">${item[1]} <small data-section-count="${item[0]}"></small></button>`).join('')}</div>
     <div class="card curriculum-admin-toolbar"><input type="search" id="curriculumSearch" placeholder="بحث بالعنوان" aria-label="بحث بالعنوان"><select id="curriculumGradeFilter" aria-label="فلترة حسب الصف">${gradeOptions}<option value="all">كل الصفوف</option></select><select id="curriculumTermFilter" aria-label="فلترة حسب الترم">${termOptions}<option value="all">كل الترمات</option></select><select id="curriculumDirection" aria-label="الترتيب"><option value="asc">تصاعدي</option><option value="desc">تنازلي</option></select><button class="btn ghost" type="button" data-apply-filter>تطبيق</button></div>
     <div id="curriculumAdminList"><div class="skeleton" style="height:240px"></div></div>
     <div class="pagination-actions"><button class="btn ghost" type="button" data-load-more hidden>تحميل المزيد</button></div>
     <section class="card curriculum-import"><h3>استيراد ملفات المنهج</h3><p>ارفع عدة ملفات PDF أو Word أو صور بحد أقصى 15MB للملف. يتم استخراج رقم المحاضرة من اسم الملف ويمكن مراجعة البيانات قبل الحفظ.</p><div class="grid three"><select id="importGrade">${gradeOptions}</select><select id="importTerm">${termOptions}</select><input id="importUnit" placeholder="اسم/معرّف الوحدة"></div><label class="btn ghost file-button">اختيار الملفات<input id="curriculumBulkFiles" type="file" multiple accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp" hidden></label><div id="curriculumImportPreview"></div></section>
-    <section class="card curriculum-migration"><h3>خطة الامتحانات الشهرية</h3><p>إنشاء 12 امتحانًا كمسودات، كل امتحان يغطي 3 محاضرات، دون إنشاء أسئلة وهمية.</p><div class="grid three"><select id="examPlanGrade">${gradeOptions}</select><input id="examPlanYear" placeholder="العام الدراسي"><button class="btn primary" type="button" data-create-exam-plan>إنشاء الخطة</button></div></section>
-    <section class="card curriculum-migration"><h3>ترحيل المحتوى القديم</h3><p>الفحص التجريبي لا يكتب أو يحذف أي بيانات. التنفيذ قابل للإعادة ويمنع التكرار.</p><button class="btn ghost" type="button" data-migration-dry>فحص Dry Run</button><button class="btn primary" type="button" data-migration-apply>تنفيذ الترحيل</button><pre id="curriculumMigrationResult" aria-live="polite"></pre></section>`;
+    <details class="card curriculum-migration curriculum-maintenance"><summary><span><b>أدوات الصيانة والترحيل</b><small>استخدمها فقط عند استيراد أو ترحيل محتوى قديم.</small></span></summary><div class="admin-detail-body"><p>الفحص التجريبي لا يكتب أو يحذف أي بيانات. التنفيذ قابل للإعادة ويمنع التكرار.</p><button class="btn ghost" type="button" data-migration-dry>فحص Dry Run</button><button class="btn primary" type="button" data-migration-apply>تنفيذ الترحيل</button><pre id="curriculumMigrationResult" aria-live="polite"></pre></div></details>`;
   }
 
   function list(){
@@ -90,6 +89,6 @@
   window.renderCurriculumAdmin=function(){
     if(typeof content!=='function')return;content(shell());
     document.querySelectorAll('[data-content-section]').forEach(button=>button.onclick=()=>{active=button.dataset.contentSection;rows=[];cursor=null;window.renderCurriculumAdmin();});
-    document.querySelector('[data-new-content]').onclick=()=>modal();document.querySelector('[data-apply-filter]').onclick=()=>load();document.getElementById('curriculumSearch').oninput=list;document.querySelector('[data-load-more]').onclick=()=>load(true);document.getElementById('curriculumBulkFiles').onchange=event=>previewFiles(event.target.files);document.querySelector('[data-migration-dry]').onclick=()=>migration(false);document.querySelector('[data-migration-apply]').onclick=()=>migration(true);document.querySelector('[data-create-exam-plan]').onclick=async event=>{const grade=document.getElementById('examPlanGrade').value,year=document.getElementById('examPlanYear').value;if(!grade){if(typeof aToast==='function')aToast('اختر الصف');return;}event.currentTarget.disabled=true;try{const result=await window.MFCloud.createMonthlyExamPlan(grade,year);if(typeof aToast==='function')aToast(`تم إنشاء ${result.created} وتخطي ${result.skipped}`);}finally{event.currentTarget.disabled=false;}};load();
+    document.querySelector('[data-new-content]').onclick=()=>modal();document.querySelector('[data-apply-filter]').onclick=()=>load();document.getElementById('curriculumSearch').oninput=list;document.querySelector('[data-load-more]').onclick=()=>load(true);document.getElementById('curriculumBulkFiles').onchange=event=>previewFiles(event.target.files);document.querySelector('[data-migration-dry]').onclick=()=>migration(false);document.querySelector('[data-migration-apply]').onclick=()=>migration(true);load();
   };
 })();
