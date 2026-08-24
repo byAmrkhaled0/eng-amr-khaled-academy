@@ -49,7 +49,7 @@ test('all static routes and Vercel API rewrites point to existing targets', () =
   const build = read('scripts/build.js');
   const vercel = JSON.parse(read('vercel.json'));
   const routes = [...build.matchAll(/^\s*'([^']+\.html)',?$/gm)].map(match => match[1]);
-  assert.equal(routes.length, 15);
+  assert.equal(routes.length, 16);
   routes.forEach(route => assert.equal(fs.existsSync(path.join(root, route)), true, `missing route ${route}`));
   assert.equal(vercel.outputDirectory, 'dist');
   assert.ok(vercel.rewrites.some(item => item.source === '/api/health' && item.destination.includes('getPlatformHealth')));

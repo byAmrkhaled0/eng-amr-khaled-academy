@@ -13,7 +13,7 @@ if (fs.existsSync(path.join(dist, '.env')) || fs.existsSync(path.join(dist, 'fun
 const htmlFiles = fs.existsSync(dist) ? fs.readdirSync(dist).filter(name => name.endsWith('.html')) : [];
 for (const name of htmlFiles) {
   const source = fs.readFileSync(path.join(dist, name), 'utf8');
-  if (!source.includes('assets/v61-design.css?v=63.0.7')) failures.push(`${name} does not load the V63 design`);
+  if (!source.includes('assets/v61-design.css?v=64.0.0')) failures.push(`${name} does not load the V63 design`);
   for (const match of source.matchAll(/(?:src|href)=["']([^"'#?]+)(?:\?[^"']*)?["']/g)) {
     const ref = match[1];
     if (/^(?:https?:|mailto:|tel:|data:|javascript:)/i.test(ref)) continue;
@@ -24,9 +24,9 @@ for (const name of htmlFiles) {
 
 const login = fs.existsSync(path.join(dist, 'teacher-login.html')) ? fs.readFileSync(path.join(dist, 'teacher-login.html'), 'utf8') : '';
 const worker = fs.existsSync(path.join(dist, 'service-worker.js')) ? fs.readFileSync(path.join(dist, 'service-worker.js'), 'utf8') : '';
-if (!login.includes('v60-payments.js?v=63.0.7')) failures.push('Payment UI is not in the built admin page');
-if (!login.includes('v60-admin-workflow.js?v=63.0.7-homework-controls')) failures.push('Exam and assignment UI is not in the built admin page');
-if (!worker.includes('technominds-v63-0-7-unified-results-final')) failures.push('Built service worker cache version is stale');
+if (!login.includes('v60-payments.js?v=64.0.0')) failures.push('Payment UI is not in the built admin page');
+if (!login.includes('v60-admin-workflow.js?v=64.0.0-homework-controls')) failures.push('Exam and assignment UI is not in the built admin page');
+if (!worker.includes('technominds-v64-0-0-resilient-assessments')) failures.push('Built service worker cache version is stale');
 if (/JUDGE0_API_KEY\s*=\s*[^\s"']+/i.test(login)) failures.push('Judge0 secret appears in built HTML');
 
 if (failures.length) {

@@ -10,7 +10,7 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
 test('parent report derives required and graded states from assignments plus submissions', () => {
   const app = read('assets/app.js');
-  assert.match(app, /const assignmentRows=\(st\.assignments\|\|\[\]\)\.map/);
+  assert.match(app, /const assignmentRows=monthAssignments\.map/);
   assert.match(app, /assignment\.submissionClosed\?'متأخر':'مطلوب الآن'/);
   assert.match(app, /submission\.needsManualReview\|\|submission\.score===null\?'قيد التصحيح':'تم التصحيح'/);
   assert.match(app, /الدرجة:.*row\.score/s);
@@ -25,7 +25,7 @@ test('portal navigation never adds a student code and legacy code queries are cl
   assert.match(app, /url\.searchParams\.delete\('code'\)/);
   assert.doesNotMatch(app, /searchParams\.set\('code'/);
   assert.doesNotMatch(app, /href=[^\n]*[?&]code=/);
-  for (const file of ['student.html','parent.html','materials.html','questions.html','exams.html','practical.html']) {
+  for (const file of ['student.html','parent.html','materials.html','theory-lectures.html','questions.html','exams.html','practical.html']) {
     assert.doesNotMatch(read(file), /href=[^>]*[?&]code=/, `${file} leaks a code in href`);
   }
 });

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html data-theme="light" dir="rtl" lang="ar">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07111f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Techno Minds">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link href="assets/technominds-logo.png" rel="icon" type="image/png">
+<link href="assets/technominds-logo.png" rel="apple-touch-icon">
+<link href="site.webmanifest" rel="manifest">
+<link href="assets/site.css?v=64.0.0" rel="stylesheet">
+<link href="assets/v55.css?v=64.0.0" rel="stylesheet">
+<link href="assets/v56.css?v=64.0.0" rel="stylesheet">
+<link href="assets/v60-technominds.css?v=64.0.0" rel="stylesheet">
+<link href="assets/v61-design.css?v=64.0.0" rel="stylesheet">
+<title>محاضرات النظري | Techno Minds</title>
+<meta name="description" content="محاضرات النظري الخاصة بمسار الطالب، تظهر بأمان بعد إدخال كود الطالب.">
+<link rel="canonical" href="https://eng-amr-khaled-academy.vercel.app/theory-lectures.html">
+<meta property="og:type" content="website"><meta property="og:locale" content="ar_EG"><meta property="og:site_name" content="Techno Minds"><meta property="og:title" content="محاضرات النظري | Techno Minds"><meta property="og:description" content="محاضرات النظري الخاصة بمسار الطالب بعد التحقق من الكود."><meta property="og:url" content="https://eng-amr-khaled-academy.vercel.app/theory-lectures.html"><meta property="og:image" content="https://eng-amr-khaled-academy.vercel.app/assets/technominds-logo.png"><meta name="twitter:card" content="summary">
+</head>
+<body id="top" data-resource-mode="theory">
+<header class="site-header"></header>
+<main>
+<section class="page-hero student-resources-hero">
+<div class="container student-resource-access-grid">
+<div><span class="kicker"><span data-icon="book-open"></span> محاضرات النظري</span><h1 class="hero-title">شرح النظري <span>الخاص بمسارك</span></h1><p class="hero-sub">اكتب كود الطالب، وستظهر محاضرات النظري المنشورة للصف والمجموعة المسجل عليهما فقط.</p></div>
+<form class="card student-resource-code-card" id="studentResourceCodeForm">
+<span class="iconbox" data-icon="user-check"></span><h2>دخول الطالب</h2><p>استخدم نفس الكود الموجود في بوابة الطالب.</p>
+<label class="field"><span>كود الطالب</span><input name="query" inputmode="numeric" type="text" minlength="6" maxlength="12" pattern="[0-9٠-٩]{6,12}" data-digits-only autocomplete="one-time-code" placeholder="اكتب الكود الموحّد" required></label>
+<button class="btn primary full-width" type="submit"><span data-icon="book-open"></span> فتح محاضرات النظري</button>
+<div class="resource-access-message" id="resourceAccessMessage" role="status" aria-live="polite">اكتب كود الطالب لفتح محاضرات النظري.</div>
+</form>
+</div>
+</section>
+<section class="section tight student-track-content">
+<div class="container">
+<div class="student-resource-summary" id="resourceStudentSummary" hidden></div>
+<div id="studentResourcesContent" hidden><div class="resource-section-head-v31"><div><span class="kicker"><span data-icon="book-open"></span> محتوى النظري</span><h2>محاضرات النظري</h2><p>كل الملفات المعروضة مرتبطة بمسار الطالب ومجموعته.</p></div><a class="btn ghost" href="materials.html" data-resource-cross-link><span data-icon="book-open"></span> باقي المحاضرات</a></div><div class="grid grid-3 resources-grid-v31" id="materialsPageGrid"></div></div>
+</div>
+</section>
+</main>
+<footer class="footer engineer-only-footer"><div class="container engineer-only-wrap"><span class="footer-legal-links"><a href="privacy.html">الخصوصية</a><a href="terms.html">الشروط</a></span><a class="engineer-only-name" href="https://wa.me/201008454029" rel="noreferrer" target="_blank">تم البرمجة بواسطة المهندس عمرو خالد</a></div></footer>
+<nav aria-label="تنقل الهاتف" class="mobile-bottom"><a href="index.html"><span data-icon="atom"></span><span>الرئيسية</span></a><a href="materials.html"><span data-icon="book-open"></span><span>المحاضرات</span></a><a href="student.html"><span data-icon="user"></span><span>الطالب</span></a><a href="parent.html"><span data-icon="users"></span><span>ولي الأمر</span></a><a href="exams.html"><span data-icon="clipboard"></span><span>امتحان</span></a></nav>
+<div class="toast" id="toast"></div>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-functions-compat.js"></script>
+<script defer src="assets/firebase-config.js?v=64.0.0"></script>
+<script defer src="assets/firebase-sync.js?v=64.0.0"></script>
+<script defer src="assets/app.js?v=64.0.0"></script>
+<script defer src="assets/v53-upgrades.js?v=64.0.0"></script>
+<script defer src="assets/v56-fixes.js?v=64.0.0"></script>
+</body>
+</html>

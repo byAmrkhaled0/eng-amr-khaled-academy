@@ -2,8 +2,8 @@
   'use strict';
 
   const cfg=window.MF_FIREBASE_CONFIG||{};
-  const FRONTEND_VERSION='63.0.7';
-  const API_SCHEMA_VERSION='portal-v63.0.7';
+  const FRONTEND_VERSION='64.0.0';
+  const API_SCHEMA_VERSION='portal-v64.0.0';
   if(!cfg.enabled||typeof firebase==='undefined'){
     window.MFCloud={ready:false,error:'Firebase غير مفعل'};
     return;
@@ -122,6 +122,7 @@
       recordClassProgress:callable('recordClassProgress'),
       getExamDashboard:callable('getExamDashboard'),
       startExam:callable('startExam'),
+      saveExamProgress:callable('saveExamProgress'),
       submitExam:callable('submitExam'),
       reviewExamAttempt:callable('reviewExamAttempt'),
       reportClientError:callable('reportClientError'),
@@ -166,7 +167,7 @@
       ,upsertGroupSchedule:callable('upsertGroupSchedule')
     };
 
-    const portalSessionKey=(code,mode='student')=>`tm-portal-session-v63:${mode}:${normalizeCode(code)}`;
+    const portalSessionKey=(code,mode='student')=>`tm-portal-session-v64:${mode}:${normalizeCode(code)}`;
     function readPortalSession(code,mode='student'){
       try{
         const value=JSON.parse(sessionStorage.getItem(portalSessionKey(code,mode))||'null');
@@ -704,6 +705,7 @@
       },
       getExamDashboard:async studentCode=>{if(!calls.getExamDashboard)throw new Error('Secure exam dashboard function is unavailable');const normalized=normalizeCode(studentCode);return calls.getExamDashboard(await portalPayload(normalized,{studentCode:normalized}));},
       startSecureExam:async(examId,studentCode)=>{if(!calls.startExam)throw new Error('Secure start exam function is unavailable');const normalized=normalizeCode(studentCode);return calls.startExam(await portalPayload(normalized,{examId,studentCode:normalized}));},
+      saveSecureExamProgress:async(sessionId,studentCode,answers,current,revision)=>{if(!calls.saveExamProgress)throw new Error('Secure exam progress function is unavailable');const normalized=normalizeCode(studentCode);return calls.saveExamProgress(await portalPayload(normalized,{sessionId,studentCode:normalized,answers,current,revision}));},
       submitSecureExam:async(sessionId,studentCode,answers)=>{if(!calls.submitExam)throw new Error('Secure submit exam function is unavailable');const normalized=normalizeCode(studentCode);return calls.submitExam(await portalPayload(normalized,{sessionId,studentCode:normalized,answers}));},
       reviewExamAttempt:async payload=>{if(!calls.reviewExamAttempt)throw new Error('Secure exam correction service is unavailable');return calls.reviewExamAttempt(payload||{});},
       upsertAttendance,getAttendanceForDate,

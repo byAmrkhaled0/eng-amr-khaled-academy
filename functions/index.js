@@ -50,7 +50,7 @@ const PAYMENT_MONTH_NAMES = ['يناير','فبراير','مارس','أبريل'
 // Callable endpoints must accept the browser's unauthenticated CORS preflight.
 // Sensitive operations still enforce staff authentication inside each handler.
 const CALLABLE_OPTIONS = { region: 'europe-west1', timeoutSeconds: 30, invoker: 'public' };
-const API_SCHEMA_VERSION = 'portal-v63.0.7';
+const API_SCHEMA_VERSION = 'portal-v64.0.0';
 
 function apiMetadata() {
   return { frontendVersion: PLATFORM_VERSION, backendVersion: PLATFORM_VERSION, apiSchemaVersion: API_SCHEMA_VERSION };
@@ -740,10 +740,13 @@ exports.getMotivationLeaderboardAdmin = onCall(CALLABLE_OPTIONS, async request =
   if (!academicYear || !month) throw new HttpsError('invalid-argument', 'حدد العام الدراسي والشهر.');
   let rows=await leaderboardRowsForPeriod(academicYear,month);
   if(scheduleId)rows=rows.filter(row=>String(row.scheduleId||'')===scheduleId);else if(grade)rows=rows.filter(row=>canonicalLeaderboardGrade(row.grade)===canonicalLeaderboardGrade(grade));
-  return rows.slice(0,100).map((row,index)=>({rank:index+1,studentCode:row.studentCode,studentName:row.name,grade:row.grade,group:row.group||'',scheduleId:row.scheduleId||'',score:Number(row.score||0),baseScore:Number(row.baseScore||0),totalPoints:Number(row.motivationPoints||0),motivationBonus:Number(row.motivationBonus||0),attendancePct:Number(row.attendancePct||0),gradePct:Number(row.gradePct||0),homeworkPct:Number(row.homeworkPct||0),recitationPct:Number(row.recitationPct||0)}));
+  return rows.slice(0,100).map((row,index)=>({rank:index+1,studentCode:row.studentCode,studentName:row.name,grade:row.grade,group:row.group||'',scheduleId:row.scheduleId||'',score:Number(row.score||0),baseScore:Number(row.baseScore||0),totalPoints:Number(row.motivationPoints||0),motivationBonus:Number(row.motivationBonus||0),attendancePct:Number(row.attendancePct||0),gradePct:Number(row.gradePct||0),homeworkPct:Number(row.homeworkPct||0),homeworkGradePct:Number(row.homeworkGradePct||0),recitationPct:Number(row.recitationPct||0)}));
 });
 
-function publicExamSession(sessionId, exam, questions, startedAtMs, expiresAtMs) {
+function publicExamSession(sessionId, exam, questions, startedAtMs, expiresAtMs, progress = {}) {
+  const draftAnswers = progress.draftAnswers && typeof progress.draftAnswers === 'object' && !Array.isArray(progress.draftAnswers)
+    ? Object.fromEntries(Object.entries(progress.draftAnswers).slice(0, questions.length).map(([key,value]) => [text(key, 8), String(value ?? '').slice(0,4000)]))
+    : {};
   return {
     sessionId,
     exam: {
@@ -755,6 +758,12 @@ function publicExamSession(sessionId, exam, questions, startedAtMs, expiresAtMs)
     },
     startedAt: new Date(startedAtMs).toISOString(),
     expiresAt: expiresAtMs,
+    serverNow: Date.now(),
+    draft: {
+      answers: draftAnswers,
+      current: Math.max(0, Math.min(questions.length - 1, Number(progress.draftCurrent || 0))),
+      revision: Math.max(0, Number(progress.draftRevision || 0))
+    },
     questions: questions.map(q => ({
       type: q.type,
       question: q.question,
@@ -1814,6 +1823,7 @@ function studentResourcePayload(doc, kind) {
     scheduleId: text(data.scheduleId || data.groupId, 100),
     unit: text(data.unit, 120),
     lecture: text(data.lecture, 120),
+    lectureCategory: text(String(data.lectureCategory || data.materialType || '').toLowerCase() === 'theory' ? 'theory' : 'general', 20),
     fileUrl,
     fileName: text(data.fileName, 220),
     fileType: text(data.fileType || data.type, 100),
@@ -1950,7 +1960,11 @@ exports.submitAssignmentAnswer = onCall(CALLABLE_OPTIONS, async request => {
     const grantSnap = grantRef ? await tx.get(grantRef) : null;
     const grant = grantSnap?.exists ? { id: grantSnap.id, ...grantSnap.data() } : null;
     const decision = decideHomeworkAttempt({ lock, legacySubmissionExists: firstSubmissionSnap.exists, grant });
-    if (!decision.allowed) throw new HttpsError('already-exists', 'تم تسليم الواجب بالفعل ولا يمكن استبدال الإجابة أو الدرجة.');
+    if (!decision.allowed) {
+      const existingId=cleanDocId(text(lock?.latestSubmissionId||firstSubmissionRef.id,120)),existingRef=db.collection('homework_submissions').doc(existingId),existingSnap=existingId===firstSubmissionRef.id?firstSubmissionSnap:await tx.get(existingRef);
+      if(existingSnap.exists)return {submissionId:existingSnap.id,submission:existingSnap.data(),duplicate:true};
+      throw new HttpsError('already-exists', 'تم تسليم الواجب بالفعل ولا يمكن استبدال الإجابة أو الدرجة.');
+    }
     if (assignmentClosed && decision.attemptNumber === 1) throw new HttpsError('deadline-exceeded', 'انتهى موعد تسليم هذا الواجب.');
     const submissionId = submissionIdForAttempt(lockId, decision.attemptNumber);
     const submissionRef = db.collection('homework_submissions').doc(submissionId);
@@ -2003,12 +2017,13 @@ exports.submitAssignmentAnswer = onCall(CALLABLE_OPTIONS, async request => {
       createdAt: lock?.createdAt || FieldValue.serverTimestamp()
     }, { merge: true });
     if (grantRef) tx.update(grantRef, { status: 'used', usedAt: FieldValue.serverTimestamp(), submissionId, updatedAt: FieldValue.serverTimestamp() });
-    return { submissionId, submission };
+    return { submissionId, submission, duplicate:false };
   });
-  await markLeaderboardDirty('assignment-submitted');
+  if(!committed.duplicate)await markLeaderboardDirty('assignment-submitted');
   const publicSubmission = publicHomeworkProjection(committed.submission);
   return {
     ok: true,
+    duplicate: committed.duplicate===true,
     assignmentId,
     submissionId: committed.submissionId,
     attemptNumber: publicSubmission.attemptNumber,
@@ -2279,17 +2294,18 @@ function leaderboardPeriod(academicYear='',monthName='') {
 
 async function leaderboardRowsForPeriod(academicYear='',monthName='') {
   const period=leaderboardPeriod(academicYear,monthName);
+  const [periodYear,periodMonth]=period.monthKey.split('-').map(Number),nextMonthDate=new Date(Date.UTC(periodYear,periodMonth,1)),nextMonthKey=`${nextMonthDate.getUTCFullYear()}-${String(nextMonthDate.getUTCMonth()+1).padStart(2,'0')}`,periodStart=`${period.monthKey}-01`,periodEnd=`${nextMonthKey}-01`;
   const stateSnap = await leaderboardStateRef.get().catch(() => null);
   const stateVersion = stateSnap?.exists ? Number(stateSnap.data()?.version || 0) : 0;
   if (leaderboardCache.expiresAt > Date.now() && leaderboardCache.version === stateVersion && leaderboardCache.periodKey === period.monthKey) return leaderboardCache.rows;
   const [studentsSnap, attendanceSnap, gradesSnap, examAttemptsSnap, homeworkSnap, recitationSnap, assignmentSnap, motivationSnap] = await Promise.all([
     fetchAllCollectionDocuments('students', query => query.where('active', '==', true)),
-    fetchAllCollectionDocuments('attendance'),
-    fetchAllCollectionDocuments('grades'),
-    fetchAllCollectionDocuments('exam_attempts'),
-    fetchAllCollectionDocuments('homework_submissions'),
-    fetchAllCollectionDocuments('recitations'),
-    fetchAllCollectionDocuments('assignments'),
+    fetchAllCollectionDocuments('attendance',query=>query.where('date','>=',periodStart).where('date','<',periodEnd)),
+    fetchAllCollectionDocuments('grades',query=>query.where('date','>=',periodStart).where('date','<',periodEnd)),
+    fetchAllCollectionDocuments('exam_attempts',query=>query.where('submittedAt','>=',periodStart).where('submittedAt','<',periodEnd)),
+    fetchAllCollectionDocuments('homework_submissions',query=>query.where('submittedAt','>=',periodStart).where('submittedAt','<',periodEnd)),
+    fetchAllCollectionDocuments('recitations',query=>query.where('date','>=',periodStart).where('date','<',periodEnd)),
+    fetchAllCollectionDocuments('assignments',query=>query.where('publishAt','>=',periodStart).where('publishAt','<',periodEnd)),
     fetchAllCollectionDocuments('motivation_monthly',query=>query.where('academicYear','==',period.academicYear).where('month','==',period.monthName))
   ]);
   const grouped = snap => { const map = new Map(); snap.docs.forEach(doc => { const row=doc.data()||{},code=normalizeCode(row.studentCode); if(!code)return; if(!map.has(code))map.set(code,[]); map.get(code).push(row); }); return map; };
@@ -2306,16 +2322,16 @@ async function leaderboardRowsForPeriod(academicYear='',monthName='') {
     const homeworkSummary=homeworkMetrics(requiredAssignments,allStudentHomework);
     const classDates=new Set(att.map(recordDate).filter(Boolean));rec.forEach(row=>{const date=recordDate(row);if(date)classDates.add(date);});
     const sessions=classDates.size,completedDates=items=>new Set(items.map(recordDate).filter(Boolean)).size;
-    const homeworkPct=Math.round(homeworkSummary.submissionPercentage),recitationPct=sessions?Math.min(100,Math.round(completedDates(rec)/sessions*100)):0;
+    const homeworkPct=Math.round(homeworkSummary.submissionPercentage),homeworkGradePct=Math.round(homeworkSummary.averageGrade||0),recitationPct=sessions?Math.min(100,Math.round(completedDates(rec)/sessions*100)):0;
     const motivationRow=(motivation.get(code)||[]).find(row=>String(row.month||'')===period.monthName&&String(row.academicYear||'')===period.academicYear);
     const motivationPoints=Math.trunc(Number(motivationRow?.totalPoints||0));
     // Motivation is a visible monthly bonus/penalty in the platform ranking,
     // while academic percentages keep their original meaning. Cap its effect
     // to protect the leaderboard from an accidental oversized admin entry.
     const motivationBonus=Math.max(-20,Math.min(20,motivationPoints));
-    const baseScore=Math.round(attendancePct*.30+gradePct*.40+homeworkPct*.15+recitationPct*.15);
+    const baseScore=Math.round(attendancePct*.30+gradePct*.30+homeworkPct*.15+homeworkGradePct*.10+recitationPct*.15);
     const score=Math.max(0,Math.min(100,baseScore+motivationBonus));
-    return {studentCode:code,name:publicStudentName(st.studentName||st.name),grade:canonicalLeaderboardGrade(st.grade),group:text(st.group,100),scheduleId:text(st.scheduleId||st.groupId,100),score,baseScore,motivationPoints,motivationBonus,attendancePct,gradePct,homeworkPct,recitationPct,activity:att.length+gradeRows.length+hw.length+rec.length+Math.abs(motivationPoints)};
+    return {studentCode:code,name:publicStudentName(st.studentName||st.name),grade:canonicalLeaderboardGrade(st.grade),group:text(st.group,100),scheduleId:text(st.scheduleId||st.groupId,100),score,baseScore,motivationPoints,motivationBonus,attendancePct,gradePct,homeworkPct,homeworkGradePct,recitationPct,activity:att.length+gradeRows.length+hw.length+rec.length+Math.abs(motivationPoints)};
   }).filter(x=>x.name&&x.activity>0).sort((a,b)=>b.score-a.score||b.attendancePct-a.attendancePct||b.gradePct-a.gradePct);
   leaderboardCache = { expiresAt: Date.now() + 5 * 60 * 1000, version: stateVersion, periodKey: period.monthKey, rows };
   return rows;
@@ -3185,7 +3201,30 @@ exports.startExam = onCall(CALLABLE_OPTIONS, async request => {
     duration: sessionData.duration || durationMinutes,
     pdfUrl: sessionData.pdfUrl || exam.pdfUrl || exam.examPdfUrl,
     pdfName: sessionData.pdfName || exam.pdfName || exam.examPdfName
-  }, snapshotQuestions, startedAtMs, expiresAtMs);
+  }, snapshotQuestions, startedAtMs, expiresAtMs, sessionData);
+});
+
+exports.saveExamProgress = onCall(CALLABLE_OPTIONS, async request => {
+  const body=request.data||{},sessionId=cleanDocId(body.sessionId),studentCode=normalizeCode(body.studentCode),revision=Math.max(1,Math.min(1000000,Math.trunc(Number(body.revision||1))));
+  if(!sessionId||!validLegacyOrStrongCode(studentCode))throw new HttpsError('invalid-argument','بيانات حفظ الامتحان غير مكتملة.');
+  await requirePortalSession(request,studentCode,['student']);
+  await rateLimitPublic('exam-progress',`${studentCode}:${sessionId}`,request,180,360,60*60*1000);
+  const raw=body.answers&&typeof body.answers==='object'&&!Array.isArray(body.answers)?body.answers:{};
+  if(Object.keys(raw).length>205||jsonByteSize(raw)>64*1024)throw new HttpsError('invalid-argument','حجم مسودة الامتحان أكبر من الحد المسموح.');
+  const ref=db.collection('exam_sessions').doc(sessionId);
+  const result=await db.runTransaction(async tx=>{
+    const snap=await tx.get(ref);if(!snap.exists)throw new HttpsError('not-found','جلسة الامتحان غير موجودة.');
+    const session=snap.data()||{};if(normalizeCode(session.studentCode)!==studentCode)throw new HttpsError('permission-denied','الجلسة لا تخص هذا الطالب.');
+    if(session.status==='submitted')return {saved:false,submitted:true,revision:Number(session.draftRevision||0)};
+    const questions=Array.isArray(session.questions)?session.questions:[],expiresAt=session.expiresAt?.toMillis?.()||0;
+    if(expiresAt&&Date.now()>expiresAt+120000)throw new HttpsError('deadline-exceeded','انتهى وقت الامتحان.');
+    if(revision<=Number(session.draftRevision||0))return {saved:false,submitted:false,revision:Number(session.draftRevision||0)};
+    const answers={};Object.entries(raw).slice(0,questions.length).forEach(([key,value])=>{const index=Number(key);if(Number.isInteger(index)&&index>=0&&index<questions.length)answers[String(index)]=String(value??'').slice(0,4000);});
+    const current=Math.max(0,Math.min(Math.max(0,questions.length-1),Math.trunc(Number(body.current||0))));
+    tx.update(ref,{draftAnswers:answers,draftCurrent:current,draftRevision:revision,draftSavedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()});
+    return {saved:true,submitted:false,revision};
+  });
+  return {...result,serverNow:Date.now()};
 });
 
 exports.submitExam = onCall(CALLABLE_OPTIONS, async request => {
@@ -3193,8 +3232,8 @@ exports.submitExam = onCall(CALLABLE_OPTIONS, async request => {
   const sessionId = cleanDocId(body.sessionId);
   const studentCode = normalizeCode(body.studentCode);
   await requirePortalSession(request, studentCode, ['student']);
-  const rawAnswers = body.answers && typeof body.answers === 'object' && !Array.isArray(body.answers) ? body.answers : {};
-  if (jsonByteSize(rawAnswers) > 64 * 1024) throw new HttpsError('invalid-argument', 'حجم الإجابات أكبر من الحد المسموح.');
+  const clientAnswers = body.answers && typeof body.answers === 'object' && !Array.isArray(body.answers) ? body.answers : {};
+  if (jsonByteSize(clientAnswers) > 64 * 1024) throw new HttpsError('invalid-argument', 'حجم الإجابات أكبر من الحد المسموح.');
   await rateLimitPublic('exam-submit', `${studentCode}:${sessionId}`, request, 4, 20, 10 * 60 * 1000);
   if (!sessionId || !validLegacyOrStrongCode(studentCode)) throw new HttpsError('invalid-argument', 'بيانات المحاولة غير مكتملة.');
   const sessionRef = db.collection('exam_sessions').doc(sessionId);
@@ -3203,6 +3242,8 @@ exports.submitExam = onCall(CALLABLE_OPTIONS, async request => {
   const session = sessionSnap.data();
   if (session.studentCode !== studentCode) throw new HttpsError('permission-denied', 'كود الطالب لا يطابق جلسة الامتحان.');
   if (session.status === 'submitted' && session.result) return session.result;
+  const rawAnswers={...(session.draftAnswers&&typeof session.draftAnswers==='object'?session.draftAnswers:{}),...clientAnswers};
+  if(jsonByteSize(rawAnswers)>64*1024)throw new HttpsError('invalid-argument','حجم الإجابات أكبر من الحد المسموح.');
   const expiresAt = session.expiresAt && session.expiresAt.toMillis ? session.expiresAt.toMillis() : 0;
   if (expiresAt && Date.now() > expiresAt + 120 * 1000) throw new HttpsError('deadline-exceeded', 'انتهى وقت الامتحان.');
   const examSnap = await db.collection('exams').doc(session.examId).get();

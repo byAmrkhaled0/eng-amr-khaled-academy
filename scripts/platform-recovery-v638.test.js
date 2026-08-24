@@ -53,5 +53,5 @@ test('admin recovery loads unordered legacy content and exposes safe remove and 
   assert.match(ui,/repairLegacyExamFormats/);
   assert.match(ui,/function adminRows\(collection\)/);
   assert.match(ui,/typeof adminData!=='undefined'/);
-  assert.match(html,/v638-admin-recovery\.js\?v=63\.0\.7-recovery/);
+  assert.match(html,/v638-admin-recovery\.js\?v=64\.0\.0-recovery/);
 });

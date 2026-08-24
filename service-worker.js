@@ -1,7 +1,7 @@
-const CACHE_NAME = "technominds-v63-0-7-unified-results-final";
-const ASSET_VERSION = "63.0.7";
+const CACHE_NAME = "technominds-v64-0-0-resilient-assessments";
+const ASSET_VERSION = "64.0.0";
 const APP_SHELL = [
-  "/", "/index.html", "/learning-path.html", "/about.html", "/reviews.html", "/privacy.html",
+  "/", "/index.html", "/student.html", "/parent.html", "/exams.html", "/materials.html", "/theory-lectures.html", "/questions.html", "/practical.html", "/learning-path.html", "/about.html", "/reviews.html", "/privacy.html",
   "/terms.html", "/offline.html", "/assets/site.css", "/assets/v55.css",
   "/assets/v56.css", "/assets/v60-technominds.css", "/assets/v61-design.css", "/assets/app.js", "/assets/practical.js", "/assets/firebase-sync.js",
   "/assets/firebase-config.js", "/assets/v53-upgrades.js",
@@ -10,7 +10,7 @@ const APP_SHELL = [
   "/assets/amr-khaled-profile.webp", "/site.webmanifest"
 ];
 const VERSIONED_APP_SHELL=APP_SHELL.map(url=>/\.(?:css|js)$/.test(url)?`${url}?v=${ASSET_VERSION}`:url);
-const SENSITIVE_NAVIGATION=new Set(['/student.html','/parent.html','/exams.html','/materials.html','/questions.html','/practical.html','/teacher-login.html']);
+const SENSITIVE_NAVIGATION=new Set(['/student.html','/parent.html','/exams.html','/materials.html','/theory-lectures.html','/questions.html','/practical.html','/teacher-login.html']);
 
 // Background FCM uses the browser's standard Push API with no external worker
 // imports, so a third-party CDN/CORS failure cannot break the PWA worker.
@@ -77,7 +77,7 @@ self.addEventListener("fetch", event => {
       }catch(_){
         // Query strings such as ?code=12345678 must fall back to the cached
         // HTML page, not to offline.html.
-        if(SENSITIVE_NAVIGATION.has(url.pathname)) return caches.match('/offline.html');
+        if(SENSITIVE_NAVIGATION.has(url.pathname)) return (await caches.match(url.pathname,{ignoreSearch:true})) || (await caches.match('/offline.html'));
         return (await caches.match(url.pathname,{ignoreSearch:true})) ||
           (await caches.match(request,{ignoreSearch:true})) ||
           (await caches.match("/offline.html"));
@@ -97,7 +97,13 @@ self.addEventListener("fetch", event => {
     return;
   }
 
-  if(url.pathname.startsWith("/assets/") || url.pathname.endsWith(".webmanifest")){
+  if(url.pathname.endsWith(".webmanifest")){
+    // A stale manifest can keep old asset URLs alive after deployment.
+    event.respondWith(fetch(request,{cache:"no-store"}).catch(()=>caches.match(request)));
+    return;
+  }
+
+  if(url.pathname.startsWith("/assets/")){
     // Versioned static assets are returned from cache immediately on repeat
     // visits while a background request refreshes them. Large QR and Excel
     // bundles enter this cache only after the user actually opens that tool.

@@ -7,7 +7,7 @@ const { spawnSync } = require('child_process');
 
 const root = path.resolve(__dirname, '..');
 const requiredFiles = [
-  'index.html', 'student.html', 'parent.html', 'exams.html', 'teacher-login.html', 'learning-path.html', 'about.html',
+  'index.html', 'student.html', 'parent.html', 'exams.html', 'teacher-login.html', 'learning-path.html', 'about.html', 'theory-lectures.html',
   'assets/app.js', 'assets/admin.js', 'assets/v53-upgrades.js', 'assets/v55-admin.js', 'assets/v55.css', 'assets/v56-fixes.js', 'assets/v56.css', 'assets/amr-khaled-profile.jpeg', 'assets/amr-khaled-profile.webp',
   'assets/firebase-sync.js', 'assets/firebase-config.js', 'assets/technominds-logo.png',
   'firestore.rules', 'storage.rules', 'firestore.indexes.json', 'firebase.json',
@@ -48,7 +48,7 @@ const htmlFiles = fs.readdirSync(root).filter(name => name.endsWith('.html'));
 const localRefPattern = /(?:src|href)=["']([^"'#?]+)["']/g;
 for (const htmlFile of htmlFiles) {
   const html = read(htmlFile);
-  if (!html.includes('assets/v61-design.css?v=63.0.7')) {
+  if (!html.includes('assets/v61-design.css?v=64.0.0')) {
     fail(`Unified V61.1 design is not loaded by ${htmlFile}`);
   }
   const ids = [...html.matchAll(/\sid=["']([^"']+)["']/g)].map(match => match[1]);
@@ -159,7 +159,7 @@ const appSourceCode = read('assets/app.js');
 const fixesSourceCode = read('assets/v56-fixes.js');
 if (!adminSourceCode.includes("loadSiteData({fast:true})") || !adminSourceCode.includes('hydrateAdminRecords')) fail('Staged admin loading is missing');
 if (!appSourceCode.includes('staffCacheOnly') || !appSourceCode.includes('if(isStaffWorkspace())return;')) fail('Compact staff browser cache protection is missing');
-if (!appSourceCode.includes("MF_ASSET_VERSION = '63.0.7'")) fail('Lazy asset loader version is stale');
+if (!appSourceCode.includes("MF_ASSET_VERSION = '64.0.0'")) fail('Lazy asset loader version is stale');
 if (!fixesSourceCode.includes('showMoreAdminStudents') || !fixesSourceCode.includes('slice(0,adminStudentVisible)')) fail('Paginated student rendering is missing');
 if (!appSourceCode.includes('ensureQrScannerLibrary') || !appSourceCode.includes("loadQrScanner:()=>loadLazyScript('qr-scanner'")) fail('Cross-browser lazy QR scanner fallback is missing');
 for (const page of ['student.html','parent.html','teacher-login.html']) {
@@ -204,7 +204,7 @@ if (manifest.display !== 'standalone' || manifest.scope !== '/' || !Array.isArra
 if (!manifest.icons.some(icon => String(icon.purpose || '').includes('maskable') && icon.sizes === '512x512')) fail('Maskable PWA icon is missing');
 const sw = read('service-worker.js');
 const appShellSource = sw.slice(0,sw.indexOf('];')+2);
-if (!/technominds-v63-0-7-unified-results-final/.test(sw) || !sw.includes('/assets/v61-design.css') || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/curriculum-student.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes("'/practical.html'") || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell or sensitive portal exclusions are incomplete');
+if (!/technominds-v64-0-0-resilient-assessments/.test(sw) || !sw.includes('/assets/v61-design.css') || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/curriculum-student.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes("'/practical.html'") || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell or sensitive portal exclusions are incomplete');
 if (/assets\/vendor|assets\/admin\.js|teacher-login\.html/.test(appShellSource) || !sw.includes('event.waitUntil(network.catch')) fail('Large admin assets are still precached or repeat-visit caching is missing');
 if (!read('index.html').includes('<script defer src="https://www.gstatic.com/firebasejs/')) fail('Firebase scripts are not downloaded in parallel with deferred execution');
 const upgrade = read('assets/v53-upgrades.js');
@@ -257,7 +257,7 @@ if (deployScript.includes('ValueFromRemainingArguments') || !deployScript.includ
 if (!deployScript.includes('FUNCTIONS_DISCOVERY_TIMEOUT = "120"') || !read('DEPLOY-WINDOWS.cmd').includes('FUNCTIONS_DISCOVERY_TIMEOUT=120')) fail('Firebase Functions discovery timeout is not protected on Windows');
 if (!appSourceCode.includes("if(file==='teacher-login.html')return") || read('teacher-login.html').includes('<header class="site-header"')) fail('Public header must not appear in the administration workspace');
 if (!functionsSource.includes('exports.getStudentResources = onCall') || !firebaseSyncSource.includes("sameOriginCallable('/api/resources/student'") || !read('firebase.json').includes('/api/resources/student') || !read('vercel.json').includes('/api/resources/student')) fail('Secure student-track resource API is incomplete');
-if (!read('materials.html').includes('studentResourceCodeForm') || !read('questions.html').includes('studentResourceCodeForm') || !appSourceCode.includes('setupStudentResourcesPage')) fail('Student code gates for lectures or questions are incomplete');
+if (!read('materials.html').includes('studentResourceCodeForm') || !read('theory-lectures.html').includes('studentResourceCodeForm') || !read('questions.html').includes('studentResourceCodeForm') || !appSourceCode.includes('setupStudentResourcesPage')) fail('Student code gates for lectures or questions are incomplete');
 if (!rules.includes('match /materials/{id} { allow read: if isStaff();') || !rules.includes('match /questions/{id} { allow read: if isStaff();')) fail('Lecture or question collections are still publicly readable');
 if (!adminSourceCode.includes('admin-brand-logo') || !adminSourceCode.includes('admin-mobile-logo')) fail('Techno Minds logo is missing from the administration workspace');
 if (!adminSourceCode.includes('admin-hero-theme-icon') || /admin-sidebar-footer[\s\S]{0,500}themeToggleAdmin/.test(adminSourceCode)) fail('Administration theme icon is not isolated in the top hero');

@@ -9,6 +9,7 @@ const entriesToCopy = [
   'about.html',
   'practical.html',
   'materials.html',
+  'theory-lectures.html',
   'questions.html',
   'exams.html',
   'student.html',
@@ -49,4 +50,4 @@ for (const entry of entriesToCopy) {
   copyRecursive(path.join(root, entry), path.join(dist, entry));
 }
 
-console.log('Vercel build ready: static files copied to dist/ (v63.0.7)');
+console.log('Vercel build ready: static files copied to dist/ (v64.0.0)');
