@@ -2270,7 +2270,7 @@ async function fetchAllCollectionDocuments(collection, configure = query => quer
   const docs = [];
   let cursor = null;
   do {
-    let query = configure(db.collection(collection)).orderBy(admin.firestore.FieldPath.documentId()).limit(pageSize);
+    let query = configure(db.collection(collection)).limit(pageSize);
     if (cursor) query = query.startAfter(cursor);
     const snap = await query.get();
     docs.push(...snap.docs);
