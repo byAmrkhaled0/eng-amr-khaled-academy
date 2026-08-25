@@ -1010,7 +1010,7 @@ async function renderPublicLeaderboard(force=false){
     }
   }catch(_){rows=[];}
   if(renderId!==publicLeaderboardRenderId||selectedGrade!==selectedLeaderboardGrade())return;
-  rows=(rows||[]).filter(row=>String(row.grade||'').trim()===selectedGrade);
+  rows=Array.isArray(rows)?rows:[];
   box.className='leaderboard-five';
   box.innerHTML=rows.length?rows.map((x,i)=>{
     const name=String(x.name||'طالب متميز').trim();
