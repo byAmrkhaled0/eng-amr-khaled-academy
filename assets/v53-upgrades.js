@@ -141,7 +141,7 @@
   // Login recovery.
   function addPasswordReset(){
     const form=document.getElementById('loginForm');
-    if(!form||document.getElementById('forgotPasswordButton'))return;
+    if(!form||document.getElementById('adminPasswordReset')||document.getElementById('forgotPasswordButton'))return;
     const button=document.createElement('button');
     button.type='button';button.id='forgotPasswordButton';button.className='small-btn login-reset-button';button.textContent='نسيت كلمة المرور؟';
     button.onclick=async()=>{

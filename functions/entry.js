@@ -12,7 +12,7 @@ const CALLABLE = { region:'europe-west1', timeoutSeconds:30, invoker:'public' };
 const BACKUP_COLLECTIONS = [
   'settings','users','students','student_portal','parent_portal','bookings','booking_status','reviews',
   'materials','questions','groups','assignments','exams','exam_attempts','homework_submissions',
-  'attendance','recitations','grades','payments','monthly_payments','payment_transactions','reports','activityLog','client_errors',
+  'attendance','recitations','grades','payments','monthly_payments','payment_transactions','reports','monthly_reports','activityLog','client_errors',
   'student_attempts','exam_locks','homework_submission_locks','homework_attempt_grants','homework_review_history','assessment_versions','class_sessions','student_notes',
   'curriculum','units','lectures','lecture_materials','assignments_v2','assignment_questions','question_banks','bank_questions','monthly_exams','exam_questions_v2','teacher_files','student_progress'
 ];
@@ -54,6 +54,8 @@ async function exportCollection(name){
     if(name==='student_progress'){
       const children=await doc.ref.collection('lectures').get();
       row.lectures=children.docs.map(child=>({id:child.id,data:encodeBackupValue(child.data())}));
+      const monthlyEvents=await doc.ref.collection('monthly_events').get();
+      row.monthlyEvents=monthlyEvents.docs.map(child=>({id:child.id,data:encodeBackupValue(child.data())}));
     }
     rows.push(row);
   }
@@ -78,7 +80,10 @@ async function deleteRootCollection(name){
     const refs=[];
     for(const doc of snap.docs){
       if(name==='student_attempts'){const children=await doc.ref.collection('attempts').get().catch(()=>null);if(children)refs.push(...children.docs.map(x=>x.ref));}
-      if(name==='student_progress'){const children=await doc.ref.collection('lectures').get().catch(()=>null);if(children)refs.push(...children.docs.map(x=>x.ref));}
+      if(name==='student_progress'){
+        const children=await doc.ref.collection('lectures').get().catch(()=>null);if(children)refs.push(...children.docs.map(x=>x.ref));
+        const monthlyEvents=await doc.ref.collection('monthly_events').get().catch(()=>null);if(monthlyEvents)refs.push(...monthlyEvents.docs.map(x=>x.ref));
+      }
       refs.push(doc.ref);
     }
     await deleteRefs(refs);if(snap.size<300)return;
@@ -91,6 +96,7 @@ async function restoreCollection(name,rows){
     ops.push(batch=>batch.set(ref,decodeBackupValue(row.data)));
     if(name==='student_attempts')for(const child of Array.isArray(row.attempts)?row.attempts:[])if(child?.id&&child?.data)ops.push(batch=>batch.set(ref.collection('attempts').doc(cleanDocId(child.id)),decodeBackupValue(child.data)));
     if(name==='student_progress')for(const child of Array.isArray(row.lectures)?row.lectures:[])if(child?.id&&child?.data)ops.push(batch=>batch.set(ref.collection('lectures').doc(cleanDocId(child.id)),decodeBackupValue(child.data)));
+    if(name==='student_progress')for(const child of Array.isArray(row.monthlyEvents)?row.monthlyEvents:[])if(child?.id&&child?.data)ops.push(batch=>batch.set(ref.collection('monthly_events').doc(cleanDocId(child.id)),decodeBackupValue(child.data)));
   }
   while(ops.length){const batch=db.batch();ops.splice(0,350).forEach(op=>op(batch));await batch.commit();}
 }

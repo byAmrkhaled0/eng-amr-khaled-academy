@@ -138,8 +138,28 @@ function formatTime12(value){
 }
 function uid(prefix='ST'){const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';const bytes=new Uint8Array(8);if(window.crypto?.getRandomValues)window.crypto.getRandomValues(bytes);else for(let i=0;i<bytes.length;i++)bytes[i]=Math.floor(Math.random()*256);const body=[...bytes].map(x=>alphabet[x%alphabet.length]).join('');return `${prefix}-${body.slice(0,4)}-${body.slice(4,8)}`;}
 function isoDate(d=new Date()){return d.toISOString().slice(0,10);}
-function localDateTimeToIso(value){if(!value)return '';const date=new Date(String(value));return Number.isFinite(date.getTime())?date.toISOString():'';}
-function isoToLocalDateTimeInput(value){if(!value)return '';const date=new Date(value);if(!Number.isFinite(date.getTime()))return String(value).slice(0,16);const pad=number=>String(number).padStart(2,'0');return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;}
+function localDateTimeToIso(value){
+  if(!value)return '';
+  const raw=String(value).trim(),local=raw.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if(!local){const date=new Date(raw);return Number.isFinite(date.getTime())?date.toISOString():'';}
+  // datetime-local has no timezone. Interpret the teacher's schedule as Cairo
+  // time regardless of the phone/computer timezone, then store an ISO value.
+  const desired=Date.UTC(Number(local[1]),Number(local[2])-1,Number(local[3]),Number(local[4]),Number(local[5]),Number(local[6]||0));
+  const formatter=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
+  let guess=desired;
+  for(let attempt=0;attempt<3;attempt+=1){
+    const parts=Object.fromEntries(formatter.formatToParts(new Date(guess)).filter(part=>part.type!=='literal').map(part=>[part.type,part.value]));
+    const represented=Date.UTC(Number(parts.year),Number(parts.month)-1,Number(parts.day),Number(parts.hour),Number(parts.minute),Number(parts.second));
+    const adjustment=desired-represented;if(!adjustment)break;guess+=adjustment;
+  }
+  return new Date(guess).toISOString();
+}
+function isoToLocalDateTimeInput(value){
+  if(!value)return '';
+  const date=new Date(value);if(!Number.isFinite(date.getTime()))return String(value).slice(0,16);
+  const parts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(date).filter(part=>part.type!=='literal').map(part=>[part.type,part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
 function arStatus(status){return status==='present'?'حاضر':status==='absent'?'غائب':(status||'-');}
 function statusClass(status){return status==='present'||status==='حاضر'||status===true?'good':status==='absent'||status==='غائب'||status===false?'danger':'warn';}
 function whatsappLink(phone,msg){return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;}
@@ -633,6 +653,11 @@ async function setupStudent(){
 var parentQrScanner = null;
 var lastParentStudent = null;
 var lastParentReportMonth = '';
+var lastParentMonthlyReport = null;
+
+function cairoMonthKey(date=new Date()){return new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit'}).format(date);}
+function previousMonthKey(monthKey){const match=String(monthKey||'').match(/^(\d{4})-(\d{2})$/);if(!match)return '';const date=new Date(Date.UTC(Number(match[1]),Number(match[2])-2,1));return `${date.getUTCFullYear()}-${String(date.getUTCMonth()+1).padStart(2,'0')}`;}
+function reportMonthLabel(key){const [year,month]=String(key||'').split('-').map(Number);if(!year||!month)return String(key||'');return new Intl.DateTimeFormat('ar-EG',{year:'numeric',month:'long',timeZone:'Africa/Cairo'}).format(new Date(Date.UTC(year,month-1,2)));}
 
 function studentReportRows(st){
   const attendance = getAttendanceRows(st);
@@ -766,6 +791,41 @@ function parentReportHTML(raw,selectedMonth=''){
   </div>`;
 }
 
+function parentMonthlyReportText(report){
+  const st=report?.student||{},attendance=report?.attendance||{},results=report?.results||{},homework=report?.homework||{},study=report?.study||{},trend=report?.trend||{};
+  const resultLines=(results.rows||[]).length?(results.rows||[]).map(row=>`- ${row.activityName||row.examTitle||'درجة'}: ${row.score===null||row.score===undefined?'قيد التصحيح':`${row.score} من ${row.maxScore||100}`}`).join('\n'):'- لا توجد درجات مسجلة في الشهر';
+  const homeworkLines=(homework.rows||[]).length?(homework.rows||[]).map(row=>`- ${row.assignment?.title||'واجب'}: ${row.status==='missing'?'لم يسلّم':row.submission?.score===null||row.submission?.score===undefined?'تم التسليم وقيد التصحيح':`تم التسليم — ${row.submission.score} من ${row.submission.maxScore||row.assignment?.totalScore||100}`}`).join('\n'):'- لا توجد واجبات مطلوبة في الشهر';
+  const evidence=report?.sufficientData?`الالتزام بالمذاكرة داخل المنصة: ${report.commitmentLevel} (${report.commitmentScore}%)`:'لا توجد بيانات كافية للحكم على انتظام المذاكرة داخل المنصة.';
+  return `أهلًا بحضرتك، مع حضرتك م. عمرو خالد، مهندس برمجيات ومدرس البرمجة والذكاء الاصطناعي ومؤسس Techno Minds.\n\nتقرير الطالب/ة ${st.name||'-'} عن شهر ${reportMonthLabel(report.monthKey)}\nالكود: ${st.studentCode||'-'}\nالمسار: ${st.grade||'-'}\nالمجموعة: ${st.group||'-'}\n\nالمستوى العام: ${report.overallScore??'-'}% — ${report.level||'بيانات غير كافية'}\nالمستوى الأكاديمي: ${report.academicScore??'-'}%\n${evidence}\nالتقدم: ${trend.label||'لا توجد بيانات كافية للمقارنة'}\n\nالحضور: ${attendance.present||0} من ${attendance.total||0}${attendance.percentage===null||attendance.percentage===undefined?'':` — ${attendance.percentage}%`}\nالواجبات: سلّم ${homework.submitted||0} من ${homework.required||0} — لم يسلّم ${homework.missing||0}\nمتوسط الدرجات: ${results.average??'-'}%\nالمحاضرات: فتح ${study.lecturesOpened||0} وأكمل ${study.lecturesCompleted||0}\n\nكل درجات الشهر:\n${resultLines}\n\nالواجبات والمتابعة:\n${homeworkLines}\n\nنقاط القوة:\n${(report.strengths||[]).map(value=>`- ${value}`).join('\n')||'- لا توجد بيانات كافية'}\n\nيحتاج متابعة في:\n${(report.concerns||[]).map(value=>`- ${value}`).join('\n')||'- لا توجد ملاحظات مقلقة'}\n\nملاحظات م. عمرو خالد:\n${report.teacherNotes||'لا توجد ملاحظات خاصة بهذا الشهر.'}`;
+}
+window.parentMonthlyReportText=parentMonthlyReportText;
+
+function parentMonthlyReportHTML(report){
+  const st=report?.student||{},attendance=report?.attendance||{},results=report?.results||{},homework=report?.homework||{},study=report?.study||{},trend=report?.trend||{},trendTone=trend.status==='improved'?'good':trend.status==='declined'?'danger':'warn',pay=report?.payment;
+  const score=value=>value===null||value===undefined?'-':`${value}%`,monthOptions=(report.availableMonths||[report.monthKey]).map(key=>`<option value="${esc(key)}" ${key===report.monthKey?'selected':''}>${esc(reportMonthLabel(key))}</option>`).join('');
+  return `<div class="parent-monthly-report-v40 parent-monthly-report-server" id="parentMonthlyReport">
+    <label class="parent-month-filter-v637"><span>عرض تقرير شهر</span><select onchange="renderParentMonth(this.value)">${monthOptions}</select></label>
+    <div class="parent-report-cover-v40"><div class="parent-report-cover-content-v40"><div class="parent-report-main-v40"><span class="kicker">تقرير ولي الأمر الشهري</span><h2>${esc(st.name||'-')}</h2><p>${esc(reportMonthLabel(report.monthKey))} · ${esc(st.grade||'-')} · ${esc(st.group||'-')}</p></div><div class="parent-report-qr-v40"><b>QR الطالب</b>${makeQR(st.studentCode||'')}<small>${esc(st.studentCode||'')}</small></div></div></div>
+    <div class="parent-actions-v38 no-print"><button class="btn primary" onclick="printParentReport()">طباعة / حفظ PDF</button><button class="btn ghost" onclick="copyParentReport('${esc(st.studentCode||'')}')">نسخ التقرير</button>${st.parentPhone?`<button class="btn whatsapp-report-btn" onclick="openParentWhatsApp('${esc(st.studentCode||'')}')">إرسال واتساب</button>`:''}</div>
+    <div class="metric-grid parent-report-metrics-v40"><div class="metric main-metric-v40"><b>${score(report.overallScore)}</b><small>${esc(report.level||'المستوى العام')}</small></div><div class="metric"><b>${score(report.academicScore)}</b><small>المستوى الأكاديمي</small></div><div class="metric"><b>${score(report.commitmentScore)}</b><small>الالتزام والمذاكرة</small></div><div class="metric"><b>${score(attendance.percentage)}</b><small>الحضور</small></div><div class="metric"><b>${score(homework.completionPercentage)}</b><small>تسليم الواجبات</small></div><div class="metric"><b>${score(results.average)}</b><small>متوسط الدرجات</small></div></div>
+    <div class="parent-status-card-v40 ${trendTone}"><div><span>التقدم مقارنة بالشهر السابق</span><h3>${esc(trend.label||'بيانات غير كافية')}</h3></div><p>${report.sufficientData?`حالة المذاكرة داخل المنصة: ${esc(report.commitmentLevel||'-')}.`:'لا توجد أنشطة كافية لإصدار حكم دقيق على انتظام المذاكرة.'}</p></div>
+    <div class="parent-detail-grid-v40">
+      <section class="mini-panel parent-panel-v40"><h3>الدرجات والامتحانات</h3>${(results.rows||[]).map(row=>`<div class="report-list-row-v40"><div><b>${esc(row.activityName||row.examTitle||'درجة')}</b><small>${esc(formatPortalDate(row.date||row.submittedAt))}</small></div><span class="badge ${row.score===null||row.score===undefined?'warn':'good'}">${row.score===null||row.score===undefined?'قيد التصحيح':`${esc(row.score)} من ${esc(row.maxScore||100)}`}</span></div>`).join('')||'<p>لا توجد درجات مسجلة في هذا الشهر.</p>'}</section>
+      <section class="mini-panel parent-panel-v40"><h3>الواجبات</h3>${(homework.rows||[]).map(row=>`<div class="report-list-row-v40"><div><b>${esc(row.assignment?.title||'واجب')}</b><small>${row.assignment?.dueDate?`آخر موعد: ${esc(row.assignment.dueDate)}`:'بدون موعد نهائي'}</small></div><span class="badge ${row.status==='missing'?'danger':row.submission?.score===null||row.submission?.score===undefined?'warn':'good'}">${row.status==='missing'?'لم يسلّم':row.submission?.score===null||row.submission?.score===undefined?'قيد التصحيح':`${esc(row.submission.score)} من ${esc(row.submission.maxScore||row.assignment?.totalScore||100)}`}</span></div>`).join('')||'<p>لا توجد واجبات مطلوبة في هذا الشهر.</p>'}</section>
+      <section class="mini-panel parent-panel-v40"><h3>الحضور والمذاكرة</h3><p>الحضور: <b>${esc(attendance.present||0)} من ${esc(attendance.total||0)}</b></p><p>فتح المحاضرات: <b>${esc(study.lecturesOpened||0)}</b> · أكمل: <b>${esc(study.lecturesCompleted||0)}</b></p><p>التطبيق العملي: <b>${esc(report.practical?.completed||0)}</b></p></section>
+      <section class="mini-panel parent-panel-v40"><h3>نقاط القوة</h3>${(report.strengths||[]).map(item=>`<p>✓ ${esc(item)}</p>`).join('')||'<p>لا توجد بيانات كافية بعد.</p>'}</section>
+      <section class="mini-panel parent-panel-v40"><h3>يحتاج متابعة في</h3>${(report.concerns||[]).map(item=>`<p>• ${esc(item)}</p>`).join('')||'<p>لا توجد ملاحظات مقلقة.</p>'}</section>
+      <section class="mini-panel parent-panel-v40 parent-pay-v40"><h3>دفع الشهر</h3><p>${pay?`الحالة: <b>${esc(pay.status==='paid'?'تم الدفع':pay.status==='partial'?'دفع جزئي':'لم يدفع')}</b> · المتبقي: <b>${esc(formatPortalMoney(pay.remainingAmount))}</b>`:'لا توجد حالة دفع مسجلة لهذا الشهر.'}</p></section>
+      <section class="mini-panel parent-panel-v40 parent-notes-v40"><h3>ملاحظات م. عمرو خالد</h3><p>${esc(report.teacherNotes||'لا توجد ملاحظات خاصة بهذا الشهر.')}</p></section>
+    </div><div class="report-footer-v40">مع تحيات م. عمرو خالد — Techno Minds</div></div>`;
+}
+
+async function loadParentMonthlyReport(monthKey){
+  if(!lastParentStudent||!window.MFCloud?.getParentMonthlyReport)return null;
+  const report=await window.MFCloud.getParentMonthlyReport(lastParentStudent.studentCode,monthKey);lastParentMonthlyReport=report;lastParentReportMonth=report.monthKey;
+  const box=document.getElementById('parentResult');if(box)box.innerHTML=parentMonthlyReportHTML(report);hydrateIcons();return report;
+}
+
 async function showParentReportByCode(code){
   const box=document.getElementById('parentResult');
   if(!code){toast('اكتب كود الحساب الموحد'); return;}
@@ -793,6 +853,10 @@ async function showParentReportByCode(code){
   const input=document.querySelector('#parentSearchForm [name="parentCode"]'); if(input) input.value=lastParentStudent.studentCode;
   if(box) box.innerHTML=parentReportHTML(lastParentStudent);
   hydrateIcons();
+  if(window.MFCloud?.getParentMonthlyReport){
+    const cairoDay=Number(new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Cairo',day:'2-digit'}).format(new Date())),current=cairoMonthKey(),initial=lastParentReportMonth||(cairoDay<=7?previousMonthKey(current):current);
+    try{await loadParentMonthlyReport(initial);}catch(error){console.warn('parent-monthly-report-load',error?.code||error?.message||error);}
+  }
 }
 
 async function setupParent(){
@@ -812,12 +876,12 @@ async function setupParent(){
   if(!window.__parentPortalAutoRefreshBound){let lastRefresh=0;const refresh=async()=>{if(document.hidden||!lastParentStudent||Date.now()-lastRefresh<15000)return;lastRefresh=Date.now();try{await showParentReportByCode(lastParentStudent.studentCode);}catch(error){console.warn('parent-portal-background-refresh',error?.code||error?.message||error);}};document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});window.addEventListener('focus',refresh);window.setInterval(refresh,60000);window.__parentPortalAutoRefreshBound=true;}
 }
 
-window.renderParentMonth=function(month){lastParentReportMonth=month;const box=document.getElementById('parentResult');if(box&&lastParentStudent){box.innerHTML=parentReportHTML(lastParentStudent,month);hydrateIcons();}};
+window.renderParentMonth=async function(month){lastParentReportMonth=month;const box=document.getElementById('parentResult');if(!box||!lastParentStudent)return;box.innerHTML='<div class="skeleton" style="height:220px"></div>';try{if(await loadParentMonthlyReport(month))return;}catch(error){toast(firebaseFriendlyError(error,'تعذر تحميل تقرير الشهر.'));}box.innerHTML=parentReportHTML(lastParentStudent,month);hydrateIcons();};
 
 window.copyParentReport = async function(code){
   const st = (lastParentStudent && lastParentStudent.studentCode===code) ? lastParentStudent : (window.MF_FIREBASE_CONFIG?.useSecureFunctions===false ? findStudentByCode(code) : null);
   if(!st) return toast('لم يتم العثور على الطالب');
-  try{await navigator.clipboard.writeText(parentReportText(st,lastParentReportMonth)); toast('تم نسخ التقرير');}
+  try{await navigator.clipboard.writeText(lastParentMonthlyReport?.student?.studentCode===code?parentMonthlyReportText(lastParentMonthlyReport):parentReportText(st,lastParentReportMonth)); toast('تم نسخ التقرير');}
   catch(e){toast('تعذر النسخ، جرّب من متصفح أحدث');}
 };
 
@@ -826,7 +890,7 @@ window.openParentWhatsApp = function(code){
   if(!st) return toast('لم يتم العثور على الطالب');
   const phone = whatsappPhone(st.parentPhone);
   if(!phone) return toast('رقم ولي الأمر غير موجود في بيانات الطالب');
-  window.open(whatsappLink(phone, parentReportText(st,lastParentReportMonth)), '_blank');
+  window.open(whatsappLink(phone,lastParentMonthlyReport?.student?.studentCode===code?parentMonthlyReportText(lastParentMonthlyReport):parentReportText(st,lastParentReportMonth)), '_blank');
 };
 
 window.printParentReport = function(){

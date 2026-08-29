@@ -4,10 +4,9 @@ const APP_SHELL = [
   "/", "/index.html", "/student.html", "/parent.html", "/exams.html", "/materials.html", "/theory-lectures.html", "/questions.html", "/practical.html", "/learning-path.html", "/about.html", "/reviews.html", "/privacy.html",
   "/terms.html", "/offline.html", "/assets/site.css", "/assets/v55.css",
   "/assets/v56.css", "/assets/v60-technominds.css", "/assets/v61-design.css", "/assets/app.js", "/assets/practical.js", "/assets/firebase-sync.js",
-  "/assets/firebase-config.js", "/assets/v53-upgrades.js",
-  "/assets/v56-fixes.js", "/assets/curriculum-student.js",
+  "/assets/firebase-config.js", "/assets/v53-upgrades.js", "/assets/offline-attendance.js", "/assets/curriculum-student.js",
   "/assets/technominds-logo.png", "/assets/technominds-logo.webp",
-  "/assets/amr-khaled-profile.webp", "/site.webmanifest"
+  "/assets/amr-khaled-profile.webp", "/site.webmanifest", "/teacher.webmanifest"
 ];
 const VERSIONED_APP_SHELL=APP_SHELL.map(url=>/\.(?:css|js)$/.test(url)?`${url}?v=${ASSET_VERSION}`:url);
 const SENSITIVE_NAVIGATION=new Set(['/student.html','/parent.html','/exams.html','/materials.html','/theory-lectures.html','/questions.html','/practical.html','/teacher-login.html']);
@@ -61,6 +60,11 @@ self.addEventListener("message", event => {
   if(event.data && event.data.type==="CLEAR_OLD_CACHES") event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE_NAME).map(key=>caches.delete(key)))));
 });
 
+self.addEventListener('sync',event=>{
+  if(event.tag!=='technominds-attendance-sync')return;
+  event.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(windows=>{windows.forEach(client=>client.postMessage({type:'SYNC_OFFLINE_ATTENDANCE'}));}));
+});
+
 self.addEventListener("fetch", event => {
   const request=event.request;
   if(request.method!=="GET") return;
@@ -72,7 +76,14 @@ self.addEventListener("fetch", event => {
       try{
         const response=await fetch(request);
         // Never cache a URL carrying a student/parent access code.
-        if(response.ok && !url.search && !SENSITIVE_NAVIGATION.has(url.pathname)) { const cache=await caches.open(CACHE_NAME);cache.put(url.pathname,response.clone()); }
+        if(response.ok && url.pathname==='/teacher-login.html'){
+          // The teacher shell contains no credentials, so keep the last opened
+          // copy for offline attendance without putting the heavy admin bundle
+          // in the first-install cache.
+          const cache=await caches.open(CACHE_NAME);cache.put('/teacher-login.html',response.clone());
+        }else if(response.ok && !url.search && !SENSITIVE_NAVIGATION.has(url.pathname)){
+          const cache=await caches.open(CACHE_NAME);cache.put(url.pathname,response.clone());
+        }
         return response;
       }catch(_){
         // Query strings such as ?code=12345678 must fall back to the cached

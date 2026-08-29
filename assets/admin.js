@@ -16,6 +16,7 @@ let adminMotivationUnsubscribe = null;
 let adminAcademicListenersReady = false;
 let bookingListenerReady = false;
 let adminRecordsLoadToken = 0;
+let offlineAttendanceSyncTimer = null;
 const bookingActionPending = new Set();
 const acceptedBookingCodes = new Set();
 const classProgressActionPending = new Set();
@@ -102,6 +103,13 @@ function adminActionErrorMessage(error,fallback='تعذر تنفيذ العمل�
   return fallback;
 }
 window.adminActionErrorMessage=adminActionErrorMessage;
+const OFFLINE_STAFF_PROFILE_KEY='tm-offline-staff-profile-v1';
+function cacheOfflineStaffProfile(){if(!currentStaff?.allowed)return;try{localStorage.setItem(OFFLINE_STAFF_PROFILE_KEY,JSON.stringify({uid:currentStaff.uid,email:currentStaff.email,role:currentStaff.role,allowed:true,expiresAt:Date.now()+30*24*60*60*1000}));}catch(_){}}
+function readOfflineStaffProfile(){try{const value=JSON.parse(localStorage.getItem(OFFLINE_STAFF_PROFILE_KEY)||'null');return value?.allowed&&Number(value.expiresAt)>Date.now()?value:null;}catch(_){return null;}}
+async function cacheOfflineAttendanceRoster(){try{if(window.OfflineAttendance&&(adminData.students||[]).length)await window.OfflineAttendance.cacheRoster(adminData.students);}catch(error){console.warn('offline-attendance-roster-cache',error);}}
+async function mergeOfflineAttendanceQueue(){if(!window.OfflineAttendance)return;const queue=await window.OfflineAttendance.getQueue().catch(()=>[]);queue.forEach(row=>{const student=adminData.students.find(item=>String(stCode(item))===String(row.studentCode));if(!student)return;student.attendance=student.attendance||[];const existing=findAttendance(student,row.date),record={studentCode:row.studentCode,studentId:row.studentCode,studentName:row.studentName,grade:row.grade,group:row.group,date:row.date,time:row.scannedAt?new Date(row.scannedAt).toLocaleTimeString('en-GB',{timeZone:'Africa/Cairo',hour:'2-digit',minute:'2-digit',hour12:false}):'',status:row.attendanceStatus||'present',method:'offline_qr_pending',syncStatus:row.status,offlineRequestId:row.requestId,createdAt:row.scannedAt};if(existing)Object.assign(existing,record);else student.attendance.push(record);});}
+async function renderOfflineAttendanceStatus(){const box=document.getElementById('offlineAttendanceStatus');if(!box||!window.OfflineAttendance)return;const counts=await window.OfflineAttendance.counts().catch(()=>({pending:0,failed:0,total:0})),online=navigator.onLine!==false;box.className=`offline-attendance-status ${online?'online':'offline'}`;box.innerHTML=`<div><b>${online?'متصل بالإنترنت':'وضع الحضور دون إنترنت'}</b><small>${counts.pending} ينتظر المزامنة${counts.failed?` · ${counts.failed} يحتاج مراجعة`:''}</small></div><button class="small-btn" type="button" onclick="syncOfflineAttendanceNow()" ${online&&counts.total?'':'disabled'}>مزامنة الآن</button>`;}
+window.syncOfflineAttendanceNow=async function(quiet=false){if(!window.OfflineAttendance||!window.MFCloud?.syncOfflineAttendance||navigator.onLine===false){await renderOfflineAttendanceStatus();return;}clearTimeout(offlineAttendanceSyncTimer);try{const result=await window.OfflineAttendance.sync(events=>window.MFCloud.syncOfflineAttendance(events));await mergeOfflineAttendanceQueue();await renderOfflineAttendanceStatus();if(!quiet&&result.synced)aToast(`تمت مزامنة ${result.synced} سجل حضور`);if(currentSection==='attendance'&&result.synced)renderAttendance();}catch(error){if(!quiet)aToast(adminActionErrorMessage(error,'تعذرت مزامنة الحضور وستتم المحاولة لاحقًا.'));await renderOfflineAttendanceStatus();}};
 // adminData is the in-memory source of truth after login. Re-parsing the full
 // session cache on every render used to freeze slower phones and duplicate work.
 function fresh(){ensureCollections();}
@@ -130,6 +138,8 @@ function newParentCode(){return uniqueAccessCode('PR','parentCode');}
 function isWeakAccessCode(code){return !/^\d{8}$/.test(String(code||''));}
 function adminWhatsAppPhone(v){const d=phoneDigits(v); if(!d) return ''; if(d.startsWith('20')) return d; if(d.startsWith('0')) return '2'+d; return d;}
 function monthlyReportTextForStudent(st){const s=normalizeStudent(st); if(typeof parentReportText==='function') return parentReportText(s); const c=calcStudentAdmin(s); return `تقرير متابعة شهر ${s.month||''}\n\nالطالب: ${s.name}\nالكود: ${s.studentCode}\nالمسار: ${s.grade||'-'}\nالمجموعة: ${s.group||'-'}\n\nالمستوى العام: ${c.final||0}%\nنسبة الحضور: ${c.attendancePct||0}%\nمتوسط الدرجات: ${c.avg||0}%\nحالة الدفع: ${s.paid?'تم الدفع':'لم يتم الدفع'}\n\nملاحظات المدرس:\n${s.notes||'لا توجد ملاحظات حالية.'}`;}
+function adminReportMonthKey(){const context=adminWorkspaceContext(),index=MONTHS.indexOf(context.month),start=Number(String(context.academicYear||'').match(/^\d{4}/)?.[0]);if(index<0||!start)return typeof cairoMonthKey==='function'?cairoMonthKey():new Date().toISOString().slice(0,7);const year=index>=6?start:start+1;return `${year}-${String(index+1).padStart(2,'0')}`;}
+async function loadAccurateMonthlyReport(st){if(!window.MFCloud?.getStudentMonthlyReportAdmin)throw new Error('Monthly report service unavailable');return window.MFCloud.getStudentMonthlyReportAdmin({studentCode:stCode(st),monthKey:adminReportMonthKey()});}
 function issuedCodesText(student){const s=normalizeStudent(student);return `اسم الطالب: ${s.name}\nالكود الموحّد للطالب وولي الأمر: ${s.studentCode}`;}
 window.closeIssuedCodes=function(){document.getElementById('issuedCodesModal')?.remove();};
 window.copyIssuedCodes=async function(){const modal=document.getElementById('issuedCodesModal'),text=modal?.dataset.copyText||'';try{await navigator.clipboard.writeText(text);aToast('تم نسخ الكود الموحّد');}catch(_){prompt('انسخ الكود',text);}};
@@ -165,7 +175,7 @@ async function saveAdminDataNow(){if(!window.MFCloud?.saveSiteData)throw new Err
 async function reloadFromCloud(){
   if(!window.MFCloud?.loadSiteData) return;
   const data = await window.MFCloud.loadSiteData({fast:true});
-  if(data){ adminData = mergeData(data); saveData(adminData); }
+  if(data){ adminData = mergeData(data); saveData(adminData);cacheOfflineStaffProfile();await cacheOfflineAttendanceRoster(); }
   const token=++adminRecordsLoadToken;
   const hydrate=()=>hydrateAdminRecords(token);if(typeof requestIdleCallback==='function')requestIdleCallback(hydrate,{timeout:2500});else setTimeout(hydrate,600);
 }
@@ -186,7 +196,8 @@ async function hydrateAdminRecords(token){
     adminData.students=students;adminData.examAttempts=records.attempts||[];adminData.grades=records.grades||[];
     saveData(adminData);
     const focused=document.activeElement?.matches?.('input,textarea,select');
-    if(document.querySelector('.admin-page')&&!focused&&!document.querySelector('[role="dialog"],.correction-modal-v40'))renderSection();
+    const openEditor=document.querySelector('#examCreatorPanel:not([hidden]),#assignmentFormV6061:not([hidden]),form[data-draft-dirty="true"]');
+    if(document.querySelector('.admin-page')&&!focused&&!openEditor&&!document.querySelector('[role="dialog"],.correction-modal-v40'))renderSection();
   }catch(error){console.warn('admin-records-background-load',error);}
 }
 
@@ -225,6 +236,7 @@ function adminLogin(){
       await window.MFCloud.signIn(email,pass);
       currentStaff = await window.MFCloud.getCurrentStaffProfile();
       if(!currentStaff?.allowed){ await window.MFCloud.signOut?.(); unauthorized('غير مصرح لك بالدخول.'); return; }
+      cacheOfflineStaffProfile();window.__adminOfflineMode=false;
       await reloadFromCloud();
       renderAdmin();
       aToast('تم الدخول إلى لوحة الإدارة');
@@ -239,10 +251,17 @@ async function tryRestoreSession(){
     try{
       currentStaff = await window.MFCloud.getCurrentStaffProfile();
       if(currentStaff?.allowed){
+        cacheOfflineStaffProfile();
         if(!document.querySelector('.admin-page')){ await reloadFromCloud(); renderAdmin(); }
       }else { await window.MFCloud.signOut?.(); unauthorized(); }
-    }catch(e){ await window.MFCloud.signOut?.(); unauthorized(); }
+    }catch(e){if(navigator.onLine===false){await tryOfflineStaffWorkspace();return;}await window.MFCloud.signOut?.();unauthorized();}
   });
+}
+
+async function tryOfflineStaffWorkspace(){
+  if(navigator.onLine!==false||document.querySelector('.admin-page')||!window.OfflineAttendance)return;
+  const profile=readOfflineStaffProfile(),roster=await window.OfflineAttendance.getRoster().catch(()=>[]);if(!profile||!roster.length)return;
+  currentStaff=profile;window.__adminOfflineMode=true;adminData=mergeData({...adminData,students:roster.map(row=>({...row,attendance:[],grades:[],homeworks:[],recitations:[]}))});await mergeOfflineAttendanceQueue();currentSection='attendance';renderAdmin();aToast('تم فتح الحضور دون إنترنت؛ ستتم المزامنة عند عودة الاتصال.');
 }
 
 function adminSectionName(id){return adminSections.find(([sectionId])=>sectionId===id)?.[2]||'الرئيسية';}
@@ -343,6 +362,7 @@ function renderAdmin(){
           <button class="btn ghost" type="button" onclick="location.href='index.html'"><span data-icon="external-link"></span><span>معاينة الموقع</span></button>
         </div>
       </header>
+      ${window.__adminOfflineMode?'<div class="admin-offline-banner"><b>وضع الحضور دون إنترنت</b><span>سيتم رفع عمليات المسح تلقائيًا عند عودة الاتصال.</span></div>':''}
       ${adminWorkspaceBar()}
       <div id="adminContent"></div>
     </main>
@@ -357,8 +377,12 @@ function renderAdmin(){
   renderSection();
   syncAdminChrome();
   hydrateIcons();
-  startBookingNotifications();
-  startAdminLiveData();
+  if(navigator.onLine!==false&&!window.__adminOfflineMode){startBookingNotifications();startAdminLiveData();}
+  setTimeout(()=>{mergeOfflineAttendanceQueue().then(()=>renderOfflineAttendanceStatus());if(navigator.onLine!==false)syncOfflineAttendanceNow(true);},0);
+  if(navigator.onLine!==false&&!window.__adminQrOfflinePrepared){
+    window.__adminQrOfflinePrepared=true;
+    setTimeout(()=>window.MFAssets?.loadQrScanner?.().catch(()=>{window.__adminQrOfflinePrepared=false;}),2000);
+  }
 }
 
 window.enableBookingNotifications=async function(){if(!('Notification' in window))return aToast('المتصفح لا يدعم إشعارات الهاتف');if(!confirm('سيطلب المتصفح إذنًا لإظهار تنبيه عند وصول حجز جديد، حتى لو كانت اللوحة مغلقة. متابعة؟'))return;const permission=await Notification.requestPermission();if(permission!=='granted')return aToast('لم يتم منح إذن الإشعارات. يمكنك تغييره من إعدادات الموقع');localStorage.setItem('mf-booking-notifications','1');startBookingNotifications();try{await window.MFCloud?.registerTeacherPushToken?.();aToast('تم تفعيل تنبيهات الحجز في الخلفية');}catch(error){const raw=`${error?.code||''} ${error?.message||''}`;aToast(/VAPID_KEY_REQUIRED/.test(raw)?'يلزم إضافة مفتاح Web Push العام في firebase-config.js أولًا':'التنبيهات داخل اللوحة تعمل، وتعذر تفعيل Push في الخلفية');}};
@@ -401,7 +425,7 @@ function bindNav(){
     window.__adminEscapeBound=true;
   }
 }
-window.adminLogout=async function(){try{bookingNotificationUnsubscribe?.();adminGroupsUnsubscribe?.();adminStudentsUnsubscribe?.();adminTransferRequestsUnsubscribe?.();adminHomeworkSubmissionsUnsubscribe?.();adminExamAttemptsUnsubscribe?.();adminMotivationUnsubscribe?.();window.stopMonthlyPaymentListeners?.();await window.MFCloud?.unregisterTeacherPushToken?.();await window.MFCloud?.signOut?.();}catch(e){} location.reload();};
+window.adminLogout=async function(){try{localStorage.removeItem(OFFLINE_STAFF_PROFILE_KEY);bookingNotificationUnsubscribe?.();adminGroupsUnsubscribe?.();adminStudentsUnsubscribe?.();adminTransferRequestsUnsubscribe?.();adminHomeworkSubmissionsUnsubscribe?.();adminExamAttemptsUnsubscribe?.();adminMotivationUnsubscribe?.();window.stopMonthlyPaymentListeners?.();await window.MFCloud?.unregisterTeacherPushToken?.();await window.MFCloud?.signOut?.();}catch(e){}location.reload();};
 window.forceFirestoreSync=async function(){const button=document.getElementById('adminSaveButton'),label=button?.querySelector('.admin-save-label');if(button?.disabled)return;try{if(!window.MFCloud?.saveSiteData)throw new Error('Sync service unavailable');if(button)button.disabled=true;if(label)label.textContent='جارٍ الحفظ…';await window.MFCloud.saveSiteData(adminData);saveData(adminData);if(label)label.textContent='تم الحفظ';aToast('تم حفظ جميع التغييرات');setTimeout(()=>{if(label)label.textContent='حفظ التغييرات';},1600);}catch(error){if(label)label.textContent='إعادة المحاولة';aToast(adminActionErrorMessage(error,'تعذر حفظ التغييرات.'));}finally{if(button)button.disabled=false;}};
 
 function stats(){fresh(); const today=isoDateAdmin(); const att=(adminData.students||[]).filter(s=>(s.attendance||[]).some(a=>String(a.date)===today&&a.status==='present')).length; const bookings=adminData.bookings.filter(b=>!String(b.status||'').includes('تم القبول')).length; return {students:adminData.students.length,bookings,unpaid:adminData.students.filter(s=>!s.paid).length,att};}
@@ -427,8 +451,8 @@ window.closeStudentGroupMove=function(){document.getElementById('studentGroupMov
 window.confirmStudentGroupMove=async function(code){const student=adminData.students.find(item=>stCode(item)===String(code)),select=document.getElementById('studentGroupMoveSelect');if(!student||!select)return;const group=(adminData.groups||[]).find(item=>String(item.id)===String(select.value));Object.assign(student,{group:group?.name||'',groupId:group?.id||'',scheduleId:group?.id||'',scheduleDays:group?.days||'',scheduleStartTime:group?.startTime||'',scheduleEndTime:group?.endTime||'',groupAssignmentPending:!group});try{await window.MFCloud?.saveStudent?.(student);persist(group?'تم نقل الطالب إلى المجموعة':'تم حفظ الطالب بدون مجموعة');closeStudentGroupMove();renderStudents();}catch(error){aToast(adminActionErrorMessage(error,'تعذر حفظ المجموعة الجديدة.'));}};
 window.deleteStudent=async function(code){code=String(code||'');if(studentDeletionPending.has(code)||!confirm('سيتم إنشاء نسخة استرجاع ثم حذف الطالب وكل بياناته. متابعة؟'))return;const student=adminData.students.find(s=>stCode(s)===code);studentDeletionPending.add(code);try{const result=await window.MFCloud?.deleteStudentSafely?.(student||{studentCode:code});if(!result?.ok)throw new Error('تعذر تأكيد الحذف');adminData.students=adminData.students.filter(s=>stCode(s)!==code);saveData(adminData);aToast(result.backupMode==='browser'?'تم تنزيل نسخة استرجاع وحذف الطالب':'تم حفظ نسخة استرجاع وحذف الطالب');renderStudents();}catch(error){aToast(adminActionErrorMessage(error,'تعذر حذف الطالب بأمان، ولم يتم حذفه من القائمة.'));}finally{studentDeletionPending.delete(code);}};
 window.printStudentReport=async function(code){const s=adminData.students.find(x=>stCode(x)===code);if(!s)return;let enriched=normalizeStudent(s);try{const history=await window.MFCloud?.getStudentPaymentHistory?.(code);if(history)enriched={...enriched,monthlyPayments:history.summaries||[],paymentTransactions:history.transactions||[]};}catch(error){aToast('تعذر تحميل سجل الدفع؛ سيتم فتح باقي ملف الطالب');}const w=window.open('','_blank');if(!w)return aToast('اسمح بفتح النافذة لعرض ملف الطالب');w.document.write(`<html dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>تقرير ${safe(stName(s))}</title><link rel="stylesheet" href="assets/site.css"><link rel="stylesheet" href="assets/v60-technominds.css"><link rel="stylesheet" href="assets/v61-design.css"></head><body><main class="section"><div class="container">${studentProfileHTML(enriched,true)}</div></main></body></html>`);w.document.close();};
-window.sendParentMonthlyReport=function(code){const s=adminData.students.find(x=>stCode(x)===code); if(!s)return aToast('لم يتم العثور على الطالب'); const phone=adminWhatsAppPhone(s.parentPhone); if(!phone)return aToast('رقم ولي الأمر غير موجود'); window.open(whatsappLink(phone, monthlyReportTextForStudent(s)),'_blank');};
-window.copyParentMonthlyReport=function(code){const s=adminData.students.find(x=>stCode(x)===code); if(!s)return aToast('لم يتم العثور على الطالب'); navigator.clipboard?.writeText(monthlyReportTextForStudent(s)).then(()=>aToast('تم نسخ التقرير')).catch(()=>aToast('تعذر النسخ'));};
+window.sendParentMonthlyReport=async function(code){const s=adminData.students.find(x=>stCode(x)===code);if(!s)return aToast('لم يتم العثور على الطالب');const phone=adminWhatsAppPhone(s.parentPhone);if(!phone)return aToast('رقم ولي الأمر غير موجود');aToast('جاري تجهيز تقرير الشهر من السجل الكامل…');try{const report=await loadAccurateMonthlyReport(s),message=typeof parentMonthlyReportText==='function'?parentMonthlyReportText(report):monthlyReportTextForStudent(s);window.open(whatsappLink(phone,message),'_blank','noopener');}catch(error){aToast(adminActionErrorMessage(error,'تعذر تجهيز التقرير الدقيق، ولم يتم فتح رسالة ناقصة.'));}};
+window.copyParentMonthlyReport=async function(code){const s=adminData.students.find(x=>stCode(x)===code);if(!s)return aToast('لم يتم العثور على الطالب');try{const report=await loadAccurateMonthlyReport(s),message=typeof parentMonthlyReportText==='function'?parentMonthlyReportText(report):monthlyReportTextForStudent(s);await navigator.clipboard.writeText(message);aToast('تم نسخ التقرير الشهري الدقيق');}catch(error){aToast(adminActionErrorMessage(error,'تعذر تجهيز أو نسخ التقرير.'));}};
 
 window.copyStudentCodes=async function(code){
   const raw=adminData.students.find(x=>stCode(x)===code);if(!raw)return aToast('لم يتم العثور على الطالب');const s=normalizeStudent(raw);
@@ -528,8 +552,18 @@ function attendanceSelectedDateLabel(){
   const day=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'][parsed.getUTCDay()]||'';
   return `${day} · ${attendanceDate}`;
 }
-async function saveAttendanceRecord(st,status,method,attendanceCode=''){st.attendance=st.attendance||[];const before=st.attendance.map(item=>({...item})),record=attendanceRecord(st,status,method),existing=findAttendance(st,attendanceDate);if(existing)Object.assign(existing,record);else st.attendance.push(record);saveData(adminData);try{const saved=method==='qr_scan'?await window.MFCloud?.recordAttendanceByQr?.(attendanceCode,attendanceDate):await window.MFCloud?.upsertAttendance?.(record);if(!saved?.id)throw new Error('تعذر تأكيد حفظ الحضور');return saved;}catch(error){st.attendance=before;saveData(adminData);throw error;}}
-async function registerQrAttendance(code){fresh();const scanned=String(code||'').trim().toUpperCase();const st=adminData.students.map(normalizeStudent).find(s=>String(s.attendanceCode||(!s.attendanceCode?s.studentCode:'')).trim().toUpperCase()===scanned);if(!st){aToast('رمز الحضور غير صحيح أو لم يتم ترحيل حساب الطالب بعد.');return;}const original=adminData.students.find(s=>stCode(s)===st.studentCode);const allowed=attendanceDayAllowed(original);if(!allowed.ok){aToast(allowed.message);return;}const existing=findAttendance(original,attendanceDate);if(existing?.status==='present'){aToast('الطالب مسجل حضور بالفعل اليوم.');return;}try{await saveAttendanceRecord(original,'present','qr_scan',scanned);aToast(`تم تسجيل حضور ${st.name}`);}catch(error){aToast(adminActionErrorMessage(error,'تعذر تسجيل الحضور.'));}renderAttendance();}
+function attendanceCanQueueOffline(error){return navigator.onLine===false||/network|offline|unavailable|failed to fetch|deadline-exceeded/i.test(`${error?.code||''} ${error?.message||''}`);}
+async function saveAttendanceRecord(st,status,method,attendanceCode=''){
+  st.attendance=st.attendance||[];const before=st.attendance.map(item=>({...item})),record=attendanceRecord(st,status,method),existing=findAttendance(st,attendanceDate);if(existing)Object.assign(existing,record);else st.attendance.push(record);saveData(adminData);
+  try{const saved=method==='qr_scan'?await window.MFCloud?.recordAttendanceByQr?.(attendanceCode,attendanceDate):await window.MFCloud?.upsertAttendance?.(record);if(!saved?.id)throw new Error('تعذر تأكيد حفظ الحضور');return saved;}
+  catch(error){
+    if(method==='qr_scan'&&window.OfflineAttendance&&attendanceCanQueueOffline(error)){
+      const queued=await window.OfflineAttendance.enqueue({studentCode:record.studentCode,attendanceCode,studentName:record.studentName,grade:record.grade,group:record.group,scheduleId:st.scheduleId||st.groupId||'',date:record.date,attendanceStatus:status,scannedAt:record.createdAt});record.method='offline_qr_pending';record.syncStatus='pending';record.offlineRequestId=queued.requestId;if(existing)Object.assign(existing,record);saveData(adminData);await renderOfflineAttendanceStatus();return {...record,id:`offline-${queued.requestId}`,offlinePending:true};
+    }
+    st.attendance=before;saveData(adminData);throw error;
+  }
+}
+async function registerQrAttendance(code){fresh();const scanned=String(code||'').trim().toUpperCase();const st=adminData.students.map(normalizeStudent).find(s=>String(s.attendanceCode||(!s.attendanceCode?s.studentCode:'')).trim().toUpperCase()===scanned);if(!st){aToast('رمز الحضور غير صحيح أو غير موجود في قائمة الطلاب المحفوظة.');return;}const original=adminData.students.find(s=>stCode(s)===st.studentCode);const allowed=attendanceDayAllowed(original);if(!allowed.ok){aToast(allowed.message);return;}const existing=findAttendance(original,attendanceDate);if(existing?.status==='present'){aToast(existing.syncStatus==='pending'?'الحضور محفوظ على الهاتف وينتظر المزامنة.':'الطالب مسجل حضور بالفعل اليوم.');return;}try{const saved=await saveAttendanceRecord(original,'present','qr_scan',scanned);aToast(saved.offlinePending?`تم حفظ حضور ${st.name} على الهاتف`:`تم تسجيل حضور ${st.name}`);}catch(error){aToast(adminActionErrorMessage(error,'تعذر تسجيل الحضور.'));}renderAttendance();}
 window.quickPresent=function(code){attendanceDate=isoDateAdmin(); registerQrAttendance(code);};
 window.markAbsentForMissing=async function(){fresh();const grade=selectedGrade(),group=selectedGroup();if(grade==='all'||group==='all')return aToast('اختر الصف والمجموعة قبل إنهاء الحضور.');const students=filterStudents(grade,group);if(!students.length)return aToast('لا يوجد طلاب في هذه المجموعة.');const allowed=attendanceDayAllowed(students[0]);if(!allowed.ok)return aToast(allowed.message);if(!confirm('تأكيد إنهاء الحضور وتسجيل كل طالب لم يُمسح QR الخاص به غائبًا؟'))return;const scheduleId=String(students[0].scheduleId||students[0].groupId||'');try{if(!window.MFCloud?.bulkMarkAttendance)throw new Error('Bulk attendance service unavailable');const result=await window.MFCloud.bulkMarkAttendance({date:attendanceDate,grade,group,scheduleId});students.forEach(st=>{const original=adminData.students.find(item=>stCode(item)===st.studentCode);if(original&&!findAttendance(original,attendanceDate)){original.attendance=original.attendance||[];original.attendance.push(attendanceRecord(original,'absent','bulk_absent'));}});saveData(adminData);aToast(result.saved?`تم تسجيل غياب ${result.saved} طالب في عملية واحدة`:'كل الطلاب لديهم حالة مسجلة لهذا اليوم');renderAttendance();}catch(error){aToast(adminActionErrorMessage(error,'تعذر تسجيل الغياب الجماعي. لم تُحفظ تغييرات جزئية.'));}};
 function todayAttendanceRows(){const grade=selectedGrade(), group=selectedGroup(); return filterStudents(grade,group).flatMap(st=>(st.attendance||[]).filter(a=>String(a.date)===attendanceDate).map(a=>({...a,studentName:st.name,studentCode:st.studentCode,grade:st.grade,group:st.group})));}
@@ -541,7 +575,7 @@ function attendanceRosterHTML(){
     return `<article class="attendance-student ${status||'pending'}">
       <span class="student-avatar">${safe(String(st.name||'ط').trim().charAt(0))}</span>
       <div><b>${safe(st.name)}</b><small>${safe(st.studentCode)} · ${safe(st.group||'-')}</small><small>${recited?'✓ سمّع':'لم يسمّع'} · ${homework?'✓ عمل الواجب':'لم يعمل الواجب'}</small><small class="${allowed.ok?'':'attendance-schedule-warning'}">${safe(scheduleHint)}</small></div>
-      <span class="badge ${status?badgeStatus(status):'warn'}">${status==='present'?'حاضر':status==='absent'?'غائب':'لم يسجل'}</span>
+      <span class="badge ${status?badgeStatus(status):'warn'}">${status==='present'?(record?.syncStatus==='pending'?'حاضر · ينتظر الرفع':'حاضر'):status==='absent'?'غائب':'لم يسجل'}</span>
       <div class="attendance-row-actions class-progress-actions">
         <button class="small-btn primary" ${allowed.ok?'':`disabled title="${safe(scheduleHint)}"`} onclick="setAttendanceStatus('${safe(st.studentCode)}','present')">حاضر</button>
         <button class="small-btn danger" ${allowed.ok?'':`disabled title="${safe(scheduleHint)}"`} onclick="setAttendanceStatus('${safe(st.studentCode)}','absent')">غائب</button>
@@ -786,6 +820,7 @@ function renderAttendance(){
       <button class="btn ghost" onclick="markAbsentForMissing()"><span data-icon="calendar"></span> إنهاء الحضور وتسجيل الباقي غياب</button>
       ${isToday?'':`<button class="btn ghost" type="button" onclick="attendanceDate=isoDateAdmin();renderAttendance();"><span data-icon="calendar"></span> العودة لليوم</button>`}
     </div>
+    <div id="offlineAttendanceStatus" class="offline-attendance-status" aria-live="polite"><div><b>جاري فحص حالة الاتصال…</b><small>يمكن مسح QR دون إنترنت بعد تنزيل قائمة الطلاب.</small></div></div>
   </div>
   <div class="attendance-summary-card card">${attendanceReportHTML()}</div>
   <div class="card attendance-roster-card"><div class="profile-top"><div><h3>طلاب المجموعة</h3><p class="section-desc">الأزرار المعلّمة بعلامة ✓ محفوظة في ملف الطالب لنفس تاريخ الحصة. أزرار الحضور تتوقف تلقائيًا إذا كان التاريخ خارج موعد المجموعة.</p></div></div>${attendanceRosterHTML()}</div>
@@ -797,13 +832,13 @@ function renderAttendance(){
   if(date)date.onchange=()=>{attendanceDate=date.value||isoDateAdmin();renderAttendance();};
   if(gd)gd.onchange=()=>{sessionStorage.setItem('attGrade',gd.value);renderAttendance();};
   if(gr)gr.onchange=()=>{sessionStorage.setItem('attGroup',gr.value);renderAttendance();};
-  hydrateIcons();
+  renderOfflineAttendanceStatus();hydrateIcons();
 }
 function examBuilderCard(index){return `<article class="exam-builder-question" data-exam-question><div class="exam-question-head"><b>السؤال <span data-question-number>${index+1}</span></b><button class="small-btn danger" type="button" onclick="removeExamQuestion(this)">حذف</button></div><div class="exam-meta-grid"><div class="field"><label>نوع السؤال</label><select data-question-type onchange="updateExamQuestionType(this)"><option value="mcq">اختياري</option><option value="truefalse">صح أو غلط</option><option value="essay">مقالي</option><option value="code">كتابة كود</option></select></div><div class="field"><label>درجة السؤال</label><input data-question-mark type="number" min="0.25" step="0.25" value="1" required oninput="updateExamTotal()"></div></div><div class="field"><label>نص السؤال</label><textarea data-question-text rows="2" required placeholder="اكتب السؤال هنا"></textarea></div><div data-auto-answer><div class="exam-options-grid">${['أ','ب','ج','د'].map((label,i)=>`<label><span>${label}</span><input data-question-option="${i}" required placeholder="الإجابة ${label}"></label>`).join('')}</div><div class="field correct-answer-field"><label>الإجابة الصحيحة</label><select data-correct-answer required><option value="">اختار الإجابة الصحيحة</option>${['أ','ب','ج','د'].map(label=>`<option value="${label}">${label}</option>`).join('')}</select></div></div><div class="field" data-model-answer hidden><label>إجابة نموذجية اختيارية للمدرس</label><textarea data-question-model rows="2"></textarea></div><button class="btn ghost add-question-under" type="button" onclick="addExamQuestionAfter(this)">+ إضافة سؤال تحت ده</button></article>`;}
 function renumberExamQuestions(){document.querySelectorAll('[data-exam-question]').forEach((card,index)=>{const number=card.querySelector('[data-question-number]');if(number)number.textContent=index+1;});}
 window.addExamQuestion=function(){const list=document.getElementById('examQuestionsBuilder');if(!list)return;list.insertAdjacentHTML('beforeend',examBuilderCard(list.children.length));renumberExamQuestions();list.lastElementChild?.scrollIntoView({behavior:'smooth',block:'center'});};
 window.addExamQuestionAfter=function(button){const card=button.closest('[data-exam-question]');card?.insertAdjacentHTML('afterend',examBuilderCard(0));renumberExamQuestions();card?.nextElementSibling?.scrollIntoView({behavior:'smooth',block:'center'});};
-window.updateExamQuestionType=function(select){const card=select.closest('[data-exam-question]'),type=select.value,auto=card.querySelector('[data-auto-answer]'),model=card.querySelector('[data-model-answer]'),inputs=[...card.querySelectorAll('[data-question-option]')],answer=card.querySelector('[data-correct-answer]');auto.hidden=type==='essay'||type==='code';model.hidden=!auto.hidden;inputs.forEach((input,index)=>{input.required=!auto.hidden;if(type==='truefalse'){input.value=index===0?'صح':index===1?'غلط':'';input.closest('label').hidden=index>1;}else input.closest('label').hidden=false;});answer.required=!auto.hidden;if(type==='truefalse'){answer.innerHTML='<option value="">حدد الإجابة</option><option value="أ">صح</option><option value="ب">غلط</option>';}else answer.innerHTML='<option value="">اختار الإجابة الصحيحة</option>'+['أ','ب','ج','د'].map(label=>`<option value="${label}">${label}</option>`).join('');};
+window.updateExamQuestionType=function(select){const card=select.closest('[data-exam-question]'),type=select.value,auto=card.querySelector('[data-auto-answer]'),model=card.querySelector('[data-model-answer]'),inputs=[...card.querySelectorAll('[data-question-option]')],answer=card.querySelector('[data-correct-answer]');auto.hidden=type==='essay'||type==='code';model.hidden=!auto.hidden;inputs.forEach((input,index)=>{const hidden=type==='truefalse'&&index>1;input.closest('label').hidden=hidden;input.required=!auto.hidden&&!hidden;if(type==='truefalse')input.value=index===0?'صح':index===1?'غلط':'';});answer.required=!auto.hidden;if(type==='truefalse'){answer.innerHTML='<option value="">حدد الإجابة</option><option value="أ">صح</option><option value="ب">غلط</option>';}else answer.innerHTML='<option value="">اختار الإجابة الصحيحة</option>'+['أ','ب','ج','د'].map(label=>`<option value="${label}">${label}</option>`).join('');};
 window.updateExamTotal=function(){const total=[...document.querySelectorAll('[data-question-mark]')].reduce((sum,input)=>sum+(Number(input.value)||0),0),output=document.getElementById('examCalculatedTotal');if(output)output.textContent=total;return total;};
 window.removeExamQuestion=function(button){const list=document.getElementById('examQuestionsBuilder');if(!list)return;if(list.children.length===1)return aToast('لازم الامتحان يحتوي على سؤال واحد على الأقل');button.closest('[data-exam-question]')?.remove();renumberExamQuestions();};
 function serializeExamQuestions(){const cards=[...document.querySelectorAll('[data-exam-question]')];return cards.map(card=>{const question=card.querySelector('[data-question-text]')?.value.trim(),type=card.querySelector('[data-question-type]')?.value||'mcq',mark=Number(card.querySelector('[data-question-mark]')?.value||1),options=[...card.querySelectorAll('[data-question-option]')].filter(input=>!input.closest('label').hidden).map(input=>input.value.trim()),answer=card.querySelector('[data-correct-answer]')?.value,model=card.querySelector('[data-question-model]')?.value.trim();if(!question||!mark)return null;if(type==='mcq'||type==='truefalse'){if(options.length<2||options.some(value=>!value)||!answer)return null;return `${question}\nالنوع: ${type}\nالدرجة: ${mark}\n${options.map((value,i)=>`${['أ','ب','ج','د'][i]}) ${value}`).join('\n')}\nالإجابة: ${answer}`;}return `${question}\nالنوع: ${type}\nالدرجة: ${mark}${model?`\nالنموذج: ${model}`:''}`;}).filter(Boolean).join('\n\n');}
@@ -836,5 +871,5 @@ function renderSection(){({overview:renderOverview,operations:()=>window.renderO
 function exportCSV(name, rows){const csv=rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'})); a.download=name; a.click();}
 window.exportBookingsCSV=function(){exportCSV('bookings.csv',[['code','name','grade','month','group','parentPhone','status'],...adminData.bookings.map(b=>[b.code,b.name,b.grade,b.month,b.group,b.parentPhone,b.status])]);};
 
-function initAdmin(){const requested=new URLSearchParams(location.search).get('section');if(adminSections.some(([id])=>id===requested))currentSection=requested;setupTheme(); hydrateIcons(); adminLogin(); tryRestoreSession();}
+function initAdmin(){const requested=new URLSearchParams(location.search).get('section');if(adminSections.some(([id])=>id===requested))currentSection=requested;setupTheme();hydrateIcons();adminLogin();tryRestoreSession();tryOfflineStaffWorkspace();if(!window.__offlineAttendanceEventsBound){window.addEventListener('online',()=>{window.__adminOfflineMode=false;syncOfflineAttendanceNow();});window.addEventListener('offline',()=>{window.__adminOfflineMode=true;renderOfflineAttendanceStatus();});navigator.serviceWorker?.addEventListener?.('message',event=>{if(event.data?.type==='SYNC_OFFLINE_ATTENDANCE')syncOfflineAttendanceNow(true);});window.__offlineAttendanceEventsBound=true;}}
 document.addEventListener('DOMContentLoaded',initAdmin);
