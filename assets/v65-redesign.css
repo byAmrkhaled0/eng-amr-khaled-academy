@@ -34,3 +34,5 @@ html[data-theme='dark'] .hero-sub,html[data-theme='dark'] .page-hero .hero-sub{c
 html[data-theme='dark'] .page-hero{background:linear-gradient(135deg,#0d2038,#102a49 54%,#0c2634)!important;border-color:#29445f}
 @media(min-width:901px) and (max-width:1450px){.navlinks a[href="about.html"],.navlinks a[href="practical.html"],.navlinks a[href="index.html#booking"],.navlinks a[href="theory-lectures.html"]{display:none!important}.navlinks a{font-size:.82rem!important;padding-inline:10px!important}}
 @media(max-width:800px){.page-hero{padding:30px 0 16px!important}.page-hero .hero-title{font-size:2.15rem!important}.hero-grid{padding-block:26px}.login-page{padding:18px!important}.login-card{margin-block:10px}}
+html:not([data-theme='dark']) .hero .btn.ghost{background:#102943!important;color:#fff!important;border-color:#193b5f!important;box-shadow:0 8px 20px rgba(16,41,67,.12)!important}
+html:not([data-theme='dark']) .hero .btn.ghost:hover{background:#173b61!important;color:#fff!important;border-color:#255683!important}

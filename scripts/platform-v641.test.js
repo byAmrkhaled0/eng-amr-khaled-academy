@@ -98,7 +98,7 @@ test('new students only receive homework and exams published after joining',()=>
   assert.match(backend,/exam\.archived!==true[^\n]+contentAvailableAfterStudentJoined\(exam,found\.data\)/);
   assert.match(app,/scheduleState\|\|'open'\)!=='inactive'/);
   assert.match(css,/#examCodeForm,#examStudentResult\{grid-column:1\/-1\}/);
-  for(const page of ['index.html','student.html','parent.html','exams.html','teacher-login.html'])assert.match(read(page),/v65-redesign\.css\?v=65\.0\.2/);
+  for(const page of ['index.html','student.html','parent.html','exams.html','teacher-login.html'])assert.match(read(page),/v65-redesign\.css\?v=65\.0\.3/);
 });
 
 test('live audit fixes health GET contrast and first paint',()=>{
@@ -106,6 +106,7 @@ test('live audit fixes health GET contrast and first paint',()=>{
   assert.match(backend,/exports\.getPlatformHealthHttp = onRequest/);
   assert.ok(vercel.rewrites.some(item=>item.source==='/api/health'&&item.destination.includes('getPlatformHealthHttp')));
   assert.match(css,/\.tm-reveal\{opacity:1!important/);assert.match(css,/\.page-hero \.hero-title\{color:#10233f!important/);
+  assert.match(css,/html:not\(\[data-theme='dark'\]\) \.hero \.btn\.ghost\{background:#102943!important/);
 });
 
 test('finished class exams register missing students as absent in admin and parent reports',()=>{
