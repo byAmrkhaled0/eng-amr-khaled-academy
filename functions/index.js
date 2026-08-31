@@ -5,7 +5,7 @@ const zlib = require('zlib');
 const admin = require('firebase-admin');
 const { version: PLATFORM_VERSION } = require('./package.json');
 const { money, paymentStatus, paymentTotals } = require('./payment-domain');
-const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { setGlobalOptions } = require('firebase-functions/v2/options');
@@ -4107,7 +4107,7 @@ exports.getCodeLanguages = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 15 }, a
 // performs real Admin SDK reads so a green response proves that Functions and
 // Firestore are connected. Only capability flags are returned; no records or
 // configuration values are exposed.
-exports.getPlatformHealth = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 15 }, async () => {
+async function platformHealthPayload() {
   await Promise.all([
     db.collection('settings').doc('platform').get(),
     db.collection('groups').limit(1).get()
@@ -4129,6 +4129,18 @@ exports.getPlatformHealth = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 15 }, 
       codeRunner: codeRunnerConfigured ? 'configured' : 'default-provider-unverified'
     }
   };
+}
+
+exports.getPlatformHealth = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 15 }, platformHealthPayload);
+
+// Browser/Vercel health endpoint. Callable functions require a Firebase POST
+// envelope, so a dedicated HTTP function is used for ordinary GET monitoring.
+exports.getPlatformHealthHttp = onRequest({ region:'europe-west1', timeoutSeconds:15, memory:'256MiB', invoker:'public' }, async (request,response) => {
+  response.set('Cache-Control','no-store');
+  response.set('Content-Type','application/json; charset=utf-8');
+  if(!['GET','HEAD'].includes(request.method))return response.status(405).json({status:'error',message:'Method Not Allowed'});
+  try{return response.status(200).json(await platformHealthPayload());}
+  catch(error){console.error('platform-health-http',error);return response.status(503).json({status:'error',firestore:false});}
 });
 
 exports.submitCodeExecution = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 30, memory: '256MiB' }, async request => {

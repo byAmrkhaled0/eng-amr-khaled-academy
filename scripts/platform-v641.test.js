@@ -98,7 +98,14 @@ test('new students only receive homework and exams published after joining',()=>
   assert.match(backend,/exam\.archived!==true[^\n]+contentAvailableAfterStudentJoined\(exam,found\.data\)/);
   assert.match(app,/scheduleState\|\|'open'\)!=='inactive'/);
   assert.match(css,/#examCodeForm,#examStudentResult\{grid-column:1\/-1\}/);
-  for(const page of ['index.html','student.html','parent.html','exams.html','teacher-login.html'])assert.match(read(page),/v65-redesign\.css\?v=65\.0\.1/);
+  for(const page of ['index.html','student.html','parent.html','exams.html','teacher-login.html'])assert.match(read(page),/v65-redesign\.css\?v=65\.0\.2/);
+});
+
+test('live audit fixes health GET contrast and first paint',()=>{
+  const backend=read('functions/index.js'),vercel=JSON.parse(read('vercel.json')),css=read('assets/v65-redesign.css');
+  assert.match(backend,/exports\.getPlatformHealthHttp = onRequest/);
+  assert.ok(vercel.rewrites.some(item=>item.source==='/api/health'&&item.destination.includes('getPlatformHealthHttp')));
+  assert.match(css,/\.tm-reveal\{opacity:1!important/);assert.match(css,/\.page-hero \.hero-title\{color:#10233f!important/);
 });
 
 test('finished class exams register missing students as absent in admin and parent reports',()=>{

@@ -52,6 +52,6 @@ test('all static routes and Vercel API rewrites point to existing targets', () =
   assert.equal(routes.length, 16);
   routes.forEach(route => assert.equal(fs.existsSync(path.join(root, route)), true, `missing route ${route}`));
   assert.equal(vercel.outputDirectory, 'dist');
-  assert.ok(vercel.rewrites.some(item => item.source === '/api/health' && item.destination.includes('getPlatformHealth')));
+  assert.ok(vercel.rewrites.some(item => item.source === '/api/health' && item.destination.includes('getPlatformHealthHttp')));
   assert.ok(vercel.rewrites.some(item => item.source === '/api/booking/create' && item.destination.includes('createBooking')));
 });

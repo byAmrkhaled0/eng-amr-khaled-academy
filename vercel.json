@@ -5,7 +5,7 @@
   "installCommand": "npm install --ignore-scripts",
   "cleanUrls": false,
   "rewrites": [
-    {"source":"/api/health","destination":"https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/getPlatformHealth"},
+    {"source":"/api/health","destination":"https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/getPlatformHealthHttp"},
     {"source":"/api/booking/create","destination":"https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/createBooking"},
     {"source":"/api/resources/student","destination":"https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/getStudentResources"},
     {"source":"/api/code/getCodeLanguages","destination":"https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/getCodeLanguages"},
