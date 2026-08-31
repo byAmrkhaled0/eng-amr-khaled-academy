@@ -31,9 +31,41 @@ function uniqueScoredRows(grades=[],examAttempts=[]){
   return [...rows.values()];
 }
 
+function normalizedAttendanceRows(rows=[]){
+  const sessions=new Map();
+  (rows||[]).forEach((row,index)=>{
+    const date=String(row?.date||row?.createdAt||'').slice(0,10);
+    let status=String(row?.status||'').trim();
+    if(['حاضر','متأخر','late'].includes(status))status='present';
+    if(status==='غائب')status='absent';
+    if(!date||!['present','absent'].includes(status))return;
+    const key=String(row?.sessionId||row?.sessionKey||row?.id||`${date}:${row?.time||''}:${row?.scheduleId||row?.group||''}`||index);
+    sessions.set(key,{...row,date,status});
+  });
+  return [...sessions.values()].sort((a,b)=>`${a.date} ${a.time||''}`.localeCompare(`${b.date} ${b.time||''}`));
+}
+
+function consecutiveAbsenceWarning(rows=[],threshold=2){
+  const attendance=normalizedAttendanceRows(rows);
+  let streak=[],warning=null;
+  attendance.forEach(row=>{
+    if(row.status==='absent')streak.push(row);
+    else streak=[];
+    if(streak.length>=threshold)warning={count:streak.length,dates:streak.map(item=>item.date),latestDate:row.date};
+  });
+  if(!warning)return null;
+  const active=attendance.at(-1)?.status==='absent'&&warning.latestDate===attendance.at(-1)?.date;
+  return {...warning,active,message:`تحذير غياب: غاب الطالب ${warning.count===2?'حصتين متتاليتين':`${warning.count} حصص متتالية`}`};
+}
+
 function calculateMonthlyReport(input={}){
-  const student=input.student||{},attendance=input.attendance||[],assignments=input.assignments||[],homeworks=input.homeworks||[],recitations=input.recitations||[],lectureProgress=input.lectureProgress||[];
+  const student=input.student||{},attendance=normalizedAttendanceRows(input.attendance||[]),assignments=input.assignments||[],homeworks=input.homeworks||[],exams=input.exams||[],recitations=input.recitations||[],lectureProgress=input.lectureProgress||[];
   const resultRows=uniqueScoredRows(input.grades||[],input.examAttempts||[]),scoredResults=resultRows.filter(row=>scorePercent(row)!==null);
+  const completedExams=exams.filter(exam=>exam.finished===true);
+  const normalizedTitle=value=>String(value||'').trim().toLowerCase();
+  const examWasAttempted=exam=>resultRows.some(row=>String(row.examId||'')===String(exam.id||exam.examId||'')||(normalizedTitle(exam.title||exam.examTitle)&&normalizedTitle(row.activityName||row.examTitle||row.exam||row.title)===normalizedTitle(exam.title||exam.examTitle)));
+  const missedExams=completedExams.filter(exam=>exam.required!==false&&!examWasAttempted(exam)).map(exam=>({id:`absence:${exam.id||exam.examId}`,examId:String(exam.id||exam.examId||''),examTitle:String(exam.title||exam.examTitle||'امتحان'),activityName:String(exam.title||exam.examTitle||'امتحان'),date:exam.openAt||exam.date||exam.createdAt||'',status:'absent',absent:true,score:null,maxScore:Number(exam.totalScore||exam.maxScore||100)}));
+  const reportResultRows=[...resultRows,...missedExams].sort((a,b)=>String(b.submittedAt||b.date||'').localeCompare(String(a.submittedAt||a.date||'')));
   const present=attendance.filter(row=>['present','حاضر','متأخر'].includes(row.status)).length,absent=attendance.filter(row=>['absent','غائب'].includes(row.status)).length;
   const attendancePct=attendance.length?clamp(present/attendance.length*100):null;
   const latestSubmission=new Map();
@@ -59,6 +91,9 @@ function calculateMonthlyReport(input={}){
   const activityCount=attendance.length+homeworks.length+resultRows.length+recitations.length+lectureOpened;
   const concerns=[];
   if(missingAssignments.length)concerns.push(`${missingAssignments.length} واجب لم يتم تسليمه`);
+  if(missedExams.length)concerns.push(`${missedExams.length} امتحان غاب عنه الطالب ولم يسجل محاولة`);
+  const absenceWarning=consecutiveAbsenceWarning(attendance);
+  if(absenceWarning)concerns.push(`${absenceWarning.message} (${absenceWarning.dates.join('، ')})`);
   if(absent)concerns.push(`${absent} غياب خلال الشهر`);
   if(lectureProgress.length&&!lectureOpened)concerns.push('لا يوجد نشاط مسجل في المحاضرات');
   if(gradeAvg!==null&&gradeAvg<60)concerns.push('متوسط الدرجات يحتاج مراجعة');
@@ -71,8 +106,8 @@ function calculateMonthlyReport(input={}){
   return {
     schemaVersion:1,monthKey:String(input.monthKey||''),student:{studentCode:String(student.studentCode||student.code||student.id||''),name:String(student.studentName||student.name||''),grade:String(student.grade||''),group:String(student.group||''),parentPhone:String(student.parentPhone||'')},
     overallScore,level:levelLabel(overallScore),academicScore,academicLevel:levelLabel(academicScore),commitmentScore,commitmentLevel:commitmentLabel(commitmentScore),activityCount,
-    attendance:{total:attendance.length,present,absent,percentage:attendancePct,rows:attendance},
-    results:{count:resultRows.length,gradedCount:scoredResults.length,average:gradeAvg,rows:resultRows},
+    attendance:{total:attendance.length,present,absent,percentage:attendancePct,rows:attendance,consecutiveAbsenceWarning:absenceWarning},
+    results:{count:reportResultRows.length,gradedCount:scoredResults.length,average:gradeAvg,rows:reportResultRows,requiredExams:completedExams.length,attendedExams:Math.max(0,completedExams.length-missedExams.length),missedExams:missedExams.length},
     homework:{required:assignments.length,submitted:submittedAssignments.length,missing:missingAssignments.length,completionPercentage:homeworkCompletionPct,averageGrade:homeworkGradeAvg,onTimePercentage:homeworkOnTimePct,rows:assignmentRows.map(row=>({assignment:row.assignment,submission:row.submission,status:row.submission?'submitted':'missing'}))},
     practical:{count:recitations.length,completed:recitations.filter(isComplete).length,percentage:practicalPct,rows:recitations},
     study:{lecturesOpened:lectureOpened,lecturesCompleted:lectureCompleted,lectureCompletionPercentage:lectureCompletionPct,rows:lectureProgress},
@@ -90,4 +125,4 @@ function attachTrend(current,previous){
   return {...current,trend:{status,label,delta,previousScore:Number(previousScore)}};
 }
 
-module.exports={calculateMonthlyReport,attachTrend,levelLabel,commitmentLabel};
+module.exports={calculateMonthlyReport,attachTrend,levelLabel,commitmentLabel,normalizedAttendanceRows,consecutiveAbsenceWarning};

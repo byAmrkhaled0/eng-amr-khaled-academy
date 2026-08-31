@@ -210,6 +210,50 @@
     {
       "collectionGroup": "motivation_monthly", "queryScope": "COLLECTION",
       "fields": [{ "fieldPath": "academicYear", "order": "ASCENDING" }, { "fieldPath": "month", "order": "ASCENDING" }, { "fieldPath": "grade", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "materials", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "isPublic", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "updatedAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "reviews", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "approved", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "groups", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "track", "order": "ASCENDING" }, { "fieldPath": "active", "order": "ASCENDING" }, { "fieldPath": "name", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "bookings", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "bookings", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "groupId", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "homework_submissions", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "studentCode", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "class_progress", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "studentCode", "order": "ASCENDING" }, { "fieldPath": "date", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "class_progress", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "track", "order": "ASCENDING" }, { "fieldPath": "date", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "students", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "track", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "name", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "practical_submissions", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "studentCode", "order": "ASCENDING" }, { "fieldPath": "submittedAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "practical_submissions", "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "track", "order": "ASCENDING" }, { "fieldPath": "submittedAt", "order": "ASCENDING" }]
     }
   ],
   "fieldOverrides": [
@@ -254,6 +298,27 @@
       "fieldPath": "expiresAt",
       "ttl": true,
       "indexes": []
+    },
+    {
+      "collectionGroup": "booking_requests", "fieldPath": "expiresAt", "ttl": true, "indexes": []
+    },
+    {
+      "collectionGroup": "public_cache", "fieldPath": "expiresAt", "ttl": true, "indexes": []
+    },
+    {
+      "collectionGroup": "rate_limits", "fieldPath": "expiresAt", "ttl": true, "indexes": []
+    },
+    {
+      "collectionGroup": "upload_tickets", "fieldPath": "expiresAt", "ttl": true, "indexes": []
+    },
+    {
+      "collectionGroup": "exam_attempts", "fieldPath": "answers", "indexes": []
+    },
+    {
+      "collectionGroup": "practical_drafts", "fieldPath": "sourceCode", "indexes": []
+    },
+    {
+      "collectionGroup": "practical_submissions", "fieldPath": "sourceCode", "indexes": []
     }
   ]
 }

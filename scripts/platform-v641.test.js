@@ -5,7 +5,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const root=path.resolve(__dirname,'..');
 const read=file=>fs.readFileSync(path.join(root,file),'utf8');
-const {calculateMonthlyReport,attachTrend}=require('../functions/lib/monthly-report');
+const {calculateMonthlyReport,attachTrend,consecutiveAbsenceWarning}=require('../functions/lib/monthly-report');
 
 test('teacher schedules are interpreted and displayed in Cairo timezone',()=>{
   const app=read('assets/app.js');
@@ -49,6 +49,23 @@ test('monthly trend reports improvement decline and insufficient data honestly',
   assert.equal(attachTrend({overallScore:null},{overallScore:70}).trend.status,'insufficient');
 });
 
+test('two consecutive absences warn the teacher and appear in the parent report without duplicate sessions',()=>{
+  const warning=consecutiveAbsenceWarning([
+    {id:'s1',date:'2026-08-01',time:'19:00',status:'absent'},
+    {id:'s1',date:'2026-08-01',time:'19:00',status:'absent'},
+    {id:'s2',date:'2026-08-04',time:'19:00',status:'absent'}
+  ]);
+  assert.equal(warning.count,2);
+  assert.deepEqual(warning.dates,['2026-08-01','2026-08-04']);
+  const report=calculateMonthlyReport({monthKey:'2026-08',student:{name:'طالب'},attendance:[{id:'s1',date:'2026-08-01',status:'absent'},{id:'s2',date:'2026-08-04',status:'absent'}]});
+  assert.equal(report.attendance.consecutiveAbsenceWarning.count,2);
+  assert.match(report.concerns.join(' '),/حصتين متتاليتين/);
+  const admin=read('assets/admin.js'),app=read('assets/app.js');
+  assert.match(admin,/حصتين متتاليتين/);
+  assert.match(app,/تحذير غياب متتالٍ/);
+  assert.match(app,/absenceWarningText/);
+});
+
 test('server owns complete monthly reports and prepares previous month automatically',()=>{
   const backend=read('functions/index.js'),sync=read('assets/firebase-sync.js'),app=read('assets/app.js');
   assert.match(backend,/exports\.getStudentMonthlyReportAdmin = onCall/);
@@ -60,6 +77,42 @@ test('server owns complete monthly reports and prepares previous month automatic
   assert.match(app,/function parentMonthlyReportText/);
   assert.match(app,/التقدم مقارنة بالشهر السابق/);
   assert.match(app,/الالتزام والمذاكرة/);
+});
+
+test('redesign shares a parent report image to the saved parent phone and hides archived exams',()=>{
+  const app=read('assets/app.js'),admin=read('assets/admin.js'),backend=read('functions/index.js'),teacher=read('teacher-login.html'),css=read('assets/v65-redesign.css'),indexes=JSON.parse(read('firestore.indexes.json'));
+  assert.match(app,/function parentReportImageBlob/);assert.match(app,/parentReportWhatsAppIntro/);assert.match(app,/كود الطالب الموحّد/);assert.match(app,/parent\.html/);
+  assert.match(admin,/deliverParentMonthlyReport\(report,phone/);assert.match(admin,/s\.parentPhone/);
+  assert.match(backend,/exam\.archived!==true&&exam\.active!==false&&exam\.published!==false/);
+  assert.match(backend,/exports\.updateStudentSafely = onCall/);assert.match(backend,/const history=availableMonths\.slice\(0,6\)/);
+  assert.match(app,/درجة آخر امتحان/);assert.match(app,/درجة آخر واجب/);assert.match(app,/parent-progress-chart-v65/);
+  assert.match(teacher,/v65-enhancements\.js/);assert.match(css,/v65-quick-create/);assert.match(css,/v65-template-tools/);
+  assert.ok(indexes.fieldOverrides.some(item=>item.collectionGroup==='public_cache'&&item.ttl===true));
+});
+
+test('new students only receive homework and exams published after joining',()=>{
+  const backend=read('functions/index.js'),app=read('assets/app.js'),css=read('assets/v65-redesign.css');
+  assert.match(backend,/function contentAvailableAfterStudentJoined/);
+  assert.match(backend,/student\.acceptedAt\|\|student\.activatedAt\|\|student\.enrolledAt\|\|student\.createdAt/);
+  assert.match(backend,/assignmentIsReleased\(item\)[^\n]+contentAvailableAfterStudentJoined\(item, student\)/);
+  assert.match(backend,/exam\.archived!==true[^\n]+contentAvailableAfterStudentJoined\(exam,found\.data\)/);
+  assert.match(app,/scheduleState\|\|'open'\)!=='inactive'/);
+  assert.match(css,/#examCodeForm,#examStudentResult\{grid-column:1\/-1\}/);
+  for(const page of ['index.html','student.html','parent.html','exams.html','teacher-login.html'])assert.match(read(page),/v65-redesign\.css\?v=65\.0\.1/);
+});
+
+test('finished class exams register missing students as absent in admin and parent reports',()=>{
+  const report=calculateMonthlyReport({
+    monthKey:'2026-08',student:{studentCode:'ST-1',name:'طالب'},
+    exams:[{id:'e1',title:'امتحان أول',finished:true},{id:'e2',title:'امتحان ثان',finished:true},{id:'e3',title:'امتحان قادم',finished:false}],
+    examAttempts:[{id:'a1',examId:'e1',examTitle:'امتحان أول',score:8,maxScore:10,submittedAt:'2026-08-10T10:00:00Z'}]
+  });
+  assert.equal(report.results.requiredExams,2);assert.equal(report.results.attendedExams,1);assert.equal(report.results.missedExams,1);
+  assert.equal(report.results.rows.find(row=>row.examId==='e2').status,'absent');
+  assert.match(report.concerns.join(' '),/امتحان غاب عنه الطالب/);
+  const backend=read('functions/index.js'),app=read('assets/app.js'),operations=read('assets/v64-admin-operations.js'),sync=read('assets/firebase-sync.js');
+  assert.match(backend,/exports\.finalizeExamAbsences = onSchedule/);assert.match(backend,/exam_absences/);assert.match(backend,/expectedStudentCount/);
+  assert.match(app,/غائب عن الامتحان/);assert.match(operations,/refreshExamAbsences/);assert.match(sync,/finalizeExamAbsencesAdmin/);
 });
 
 test('QR attendance survives offline use and syncs idempotently after reconnect',()=>{

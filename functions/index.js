@@ -921,6 +921,7 @@ function portalResponse(data, attempts, records = {}) {
     bookingCode: text(data.bookingCode, 40),
     approvalStatus: text(data.approvalStatus || data.status, 100),
     active: data.active !== false,
+    contentAccessMode: ['full','from_joining','custom'].includes(data.contentAccessMode) ? data.contentAccessMode : 'from_joining',
     scheduleDays: text(data.scheduleDays, 100),
     scheduleStartTime: text(data.scheduleStartTime, 20),
     scheduleEndTime: text(data.scheduleEndTime, 20),
@@ -1202,11 +1203,21 @@ async function targetedLearningDocs(collection, student, limit = 750) {
   return [...rows.values()];
 }
 
+function contentAvailableAfterStudentJoined(item={},student={}){
+  const mode=['full','from_joining','custom'].includes(student.contentAccessMode)?student.contentAccessMode:'from_joining';
+  if(mode==='full')return true;
+  if(mode==='custom'&&Array.isArray(item.targetStudentCodes)&&item.targetStudentCodes.map(normalizeCode).includes(normalizeCode(student.studentCode||student.code||student.id)))return true;
+  const joined=firestoreMillis(student.acceptedAt||student.activatedAt||student.enrolledAt||student.createdAt);
+  if(!joined)return true;
+  const published=firestoreMillis(item.publishAt||item.openAt||item.createdAt||item.updatedAt);
+  return published>0&&published>=joined-5*60*1000;
+}
+
 async function assignmentsForStudent(student = {}) {
   const docs = await targetedLearningDocs('assignments', student);
   return docs
     .map(doc => ({ id: doc.id, ...doc.data() }))
-    .filter(item => assignmentIsReleased(item) && learningTargetMatchesStudent(item, student))
+    .filter(item => assignmentIsReleased(item) && learningTargetMatchesStudent(item, student) && contentAvailableAfterStudentJoined(item, student))
     .map(item => ({ ...item, submissionClosed: assignmentDueDatePassed(item, cairoDateKey(new Date())) }))
     .sort((a, b) => String(b.publishAt || b.createdAt || b.dueDate || '').localeCompare(String(a.publishAt || a.createdAt || a.dueDate || '')))
     .slice(0, 250);
@@ -1782,30 +1793,32 @@ async function reportRowsByStudent(collection,studentCode,fields=['studentCode']
 
 function reportPublicRows(rows,kind) {
   return (rows||[]).map(row=>{
-    if(kind==='attendance')return {id:text(row.id,120),date:text(row.date,10),time:text(row.time,20),status:text(row.status,30),method:text(row.method,30),group:text(row.group,100)};
+    if(kind==='attendance')return {id:text(row.id,120),sessionId:text(row.sessionId,120),sessionKey:text(row.sessionKey,160),scheduleId:text(row.scheduleId,120),date:text(row.date,10),time:text(row.time,20),status:text(row.status,30),method:text(row.method,30),group:text(row.group,100)};
     if(kind==='assignment')return {id:text(row.id,120),title:text(row.title,200),lessonTitle:text(row.lessonTitle,200),publishAt:reportIso(row.publishAt),dueDate:text(row.dueDate,40),totalScore:Number(row.totalScore||1),submissionClosed:row.submissionClosed===true};
     if(kind==='homework')return {id:text(row.id,120),assignmentId:text(row.assignmentId,120),title:text(row.homeworkTitle||row.title,200),submittedAt:reportIso(row.submittedAt||row.date),score:row.score===null||row.score===undefined?null:Number(row.score),maxScore:Number(row.maxScore||100),status:text(row.status,50),attemptNumber:Number(row.attemptNumber||1),needsManualReview:row.needsManualReview===true,approved:row.approved===true};
     if(kind==='result')return {id:text(row.id,120),examId:text(row.examId,120),activityName:text(row.activityName||row.examTitle||row.exam||row.title,200),examTitle:text(row.examTitle||row.exam,200),type:text(row.type,40),typeLabel:text(row.typeLabel,80),date:reportIso(row.date||row.submittedAt),submittedAt:reportIso(row.submittedAt||row.date),score:row.score===null||row.score===undefined?null:Number(row.score),maxScore:Number(row.maxScore||100),status:text(row.status,50),needsManualReview:row.needsManualReview===true};
+    if(kind==='exam')return {id:text(row.id,120),title:text(row.title||row.examTitle,200),openAt:reportIso(row.openAt||row.createdAt),closeAt:reportIso(row.closeAt),createdAt:reportIso(row.createdAt),totalScore:Number(row.totalScore||row.maxScore||100),required:row.required!==false,finished:row.active===false||row.archived===true||(scheduledTimeMillis(row.closeAt)>0&&scheduledTimeMillis(row.closeAt)<=Date.now())};
     if(kind==='practical')return {id:text(row.id,120),title:text(row.title,200),date:reportIso(row.date||row.createdAt),status:text(row.status,60),completed:row.completed===true,approved:row.approved===true};
     if(kind==='progress')return {id:text(row.id,120),lectureId:text(row.lectureId||row.id,120),title:text(row.title,200),percent:Number(row.maxPercent??row.percent??0),viewed:row.viewed===true,completed:row.completed===true||Number(row.maxPercent??row.percent)>=100,lastOpenedAt:reportIso(row.lastOpenedAt||row.updatedAt),completedAt:reportIso(row.completedAt)};
     return row;
   });
 }
 
-async function loadStudentMonthlyReportSource(student,sharedAssignments=null) {
+async function loadStudentMonthlyReportSource(student,options={}) {
   const studentCode=normalizeCode(student.studentCode||student.code||student.id);
   const progressRef=db.collection('student_progress').doc(studentCode);
-  const [attendance,grades,homeworks,recitations,payments,attempts,legacyAttempts,progressEvents,progressLectures,assignmentsResult]=await Promise.all([
-    reportRowsByStudent('attendance',studentCode,['studentCode','studentId','code']),reportRowsByStudent('grades',studentCode),reportRowsByStudent('homework_submissions',studentCode),reportRowsByStudent('recitations',studentCode),reportRowsByStudent('monthly_payments',studentCode),reportRowsByStudent('exam_attempts',studentCode),db.collection('student_attempts').doc(cleanDocId(studentCode)).collection('attempts').get().catch(()=>null),progressRef.collection('monthly_events').get().catch(()=>null),progressRef.collection('lectures').get().catch(()=>null),sharedAssignments?Promise.resolve(sharedAssignments):fetchAllCollectionDocuments('assignments')
+  const [attendance,grades,homeworks,recitations,payments,attempts,legacyAttempts,progressEvents,progressLectures,assignmentsResult,examsResult]=await Promise.all([
+    reportRowsByStudent('attendance',studentCode,['studentCode','studentId','code']),reportRowsByStudent('grades',studentCode),reportRowsByStudent('homework_submissions',studentCode),reportRowsByStudent('recitations',studentCode),reportRowsByStudent('monthly_payments',studentCode),reportRowsByStudent('exam_attempts',studentCode),db.collection('student_attempts').doc(cleanDocId(studentCode)).collection('attempts').get().catch(()=>null),progressRef.collection('monthly_events').get().catch(()=>null),progressRef.collection('lectures').get().catch(()=>null),options.sharedAssignments?Promise.resolve(options.sharedAssignments):fetchAllCollectionDocuments('assignments'),options.sharedExams?Promise.resolve(options.sharedExams):fetchAllCollectionDocuments('exams')
   ]);
   const examRows=new Map(attempts.map(row=>[String(row.id),row]));
   legacyAttempts?.docs?.forEach(doc=>examRows.set(doc.id,{id:doc.id,...doc.data()}));
-  const assignments=(assignmentsResult?.docs||[]).map(doc=>typeof doc.data==='function'?{id:doc.id,...doc.data()}:doc).filter(row=>row.published!==false&&row.status!=='مسودة'&&learningTargetMatchesStudent(row,student));
+  const assignments=(assignmentsResult?.docs||[]).map(doc=>typeof doc.data==='function'?{id:doc.id,...doc.data()}:doc).filter(row=>row.published!==false&&row.status!=='مسودة'&&learningTargetMatchesStudent(row,student)&&contentAvailableAfterStudentJoined(row,student));
+  const exams=(examsResult?.docs||[]).map(doc=>typeof doc.data==='function'?{id:doc.id,...doc.data()}:doc).filter(row=>row.published!==false&&row.status!=='مسودة'&&learningTargetMatchesStudent(row,student)&&contentAvailableAfterStudentJoined(row,student));
   const monthlyProgress=progressEvents?.docs?.map(doc=>({id:doc.id,...doc.data()}))||[];
   // Older records predate monthly events. They remain usable when their latest
   // activity belongs to the requested month, while all new activity is exact.
   progressLectures?.docs?.forEach(doc=>{if(!monthlyProgress.some(row=>String(row.lectureId)===doc.id))monthlyProgress.push({id:doc.id,lectureId:doc.id,...doc.data()});});
-  return {attendance,grades,homeworks,recitations,payments,examAttempts:[...examRows.values()],progress:monthlyProgress,assignments};
+  return {attendance,grades,homeworks,recitations,payments,examAttempts:[...examRows.values()],progress:monthlyProgress,assignments,exams};
 }
 
 function monthlyReportInput(student,source,monthKey) {
@@ -1819,6 +1832,7 @@ function monthlyReportInput(student,source,monthKey) {
     examAttempts:reportPublicRows(inMonth(source.examAttempts,['submittedAt']),'result'),
     homeworks:reportPublicRows(inMonth(source.homeworks,['submittedAt']),'homework'),
     assignments:reportPublicRows(assignments,'assignment'),
+    exams:reportPublicRows(inMonth(source.exams,['openAt','createdAt']),'exam'),
     recitations:reportPublicRows(inMonth(source.recitations,['date']),'practical'),
     lectureProgress:reportPublicRows(inMonth(source.progress,['lastOpenedAt','completedAt']),'progress'),
     payment:payments.sort((a,b)=>firestoreMillis(b.updatedAt)-firestoreMillis(a.updatedAt))[0]||null,
@@ -1838,9 +1852,14 @@ async function buildStudentMonthlyReport(student,monthKey,options={}) {
   const studentCode=normalizeCode(student.studentCode||student.code||student.id),ref=db.collection('monthly_reports').doc(cleanDocId(`${studentCode}_${monthKey}`));
   const existing=await ref.get().catch(()=>null);
   if(existing?.exists&&existing.data()?.lockedAt&&options.force!==true)return existing.data().report;
-  const source=await loadStudentMonthlyReportSource(student,options.sharedAssignments||null),previousKey=reportPreviousMonthKey(monthKey);
+  const source=await loadStudentMonthlyReportSource(student,options),previousKey=reportPreviousMonthKey(monthKey);
   const current=calculateMonthlyReport(monthlyReportInput(student,source,monthKey)),previous=calculateMonthlyReport(monthlyReportInput(student,source,previousKey));
-  const report={...attachTrend(current,previous),previousMonth:{monthKey:previousKey,overallScore:previous.overallScore,academicScore:previous.academicScore,commitmentScore:previous.commitmentScore},availableMonths:reportAvailableMonths(source,monthKey),generatedAt:new Date().toISOString(),timeZone:'Africa/Cairo'};
+  const availableMonths=reportAvailableMonths(source,monthKey);
+  const history=availableMonths.slice(0,6).reverse().map(key=>{
+    const item=calculateMonthlyReport(monthlyReportInput(student,source,key));
+    return {monthKey:key,overallScore:item.overallScore,academicScore:item.academicScore,commitmentScore:item.commitmentScore,attendancePercentage:item.attendance.percentage,homeworkPercentage:item.homework.completionPercentage};
+  });
+  const report={...attachTrend(current,previous),previousMonth:{monthKey:previousKey,overallScore:previous.overallScore,academicScore:previous.academicScore,commitmentScore:previous.commitmentScore},availableMonths,history,generatedAt:new Date().toISOString(),timeZone:'Africa/Cairo'};
   await ref.set({studentCode,monthKey,parentPhone:digits(student.parentPhone),report,status:options.lock===true?'ready':'draft',generatedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp(),...(options.lock===true?{lockedAt:FieldValue.serverTimestamp()}:{})},{merge:true});
   return report;
 }
@@ -1862,11 +1881,11 @@ exports.getParentMonthlyReport = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds:60
 
 exports.prepareMonthlyParentReports = onSchedule({schedule:'15 8 1 * *',timeZone:'Africa/Cairo',region:'europe-west1',timeoutSeconds:540,memory:'512MiB'},async()=>{
   const monthKey=reportPreviousMonthKey(cairoDateKey(new Date()).slice(0,7));
-  const [studentsResult,assignmentsResult]=await Promise.all([fetchAllCollectionDocuments('students',query=>query.where('active','==',true)),fetchAllCollectionDocuments('assignments')]);
-  const students=studentsResult.docs.map(doc=>({id:doc.id,...doc.data()})),sharedAssignments=assignmentsResult.docs;
+  const [studentsResult,assignmentsResult,examsResult]=await Promise.all([fetchAllCollectionDocuments('students',query=>query.where('active','==',true)),fetchAllCollectionDocuments('assignments'),fetchAllCollectionDocuments('exams')]);
+  const students=studentsResult.docs.map(doc=>({id:doc.id,...doc.data()})),sharedAssignments=assignmentsResult.docs,sharedExams=examsResult.docs;
   let generated=0,failed=0;
   for(let index=0;index<students.length;index+=4){
-    const results=await Promise.allSettled(students.slice(index,index+4).map(student=>buildStudentMonthlyReport(student,monthKey,{lock:true,sharedAssignments})));
+    const results=await Promise.allSettled(students.slice(index,index+4).map(student=>buildStudentMonthlyReport(student,monthKey,{lock:true,sharedAssignments,sharedExams})));
     generated+=results.filter(result=>result.status==='fulfilled').length;failed+=results.filter(result=>result.status==='rejected').length;
   }
   await db.collection('settings').doc('monthly_report_job').set({monthKey,generated,failed,finishedAt:FieldValue.serverTimestamp()},{merge:true});
@@ -1891,7 +1910,7 @@ exports.getAdminOperationsDashboard = onCall({ ...CALLABLE_OPTIONS, timeoutSecon
   const date=text(request.data?.date,10)||cairoDateKey(new Date());
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw new HttpsError('invalid-argument','تاريخ يوم العمل غير صالح.');
   const monthStart=`${date.slice(0,8)}01`;
-  const [studentsSnap,attendanceSnap,monthAttendanceSnap,homeworkSnap,examSnap,bookingsSnap,transferSnap,sessionsSnap]=await Promise.all([
+  const [studentsSnap,attendanceSnap,monthAttendanceSnap,homeworkSnap,examSnap,bookingsSnap,transferSnap,sessionsSnap,examAbsenceSnap]=await Promise.all([
     fetchAllCollectionDocuments('students',query=>query.where('active','==',true)),
     fetchAllCollectionDocuments('attendance',query=>query.where('date','==',date)),
     db.collection('attendance').where('date','>=',monthStart).where('date','<=',date).orderBy('date','desc').limit(5000).get(),
@@ -1899,13 +1918,14 @@ exports.getAdminOperationsDashboard = onCall({ ...CALLABLE_OPTIONS, timeoutSecon
     db.collection('exam_attempts').where('needsManualReview','==',true).limit(120).get().catch(()=>null),
     db.collection('bookings').where('status','==','pending').limit(100).get().catch(()=>null),
     db.collection('student_transfer_requests').where('status','==','pending').limit(100).get().catch(()=>null),
-    db.collection('class_sessions').where('date','==',date).limit(100).get().catch(()=>null)
+    db.collection('class_sessions').where('date','==',date).limit(100).get().catch(()=>null),
+    db.collection('exam_absences').orderBy('createdAt','desc').limit(300).get().catch(()=>null)
   ]);
   const students=studentsSnap.docs.map(doc=>({id:doc.id,...doc.data()})),attendance=attendanceSnap.docs.map(doc=>({id:doc.id,...doc.data()})),absenceCounts=new Map();
   monthAttendanceSnap.docs.forEach(doc=>{const row=doc.data()||{},code=normalizeCode(row.studentCode);if(code&&row.status==='absent')absenceCounts.set(code,(absenceCounts.get(code)||0)+1);});
-  const pendingHomework=homeworkSnap?homeworkSnap.docs.map(doc=>({id:doc.id,...doc.data()})):[],pendingExams=examSnap?examSnap.docs.map(doc=>({id:doc.id,...doc.data()})):[];
+  const pendingHomework=homeworkSnap?homeworkSnap.docs.map(doc=>({id:doc.id,...doc.data()})):[],pendingExams=examSnap?examSnap.docs.map(doc=>({id:doc.id,...doc.data()})):[],examAbsences=(examAbsenceSnap?.docs||[]).map(doc=>({id:doc.id,...doc.data()})).filter(row=>reportMonthForRow(row,['examDate','createdAt'])===date.slice(0,7));
   const atRisk=students.map(row=>({studentCode:normalizeCode(row.studentCode||row.code||row.id),studentName:text(row.studentName||row.name,100),grade:text(canonicalAcademicLabel(row.grade),80),group:text(row.group,100),absenceCount:absenceCounts.get(normalizeCode(row.studentCode||row.code||row.id))||0})).filter(row=>row.absenceCount>=2).sort((a,b)=>b.absenceCount-a.absenceCount).slice(0,50);
-  return {date,students:students.map(row=>({studentCode:text(row.studentCode||row.code||row.id,40),studentName:text(row.studentName||row.name,100),grade:text(canonicalAcademicLabel(row.grade),80),group:text(row.group,100),scheduleId:text(row.scheduleId||row.groupId,100),parentPhone:digits(row.parentPhone),paid:row.paid===true})),attendance,sessions:sessionsSnap?sessionsSnap.docs.map(doc=>({id:doc.id,...doc.data()})):[],corrections:{homework:pendingHomework,exams:pendingExams,total:pendingHomework.length+pendingExams.length},alerts:{pendingBookings:bookingsSnap?.size||0,pendingTransfers:transferSnap?.size||0,unpaidStudents:students.filter(row=>row.paid!==true).length,unrecordedToday:Math.max(0,students.length-new Set(attendance.map(row=>normalizeCode(row.studentCode))).size),atRisk}};
+  return {date,students:students.map(row=>({studentCode:text(row.studentCode||row.code||row.id,40),studentName:text(row.studentName||row.name,100),grade:text(canonicalAcademicLabel(row.grade),80),group:text(row.group,100),scheduleId:text(row.scheduleId||row.groupId,100),parentPhone:digits(row.parentPhone),paid:row.paid===true})),attendance,sessions:sessionsSnap?sessionsSnap.docs.map(doc=>({id:doc.id,...doc.data()})):[],corrections:{homework:pendingHomework,exams:pendingExams,total:pendingHomework.length+pendingExams.length},alerts:{pendingBookings:bookingsSnap?.size||0,pendingTransfers:transferSnap?.size||0,unpaidStudents:students.filter(row=>row.paid!==true).length,unrecordedToday:Math.max(0,students.length-new Set(attendance.map(row=>normalizeCode(row.studentCode))).size),atRisk,examAbsences}};
 });
 
 exports.upsertClassSession = onCall(CALLABLE_OPTIONS, async request => {
@@ -2534,6 +2554,7 @@ exports.createStudentAccess = onCall(CALLABLE_OPTIONS, async request => {
       paid: body.paid === true,
       paymentDate: text(body.paymentDate, 40),
       active: body.active !== false,
+      contentAccessMode: ['full','from_joining','custom'].includes(body.contentAccessMode) ? body.contentAccessMode : 'from_joining',
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp()
     };
@@ -3239,7 +3260,7 @@ exports.getExamDashboard = onCall(CALLABLE_OPTIONS, async request => {
   requireApprovedStudent(found.data);
   const examDocs = await targetedLearningDocs('exams', found.data);
   const exams = examDocs.map(doc => ({ id: doc.id, ...doc.data() }))
-    .filter(exam => examMatchesStudent(exam, found.data))
+    .filter(exam => exam.archived!==true&&exam.active!==false&&exam.published!==false&&examMatchesStudent(exam, found.data)&&contentAvailableAfterStudentJoined(exam,found.data))
     .map(exam => ({
       id: text(exam.id, 100),
       title: text(exam.title, 200),
@@ -3261,6 +3282,31 @@ exports.getExamDashboard = onCall(CALLABLE_OPTIONS, async request => {
   const [attempts, records] = await Promise.all([attemptSummaries(studentCode), studentRecords(studentCode, found.data)]);
   return { student: portalResponse(found.data, attempts, records), exams };
 });
+
+async function finalizeExamAbsenceRecords(){
+  const now=Date.now(),[examResult,studentResult]=await Promise.all([fetchAllCollectionDocuments('exams'),fetchAllCollectionDocuments('students',query=>query.where('active','==',true))]);
+  const students=studentResult.docs.map(doc=>({id:doc.id,...doc.data()}));
+  const exams=examResult.docs.map(doc=>({...doc.data(),id:doc.id,ref:doc.ref})).filter(exam=>{
+    const ended=scheduledTimeMillis(exam.closeAt)||(exam.active===false||exam.archived===true?firestoreMillis(exam.archivedAt||exam.updatedAt):0);
+    return ended>0&&ended<=now&&(!exam.absenceFinalizedAt||firestoreMillis(exam.updatedAt)>firestoreMillis(exam.absenceFinalizedAt));
+  }).slice(0,80);
+  let processedExams=0,absenceRecords=0;
+  for(const exam of exams){
+    const attempts=await db.collection('exam_attempts').where('examId','==',exam.id).limit(2000).get().catch(()=>null),attempted=new Set();
+    attempts?.docs.forEach(doc=>{const row=doc.data()||{};if(row.status!=='started')attempted.add(normalizeCode(row.studentCode));});
+    const expected=students.filter(student=>learningTargetMatchesStudent(exam,student)&&contentAvailableAfterStudentJoined(exam,student));
+    const expectedCodes=new Set(expected.map(student=>normalizeCode(student.studentCode||student.code||student.id)).filter(Boolean));
+    const attemptedExpected=new Set([...attempted].filter(code=>expectedCodes.has(code)));
+    const writes=[];
+    expected.forEach(student=>{const studentCode=normalizeCode(student.studentCode||student.code||student.id);if(!studentCode||attempted.has(studentCode))return;const ref=db.collection('exam_absences').doc(cleanDocId(`${exam.id}_${studentCode}`));writes.push(batch=>batch.set(ref,{examId:exam.id,examTitle:text(exam.title,200),studentCode,studentName:text(student.studentName||student.name,100),grade:text(student.grade,80),group:text(student.group,100),scheduleId:text(student.scheduleId||student.groupId,120),examDate:exam.openAt||exam.createdAt||exam.closeAt,status:'absent',reason:'لم يسجل الطالب محاولة في الامتحان',createdAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()},{merge:true}));absenceRecords+=1;});
+    writes.push(batch=>batch.set(exam.ref,{absenceFinalizedAt:FieldValue.serverTimestamp(),expectedStudentCount:expected.length,attemptedStudentCount:attemptedExpected.size,absentStudentCount:Math.max(0,expected.length-attemptedExpected.size),updatedAt:FieldValue.serverTimestamp()},{merge:true}));
+    await commitServerWrites(writes);processedExams+=1;
+  }
+  return {ok:true,processedExams,absenceRecords};
+}
+
+exports.finalizeExamAbsencesAdmin = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds:120, memory:'512MiB' },async request=>{const staff=await requireStaff(request,['admin']);const result=await finalizeExamAbsenceRecords();await serverActivity(staff,'تحديث غياب الامتحانات',result);return result;});
+exports.finalizeExamAbsences = onSchedule({schedule:'every 60 minutes',timeZone:'Africa/Cairo',region:'europe-west1',timeoutSeconds:300,memory:'512MiB'},finalizeExamAbsenceRecords);
 
 exports.startExam = onCall(CALLABLE_OPTIONS, async request => {
   const studentCode = normalizeCode(request.data && request.data.studentCode);
@@ -3631,7 +3677,7 @@ exports.reportClientError = onCall(CALLABLE_OPTIONS, async request => {
 
 const BACKUP_COLLECTIONS = [
   'settings','users','students','student_portal','parent_portal','bookings','booking_status','reviews',
-  'materials','questions','groups','assignments','exams','exam_attempts','homework_submissions',
+  'materials','questions','groups','assignments','exams','exam_attempts','exam_absences','homework_submissions',
   'attendance','recitations','grades','payments','monthly_payments','payment_transactions','monthly_reports','reports','activityLog','client_errors',
   'student_attempts','exam_locks','homework_submission_locks','homework_attempt_grants','homework_review_history','assessment_versions','class_sessions','student_notes'
   ,'curriculum','units','lectures','lecture_materials','assignments_v2','assignment_questions',
@@ -3952,6 +3998,27 @@ async function commitDeleteRefs(refs) {
   }
 }
 
+exports.updateStudentSafely = onCall(CALLABLE_OPTIONS, async request => {
+  const staff=await requireStaff(request,['admin']);
+  const input=request.data?.student&&typeof request.data.student==='object'?request.data.student:(request.data||{});
+  const studentCode=normalizeCode(input.studentCode||input.code||input.id);
+  if(!validLegacyOrStrongCode(studentCode))throw new HttpsError('invalid-argument','كود الطالب غير صالح.');
+  const studentRef=db.collection('students').doc(cleanDocId(studentCode));
+  const patch={
+    name:text(input.name||input.studentName,100),studentName:text(input.studentName||input.name,100),studentPhone:digits(input.studentPhone),parentPhone:digits(input.parentPhone),grade:text(canonicalAcademicLabel(input.grade),80),group:text(input.group,100),groupId:text(input.groupId||input.scheduleId,120),scheduleId:text(input.scheduleId||input.groupId,120),scheduleDays:text(input.scheduleDays,100),scheduleStartTime:text(input.scheduleStartTime,20),scheduleEndTime:text(input.scheduleEndTime,20),notes:text(input.notes,1200),academicYear:text(input.academicYear,20),term:text(input.term,40),month:text(input.month,40),contentAccessMode:['full','from_joining','custom'].includes(input.contentAccessMode)?input.contentAccessMode:'from_joining',active:input.active!==false,updatedAt:FieldValue.serverTimestamp()
+  };
+  Object.keys(patch).forEach(key=>{if(patch[key]===''&& !['studentPhone','notes'].includes(key))delete patch[key];});
+  await db.runTransaction(async tx=>{
+    const snap=await tx.get(studentRef);if(!snap.exists)throw new HttpsError('not-found','الطالب غير موجود.');
+    const parentCode=studentCode,portalPatch={...patch,studentCode,code:studentCode,parentCode};
+    tx.set(studentRef,{...patch,studentCode,code:studentCode,parentCode},{merge:true});
+    tx.set(db.collection('student_portal').doc(cleanDocId(studentCode)),portalPatch,{merge:true});
+    tx.set(db.collection('parent_portal').doc(cleanDocId(parentCode)),portalPatch,{merge:true});
+  });
+  await serverActivity(staff,'تحديث بيانات طالب بأمان',{studentCode});
+  return {ok:true,studentCode,...patch,updatedAt:new Date().toISOString()};
+});
+
 exports.deleteStudentSafely = onCall({ region: 'europe-west1', timeoutSeconds: 120, memory: '512MiB' }, async request => {
   const staff = await requireStaff(request, ['admin', 'teacher']);
   const studentCode = normalizeCode(request.data && request.data.studentCode);
@@ -3960,7 +4027,7 @@ exports.deleteStudentSafely = onCall({ region: 'europe-west1', timeoutSeconds: 1
   const studentSnap = await studentRef.get();
   if (!studentSnap.exists) throw new HttpsError('not-found', 'الطالب غير موجود.');
   const student = studentSnap.data();
-  const relatedCollections = ['attendance','grades','recitations','homework_submissions','exam_attempts','monthly_payments','payment_transactions','student_notes'];
+  const relatedCollections = ['attendance','grades','recitations','homework_submissions','exam_attempts','exam_absences','monthly_payments','payment_transactions','student_notes'];
   const relatedEntries = {};
   const relatedDocs = [];
   for (const collection of relatedCollections) {

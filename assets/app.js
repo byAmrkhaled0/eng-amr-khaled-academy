@@ -492,6 +492,7 @@ function studentProfileHTML(raw, isParent=false){
   const grades=(Array.isArray(st.results)&&st.results.length?st.results:[...(st.grades||[]),...attempts]).slice().sort((a,b)=>String(b.date||b.submittedAt||'').localeCompare(String(a.date||a.submittedAt||'')));
   const attendance=getAttendanceRows(st);
   const homeworks=(st.homeworks||[]).slice().reverse();
+  const latestExam=grades.find(row=>row.type==='exam'||row.examId||row.examTitle||row.exam),latestHomework=grades.find(row=>row.type==='homework'||row.assignmentId||row.homeworkTitle);
   const assignments=(st.assignments||[]).slice().sort((a,b)=>String(b.createdAt||b.dueDate||'').localeCompare(String(a.createdAt||a.dueDate||'')));
   const materials=(st.materials||[]).slice().reverse();
   const recitations=(st.recitations||[]).slice().reverse();
@@ -551,7 +552,8 @@ function studentProfileHTML(raw, isParent=false){
     <section class="student-tab-panel show" data-student-panel="overview">
       <div class="student-overview-grid">
         <article class="student-highlight-card"><span class="iconbox" data-icon="file-text"></span><div><small>المطلوب الآن</small><h3>${assignmentGroups.required.length} واجب</h3><p>${assignmentGroups.extra.length?`ولديك ${assignmentGroups.extra.length} محاولة إضافية متاحة.`:'افتح قسم الواجبات لمتابعة أقرب موعد.'}</p></div></article>
-        <article class="student-highlight-card"><span class="iconbox" data-icon="star"></span><div><small>آخر درجة</small><h3>${c.lastGrade?`${esc(c.lastGrade.score)} من ${esc(c.lastGrade.maxScore||100)}`:'لا توجد بعد'}</h3><p>${c.lastGrade?esc(c.lastGrade.activityName||c.lastGrade.exam||c.lastGrade.examTitle||'آخر نشاط'):'ستظهر آخر نتيجة هنا.'}</p></div></article>
+        <article class="student-highlight-card"><span class="iconbox" data-icon="clipboard"></span><div><small>درجة آخر امتحان</small><h3>${latestExam&&latestExam.score!==null&&latestExam.score!==undefined?`${esc(latestExam.score)} من ${esc(latestExam.maxScore||100)}`:'لا توجد بعد'}</h3><p>${latestExam?esc(latestExam.activityName||latestExam.exam||latestExam.examTitle||'آخر امتحان'):'ستظهر آخر نتيجة امتحان هنا.'}</p></div></article>
+        <article class="student-highlight-card"><span class="iconbox" data-icon="file-text"></span><div><small>درجة آخر واجب</small><h3>${latestHomework&&latestHomework.score!==null&&latestHomework.score!==undefined?`${esc(latestHomework.score)} من ${esc(latestHomework.maxScore||100)}`:'لا توجد بعد'}</h3><p>${latestHomework?esc(latestHomework.activityName||latestHomework.homeworkTitle||latestHomework.title||'آخر واجب'):'ستظهر آخر نتيجة واجب هنا.'}</p></div></article>
       </div>
       <article class="teacher-note-card"><span data-icon="clipboard"></span><div><small>ملاحظات المدرس</small><p>${esc(st.notes||'لا توجد ملاحظات حالية. استمر في المذاكرة والمتابعة.')}</p></div></article>
       ${pending?'<div class="portal-empty"><span class="iconbox" data-icon="calendar"></span><h3>الخدمات التعليمية في انتظار القبول</h3><p>بعد قبول الحجز ستظهر هنا روابط المحاضرات والأسئلة والاختبارات تلقائيًا.</p></div>':`<div class="student-quick-links"><a href="${esc(portalUrl('materials.html',st.studentCode))}"><span data-icon="book-open"></span><b>محاضرات المسار</b><small>راجع شرح وملفات مسارك</small></a><a href="${esc(portalUrl('theory-lectures.html',st.studentCode))}"><span data-icon="book-open"></span><b>محاضرات النظري</b><small>افتح محاضرات النظري الخاصة بمسارك</small></a><a href="${esc(portalUrl('questions.html',st.studentCode))}"><span data-icon="help-circle"></span><b>أسئلة المسار</b><small>تدرب على أسئلة ومراجعات مسارك</small></a><a href="${esc(portalUrl('exams.html',st.studentCode))}"><span data-icon="clipboard"></span><b>الاختبارات</b><small>ابدأ امتحانك بالكود</small></a><a href="index.html#contact"><span data-icon="phone"></span><b>تواصل مع المدرس</b><small>للاستفسار والمتابعة</small></a></div>`}
@@ -735,7 +737,7 @@ function parentReportHTML(raw,selectedMonth=''){
     <div class="parent-actions-v38 no-print">
       <button class="btn primary" onclick="printParentReport()"><span data-icon="file-text"></span> طباعة / حفظ PDF</button>
       <button class="btn ghost" onclick="copyParentReport('${esc(st.studentCode)}')"><span data-icon="clipboard"></span> نسخ التقرير</button>
-      ${st.parentPhone?`<button class="btn whatsapp-report-btn" onclick="openParentWhatsApp('${esc(st.studentCode)}')"><span data-icon="phone"></span> إرسال واتساب</button>`:''}
+      ${st.parentPhone?`<button class="btn whatsapp-report-btn" onclick="openParentWhatsApp('${esc(st.studentCode)}')"><span data-icon="phone"></span> صورة التقرير + واتساب</button>`:''}
     </div>
     <div class="metric-grid parent-report-metrics-v40">
       <div class="metric main-metric-v40"><b>${c.final}%</b><small>المستوى العام</small></div>
@@ -793,10 +795,11 @@ function parentReportHTML(raw,selectedMonth=''){
 
 function parentMonthlyReportText(report){
   const st=report?.student||{},attendance=report?.attendance||{},results=report?.results||{},homework=report?.homework||{},study=report?.study||{},trend=report?.trend||{};
-  const resultLines=(results.rows||[]).length?(results.rows||[]).map(row=>`- ${row.activityName||row.examTitle||'درجة'}: ${row.score===null||row.score===undefined?'قيد التصحيح':`${row.score} من ${row.maxScore||100}`}`).join('\n'):'- لا توجد درجات مسجلة في الشهر';
+  const absenceWarning=attendance.consecutiveAbsenceWarning,absenceWarningText=absenceWarning?`\n⚠️ ${absenceWarning.message} (${(absenceWarning.dates||[]).join('، ')})`:'';
+  const resultLines=(results.rows||[]).length?(results.rows||[]).map(row=>`- ${row.activityName||row.examTitle||'درجة'}: ${row.status==='absent'||row.absent===true?'غائب عن الامتحان':row.score===null||row.score===undefined?'قيد التصحيح':`${row.score} من ${row.maxScore||100}`}`).join('\n'):'- لا توجد درجات مسجلة في الشهر';
   const homeworkLines=(homework.rows||[]).length?(homework.rows||[]).map(row=>`- ${row.assignment?.title||'واجب'}: ${row.status==='missing'?'لم يسلّم':row.submission?.score===null||row.submission?.score===undefined?'تم التسليم وقيد التصحيح':`تم التسليم — ${row.submission.score} من ${row.submission.maxScore||row.assignment?.totalScore||100}`}`).join('\n'):'- لا توجد واجبات مطلوبة في الشهر';
   const evidence=report?.sufficientData?`الالتزام بالمذاكرة داخل المنصة: ${report.commitmentLevel} (${report.commitmentScore}%)`:'لا توجد بيانات كافية للحكم على انتظام المذاكرة داخل المنصة.';
-  return `أهلًا بحضرتك، مع حضرتك م. عمرو خالد، مهندس برمجيات ومدرس البرمجة والذكاء الاصطناعي ومؤسس Techno Minds.\n\nتقرير الطالب/ة ${st.name||'-'} عن شهر ${reportMonthLabel(report.monthKey)}\nالكود: ${st.studentCode||'-'}\nالمسار: ${st.grade||'-'}\nالمجموعة: ${st.group||'-'}\n\nالمستوى العام: ${report.overallScore??'-'}% — ${report.level||'بيانات غير كافية'}\nالمستوى الأكاديمي: ${report.academicScore??'-'}%\n${evidence}\nالتقدم: ${trend.label||'لا توجد بيانات كافية للمقارنة'}\n\nالحضور: ${attendance.present||0} من ${attendance.total||0}${attendance.percentage===null||attendance.percentage===undefined?'':` — ${attendance.percentage}%`}\nالواجبات: سلّم ${homework.submitted||0} من ${homework.required||0} — لم يسلّم ${homework.missing||0}\nمتوسط الدرجات: ${results.average??'-'}%\nالمحاضرات: فتح ${study.lecturesOpened||0} وأكمل ${study.lecturesCompleted||0}\n\nكل درجات الشهر:\n${resultLines}\n\nالواجبات والمتابعة:\n${homeworkLines}\n\nنقاط القوة:\n${(report.strengths||[]).map(value=>`- ${value}`).join('\n')||'- لا توجد بيانات كافية'}\n\nيحتاج متابعة في:\n${(report.concerns||[]).map(value=>`- ${value}`).join('\n')||'- لا توجد ملاحظات مقلقة'}\n\nملاحظات م. عمرو خالد:\n${report.teacherNotes||'لا توجد ملاحظات خاصة بهذا الشهر.'}`;
+  return `أهلًا بحضرتك، مع حضرتك م. عمرو خالد، مهندس برمجيات ومدرس البرمجة والذكاء الاصطناعي ومؤسس Techno Minds.\n\nتقرير الطالب/ة ${st.name||'-'} عن شهر ${reportMonthLabel(report.monthKey)}\nالكود: ${st.studentCode||'-'}\nالمسار: ${st.grade||'-'}\nالمجموعة: ${st.group||'-'}\n\nالمستوى العام: ${report.overallScore??'-'}% — ${report.level||'بيانات غير كافية'}\nالمستوى الأكاديمي: ${report.academicScore??'-'}%\n${evidence}\nالتقدم: ${trend.label||'لا توجد بيانات كافية للمقارنة'}\n\nالحضور: ${attendance.present||0} من ${attendance.total||0}${attendance.percentage===null||attendance.percentage===undefined?'':` — ${attendance.percentage}%`}${absenceWarningText}\nالواجبات: سلّم ${homework.submitted||0} من ${homework.required||0} — لم يسلّم ${homework.missing||0}\nمتوسط الدرجات: ${results.average??'-'}%\nالمحاضرات: فتح ${study.lecturesOpened||0} وأكمل ${study.lecturesCompleted||0}\n\nكل درجات الشهر:\n${resultLines}\n\nالواجبات والمتابعة:\n${homeworkLines}\n\nنقاط القوة:\n${(report.strengths||[]).map(value=>`- ${value}`).join('\n')||'- لا توجد بيانات كافية'}\n\nيحتاج متابعة في:\n${(report.concerns||[]).map(value=>`- ${value}`).join('\n')||'- لا توجد ملاحظات مقلقة'}\n\nملاحظات م. عمرو خالد:\n${report.teacherNotes||'لا توجد ملاحظات خاصة بهذا الشهر.'}`;
 }
 window.parentMonthlyReportText=parentMonthlyReportText;
 
@@ -806,11 +809,13 @@ function parentMonthlyReportHTML(report){
   return `<div class="parent-monthly-report-v40 parent-monthly-report-server" id="parentMonthlyReport">
     <label class="parent-month-filter-v637"><span>عرض تقرير شهر</span><select onchange="renderParentMonth(this.value)">${monthOptions}</select></label>
     <div class="parent-report-cover-v40"><div class="parent-report-cover-content-v40"><div class="parent-report-main-v40"><span class="kicker">تقرير ولي الأمر الشهري</span><h2>${esc(st.name||'-')}</h2><p>${esc(reportMonthLabel(report.monthKey))} · ${esc(st.grade||'-')} · ${esc(st.group||'-')}</p></div><div class="parent-report-qr-v40"><b>QR الطالب</b>${makeQR(st.studentCode||'')}<small>${esc(st.studentCode||'')}</small></div></div></div>
-    <div class="parent-actions-v38 no-print"><button class="btn primary" onclick="printParentReport()">طباعة / حفظ PDF</button><button class="btn ghost" onclick="copyParentReport('${esc(st.studentCode||'')}')">نسخ التقرير</button>${st.parentPhone?`<button class="btn whatsapp-report-btn" onclick="openParentWhatsApp('${esc(st.studentCode||'')}')">إرسال واتساب</button>`:''}</div>
+    <div class="parent-actions-v38 no-print"><button class="btn primary" onclick="printParentReport()">طباعة / حفظ PDF</button><button class="btn ghost" onclick="copyParentReport('${esc(st.studentCode||'')}')">نسخ التقرير</button>${st.parentPhone?`<button class="btn whatsapp-report-btn" onclick="openParentWhatsApp('${esc(st.studentCode||'')}')">صورة التقرير + واتساب</button>`:''}</div>
     <div class="metric-grid parent-report-metrics-v40"><div class="metric main-metric-v40"><b>${score(report.overallScore)}</b><small>${esc(report.level||'المستوى العام')}</small></div><div class="metric"><b>${score(report.academicScore)}</b><small>المستوى الأكاديمي</small></div><div class="metric"><b>${score(report.commitmentScore)}</b><small>الالتزام والمذاكرة</small></div><div class="metric"><b>${score(attendance.percentage)}</b><small>الحضور</small></div><div class="metric"><b>${score(homework.completionPercentage)}</b><small>تسليم الواجبات</small></div><div class="metric"><b>${score(results.average)}</b><small>متوسط الدرجات</small></div></div>
     <div class="parent-status-card-v40 ${trendTone}"><div><span>التقدم مقارنة بالشهر السابق</span><h3>${esc(trend.label||'بيانات غير كافية')}</h3></div><p>${report.sufficientData?`حالة المذاكرة داخل المنصة: ${esc(report.commitmentLevel||'-')}.`:'لا توجد أنشطة كافية لإصدار حكم دقيق على انتظام المذاكرة.'}</p></div>
+    ${(report.history||[]).length>1?`<section class="parent-progress-chart-v65"><div class="student-panel-title"><div><span class="kicker">تطور المستوى</span><h3>آخر ${(report.history||[]).length} أشهر</h3></div></div><div class="parent-progress-bars-v65">${report.history.map(item=>`<div class="parent-progress-column-v65"><span style="height:${Math.max(6,Number(item.overallScore||0))}%"></span><b>${item.overallScore===null||item.overallScore===undefined?'-':`${esc(item.overallScore)}%`}</b><small>${esc(reportMonthLabel(item.monthKey))}</small></div>`).join('')}</div></section>`:''}
+    ${attendance.consecutiveAbsenceWarning?`<div class="parent-status-card-v40 danger"><div><span>تحذير غياب متتالٍ</span><h3>${esc(attendance.consecutiveAbsenceWarning.message)}</h3></div><p>الحصص: ${esc((attendance.consecutiveAbsenceWarning.dates||[]).join('، '))}</p></div>`:''}
     <div class="parent-detail-grid-v40">
-      <section class="mini-panel parent-panel-v40"><h3>الدرجات والامتحانات</h3>${(results.rows||[]).map(row=>`<div class="report-list-row-v40"><div><b>${esc(row.activityName||row.examTitle||'درجة')}</b><small>${esc(formatPortalDate(row.date||row.submittedAt))}</small></div><span class="badge ${row.score===null||row.score===undefined?'warn':'good'}">${row.score===null||row.score===undefined?'قيد التصحيح':`${esc(row.score)} من ${esc(row.maxScore||100)}`}</span></div>`).join('')||'<p>لا توجد درجات مسجلة في هذا الشهر.</p>'}</section>
+      <section class="mini-panel parent-panel-v40"><h3>الدرجات والامتحانات</h3>${(results.rows||[]).map(row=>{const absent=row.status==='absent'||row.absent===true;return `<div class="report-list-row-v40"><div><b>${esc(row.activityName||row.examTitle||'درجة')}</b><small>${esc(formatPortalDate(row.date||row.submittedAt))}</small></div><span class="badge ${absent?'danger':row.score===null||row.score===undefined?'warn':'good'}">${absent?'غائب عن الامتحان':row.score===null||row.score===undefined?'قيد التصحيح':`${esc(row.score)} من ${esc(row.maxScore||100)}`}</span></div>`;}).join('')||'<p>لا توجد درجات مسجلة في هذا الشهر.</p>'}</section>
       <section class="mini-panel parent-panel-v40"><h3>الواجبات</h3>${(homework.rows||[]).map(row=>`<div class="report-list-row-v40"><div><b>${esc(row.assignment?.title||'واجب')}</b><small>${row.assignment?.dueDate?`آخر موعد: ${esc(row.assignment.dueDate)}`:'بدون موعد نهائي'}</small></div><span class="badge ${row.status==='missing'?'danger':row.submission?.score===null||row.submission?.score===undefined?'warn':'good'}">${row.status==='missing'?'لم يسلّم':row.submission?.score===null||row.submission?.score===undefined?'قيد التصحيح':`${esc(row.submission.score)} من ${esc(row.submission.maxScore||row.assignment?.totalScore||100)}`}</span></div>`).join('')||'<p>لا توجد واجبات مطلوبة في هذا الشهر.</p>'}</section>
       <section class="mini-panel parent-panel-v40"><h3>الحضور والمذاكرة</h3><p>الحضور: <b>${esc(attendance.present||0)} من ${esc(attendance.total||0)}</b></p><p>فتح المحاضرات: <b>${esc(study.lecturesOpened||0)}</b> · أكمل: <b>${esc(study.lecturesCompleted||0)}</b></p><p>التطبيق العملي: <b>${esc(report.practical?.completed||0)}</b></p></section>
       <section class="mini-panel parent-panel-v40"><h3>نقاط القوة</h3>${(report.strengths||[]).map(item=>`<p>✓ ${esc(item)}</p>`).join('')||'<p>لا توجد بيانات كافية بعد.</p>'}</section>
@@ -885,12 +890,52 @@ window.copyParentReport = async function(code){
   catch(e){toast('تعذر النسخ، جرّب من متصفح أحدث');}
 };
 
-window.openParentWhatsApp = function(code){
-  const st = (lastParentStudent && lastParentStudent.studentCode===code) ? lastParentStudent : (window.MF_FIREBASE_CONFIG?.useSecureFunctions===false ? findStudentByCode(code) : null);
-  if(!st) return toast('لم يتم العثور على الطالب');
-  const phone = whatsappPhone(st.parentPhone);
-  if(!phone) return toast('رقم ولي الأمر غير موجود في بيانات الطالب');
-  window.open(whatsappLink(phone,lastParentMonthlyReport?.student?.studentCode===code?parentMonthlyReportText(lastParentMonthlyReport):parentReportText(st,lastParentReportMonth)), '_blank');
+function parentReportWhatsAppIntro(report){
+  const st=report?.student||{},portal=`${location.origin}/parent.html`;
+  return `السلام عليكم ورحمة الله وبركاته،\nمع حضرتك م. عمرو خالد، مهندس برمجيات ومدرس البرمجة والذكاء الاصطناعي ومؤسس Techno Minds.\n\nده التقرير الشهري الخاص بالطالب/ة ${st.name||'-'} عن شهر ${reportMonthLabel(report.monthKey)}، ومرفق لحضرتك صورة التقرير كاملة.\n\nحالة الطالب: ${report.level||'بيانات غير كافية'}${report.overallScore===null||report.overallScore===undefined?'':` — ${report.overallScore}%`}\nالتقدم: ${report.trend?.label||'لا توجد بيانات كافية للمقارنة'}\n\nتقدر تتابع مستوى ابنك في أي وقت من الرابط ده:\n${portal}\n\nكود الطالب الموحّد: ${st.studentCode||'-'}\nاكتب الكود داخل صفحة ولي الأمر لعرض الحضور والواجبات والامتحانات والتقدم.\n\nمع تحيات م. عمرو خالد — Techno Minds`;
+}
+window.parentReportWhatsAppIntro=parentReportWhatsAppIntro;
+
+function parentReportImageBlob(report){
+  return new Promise((resolve,reject)=>{
+    try{
+      const results=report?.results?.rows||[],homework=report?.homework?.rows||[],concerns=report?.concerns||[],strengths=report?.strengths||[];
+      const width=1080,height=Math.max(1500,1180+(results.length+homework.length+concerns.length+strengths.length)*58),canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
+      const ctx=canvas.getContext('2d');ctx.direction='rtl';ctx.textAlign='right';ctx.fillStyle='#f5f8fc';ctx.fillRect(0,0,width,height);
+      const box=(y,h,color='#fff')=>{ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(55,y,width-110,h,28);ctx.fill();};
+      const text=(value,x,y,size=31,color='#15233b',weight=500)=>{ctx.fillStyle=color;ctx.font=`${weight} ${size}px Cairo, Arial, sans-serif`;ctx.fillText(String(value??''),x,y);};
+      const line=(label,value,x,y)=>{text(label,x,y,25,'#637089',500);text(value,x,y+39,32,'#14213d',700);};
+      ctx.fillStyle='#07111f';ctx.fillRect(0,0,width,270);text('TECHNO MINDS',width-70,83,35,'#56d6ff',800);text('تقرير ولي الأمر الشهري',width-70,145,48,'#fff',800);text(`${report?.student?.name||'-'}  •  ${reportMonthLabel(report?.monthKey)}`,width-70,207,32,'#dce9f7',600);text(`كود الطالب: ${report?.student?.studentCode||'-'}`,width-70,250,24,'#9fb2c8',500);
+      box(305,190);line('المستوى العام',`${report?.overallScore??'-'}% — ${report?.level||'-'}`,width-95,360);line('التقدم مقارنة بالشهر السابق',report?.trend?.label||'لا توجد بيانات كافية',width-95,445);
+      box(525,190);const metrics=[['الحضور',report?.attendance?.percentage],['الواجبات',report?.homework?.completionPercentage],['الدرجات',report?.results?.average],['المذاكرة',report?.commitmentScore]];metrics.forEach(([label,value],index)=>{const cell=width-95-index*235;line(label,value===null||value===undefined?'-':`${value}%`,cell,580);});
+      let y=755;const section=(title,rows,empty)=>{const sectionHeight=85+Math.max(1,rows.length)*52;box(y,sectionHeight);text(title,width-95,y+49,30,'#07111f',800);if(!rows.length)text(empty,width-95,y+100,25,'#718096',500);else rows.forEach((row,index)=>text(row,width-95,y+100+index*52,25,'#24324a',600));y+=sectionHeight+25;};
+      section('الامتحانات والدرجات',results.map(row=>`${row.activityName||row.examTitle||'امتحان'}: ${row.status==='absent'||row.absent===true?'غائب عن الامتحان':row.score===null||row.score===undefined?'قيد التصحيح':`${row.score} من ${row.maxScore||100}`}`),'لا توجد امتحانات مسجلة في هذا الشهر');
+      section('الواجبات',homework.map(row=>`${row.assignment?.title||'واجب'}: ${row.status==='missing'?'لم يتم التسليم':row.submission?.score===null||row.submission?.score===undefined?'تم التسليم وقيد التصحيح':`${row.submission.score} من ${row.submission.maxScore||row.assignment?.totalScore||100}`}`),'لا توجد واجبات مطلوبة في هذا الشهر');
+      section('نقاط القوة',strengths.map(item=>`✓ ${item}`),'لا توجد بيانات كافية بعد');
+      section('يحتاج متابعة',concerns.map(item=>`• ${item}`),'لا توجد ملاحظات مقلقة');
+      if(report?.teacherNotes)section('ملاحظات م. عمرو خالد',[report.teacherNotes],'');
+      text('يمكن متابعة التقرير من صفحة ولي الأمر باستخدام كود الطالب الموحّد',width-70,height-70,24,'#65758b',600);
+      canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('تعذر إنشاء صورة التقرير')),'image/png',0.94);
+    }catch(error){reject(error);}
+  });
+}
+window.parentReportImageBlob=parentReportImageBlob;
+
+window.deliverParentMonthlyReport=async function(report,parentPhone,notify=toast){
+  const phone=whatsappPhone(parentPhone||report?.student?.parentPhone),code=report?.student?.studentCode||'',name=String(report?.student?.name||'student').replace(/[^\p{L}\p{N}-]+/gu,'-');
+  if(!phone)throw new Error('رقم ولي الأمر غير موجود في بيانات الطالب');
+  if(!confirm(`سيتم فتح التقرير على رقم ولي الأمر:\n${phone}\n\nهل تريد المتابعة؟`))return false;
+  notify('جاري إنشاء صورة التقرير…');const blob=await parentReportImageBlob(report),fileName=`Techno-Minds-${name}-${report.monthKey||'report'}.png`,url=URL.createObjectURL(blob),download=document.createElement('a');download.href=url;download.download=fileName;document.body.appendChild(download);download.click();download.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+  const message=parentReportWhatsAppIntro(report);try{await navigator.clipboard.writeText(message);}catch(_){}
+  window.open(whatsappLink(phone,message),'_blank','noopener');
+  notify('تم تنزيل صورة التقرير وفتح رقم ولي الأمر. أرفق الصورة التي تم تنزيلها ثم أرسل الرسالة.');return true;
+};
+
+window.openParentWhatsApp = async function(code){
+  const st=(lastParentStudent&&lastParentStudent.studentCode===code)?lastParentStudent:(window.MF_FIREBASE_CONFIG?.useSecureFunctions===false?findStudentByCode(code):null);
+  if(!st)return toast('لم يتم العثور على الطالب');
+  if(!lastParentMonthlyReport||lastParentMonthlyReport?.student?.studentCode!==code)return toast('انتظر تحميل التقرير الشهري أولًا');
+  try{await window.deliverParentMonthlyReport(lastParentMonthlyReport,st.parentPhone,toast);}catch(error){toast(error?.message||'تعذر تجهيز صورة التقرير');}
 };
 
 window.printParentReport = function(){
@@ -1202,7 +1247,7 @@ var currentExamStudent=null;
 var currentSecureExams=[];
 function renderExamPortal(st,exams){
   const box=document.getElementById('examStudentResult');if(!box)return;
-  currentExamStudent=normalizedStudent(st);currentSecureExams=Array.isArray(exams)?exams:currentSecureExams;
+  currentExamStudent=normalizedStudent(st);currentSecureExams=(Array.isArray(exams)?exams:currentSecureExams).filter(ex=>ex&&ex.archived!==true&&ex.active!==false&&ex.published!==false&&(ex.scheduleState||'open')!=='inactive');
   const attempts=(st.examAttempts||[]).slice().reverse();
   const available=currentSecureExams.map(ex=>{
     const done=attempts.some(a=>String(a.examId)===String(ex.id)&&a.status!=='started')&&!ex.allowRetake;

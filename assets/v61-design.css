@@ -3,6 +3,7 @@
  * Unified visual system for the public website, student/parent portals,
  * practical lab and administration workspace.
  */
+@import url('./v65-redesign.css?v=65.0.0');
 :root{
   --tm-navy:#07111f;
   --tm-navy-2:#0f1e32;
