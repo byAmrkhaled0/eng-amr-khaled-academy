@@ -36,3 +36,15 @@ html[data-theme='dark'] .page-hero{background:linear-gradient(135deg,#0d2038,#10
 @media(max-width:800px){.page-hero{padding:30px 0 16px!important}.page-hero .hero-title{font-size:2.15rem!important}.hero-grid{padding-block:26px}.login-page{padding:18px!important}.login-card{margin-block:10px}}
 html:not([data-theme='dark']) .hero .btn.ghost{background:#102943!important;color:#fff!important;border-color:#193b5f!important;box-shadow:0 8px 20px rgba(16,41,67,.12)!important}
 html:not([data-theme='dark']) .hero .btn.ghost:hover{background:#173b61!important;color:#fff!important;border-color:#255683!important}
+
+/* V65.0.4 — iPhone assessment containment and distraction-free exams. */
+.exam-overlay{z-index:7000!important;overscroll-behavior:contain}
+body.exam-open .site-header,body.exam-open .mobile-bottom,body.exam-open .floating-chat-tools,body.exam-open .floating-top-tools,body.exam-open .student-help-button,body.exam-open .back-to-top,body.exam-open .pwa-floating-install{display:none!important}
+.exam-box,.exam-app-shell,#liveExamForm,#examQuestionStage,.exam-question-card,.exam-options,.exam-option,.exam-option>span:last-child{min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
+.exam-question-card,.exam-question-card h3,.exam-option>span:last-child{overflow-wrap:anywhere!important;word-break:break-word;white-space:normal!important}
+.exam-option{width:100%!important;grid-template-columns:22px 32px minmax(0,1fr)!important;overflow:hidden!important;align-items:start!important}
+.exam-option input{min-width:20px!important;max-width:20px!important;margin:5px 0 0!important}
+.exam-option-marker{min-width:31px;flex:none}.exam-option>span:last-child{display:block;width:100%;line-height:1.8;text-align:start;unicode-bidi:plaintext}
+.homework-question-card,.student-assignment-card,.assignment-choices,.assignment-choices label,.assignment-choices label>span,.resource-card,.material-card{min-width:0!important;max-width:100%!important;box-sizing:border-box!important;overflow-wrap:anywhere!important;word-break:break-word}
+.assignment-choices label{width:100%;overflow:hidden}.assignment-choices label>span{display:block;white-space:normal}
+@media(max-width:800px){body.exam-open{position:fixed;inset:0;width:100%;height:100%;overflow:hidden!important}.exam-overlay{inset:0!important;padding:0!important}.exam-box{width:100vw!important;height:100svh!important;max-height:100svh!important;border-radius:0!important}.exam-app-shell{width:100%;height:100svh!important;max-height:100svh!important}.exam-app-header{padding:max(10px,env(safe-area-inset-top)) 11px 10px!important}.exam-app-header>div:first-child{min-width:0}.exam-question-card{padding:14px 10px!important;overflow-x:hidden!important}.exam-option{padding:10px 8px!important;gap:7px!important}.exam-navigation{padding:8px 8px max(8px,env(safe-area-inset-bottom))!important}.exam-navigation .btn{min-width:0!important;padding-inline:8px!important}.exam-navigation #examExitBtn{max-width:105px!important}.assignment-choices{grid-template-columns:1fr!important}}

@@ -98,7 +98,23 @@ test('new students only receive homework and exams published after joining',()=>
   assert.match(backend,/exam\.archived!==true[^\n]+contentAvailableAfterStudentJoined\(exam,found\.data\)/);
   assert.match(app,/scheduleState\|\|'open'\)!=='inactive'/);
   assert.match(css,/#examCodeForm,#examStudentResult\{grid-column:1\/-1\}/);
-  for(const page of ['index.html','student.html','parent.html','exams.html','teacher-login.html'])assert.match(read(page),/v65-redesign\.css\?v=65\.0\.3/);
+  for(const page of ['index.html','student.html','parent.html','exams.html','teacher-login.html'])assert.match(read(page),/v65-redesign\.css\?v=65\.0\.4/);
+});
+
+test('mobile exams and homework stay inside the iPhone viewport',()=>{
+  const css=read('assets/v65-redesign.css'),app=read('assets/app.js'),backend=read('functions/index.js');
+  assert.match(css,/\.exam-overlay\{z-index:7000!important/);assert.match(css,/body\.exam-open \.site-header/);
+  assert.match(css,/grid-template-columns:22px 32px minmax\(0,1fr\)!important/);assert.match(css,/height:100svh!important/);
+  assert.match(css,/\.assignment-choices label>span[^}]+white-space:normal/);
+  assert.match(app,/function renderExamQuestionHtml/);assert.match(app,/function homeworkQuestionHtml/);
+  assert.match(backend,/contentAvailableAfterStudentJoined/);assert.match(backend,/learningTargetMatchesStudent/);
+});
+
+test('a newly enrolled student receives currently open class assessments',()=>{
+  const backend=read('functions/index.js');
+  assert.match(backend,/today<=dueDate&&assignmentIsReleased\(item\)/);
+  assert.match(backend,/closeAt>now&&\(!openAt\|\|openAt<=now\)/);
+  assert.match(backend,/Finished historic work stays/);
 });
 
 test('live audit fixes health GET contrast and first paint',()=>{

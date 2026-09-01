@@ -1210,7 +1210,15 @@ function contentAvailableAfterStudentJoined(item={},student={}){
   const joined=firestoreMillis(student.acceptedAt||student.activatedAt||student.enrolledAt||student.createdAt);
   if(!joined)return true;
   const published=firestoreMillis(item.publishAt||item.openAt||item.createdAt||item.updatedAt);
-  return published>0&&published>=joined-5*60*1000;
+  if(published>0&&published>=joined-5*60*1000)return true;
+  // A student who joins while a class assessment is still open must receive
+  // it even if it was published before enrolment. Finished historic work stays
+  // hidden, preserving the default from-joining policy.
+  const today=cairoDateKey(new Date()),dueDate=String(item.dueDate||'').trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(dueDate)&&today<=dueDate&&assignmentIsReleased(item))return true;
+  const now=Date.now(),openAt=scheduledTimeMillis(item.openAt),closeAt=scheduledTimeMillis(item.closeAt);
+  if(closeAt>now&&(!openAt||openAt<=now)&&item.active!==false&&item.published!==false&&item.archived!==true)return true;
+  return false;
 }
 
 async function assignmentsForStudent(student = {}) {
