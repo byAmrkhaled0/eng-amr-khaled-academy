@@ -1,14 +1,14 @@
-const CACHE_NAME = "technominds-v64-0-0-resilient-assessments-redesign-r6-v65-0-4";
+const CACHE_NAME = "technominds-v64-0-0-resilient-assessments-redesign-r10-v65-0-8-exam-audit";
 const ASSET_VERSION = "64.0.0";
 const APP_SHELL = [
   "/", "/index.html", "/student.html", "/parent.html", "/exams.html", "/materials.html", "/theory-lectures.html", "/questions.html", "/practical.html", "/learning-path.html", "/about.html", "/reviews.html", "/privacy.html",
   "/terms.html", "/offline.html", "/assets/site.css", "/assets/v55.css",
   "/assets/v56.css", "/assets/v60-technominds.css", "/assets/v61-design.css", "/assets/v65-redesign.css", "/assets/app.js", "/assets/practical.js", "/assets/firebase-sync.js",
-  "/assets/firebase-config.js", "/assets/v53-upgrades.js", "/assets/v65-enhancements.js", "/assets/offline-attendance.js", "/assets/curriculum-student.js",
+  "/assets/firebase-config.js", "/assets/v53-upgrades.js", "/assets/v65-enhancements.js", "/assets/offline-attendance.js", "/assets/vendor/html5-qrcode-2.3.8.min.js", "/assets/curriculum-student.js",
   "/assets/technominds-logo.png", "/assets/technominds-logo.webp",
   "/assets/amr-khaled-profile.webp", "/site.webmanifest", "/teacher.webmanifest"
 ];
-const VERSIONED_APP_SHELL=APP_SHELL.map(url=>/\.(?:css|js)$/.test(url)?`${url}?v=${ASSET_VERSION}`:url);
+const VERSIONED_APP_SHELL=APP_SHELL.map(url=>url.includes('html5-qrcode-2.3.8.min.js')?`${url}?v=65.0.8`:/\.(?:css|js)$/.test(url)?`${url}?v=${ASSET_VERSION}`:url);
 const SENSITIVE_NAVIGATION=new Set(['/student.html','/parent.html','/exams.html','/materials.html','/theory-lectures.html','/questions.html','/practical.html','/teacher-login.html']);
 
 // Background FCM uses the browser's standard Push API with no external worker

@@ -205,7 +205,7 @@ if (!manifest.icons.some(icon => String(icon.purpose || '').includes('maskable')
 const sw = read('service-worker.js');
 const appShellSource = sw.slice(0,sw.indexOf('];')+2);
 if (!/technominds-v64-0-0-resilient-assessments/.test(sw) || !sw.includes('/assets/v61-design.css') || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/curriculum-student.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes("'/practical.html'") || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell or sensitive portal exclusions are incomplete');
-if (/assets\/vendor|assets\/admin\.js|teacher-login\.html/.test(appShellSource) || !sw.includes('event.waitUntil(network.catch')) fail('Large admin assets are still precached or repeat-visit caching is missing');
+if (/xlsx|assets\/admin\.js|teacher-login\.html/.test(appShellSource) || !appShellSource.includes('html5-qrcode-2.3.8.min.js') || !sw.includes('event.waitUntil(network.catch')) fail('Offline QR decoder or repeat-visit caching is incomplete');
 if (!read('index.html').includes('<script defer src="https://www.gstatic.com/firebasejs/')) fail('Firebase scripts are not downloaded in parallel with deferred execution');
 const upgrade = read('assets/v53-upgrades.js');
 if (!upgrade.includes('beforeinstallprompt') || !upgrade.includes('إضافة إلى الشاشة الرئيسية') || !upgrade.includes('navigator.standalone')) fail('Mobile install handling is incomplete');

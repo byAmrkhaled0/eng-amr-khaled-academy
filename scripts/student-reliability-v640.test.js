@@ -40,7 +40,7 @@ test('exam progress is server timed, resumable, idempotent and auto-submits once
 test('homework grade is separate from submission in monthly motivation and parent report is complete',()=>{
   const app=read('assets/app.js'),backend=read('functions/index.js');
   assert.match(backend,/homeworkGradePct/);
-  assert.match(backend,/homeworkPct\*\.15\+homeworkGradePct\*\.10/);
+  assert.match(backend,/homeworkPct\*config\.weights\.homeworkCompletion\+homeworkGradePct\*config\.weights\.homeworkGrade/);
   assert.match(backend,/where\('submittedAt','>=',periodStart\)/);
   assert.match(app,/أهلًا بحضرتك، مع حضرتك م\. عمرو خالد/);
   assert.match(app,/كل درجات الشهر وآخر الامتحانات/);

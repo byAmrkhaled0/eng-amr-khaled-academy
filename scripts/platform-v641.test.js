@@ -98,7 +98,7 @@ test('new students only receive homework and exams published after joining',()=>
   assert.match(backend,/exam\.archived!==true[^\n]+contentAvailableAfterStudentJoined\(exam,found\.data\)/);
   assert.match(app,/scheduleState\|\|'open'\)!=='inactive'/);
   assert.match(css,/#examCodeForm,#examStudentResult\{grid-column:1\/-1\}/);
-  for(const page of ['index.html','student.html','parent.html','exams.html','teacher-login.html'])assert.match(read(page),/v65-redesign\.css\?v=65\.0\.4/);
+  for(const page of ['index.html','student.html','parent.html','exams.html','teacher-login.html'])assert.match(read(page),/v65-redesign\.css\?v=65\.0\.8/);
 });
 
 test('mobile exams and homework stay inside the iPhone viewport',()=>{
@@ -110,11 +110,40 @@ test('mobile exams and homework stay inside the iPhone viewport',()=>{
   assert.match(backend,/contentAvailableAfterStudentJoined/);assert.match(backend,/learningTargetMatchesStudent/);
 });
 
+test('exam timer uses Cairo time and locks answers after expiry with safe retry',()=>{
+  const app=read('assets/app.js'),css=read('assets/v65-redesign.css');
+  assert.match(app,/function examCairoDateTime/);assert.match(app,/timeZone:'Africa\/Cairo'/);
+  assert.match(app,/role="timer" aria-live="polite"/);assert.match(app,/const lockExpiredExam=/);
+  assert.match(app,/form\.querySelectorAll\('input,textarea'\).*disabled=true/);
+  assert.match(app,/autoSubmitRetryTimer=setTimeout\(\(\)=>finish\(true\),8000\)/);
+  assert.match(css,/\.exam-timer\.warn/);assert.match(css,/\.exam-timer\.danger/);
+});
+
 test('a newly enrolled student receives currently open class assessments',()=>{
   const backend=read('functions/index.js');
   assert.match(backend,/today<=dueDate&&assignmentIsReleased\(item\)/);
   assert.match(backend,/closeAt>now&&\(!openAt\|\|openAt<=now\)/);
   assert.match(backend,/Finished historic work stays/);
+});
+
+test('leaderboard keeps the latest active month visible at a month boundary',()=>{
+  const backend=read('functions/index.js'),app=read('assets/app.js'),css=read('assets/v65-redesign.css');
+  assert.match(backend,/function previousLeaderboardPeriod/);assert.match(backend,/leaderboardRowsForGradeWithFallback/);
+  assert.match(backend,/isPreviousPeriod:result\.isPreviousPeriod/);assert.match(app,/ترتيب شهر/);
+  assert.match(app,/تعذر تحميل ترتيب الطلاب الآن/);assert.match(css,/leaderboard-period-note/);
+});
+
+test('monthly motivation is configurable, comparative, archived and included in parent reports',()=>{
+  const backend=read('functions/index.js'),app=read('assets/app.js'),admin=read('assets/admin.js'),sync=read('assets/firebase-sync.js');
+  assert.match(backend,/DEFAULT_MOTIVATION_CONFIG/);
+  assert.match(backend,/enrichLeaderboardRows/);
+  assert.match(backend,/exports\.freezeMonthlyLeaderboard/);
+  assert.match(backend,/leaderboard_archives/);
+  assert.match(backend,/motivation,previousMonth/);
+  assert.match(app,/parent-motivation-summary/);
+  assert.match(app,/مركزك في المسار/);
+  assert.match(admin,/motivationConfigForm/);
+  assert.match(sync,/saveMotivationSettingsAdmin/);
 });
 
 test('live audit fixes health GET contrast and first paint',()=>{
@@ -147,6 +176,8 @@ test('QR attendance survives offline use and syncs idempotently after reconnect'
   assert.match(backend,/exports\.syncOfflineAttendance = onCall/);assert.match(backend,/offlineRequestId/);assert.match(backend,/cairoDateKey\(new Date\(scannedMillis\)\)!==date/);
   assert.match(sync,/syncOfflineAttendance:callable\('syncOfflineAttendance'\)/);
   assert.match(worker,/technominds-attendance-sync/);assert.match(worker,/\/teacher-login\.html/);assert.match(worker,/cache\.put\(request,response\.clone\(\)\)/);
+  assert.match(worker,/\/assets\/vendor\/html5-qrcode-2\.3\.8\.min\.js/);assert.match(worker,/r10-v65-0-8-exam-audit/);
+  assert.match(admin,/qrScanBusy/);assert.match(admin,/offlineQrManualForm/);assert.match(admin,/state\?\.roster/);
   assert.match(app,/assets\/vendor\/html5-qrcode-2\.3\.8\.min\.js/);
   assert.match(page,/assets\/offline-attendance\.js/);
 });

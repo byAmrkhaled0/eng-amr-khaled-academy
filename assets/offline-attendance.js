@@ -35,7 +35,7 @@
     await Promise.all((results||[]).map(async result=>{const row=await requestValue(store.get(String(result.requestId||'')));if(!row)return;if(result.ok)store.delete(row.requestId);else store.put({...row,status:result.retryable===false?'failed':'pending',attempts:Number(row.attempts||0)+1,lastError:String(result.error||'تعذر المزامنة').slice(0,300),lastAttemptAt:new Date().toISOString()});}));
     await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});
   }
-  async function counts(){const rows=await getQueue();return {pending:rows.filter(row=>row.status==='pending').length,failed:rows.filter(row=>row.status==='failed').length,total:rows.length};}
+  async function counts(){const [rows,roster]=await Promise.all([getQueue(),getRoster()]);return {pending:rows.filter(row=>row.status==='pending').length,failed:rows.filter(row=>row.status==='failed').length,total:rows.length,roster:roster.length};}
   async function sync(syncFunction){
     if(syncing||navigator.onLine===false||typeof syncFunction!=='function')return {skipped:true,...await counts()};syncing=true;
     try{const rows=(await getQueue()).filter(row=>row.status==='pending').slice(0,60);if(!rows.length)return {ok:true,...await counts()};const response=await syncFunction(rows);await applyResults(response?.results||[]);return {ok:true,synced:(response?.results||[]).filter(row=>row.ok).length,...await counts()};}finally{syncing=false;}

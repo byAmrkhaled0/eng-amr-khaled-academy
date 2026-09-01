@@ -739,10 +739,35 @@ exports.getMotivationLeaderboardAdmin = onCall(CALLABLE_OPTIONS, async request =
   await rateLimit('admin-motivation-leaderboard', staff.uid, 120, 60 * 1000);
   const academicYear = text(request.data?.academicYear, 30), month = text(request.data?.month, 40), grade = text(canonicalAcademicLabel(request.data?.grade), 80), scheduleId = text(request.data?.scheduleId, 100);
   if (!academicYear || !month) throw new HttpsError('invalid-argument', 'حدد العام الدراسي والشهر.');
-  let rows=await leaderboardRowsForPeriod(academicYear,month);
-  if(scheduleId)rows=rows.filter(row=>String(row.scheduleId||'')===scheduleId);else if(grade)rows=rows.filter(row=>canonicalLeaderboardGrade(row.grade)===canonicalLeaderboardGrade(grade));
-  return rows.slice(0,100).map((row,index)=>({rank:index+1,studentCode:row.studentCode,studentName:row.name,grade:row.grade,group:row.group||'',scheduleId:row.scheduleId||'',score:Number(row.score||0),baseScore:Number(row.baseScore||0),totalPoints:Number(row.motivationPoints||0),motivationBonus:Number(row.motivationBonus||0),attendancePct:Number(row.attendancePct||0),gradePct:Number(row.gradePct||0),homeworkPct:Number(row.homeworkPct||0),homeworkGradePct:Number(row.homeworkGradePct||0),recitationPct:Number(row.recitationPct||0)}));
+  const period=leaderboardPeriod(academicYear,month),previous=previousPeriodFor(period);
+  let rows=await leaderboardRowsForPeriod(academicYear,month),previousRows=await leaderboardRowsForPeriod(previous.academicYear,previous.monthName);
+  const filter=row=>scheduleId?String(row.scheduleId||'')===scheduleId:grade?canonicalLeaderboardGrade(row.grade)===canonicalLeaderboardGrade(grade):true;
+  rows=enrichLeaderboardRows(rows.filter(filter),previousRows.filter(filter));
+  return rows.slice(0,100).map(row=>({...row,studentName:row.name,name:undefined,totalPoints:Number(row.motivationPoints||0)}));
 });
+
+exports.getMotivationSettingsAdmin = onCall(CALLABLE_OPTIONS, async request => {
+  await requireStaff(request,['admin']);
+  const snap=await db.collection('settings').doc('platform').get();
+  return motivationConfigFromSettings(snap.exists?snap.data():{});
+});
+
+exports.saveMotivationSettingsAdmin = onCall(CALLABLE_OPTIONS, async request => {
+  const staff=await requireStaff(request,['admin']);
+  const motivationConfig=motivationConfigFromSettings({motivationConfig:request.data||{}});
+  await db.collection('settings').doc('platform').set({motivationConfig,motivationConfigUpdatedAt:FieldValue.serverTimestamp(),motivationConfigUpdatedBy:staff.uid},{merge:true});
+  await markLeaderboardDirty('motivation-settings');
+  return motivationConfig;
+});
+
+async function archiveLeaderboardPeriod(period){
+  const rows=await leaderboardRowsForPeriod(period.academicYear,period.monthName),batch=db.batch();
+  ACADEMIC_GRADES.forEach(grade=>{const gradeRows=enrichLeaderboardRows(rows.filter(row=>canonicalLeaderboardGrade(row.grade)===canonicalLeaderboardGrade(grade))),id=`${period.monthKey}_${hash(grade).slice(0,12)}`;batch.set(db.collection('leaderboard_archives').doc(id),{academicYear:period.academicYear,month:period.monthName,monthKey:period.monthKey,grade,rows:gradeRows,studentCount:gradeRows.length,lockedAt:FieldValue.serverTimestamp()},{merge:true});});
+  await batch.commit();return {ok:true,monthKey:period.monthKey,studentCount:rows.length};
+}
+
+exports.freezeLeaderboardMonthAdmin = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds:120, memory:'512MiB' },async request=>{await requireStaff(request,['admin']);return archiveLeaderboardPeriod(leaderboardPeriod(text(request.data?.academicYear,30),text(request.data?.month,40)));});
+exports.freezeMonthlyLeaderboard = onSchedule({region:'europe-west1',schedule:'10 0 1 * *',timeZone:'Africa/Cairo',timeoutSeconds:180,memory:'512MiB'},async()=>archiveLeaderboardPeriod(previousLeaderboardPeriod()));
 
 function publicExamSession(sessionId, exam, questions, startedAtMs, expiresAtMs, progress = {}) {
   const draftAnswers = progress.draftAnswers && typeof progress.draftAnswers === 'object' && !Array.isArray(progress.draftAnswers)
@@ -1867,7 +1892,15 @@ async function buildStudentMonthlyReport(student,monthKey,options={}) {
     const item=calculateMonthlyReport(monthlyReportInput(student,source,key));
     return {monthKey:key,overallScore:item.overallScore,academicScore:item.academicScore,commitmentScore:item.commitmentScore,attendancePercentage:item.attendance.percentage,homeworkPercentage:item.homework.completionPercentage};
   });
-  const report={...attachTrend(current,previous),previousMonth:{monthKey:previousKey,overallScore:previous.overallScore,academicScore:previous.academicScore,commitmentScore:previous.commitmentScore},availableMonths,history,generatedAt:new Date().toISOString(),timeZone:'Africa/Cairo'};
+  let motivation=null;
+  try{
+    const period=periodFromMonthKey(monthKey),previousPeriod=previousPeriodFor(period),grade=canonicalLeaderboardGrade(student.grade);
+    const [currentRows,previousRows]=await Promise.all([leaderboardRowsForPeriod(period.academicYear,period.monthName),leaderboardRowsForPeriod(previousPeriod.academicYear,previousPeriod.monthName)]);
+    const ranked=enrichLeaderboardRows(currentRows.filter(row=>canonicalLeaderboardGrade(row.grade)===grade),previousRows.filter(row=>canonicalLeaderboardGrade(row.grade)===grade));
+    const row=ranked.find(item=>item.studentCode===studentCode);
+    if(row)motivation={rank:row.rank,groupRank:row.groupRank,totalStudents:ranked.length,score:row.score,scoreDelta:row.scoreDelta,rankDelta:row.rankDelta,level:row.level,achievements:row.achievements,penaltyReasons:row.penaltyReasons,nextAction:row.nextAction,nextRankGap:row.nextRankGap,attendancePct:row.attendancePct,gradePct:row.gradePct,homeworkPct:row.homeworkPct,homeworkGradePct:row.homeworkGradePct,recitationPct:row.recitationPct};
+  }catch(error){console.warn('monthly-report-motivation',studentCode,monthKey,error?.message||error);}
+  const report={...attachTrend(current,previous),motivation,previousMonth:{monthKey:previousKey,overallScore:previous.overallScore,academicScore:previous.academicScore,commitmentScore:previous.commitmentScore},availableMonths,history,generatedAt:new Date().toISOString(),timeZone:'Africa/Cairo'};
   await ref.set({studentCode,monthKey,parentPhone:digits(student.parentPhone),report,status:options.lock===true?'ready':'draft',generatedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp(),...(options.lock===true?{lockedAt:FieldValue.serverTimestamp()}:{})},{merge:true});
   return report;
 }
@@ -2385,7 +2418,7 @@ exports.migratePlatformV63 = onCall({ region: 'europe-west1', timeoutSeconds: 54
 });
 
 const leaderboardStateRef = db.collection('_system').doc('leaderboard');
-let leaderboardCache = { expiresAt: 0, version: -1, periodKey: '', rows: [] };
+const leaderboardCacheByPeriod = new Map();
 
 async function markLeaderboardDirty(reason = 'activity') {
   try {
@@ -2429,6 +2462,10 @@ async function fetchAllCollectionDocuments(collection, configure = query => quer
 }
 
 const canonicalLeaderboardGrade = value => text(canonicalAcademicLabel(value), 50);
+const DEFAULT_MOTIVATION_CONFIG={weights:{exams:30,attendance:25,homeworkCompletion:20,homeworkGrade:10,practical:10,teacherBonus:5},penalties:{absence:2,consecutiveAbsence:5,missedExam:5,missingHomework:2,lateHomework:1}};
+function boundedMotivationNumber(value,fallback,min=0,max=100){const parsed=Number(value);return Number.isFinite(parsed)?Math.max(min,Math.min(max,parsed)):fallback;}
+function motivationConfigFromSettings(settings={}){const raw=settings.motivationConfig||{},weights=raw.weights||{},penalties=raw.penalties||{};return {weights:{exams:boundedMotivationNumber(weights.exams,30),attendance:boundedMotivationNumber(weights.attendance,25),homeworkCompletion:boundedMotivationNumber(weights.homeworkCompletion,20),homeworkGrade:boundedMotivationNumber(weights.homeworkGrade,10),practical:boundedMotivationNumber(weights.practical,10),teacherBonus:boundedMotivationNumber(weights.teacherBonus,5,0,20)},penalties:{absence:boundedMotivationNumber(penalties.absence,2,0,20),consecutiveAbsence:boundedMotivationNumber(penalties.consecutiveAbsence,5,0,30),missedExam:boundedMotivationNumber(penalties.missedExam,5,0,30),missingHomework:boundedMotivationNumber(penalties.missingHomework,2,0,20),lateHomework:boundedMotivationNumber(penalties.lateHomework,1,0,20)}};}
+function motivationLevel(score){return score>=90?'متميز':score>=80?'متقدم':score>=70?'جيد':score>=60?'يحتاج دفعة':'يحتاج متابعة';}
 
 function leaderboardPeriod(academicYear='',monthName='') {
   if(!academicYear||!monthName){
@@ -2441,13 +2478,28 @@ function leaderboardPeriod(academicYear='',monthName='') {
   return {monthKey:`${calendarYear}-${String(monthIndex+1).padStart(2,'0')}`,monthName,academicYear};
 }
 
+function previousLeaderboardPeriod(){
+  const current=leaderboardPeriod(),[year,month]=current.monthKey.split('-').map(Number),date=new Date(Date.UTC(year,month-2,1));
+  const previousYear=date.getUTCFullYear(),previousMonth=date.getUTCMonth()+1;
+  return {monthKey:`${previousYear}-${String(previousMonth).padStart(2,'0')}`,monthName:PAYMENT_MONTH_NAMES[previousMonth-1]||'',academicYear:previousMonth>=7?`${previousYear}/${previousYear+1}`:`${previousYear-1}/${previousYear}`};
+}
+
+function previousPeriodFor(period){const [year,month]=period.monthKey.split('-').map(Number),date=new Date(Date.UTC(year,month-2,1)),previousYear=date.getUTCFullYear(),previousMonth=date.getUTCMonth()+1;return {monthKey:`${previousYear}-${String(previousMonth).padStart(2,'0')}`,monthName:PAYMENT_MONTH_NAMES[previousMonth-1]||'',academicYear:previousMonth>=7?`${previousYear}/${previousYear+1}`:`${previousYear-1}/${previousYear}`};}
+function periodFromMonthKey(monthKey){const match=String(monthKey||'').match(/^(\d{4})-(\d{2})$/);if(!match)return leaderboardPeriod();const year=Number(match[1]),month=Number(match[2]);return {monthKey,monthName:PAYMENT_MONTH_NAMES[month-1]||'',academicYear:month>=7?`${year}/${year+1}`:`${year-1}/${year}`};}
+
 async function leaderboardRowsForPeriod(academicYear='',monthName='') {
   const period=leaderboardPeriod(academicYear,monthName);
+  const currentPeriod=leaderboardPeriod();
+  if(period.monthKey!==currentPeriod.monthKey){
+    const archived=await db.collection('leaderboard_archives').where('monthKey','==',period.monthKey).limit(ACADEMIC_GRADES.length).get().catch(()=>null);
+    if(archived&&!archived.empty)return archived.docs.flatMap(doc=>Array.isArray(doc.data()?.rows)?doc.data().rows:[]).sort((a,b)=>Number(b.score||0)-Number(a.score||0));
+  }
   const [periodYear,periodMonth]=period.monthKey.split('-').map(Number),nextMonthDate=new Date(Date.UTC(periodYear,periodMonth,1)),nextMonthKey=`${nextMonthDate.getUTCFullYear()}-${String(nextMonthDate.getUTCMonth()+1).padStart(2,'0')}`,periodStart=`${period.monthKey}-01`,periodEnd=`${nextMonthKey}-01`;
   const stateSnap = await leaderboardStateRef.get().catch(() => null);
   const stateVersion = stateSnap?.exists ? Number(stateSnap.data()?.version || 0) : 0;
-  if (leaderboardCache.expiresAt > Date.now() && leaderboardCache.version === stateVersion && leaderboardCache.periodKey === period.monthKey) return leaderboardCache.rows;
-  const [studentsSnap, attendanceSnap, gradesSnap, examAttemptsSnap, homeworkSnap, recitationSnap, assignmentSnap, motivationSnap] = await Promise.all([
+  const cached=leaderboardCacheByPeriod.get(period.monthKey);
+  if(cached&&cached.expiresAt>Date.now()&&cached.version===stateVersion)return cached.rows;
+  const [studentsSnap, attendanceSnap, gradesSnap, examAttemptsSnap, homeworkSnap, recitationSnap, assignmentSnap, motivationSnap, examAbsenceSnap,settingsSnap] = await Promise.all([
     fetchAllCollectionDocuments('students', query => query.where('active', '==', true)),
     fetchAllCollectionDocuments('attendance',query=>query.where('date','>=',periodStart).where('date','<',periodEnd)),
     fetchAllCollectionDocuments('grades',query=>query.where('date','>=',periodStart).where('date','<',periodEnd)),
@@ -2455,10 +2507,12 @@ async function leaderboardRowsForPeriod(academicYear='',monthName='') {
     fetchAllCollectionDocuments('homework_submissions',query=>query.where('submittedAt','>=',periodStart).where('submittedAt','<',periodEnd)),
     fetchAllCollectionDocuments('recitations',query=>query.where('date','>=',periodStart).where('date','<',periodEnd)),
     fetchAllCollectionDocuments('assignments',query=>query.where('publishAt','>=',periodStart).where('publishAt','<',periodEnd)),
-    fetchAllCollectionDocuments('motivation_monthly',query=>query.where('academicYear','==',period.academicYear).where('month','==',period.monthName))
+    fetchAllCollectionDocuments('motivation_monthly',query=>query.where('academicYear','==',period.academicYear).where('month','==',period.monthName)),
+    fetchAllCollectionDocuments('exam_absences'),
+    db.collection('settings').doc('platform').get().catch(()=>null)
   ]);
   const grouped = snap => { const map = new Map(); snap.docs.forEach(doc => { const row=doc.data()||{},code=normalizeCode(row.studentCode); if(!code)return; if(!map.has(code))map.set(code,[]); map.get(code).push(row); }); return map; };
-  const attendance=grouped(attendanceSnap),grades=grouped(gradesSnap),examAttempts=grouped(examAttemptsSnap),homeworks=grouped(homeworkSnap),recitations=grouped(recitationSnap),motivation=grouped(motivationSnap);
+  const attendance=grouped(attendanceSnap),grades=grouped(gradesSnap),examAttempts=grouped(examAttemptsSnap),homeworks=grouped(homeworkSnap),recitations=grouped(recitationSnap),motivation=grouped(motivationSnap),examAbsences=grouped(examAbsenceSnap),config=motivationConfigFromSettings(settingsSnap?.exists?settingsSnap.data():{});
   const complete=row=>row.completed===true||row.approved===true||String(row.status||'').startsWith('تم');
   const currentMonthRows=items=>(items||[]).filter(row=>leaderboardRecordDate(row).slice(0,7)===period.monthKey);
   const recordDate=leaderboardRecordDate;
@@ -2477,16 +2531,47 @@ async function leaderboardRowsForPeriod(academicYear='',monthName='') {
     // Motivation is a visible monthly bonus/penalty in the platform ranking,
     // while academic percentages keep their original meaning. Cap its effect
     // to protect the leaderboard from an accidental oversized admin entry.
-    const motivationBonus=Math.max(-20,Math.min(20,motivationPoints));
-    const baseScore=Math.round(attendancePct*.30+gradePct*.30+homeworkPct*.15+homeworkGradePct*.10+recitationPct*.15);
-    const score=Math.max(0,Math.min(100,baseScore+motivationBonus));
-    return {studentCode:code,name:publicStudentName(st.studentName||st.name),grade:canonicalLeaderboardGrade(st.grade),group:text(st.group,100),scheduleId:text(st.scheduleId||st.groupId,100),score,baseScore,motivationPoints,motivationBonus,attendancePct,gradePct,homeworkPct,homeworkGradePct,recitationPct,activity:att.length+gradeRows.length+hw.length+rec.length+Math.abs(motivationPoints)};
+    const teacherLimit=config.weights.teacherBonus,motivationBonus=Math.max(-teacherLimit,Math.min(teacherLimit,motivationPoints));
+    const weightTotal=config.weights.exams+config.weights.attendance+config.weights.homeworkCompletion+config.weights.homeworkGrade+config.weights.practical||1;
+    const baseScore=Math.round((gradePct*config.weights.exams+attendancePct*config.weights.attendance+homeworkPct*config.weights.homeworkCompletion+homeworkGradePct*config.weights.homeworkGrade+recitationPct*config.weights.practical)/weightTotal);
+    const sortedAttendance=att.slice().sort((a,b)=>recordDate(a).localeCompare(recordDate(b)));let streak=0,maxStreak=0;sortedAttendance.forEach(row=>{if(['absent','غائب'].includes(row.status)){streak+=1;maxStreak=Math.max(maxStreak,streak);}else streak=0;});
+    const absenceCount=att.filter(row=>['absent','غائب'].includes(row.status)).length,missedExamCount=currentMonthRows(examAbsences.get(code)||[]).length,submittedIds=new Set(allStudentHomework.filter(row=>row.assignmentId&&(row.submittedAt||complete(row))).map(row=>String(row.assignmentId))),missingHomeworkCount=requiredAssignments.filter(item=>!submittedIds.has(String(item.id))).length;
+    const latestSubmissionByAssignment=new Map();allStudentHomework.forEach(row=>{if(!row.assignmentId)return;const key=String(row.assignmentId),old=latestSubmissionByAssignment.get(key);if(!old||recordDate(row)>recordDate(old))latestSubmissionByAssignment.set(key,row);});
+    const lateHomeworkCount=requiredAssignments.filter(item=>{const submission=latestSubmissionByAssignment.get(String(item.id));return submission&&/^\d{4}-\d{2}-\d{2}$/.test(String(item.dueDate||''))&&recordDate(submission)>String(item.dueDate);}).length;
+    const penaltyReasons=[];if(absenceCount)penaltyReasons.push({label:`غياب ${absenceCount} حصة`,points:-(absenceCount*config.penalties.absence)});if(maxStreak>=2)penaltyReasons.push({label:'غياب حصتين متتاليتين',points:-config.penalties.consecutiveAbsence});if(missedExamCount)penaltyReasons.push({label:`غياب ${missedExamCount} امتحان`,points:-(missedExamCount*config.penalties.missedExam)});if(missingHomeworkCount)penaltyReasons.push({label:`${missingHomeworkCount} واجب ناقص`,points:-(missingHomeworkCount*config.penalties.missingHomework)});if(lateHomeworkCount)penaltyReasons.push({label:`${lateHomeworkCount} واجب متأخر`,points:-(lateHomeworkCount*config.penalties.lateHomework)});
+    const penaltyTotal=Math.abs(penaltyReasons.reduce((sum,item)=>sum+item.points,0)),score=Math.max(0,Math.min(100,Math.round(baseScore+motivationBonus-penaltyTotal)));
+    const achievements=[];if(attendancePct>=90&&att.length)achievements.push('ملتزم بالحضور');if(homeworkPct>=100&&requiredAssignments.length)achievements.push('بطل الواجبات');if(gradePct>=90&&gradeRows.length)achievements.push('متفوق في الامتحانات');if(recitationPct>=90&&rec.length)achievements.push('مبرمج الشهر');if(missedExamCount===0&&gradeRows.length)achievements.push('أكمل امتحانات الشهر');
+    const metrics=[['الامتحانات',gradePct],['الحضور',attendancePct],['الواجبات',homeworkPct],['درجة الواجب',homeworkGradePct],['التطبيق العملي',recitationPct]].sort((a,b)=>a[1]-b[1]),nextAction=metrics[0][1]<80?`ركّز على ${metrics[0][0]} لرفع تقييمك`:'استمر على نفس مستوى الالتزام';
+    return {studentCode:code,name:publicStudentName(st.studentName||st.name),grade:canonicalLeaderboardGrade(st.grade),group:text(st.group,100),scheduleId:text(st.scheduleId||st.groupId,100),score,level:motivationLevel(score),baseScore,motivationPoints,motivationBonus,penaltyTotal,penaltyReasons,achievements,nextAction,absenceCount,maxAbsenceStreak:maxStreak,missedExamCount,missingHomeworkCount,lateHomeworkCount,attendancePct,gradePct,homeworkPct,homeworkGradePct,recitationPct,weights:config.weights,activity:att.length+gradeRows.length+hw.length+rec.length+Math.abs(motivationPoints)};
   }).filter(x=>x.name&&x.activity>0).sort((a,b)=>b.score-a.score||b.attendancePct-a.attendancePct||b.gradePct-a.gradePct);
-  leaderboardCache = { expiresAt: Date.now() + 5 * 60 * 1000, version: stateVersion, periodKey: period.monthKey, rows };
+  leaderboardCacheByPeriod.set(period.monthKey,{expiresAt:Date.now()+5*60*1000,version:stateVersion,rows});
+  if(leaderboardCacheByPeriod.size>8){const oldest=leaderboardCacheByPeriod.keys().next().value;leaderboardCacheByPeriod.delete(oldest);}
   return rows;
 }
 
 async function currentLeaderboardRows(){return leaderboardRowsForPeriod();}
+
+function enrichLeaderboardRows(rows,previousRows=[]){
+  const previousByCode=new Map(previousRows.map((row,index)=>[row.studentCode,{...row,rank:index+1}]));
+  const groupCounters=new Map();
+  return rows.map((row,index)=>{
+    const groupKey=row.scheduleId||row.group||row.grade||'all',groupRank=(groupCounters.get(groupKey)||0)+1;groupCounters.set(groupKey,groupRank);
+    const previous=previousByCode.get(row.studentCode),rank=index+1,rankDelta=previous?previous.rank-rank:null,scoreDelta=previous?Math.round(Number(row.score||0)-Number(previous.score||0)):null;
+    const achievements=[...(row.achievements||[])];if(scoreDelta>=10&&!achievements.includes('الأكثر تحسنًا'))achievements.push('الأكثر تحسنًا');if(previous&&Number(previous.score||0)<60&&Number(row.score||0)>=70)achievements.push('عودة قوية');
+    const nextRankGap=index>0?Math.max(0,Number(rows[index-1].score||0)-Number(row.score||0)+1):0;
+    return {...row,rank,groupRank,previousRank:previous?.rank||null,rankDelta,scoreDelta,previousScore:previous?Number(previous.score||0):null,nextRankGap,achievements};
+  });
+}
+
+async function leaderboardRowsForGradeWithFallback(grade){
+  const normalized=canonicalLeaderboardGrade(grade),current=leaderboardPeriod();
+  let rows=(await leaderboardRowsForPeriod()).filter(row=>canonicalLeaderboardGrade(row.grade)===normalized);
+  if(rows.length){const previous=previousPeriodFor(current),previousRows=(await leaderboardRowsForPeriod(previous.academicYear,previous.monthName)).filter(row=>canonicalLeaderboardGrade(row.grade)===normalized);return {rows:enrichLeaderboardRows(rows,previousRows),period:current,isPreviousPeriod:false};}
+  const previous=previousLeaderboardPeriod();
+  rows=(await leaderboardRowsForPeriod(previous.academicYear,previous.monthName)).filter(row=>canonicalLeaderboardGrade(row.grade)===normalized);
+  const beforePrevious=previousPeriodFor(previous),beforeRows=(await leaderboardRowsForPeriod(beforePrevious.academicYear,beforePrevious.monthName)).filter(row=>canonicalLeaderboardGrade(row.grade)===normalized);
+  return {rows:enrichLeaderboardRows(rows,beforeRows),period:previous,isPreviousPeriod:true};
+}
 
 exports.getPublicLeaderboard = onCall(CALLABLE_OPTIONS, async request => {
   // The old shared identity "all" imposed one 30-request limit on the whole
@@ -2494,8 +2579,8 @@ exports.getPublicLeaderboard = onCall(CALLABLE_OPTIONS, async request => {
   await rateLimit('public-leaderboard-ip', requestIp(request), 60, 60 * 1000);
   const requestedGrade = canonicalLeaderboardGrade(request.data?.grade);
   if (!ACADEMIC_GRADES.includes(requestedGrade)) throw new HttpsError('invalid-argument', 'اختر مسارًا صحيحًا من المسارات المتاحة.');
-  const rows = await currentLeaderboardRows();
-  return rows.filter(row => canonicalLeaderboardGrade(row.grade) === requestedGrade).slice(0, 5).map(({ studentCode, scheduleId, group, ...row }) => row);
+  const result=await leaderboardRowsForGradeWithFallback(requestedGrade);
+  return result.rows.slice(0,5).map(({studentCode,scheduleId,group,...row})=>({...row,periodMonth:result.period.monthName,periodMonthKey:result.period.monthKey,isPreviousPeriod:result.isPreviousPeriod}));
 });
 
 exports.getStudentLeaderboardPosition = onCall(CALLABLE_OPTIONS, async request => {
@@ -2505,11 +2590,11 @@ exports.getStudentLeaderboardPosition = onCall(CALLABLE_OPTIONS, async request =
   const studentSnap = await db.collection('students').doc(cleanDocId(studentCode)).get();
   if (!studentSnap.exists || studentSnap.data().active === false) throw new HttpsError('not-found', 'الطالب غير موجود أو غير نشط.');
   const grade = canonicalLeaderboardGrade(studentSnap.data().grade);
-  const gradeRows = (await currentLeaderboardRows()).filter(row => canonicalLeaderboardGrade(row.grade) === grade);
+  const leaderboardResult=await leaderboardRowsForGradeWithFallback(grade),gradeRows=leaderboardResult.rows;
   const index = gradeRows.findIndex(row => row.studentCode === studentCode);
-  if (index < 0) return { rank: null, totalStudents: gradeRows.length, score: 0, baseScore: 0, motivationPoints: 0, motivationBonus: 0, grade };
+  if (index < 0) return { rank: null, groupRank:null,totalStudents: gradeRows.length, score: 0, baseScore: 0, motivationPoints: 0, motivationBonus: 0, grade,periodMonth:leaderboardResult.period.monthName,periodMonthKey:leaderboardResult.period.monthKey,isPreviousPeriod:leaderboardResult.isPreviousPeriod,level:motivationLevel(0),achievements:[],penaltyReasons:[],nextAction:'ابدأ بحضور الحصص وتسليم الواجبات المفتوحة' };
   const row = gradeRows[index];
-  return { rank: index + 1, totalStudents: gradeRows.length, score: row.score, baseScore: row.baseScore, motivationPoints: row.motivationPoints, motivationBonus: row.motivationBonus, grade };
+  return { ...row,name:undefined,studentCode:undefined,rank:index+1,totalStudents:gradeRows.length,grade,periodMonth:leaderboardResult.period.monthName,periodMonthKey:leaderboardResult.period.monthKey,isPreviousPeriod:leaderboardResult.isPreviousPeriod };
 });
 
 exports.createStudentAccess = onCall(CALLABLE_OPTIONS, async request => {
@@ -3687,7 +3772,7 @@ const BACKUP_COLLECTIONS = [
   'settings','users','students','student_portal','parent_portal','bookings','booking_status','reviews',
   'materials','questions','groups','assignments','exams','exam_attempts','exam_absences','homework_submissions',
   'attendance','recitations','grades','payments','monthly_payments','payment_transactions','monthly_reports','reports','activityLog','client_errors',
-  'student_attempts','exam_locks','homework_submission_locks','homework_attempt_grants','homework_review_history','assessment_versions','class_sessions','student_notes'
+  'student_attempts','exam_locks','homework_submission_locks','homework_attempt_grants','homework_review_history','assessment_versions','class_sessions','student_notes','leaderboard_archives'
   ,'curriculum','units','lectures','lecture_materials','assignments_v2','assignment_questions',
   'question_banks','bank_questions','monthly_exams','exam_questions_v2','teacher_files','student_progress'
 ];
