@@ -13,11 +13,11 @@
   },
   "dependencies": {
     "firebase-admin": "^13.10.0",
-    "firebase-functions": "^7.2.5",
-    "techno-minds-platform": "file:.."
+    "firebase-functions": "^7.2.5"
   },
   "overrides": {
     "uuid": "^11.1.1",
     "fast-xml-parser": "5.10.1"
-  }
+  },
+  "description": "Firebase Cloud Functions for Techno Minds"
 }
