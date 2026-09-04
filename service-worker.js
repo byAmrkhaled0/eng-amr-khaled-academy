@@ -1,4 +1,4 @@
-const CACHE_NAME = "technominds-v64-0-0-resilient-assessments-redesign-r10-v65-0-8-exam-audit";
+const CACHE_NAME = "technominds-v64-0-0-resilient-assessments-v66-1-comfort-theme";
 const ASSET_VERSION = "64.0.0";
 const APP_SHELL = [
   "/", "/index.html", "/student.html", "/parent.html", "/exams.html", "/materials.html", "/theory-lectures.html", "/questions.html", "/practical.html", "/learning-path.html", "/about.html", "/reviews.html", "/privacy.html",

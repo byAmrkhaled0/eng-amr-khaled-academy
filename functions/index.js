@@ -1993,6 +1993,7 @@ exports.getClassSessionWorkspace = onCall(CALLABLE_OPTIONS, async request => {
 function studentResourcePayload(doc, kind) {
   const data = doc.data() || {};
   const fileUrl = safePublicUrl(data.fileUrl || data.url);
+  const linkUrl = safePublicUrl(data.linkUrl);
   return {
     id: text(data.id || doc.id, 120),
     kind,
@@ -2006,6 +2007,8 @@ function studentResourcePayload(doc, kind) {
     unit: text(data.unit, 120),
     lecture: text(data.lecture, 120),
     lectureCategory: text(String(data.lectureCategory || data.materialType || '').toLowerCase() === 'theory' ? 'theory' : 'general', 20),
+    resourceType: text(data.resourceType || data.materialType, 40),
+    linkUrl,
     fileUrl,
     fileName: text(data.fileName, 220),
     fileType: text(data.fileType || data.type, 100),

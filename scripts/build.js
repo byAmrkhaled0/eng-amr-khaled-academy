@@ -50,4 +50,4 @@ for (const entry of entriesToCopy) {
   copyRecursive(path.join(root, entry), path.join(dist, entry));
 }
 
-console.log('Vercel build ready: static files copied to dist/ (v64.0.0)');
+console.log('Vercel build ready: static files copied to dist/ (v66.1.0)');

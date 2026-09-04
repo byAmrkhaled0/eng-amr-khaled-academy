@@ -100,8 +100,8 @@ test('student and parent portals refresh in place and expose monthly alerts',()=
   assert.match(app,/renderParentMonth/);
 });
 
-test('admin preview asset and cache use release 64.0.0',()=>{
+test('admin preview asset and cache use the current release',()=>{
   assert.match(read('teacher-login.html'),/v63-admin-experience\.js\?v=64\.0\.0/);
   assert.match(read('service-worker.js'),/technominds-v64-0-0-resilient-assessments/);
-  assert.equal(require(path.join(root,'package.json')).version,'64.0.0');
+  assert.equal(require(path.join(root,'package.json')).version,'66.1.0');
 });

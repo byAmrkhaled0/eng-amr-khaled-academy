@@ -98,7 +98,7 @@ test('new students only receive homework and exams published after joining',()=>
   assert.match(backend,/exam\.archived!==true[^\n]+contentAvailableAfterStudentJoined\(exam,found\.data\)/);
   assert.match(app,/scheduleState\|\|'open'\)!=='inactive'/);
   assert.match(css,/#examCodeForm,#examStudentResult\{grid-column:1\/-1\}/);
-  for(const page of ['index.html','student.html','parent.html','exams.html','teacher-login.html'])assert.match(read(page),/v65-redesign\.css\?v=65\.0\.8/);
+  for(const page of ['index.html','student.html','parent.html','exams.html','teacher-login.html'])assert.match(read(page),/v65-redesign\.css\?v=66\.1\.0/);
 });
 
 test('mobile exams and homework stay inside the iPhone viewport',()=>{
@@ -106,6 +106,9 @@ test('mobile exams and homework stay inside the iPhone viewport',()=>{
   assert.match(css,/\.exam-overlay\{z-index:7000!important/);assert.match(css,/body\.exam-open \.site-header/);
   assert.match(css,/grid-template-columns:22px 32px minmax\(0,1fr\)!important/);assert.match(css,/height:100svh!important/);
   assert.match(css,/\.assignment-choices label>span[^}]+white-space:normal/);
+  assert.match(app,/class="exam-save-exit" id="examExitBtn"/);
+  assert.match(css,/\.exam-navigation\{display:grid;grid-template-columns:1fr 1fr/);
+  assert.match(css,/\.student-assignment-card\[open\] \.student-assignment-head:after/);
   assert.match(app,/function renderExamQuestionHtml/);assert.match(app,/function homeworkQuestionHtml/);
   assert.match(backend,/contentAvailableAfterStudentJoined/);assert.match(backend,/learningTargetMatchesStudent/);
 });
@@ -176,7 +179,7 @@ test('QR attendance survives offline use and syncs idempotently after reconnect'
   assert.match(backend,/exports\.syncOfflineAttendance = onCall/);assert.match(backend,/offlineRequestId/);assert.match(backend,/cairoDateKey\(new Date\(scannedMillis\)\)!==date/);
   assert.match(sync,/syncOfflineAttendance:callable\('syncOfflineAttendance'\)/);
   assert.match(worker,/technominds-attendance-sync/);assert.match(worker,/\/teacher-login\.html/);assert.match(worker,/cache\.put\(request,response\.clone\(\)\)/);
-  assert.match(worker,/\/assets\/vendor\/html5-qrcode-2\.3\.8\.min\.js/);assert.match(worker,/r10-v65-0-8-exam-audit/);
+  assert.match(worker,/\/assets\/vendor\/html5-qrcode-2\.3\.8\.min\.js/);assert.match(worker,/v66-1-comfort-theme/);
   assert.match(admin,/qrScanBusy/);assert.match(admin,/offlineQrManualForm/);assert.match(admin,/state\?\.roster/);
   assert.match(app,/assets\/vendor\/html5-qrcode-2\.3\.8\.min\.js/);
   assert.match(page,/assets\/offline-attendance\.js/);
@@ -197,4 +200,22 @@ test('teacher login keeps one password reset action',()=>{
 test('teacher exam and homework builders auto-save and restore local drafts',()=>{
   const workflow=read('assets/v60-admin-workflow.js');
   assert.match(workflow,/ADMIN_BUILDER_DRAFT_PREFIX/);assert.match(workflow,/saveAdminBuilderDraft/);assert.match(workflow,/restoreAdminBuilderDraft/);assert.match(workflow,/clearAdminBuilderDraft\('exam'/);assert.match(workflow,/clearAdminBuilderDraft\('homework'/);assert.match(workflow,/data-admin-draft-note/);
+});
+
+test('class recording links are targeted, server filtered and mobile friendly',()=>{
+  const app=read('assets/app.js'),admin=read('assets/admin.js'),backend=read('functions/index.js'),page=read('materials.html'),css=read('assets/v65-redesign.css');
+  assert.match(admin,/\['classLinks','external-link','روابط الحصص'\]/);
+  assert.match(admin,/resourceType:'class-link'/);
+  assert.match(admin,/MFCloud\.saveContent\('materials',item\)/);
+  assert.match(backend,/resourceType: text\(data\.resourceType \|\| data\.materialType/);
+  assert.match(backend,/linkUrl,/);
+  assert.match(app,/classLinksGrid/);
+  assert.match(app,/فتح تسجيل الحصة/);
+  assert.match(app,/\['materials\.html','الحصص المسجلة'\]/);
+  assert.doesNotMatch(app,/\['learning-path\.html','المسار التعليمي'\]/);
+  assert.match(page,/روابط حصصك على Google Drive/);
+  assert.match(css,/\.class-links-admin-layout/);
+  assert.match(css,/Admin light mode: override every legacy hard-coded surface/);
+  assert.match(css,/html:not\(\[data-theme="dark"\]\) \.admin-main/);
+  assert.match(css,/@media\(max-width:480px\)/);
 });
