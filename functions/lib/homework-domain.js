@@ -34,41 +34,37 @@ function decideHomeworkAttempt({ lock = null, legacySubmissionExists = false, gr
   return { allowed: true, attemptNumber: requestedAttempt, grantId: String(grant.id || '') };
 }
 
-function correctAnswersMayBeRevealed(submission = {}, now = Date.now()) {
+function correctAnswersMayBeRevealed(submission = {}) {
   const graded = submission.needsManualReview !== true
     && submission.score !== null
     && submission.score !== undefined;
-  if (submission.revealCorrectAnswersAfterGrading === true && graded) return true;
-  if (submission.revealCorrectAnswersAfterClose !== true) return false;
-  const closeValue = submission.assignmentSnapshot?.closeAt
-    || submission.assignmentSnapshot?.dueAt
-    || submission.assignmentSnapshot?.dueDate
-    || submission.dueDate;
-  const closeText = String(closeValue || '').trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(closeText)) {
-    const parts = new Intl.DateTimeFormat('en-CA', { timeZone:'Africa/Cairo', year:'numeric', month:'2-digit', day:'2-digit' })
-      .formatToParts(new Date(now));
-    const current = Object.fromEntries(parts.filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
-    return `${current.year}-${current.month}-${current.day}` > closeText;
-  }
-  const closeMillis = Date.parse(closeText);
-  return Number.isFinite(closeMillis) && now > closeMillis;
+  // V67: correction is part of completing a homework. Automatically graded
+  // work is ready immediately; written/code answers wait for teacher review.
+  // Legacy reveal flags are still accepted for old stored submissions, but a
+  // graded answer is never kept hidden from the student who submitted it.
+  return graded;
 }
 
 function publicHomeworkProjection(submission = {}, now = Date.now()) {
   const reveal = correctAnswersMayBeRevealed(submission, now);
   const answers = Array.isArray(submission.answers) ? submission.answers.slice(0, 100).map(answer => {
+    const mark = number(answer.mark, 1);
+    const awardedMark = answer.awardedMark !== null && answer.awardedMark !== undefined ? number(answer.awardedMark) : null;
+    const isWrong = reveal && (answer.correct === false || (awardedMark !== null && awardedMark < mark));
     const projected = {
       question: String(answer.question || '').slice(0, 1500),
       type: String(answer.type || 'text').slice(0, 30),
       answer: String(answer.answer || '').slice(0, 20000),
-      mark: number(answer.mark, 1),
-      awardedMark: reveal && answer.awardedMark !== null && answer.awardedMark !== undefined ? number(answer.awardedMark) : null,
+      mark,
+      awardedMark: reveal ? awardedMark : null,
       correct: reveal ? (answer.correct === true ? true : answer.correct === false ? false : null) : null
     };
-    if (reveal) projected.correctAnswer = String(answer.correctAnswer || '').slice(0, 2000);
+    // Never disclose answer keys for questions the student solved correctly.
+    // Only incorrect answers receive their model/correct answer.
+    if (isWrong) projected.correctAnswer = String(answer.correctAnswer || '').slice(0, 2000);
     return projected;
   }) : [];
+  const wrongAnswers = reveal ? answers.filter(answer => Object.prototype.hasOwnProperty.call(answer, 'correctAnswer')) : [];
   return {
     id: String(submission.id || '').slice(0, 120),
     assignmentId: String(submission.assignmentId || '').slice(0, 120),
@@ -87,6 +83,8 @@ function publicHomeworkProjection(submission = {}, now = Date.now()) {
     submittedAt: String(submission.submittedAt || '').slice(0, 60),
     reviewedAt: String(submission.reviewedAt?.toDate?.()?.toISOString?.() || submission.reviewedAt || '').slice(0, 60),
     answers,
+    wrongAnswers,
+    wrongAnswerCount: wrongAnswers.length,
     answersRevealed: reveal
   };
 }

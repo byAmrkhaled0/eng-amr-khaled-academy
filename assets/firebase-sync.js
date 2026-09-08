@@ -169,6 +169,7 @@
       ,getStudentCurriculum:callable('getStudentCurriculum')
       ,getLectureContent:callable('getLectureContent')
       ,recordLectureProgress:callable('recordLectureProgress')
+      ,getTheoryLectureAnalytics:callable('getTheoryLectureAnalytics')
       ,getCurriculumFileUrl:callable('getCurriculumFileUrl')
       ,migrateCurriculumV61:callable('migrateCurriculumV61')
       ,upsertGroupSchedule:callable('upsertGroupSchedule')
@@ -739,7 +740,8 @@
       },
       getStudentCurriculum:async studentCode=>{const normalized=normalizeCode(studentCode);return calls.getStudentCurriculum(await portalPayload(normalized,{studentCode:normalized}));},
       getLectureContent:async(studentCode,lectureId)=>{const normalized=normalizeCode(studentCode);return calls.getLectureContent(await portalPayload(normalized,{studentCode:normalized,lectureId}));},
-      recordLectureProgress:async(studentCode,lectureId,percent)=>{const normalized=normalizeCode(studentCode);return calls.recordLectureProgress(await portalPayload(normalized,{studentCode:normalized,lectureId,percent}));},
+      recordLectureProgress:async(studentCode,lectureId,percent,sourceCollection='lectures')=>{const normalized=normalizeCode(studentCode);return calls.recordLectureProgress(await portalPayload(normalized,{studentCode:normalized,lectureId,percent,sourceCollection}));},
+      getTheoryLectureAnalytics:lectureId=>{if(!calls.getTheoryLectureAnalytics)throw new Error('Lecture analytics service unavailable');return calls.getTheoryLectureAnalytics({lectureId});},
       getCurriculumFileUrl:async(studentCode,collection,id)=>{const normalized=normalizeCode(studentCode);return calls.getCurriculumFileUrl(await portalPayload(normalized,{studentCode:normalized,collection,id}));},
       listCurriculumAdmin:payload=>calls.listCurriculumAdmin(payload||{}),
       upsertCurriculumEntity:payload=>calls.upsertCurriculumEntity(payload||{}),

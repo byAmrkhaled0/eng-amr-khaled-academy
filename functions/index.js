@@ -93,6 +93,16 @@ function safePublicUrl(value) {
   return /^https:\/\//i.test(url) ? url : '';
 }
 
+function safeGoogleDriveUrl(value) {
+  try {
+    const url = new URL(text(value, 2000));
+    const host = url.hostname.toLowerCase();
+    return url.protocol === 'https:' && ['drive.google.com', 'docs.google.com'].includes(host) ? url.href : '';
+  } catch (_) {
+    return '';
+  }
+}
+
 function hash(value) {
   return crypto.createHash('sha256').update(String(value || '')).digest('hex');
 }
@@ -1257,11 +1267,16 @@ async function assignmentsForStudent(student = {}) {
 }
 
 async function materialsForStudent(student = {}) {
-  const docs = await targetedLearningDocs('materials', student);
+  const studentCode = normalizeCode(student.studentCode || student.code || student.id);
+  const [docs, progressSnap] = await Promise.all([
+    targetedLearningDocs('materials', student),
+    studentCode ? db.collection('student_progress').doc(studentCode).collection('lectures').limit(500).get().catch(() => null) : Promise.resolve(null)
+  ]);
+  const progress = new Map((progressSnap?.docs || []).map(doc => [doc.id, doc.data() || {}]));
   return docs
-    .filter(doc => { const row = doc.data() || {}; return row.active !== false && row.published !== false && row.status !== 'مسودة' && learningTargetMatchesStudent(row, student); })
-    .map(doc => studentResourcePayload(doc, 'material'))
-    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+    .filter(doc => { const row = doc.data() || {},status=String(row.status||'').trim().toLowerCase(); return row.active !== false && row.published !== false && !['مسودة','مخفي','draft','hidden'].includes(status) && learningTargetMatchesStudent(row, student); })
+    .map(doc => studentResourcePayload(doc, 'material', progress.get(doc.id)))
+    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0) || String(a.title || '').localeCompare(String(b.title || ''), 'ar', { numeric:true }))
     .slice(0, 120);
 }
 
@@ -1630,8 +1645,13 @@ function contentQuestionsFingerprint(collection, value = {}) {
 exports.upsertVersionedContent = onCall(CALLABLE_OPTIONS, async request => {
   const staff = await requireStaff(request, ['admin', 'teacher']);
   const collection = text(request.data?.collection, 40);
-  const input = request.data?.item && typeof request.data.item === 'object' ? request.data.item : {};
+  let input = request.data?.item && typeof request.data.item === 'object' ? request.data.item : {};
   if (!VERSIONED_CONTENT_COLLECTIONS.has(collection)) throw new HttpsError('invalid-argument', 'نوع المحتوى غير مدعوم.');
+  if (collection === 'materials' && text(input.linkUrl, 2000)) {
+    const linkUrl = safeGoogleDriveUrl(input.linkUrl);
+    if (!linkUrl) throw new HttpsError('invalid-argument', 'رابط المحاضرة يجب أن يكون رابط Google Drive صحيحًا.');
+    input = { ...input, linkUrl };
+  }
   const id = cleanDocId(text(input.id, 120));
   if (!id) throw new HttpsError('invalid-argument', 'رقم المحتوى غير صالح.');
   if (jsonByteSize(input) > 900 * 1024) throw new HttpsError('invalid-argument', 'حجم بيانات المحتوى أكبر من الحد المسموح.');
@@ -1990,7 +2010,7 @@ exports.getClassSessionWorkspace = onCall(CALLABLE_OPTIONS, async request => {
   return {session,students:studentsSnap.docs.map(doc=>({id:doc.id,...doc.data()})).filter(row=>row.active!==false).map(row=>{const studentCode=normalizeCode(row.studentCode||row.code||row.id);return {studentCode,studentName:text(row.studentName||row.name,100),grade:text(canonicalAcademicLabel(row.grade),80),group:text(row.group,100),attendance:attendance.get(studentCode)||null,recitation:recitations.get(studentCode)||null};})};
 });
 
-function studentResourcePayload(doc, kind) {
+function studentResourcePayload(doc, kind, progress = {}) {
   const data = doc.data() || {};
   const fileUrl = safePublicUrl(data.fileUrl || data.url);
   const linkUrl = safePublicUrl(data.linkUrl);
@@ -2006,13 +2026,21 @@ function studentResourcePayload(doc, kind) {
     scheduleId: text(data.scheduleId || data.groupId, 100),
     unit: text(data.unit, 120),
     lecture: text(data.lecture, 120),
+    lectureNumber: Math.max(0, Number(data.lectureNumber || data.order || 0)),
+    order: Math.max(0, Number(data.order || data.lectureNumber || 0)),
     lectureCategory: text(String(data.lectureCategory || data.materialType || '').toLowerCase() === 'theory' ? 'theory' : 'general', 20),
     resourceType: text(data.resourceType || data.materialType, 40),
+    linkedAssignmentId: text(data.linkedAssignmentId || data.assignmentId, 120),
+    linkedExamId: text(data.linkedExamId || data.examId, 120),
     linkUrl,
     fileUrl,
     fileName: text(data.fileName, 220),
     fileType: text(data.fileType || data.type, 100),
-    createdAt: text(data.createdAt, 60)
+    createdAt: text(data.createdAt, 60),
+    progress: Math.max(0, Math.min(100, Number(progress.percent || 0))),
+    viewed: progress.viewed === true,
+    completed: progress.completed === true || Number(progress.percent || 0) >= 100,
+    lastOpenedAt: reportIso(progress.lastOpenedAt || progress.updatedAt)
   };
 }
 
@@ -2025,14 +2053,17 @@ exports.getStudentResources = onCall(CALLABLE_OPTIONS, async request => {
   const studentCode = normalizeCode(found.data.studentCode || found.data.code || code);
   const grade = text(canonicalAcademicLabel(found.data.grade), 80);
   if (!grade) throw new HttpsError('failed-precondition', 'مسار الطالب غير محدد. تواصل مع الإدارة لتحديد المسار أولًا.');
-  const [materialDocs, questionDocs, assignments] = await Promise.all([
+  const [materialDocs, questionDocs, assignments, examDocs, progressSnap] = await Promise.all([
     targetedLearningDocs('materials', found.data),
     targetedLearningDocs('questions', found.data),
-    assignmentsForStudent(found.data)
+    assignmentsForStudent(found.data),
+    targetedLearningDocs('exams', found.data),
+    db.collection('student_progress').doc(studentCode).collection('lectures').limit(500).get().catch(() => null)
   ]);
+  const progress = new Map((progressSnap?.docs || []).map(doc => [doc.id, doc.data() || {}]));
   const visible = doc => {
-    const data = doc.data() || {};
-    return data.active !== false && data.published !== false && data.status !== 'مسودة';
+    const data = doc.data() || {},status=String(data.status||'').trim().toLowerCase();
+    return data.active !== false && data.published !== false && !['مسودة','مخفي','draft','hidden'].includes(status);
   };
   return {
     ...apiMetadata(),
@@ -2043,9 +2074,10 @@ exports.getStudentResources = onCall(CALLABLE_OPTIONS, async request => {
       group: text(found.data.group, 100),
       scheduleId: text(found.data.scheduleId || found.data.groupId, 100)
     },
-    materials: materialDocs.filter(visible).filter(doc => learningTargetMatchesStudent(doc.data() || {}, found.data)).map(doc => studentResourcePayload(doc, 'material')),
+    materials: materialDocs.filter(visible).filter(doc => learningTargetMatchesStudent(doc.data() || {}, found.data)).map(doc => studentResourcePayload(doc, 'material', progress.get(doc.id))),
     questions: questionDocs.filter(visible).filter(doc => learningTargetMatchesStudent(doc.data() || {}, found.data)).map(doc => studentResourcePayload(doc, 'question')),
-    assignments: assignments.map(row => publicAssignmentPayload(row, row.id))
+    assignments: assignments.map(row => publicAssignmentPayload(row, row.id)),
+    exams: examDocs.map(doc => ({ id:doc.id,...doc.data() })).filter(exam => exam.archived !== true && exam.active !== false && exam.published !== false && learningTargetMatchesStudent(exam, found.data) && contentAvailableAfterStudentJoined(exam, found.data)).map(exam => ({ id:text(exam.id,120),title:text(exam.title,200),scheduleState:examScheduleState(exam),openAt:text(exam.openAt,60),closeAt:text(exam.closeAt,60) }))
   };
 });
 
@@ -2173,8 +2205,8 @@ exports.submitAssignmentAnswer = onCall(CALLABLE_OPTIONS, async request => {
       score,
       autoScore,
       maxScore,
-      revealCorrectAnswersAfterClose: assignment.revealCorrectAnswersAfterClose === true,
-      revealCorrectAnswersAfterGrading: assignment.revealCorrectAnswersAfterGrading === true,
+      revealCorrectAnswersAfterClose: false,
+      revealCorrectAnswersAfterGrading: true,
       needsManualReview,
       status: needsManualReview ? 'بانتظار تصحيح المدرس' : 'تم تصحيح الواجب',
       completed: true,
@@ -3778,6 +3810,7 @@ const BACKUP_COLLECTIONS = [
   'student_attempts','exam_locks','homework_submission_locks','homework_attempt_grants','homework_review_history','assessment_versions','class_sessions','student_notes','leaderboard_archives'
   ,'curriculum','units','lectures','lecture_materials','assignments_v2','assignment_questions',
   'question_banks','bank_questions','monthly_exams','exam_questions_v2','teacher_files','student_progress'
+  ,'theory_lecture_progress'
 ];
 
 function encodeBackupValue(value) {
@@ -4209,7 +4242,12 @@ async function platformHealthPayload() {
     db.collection('groups').limit(1).get()
   ]);
   const runner = codeRunnerConfig();
-  const codeRunnerConfigured = Boolean(process.env.JUDGE0_BASE_URL || runner.apiKey);
+  let codeRunnerConfigured = false;
+  try {
+    const endpoint = new URL(runner.baseUrl);
+    codeRunnerConfigured = ['http:', 'https:'].includes(endpoint.protocol) && CODE_LANGUAGES.length > 0;
+  } catch (_) { /* Invalid custom endpoint: report the service as unavailable. */ }
+  const customCodeRunner = Boolean(process.env.JUDGE0_BASE_URL || runner.apiKey);
   return {
     status: 'ok',
     version: PLATFORM_VERSION,
@@ -4222,7 +4260,8 @@ async function platformHealthPayload() {
       studentResources: true
     },
     configuration: {
-      codeRunner: codeRunnerConfigured ? 'configured' : 'default-provider-unverified'
+      codeRunner: codeRunnerConfigured ? (customCodeRunner ? 'custom-provider-configured' : 'default-provider-configured') : 'invalid-provider-configuration',
+      codeRunnerVerification: 'configuration-only'
     }
   };
 }
@@ -4593,20 +4632,41 @@ exports.recordLectureProgress = onCall(CALLABLE_OPTIONS, async request => {
   const code = normalizeCode(request.data?.studentCode), lectureId = curriculumId(request.data?.lectureId);
   await requirePortalSession(request, code, ['student']);
   await rateLimitPublic('lecture-progress', `${code}:${lectureId}`, request, 30, 80, 60 * 1000);
-  const [found, lectureSnap] = await Promise.all([getStudentPortalByCode(code), db.collection('lectures').doc(lectureId).get()]);
+  const requestedSource = request.data?.sourceCollection === 'materials' ? 'materials' : 'lectures';
+  const [found, requestedSnap] = await Promise.all([getStudentPortalByCode(code), db.collection(requestedSource).doc(lectureId).get()]);
   requireApprovedStudent(found.data);
-  if (!lectureSnap.exists || !contentIsOpen(lectureSnap.data()) || !learningTargetMatchesStudent(lectureSnap.data(), found.data)) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الطالب.');
+  let sourceCollection=requestedSource,lectureSnap=requestedSnap;
+  if(!lectureSnap.exists&&requestedSource==='lectures'){sourceCollection='materials';lectureSnap=await db.collection('materials').doc(lectureId).get();}
+  const lecture=lectureSnap.exists?lectureSnap.data()||{}:{},materialStatus=String(lecture.status||'').trim().toLowerCase(),visible=sourceCollection==='lectures'?contentIsOpen(lecture):(lecture.active!==false&&lecture.published!==false&&!['مسودة','مخفي','draft','hidden'].includes(materialStatus)&&lecture.archived!==true&&contentAvailableAfterStudentJoined(lecture,found.data));
+  if (!lectureSnap.exists || !visible || !learningTargetMatchesStudent(lecture, found.data)) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الطالب.');
   const percent = Math.max(0, Math.min(100, Number(request.data?.percent || 0)));
-  const progressRef = db.collection('student_progress').doc(code),lectureProgressRef=progressRef.collection('lectures').doc(lectureId),monthKey=cairoDateKey(new Date()).slice(0,7),monthlyEventRef=progressRef.collection('monthly_events').doc(cleanDocId(`${monthKey}_${lectureId}`));
+  const progressRef = db.collection('student_progress').doc(code),lectureProgressRef=progressRef.collection('lectures').doc(lectureId),monthKey=cairoDateKey(new Date()).slice(0,7),monthlyEventRef=progressRef.collection('monthly_events').doc(cleanDocId(`${monthKey}_${lectureId}`)),analyticsRef=db.collection('theory_lecture_progress').doc(hash(`${lectureId}|${code}`).slice(0,48));
   const savedPercent=await db.runTransaction(async transaction=>{
-    const [currentSnap,eventSnap]=await Promise.all([transaction.get(lectureProgressRef),transaction.get(monthlyEventRef)]);
+    const [currentSnap,eventSnap,analyticsSnap]=await Promise.all([transaction.get(lectureProgressRef),transaction.get(monthlyEventRef),transaction.get(analyticsRef)]);
     const current=currentSnap.exists?currentSnap.data():{},event=eventSnap.exists?eventSnap.data():{},nextPercent=Math.max(Number(current.percent||0),percent),eventPercent=Math.max(Number(event.maxPercent||0),percent);
     transaction.set(progressRef,{studentCode:code,grade:text(found.data.grade,80),updatedAt:FieldValue.serverTimestamp()},{merge:true});
-    transaction.set(lectureProgressRef,{studentCode:code,grade:text(found.data.grade,80),lectureId,percent:nextPercent,viewed:true,lastOpenedAt:FieldValue.serverTimestamp(),...(nextPercent>=100&&!current.completedAt?{completedAt:FieldValue.serverTimestamp()}:{}),updatedAt:FieldValue.serverTimestamp()},{merge:true});
-    transaction.set(monthlyEventRef,{studentCode:code,grade:text(found.data.grade,80),lectureId,monthKey,maxPercent:eventPercent,viewed:true,lastOpenedAt:FieldValue.serverTimestamp(),...(eventPercent>=100&&!event.completedAt?{completedAt:FieldValue.serverTimestamp(),completed:true}:{}),updatedAt:FieldValue.serverTimestamp()},{merge:true});
+    const shared={studentCode:code,studentName:text(found.data.studentName||found.data.name,100),grade:text(found.data.grade,80),group:text(found.data.group,100),lectureId,lectureTitle:text(lecture.title,220),sourceCollection,percent:nextPercent,viewed:true,completed:nextPercent>=100,lastOpenedAt:FieldValue.serverTimestamp(),...(nextPercent>=100&&!current.completedAt?{completedAt:FieldValue.serverTimestamp()}:{}),updatedAt:FieldValue.serverTimestamp()};
+    transaction.set(lectureProgressRef,shared,{merge:true});
+    transaction.set(monthlyEventRef,{...shared,monthKey,maxPercent:eventPercent,...(eventPercent>=100&&!event.completedAt?{completedAt:FieldValue.serverTimestamp(),completed:true}:{}),updatedAt:FieldValue.serverTimestamp()},{merge:true});
+    transaction.set(analyticsRef,{...shared,id:analyticsRef.id,firstOpenedAt:analyticsSnap.exists?(analyticsSnap.data().firstOpenedAt||FieldValue.serverTimestamp()):FieldValue.serverTimestamp()},{merge:true});
     return nextPercent;
   });
   return { ok: true, percent:savedPercent };
+});
+
+exports.getTheoryLectureAnalytics = onCall(CALLABLE_OPTIONS, async request => {
+  await requireStaff(request, ['admin','teacher']);
+  const lectureId=curriculumId(request.data?.lectureId);
+  const lectureSnap=await db.collection('materials').doc(lectureId).get();
+  if(!lectureSnap.exists)throw new HttpsError('not-found','المحاضرة غير موجودة.');
+  const lecture=lectureSnap.data()||{};
+  const [studentsResult,progressSnap]=await Promise.all([
+    fetchAllCollectionDocuments('students'),
+    db.collection('theory_lecture_progress').where('lectureId','==',lectureId).limit(1500).get().catch(()=>null)
+  ]);
+  const progressByCode=new Map((progressSnap?.docs||[]).map(doc=>{const row=doc.data()||{};return [normalizeCode(row.studentCode),row];}));
+  const students=studentsResult.docs.map(doc=>({id:doc.id,...doc.data()})).filter(student=>student.active!==false&&learningTargetMatchesStudent(lecture,student)).map(student=>{const studentCode=normalizeCode(student.studentCode||student.code||student.id),progress=progressByCode.get(studentCode)||{};return {studentCode,studentName:text(student.studentName||student.name,100),grade:text(canonicalAcademicLabel(student.grade),80),group:text(student.group,100),percent:Math.max(0,Math.min(100,Number(progress.percent||0))),viewed:progress.viewed===true,completed:progress.completed===true||Number(progress.percent||0)>=100,lastOpenedAt:reportIso(progress.lastOpenedAt)};}).sort((a,b)=>Number(b.percent)-Number(a.percent)||a.studentName.localeCompare(b.studentName,'ar'));
+  return {lectureId,title:text(lecture.title,220),targeted:students.length,opened:students.filter(row=>row.viewed).length,completed:students.filter(row=>row.completed).length,notOpened:students.filter(row=>!row.viewed).length,students};
 });
 
 exports.getCurriculumFileUrl = onCall(CALLABLE_OPTIONS, async request => {

@@ -3,6 +3,9 @@ const path = require('path');
 
 const root = path.resolve(__dirname, '..');
 const dist = path.join(root, 'dist');
+const { version: releaseVersion } = require(path.join(root, 'package.json'));
+const releaseCacheVersion = releaseVersion.replace(/\./g, '-');
+const releaseCacheName = `technominds-v${releaseCacheVersion}-assessment-ux`;
 const entriesToCopy = [
   'index.html',
   'learning-path.html',
@@ -50,4 +53,21 @@ for (const entry of entriesToCopy) {
   copyRecursive(path.join(root, entry), path.join(dist, entry));
 }
 
-console.log('Vercel build ready: static files copied to dist/ (v66.1.0)');
+// Vercel serves /assets with a one-year immutable cache. Normalize every local
+// CSS/JS reference at build time so a release can never mix stale asset URLs.
+for (const name of fs.readdirSync(dist).filter(file => file.endsWith('.html'))) {
+  const file = path.join(dist, name);
+  const html = fs.readFileSync(file, 'utf8');
+  const versioned = html.replace(/((?:src|href)=["']\/?assets\/[^"'?#]+\.(?:css|js))(?:\?v=[^"']*)?(["'])/g, `$1?v=${releaseVersion}$2`);
+  fs.writeFileSync(file, versioned);
+}
+
+const workerFile = path.join(dist, 'service-worker.js');
+if (fs.existsSync(workerFile)) {
+  const worker = fs.readFileSync(workerFile, 'utf8')
+    .replace(/const CACHE_NAME = "[^"]+";/, `const CACHE_NAME = "${releaseCacheName}";`)
+    .replace(/const ASSET_VERSION = "[^"]+";/, `const ASSET_VERSION = "${releaseVersion}";`);
+  fs.writeFileSync(workerFile, worker);
+}
+
+console.log(`Vercel build ready: static files copied to dist/ (v${releaseVersion})`);

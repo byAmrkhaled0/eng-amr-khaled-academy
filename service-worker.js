@@ -1,14 +1,14 @@
-const CACHE_NAME = "technominds-v64-0-0-resilient-assessments-v66-1-comfort-theme";
-const ASSET_VERSION = "64.0.0";
+const CACHE_NAME = "technominds-v67-2-0-assessment-ux";
+const ASSET_VERSION = "67.2.0";
 const APP_SHELL = [
   "/", "/index.html", "/student.html", "/parent.html", "/exams.html", "/materials.html", "/theory-lectures.html", "/questions.html", "/practical.html", "/learning-path.html", "/about.html", "/reviews.html", "/privacy.html",
   "/terms.html", "/offline.html", "/assets/site.css", "/assets/v55.css",
-  "/assets/v56.css", "/assets/v60-technominds.css", "/assets/v61-design.css", "/assets/v65-redesign.css", "/assets/app.js", "/assets/practical.js", "/assets/firebase-sync.js",
-  "/assets/firebase-config.js", "/assets/v53-upgrades.js", "/assets/v65-enhancements.js", "/assets/offline-attendance.js", "/assets/vendor/html5-qrcode-2.3.8.min.js", "/assets/curriculum-student.js",
+  "/assets/v56.css", "/assets/v60-technominds.css", "/assets/v61-design.css", "/assets/v65-redesign.css", "/assets/v67-learning-hub.css", "/assets/app.js", "/assets/practical.js", "/assets/firebase-sync.js",
+  "/assets/firebase-config.js", "/assets/v53-upgrades.js", "/assets/v65-enhancements.js", "/assets/offline-attendance.js", "/assets/curriculum-student.js",
   "/assets/technominds-logo.png", "/assets/technominds-logo.webp",
   "/assets/amr-khaled-profile.webp", "/site.webmanifest", "/teacher.webmanifest"
 ];
-const VERSIONED_APP_SHELL=APP_SHELL.map(url=>url.includes('html5-qrcode-2.3.8.min.js')?`${url}?v=65.0.8`:/\.(?:css|js)$/.test(url)?`${url}?v=${ASSET_VERSION}`:url);
+const VERSIONED_APP_SHELL=APP_SHELL.map(url=>/\.(?:css|js)$/.test(url)?`${url}?v=${ASSET_VERSION}`:url);
 const SENSITIVE_NAVIGATION=new Set(['/student.html','/parent.html','/exams.html','/materials.html','/theory-lectures.html','/questions.html','/practical.html','/teacher-login.html']);
 
 // Background FCM uses the browser's standard Push API with no external worker
@@ -118,7 +118,7 @@ self.addEventListener("fetch", event => {
     // Versioned static assets are returned from cache immediately on repeat
     // visits while a background request refreshes them. Large QR and Excel
     // bundles enter this cache only after the user actually opens that tool.
-    const network=fetch(request).then(async response=>{
+    const network=fetch(request,{cache:"reload"}).then(async response=>{
       if(response.ok){const cache=await caches.open(CACHE_NAME);await cache.put(request,response.clone());}
       return response;
     });

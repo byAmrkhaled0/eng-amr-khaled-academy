@@ -205,6 +205,7 @@ service cloud.firestore {
     match /teacher_files/{id} { allow read: if isTeacher(); allow write: if false; }
     match /student_progress/{studentCode} { allow read, write: if false; }
     match /student_progress/{studentCode}/{document=**} { allow read, write: if false; }
+    match /theory_lecture_progress/{id} { allow read, write: if false; }
     match /{document=**} { allow read, write: if false; }
   }
 }

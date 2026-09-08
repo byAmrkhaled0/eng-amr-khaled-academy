@@ -73,13 +73,13 @@ test('a teacher grant opens exactly one additional attempt', async () => {
   assert.equal(store.submissions.size, 2);
 });
 
-test('public homework response never leaks correction data before teacher opt-in and close', () => {
-  const source = { assignmentId:'hw',score:8,maxScore:10,revealCorrectAnswersAfterClose:false,answers:[{question:'q',answer:'a',correctAnswer:'secret',correct:true,awardedMark:1}] };
+test('public homework response waits for grading and then reveals only incorrect model answers', () => {
+  const source = { assignmentId:'hw',score:null,maxScore:10,needsManualReview:true,revealCorrectAnswersAfterClose:true,answers:[{question:'q',answer:'a',correctAnswer:'secret',correct:false,awardedMark:0}] };
   const projected = publicHomeworkProjection(source, Date.now());
   assert.equal(JSON.stringify(projected).includes('secret'), false);
   assert.equal(projected.answers[0].correct, null);
   assert.equal(projected.answers[0].awardedMark, null);
-  const revealed = publicHomeworkProjection({ ...source, revealCorrectAnswersAfterClose:true, dueDate:'2026-08-01' }, Date.parse('2026-08-03T12:00:00Z'));
+  const revealed = publicHomeworkProjection({ ...source, score:8, needsManualReview:false, revealCorrectAnswersAfterClose:false }, Date.now());
   assert.equal(revealed.answers[0].correctAnswer, 'secret');
   assert.equal(revealed.answersRevealed, true);
 });

@@ -8,8 +8,8 @@ const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 
 test('service worker has one valid release cache and offline assessment shells',()=>{
   const worker=read('service-worker.js');
-  assert.match(worker,/technominds-v64-0-0-resilient-assessments/);
-  assert.match(worker,/ASSET_VERSION = "64\.0\.0"/);
+  assert.match(worker,/technominds-v67-2-0-assessment-ux/);
+  assert.match(worker,/ASSET_VERSION = "67\.2\.0"/);
   assert.match(worker,/url\.pathname\.endsWith\("\.webmanifest"\)/);
   for(const route of ['/student.html','/exams.html'])assert.match(worker,new RegExp(route.replace('.','\\.')));
 });
@@ -55,7 +55,9 @@ test('theory lectures are independently uploaded, targeted and displayed',()=>{
   assert.match(app,/resourceMode==='theory'/);
   assert.match(backend,/lectureCategory/);
   assert.match(admin,/renderTheoryLecturesV640/);
-  assert.match(admin,/multiple required/);
+  assert.match(admin,/name="linkUrl"/);
+  assert.match(admin,/multiple><\/label>/);
+  assert.match(admin,/أضف رابط Google Drive أو ارفع ملف المحاضرة/);
   assert.match(admin,/lectureCategory:'theory'/);
   assert.match(worker,/\/theory-lectures\.html/);
 });

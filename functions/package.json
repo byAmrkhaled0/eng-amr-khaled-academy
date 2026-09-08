@@ -1,6 +1,6 @@
 {
   "name": "technominds-platform-functions",
-  "version": "64.0.0",
+  "version": "67.2.0",
   "private": true,
   "main": "entry.js",
   "engines": {
@@ -17,7 +17,8 @@
   },
   "overrides": {
     "uuid": "^11.1.1",
-    "fast-xml-parser": "5.10.1"
+    "fast-xml-parser": "5.10.1",
+    "qs": "6.16.0"
   },
   "description": "Firebase Cloud Functions for Techno Minds"
 }

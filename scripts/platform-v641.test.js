@@ -98,13 +98,13 @@ test('new students only receive homework and exams published after joining',()=>
   assert.match(backend,/exam\.archived!==true[^\n]+contentAvailableAfterStudentJoined\(exam,found\.data\)/);
   assert.match(app,/scheduleState\|\|'open'\)!=='inactive'/);
   assert.match(css,/#examCodeForm,#examStudentResult\{grid-column:1\/-1\}/);
-  for(const page of ['index.html','student.html','parent.html','exams.html','teacher-login.html'])assert.match(read(page),/v65-redesign\.css\?v=66\.1\.0/);
+  for(const page of ['index.html','student.html','parent.html','exams.html','teacher-login.html'])assert.match(read(page),/v65-redesign\.css\?v=66\.2\.0/);
 });
 
 test('mobile exams and homework stay inside the iPhone viewport',()=>{
   const css=read('assets/v65-redesign.css'),app=read('assets/app.js'),backend=read('functions/index.js');
   assert.match(css,/\.exam-overlay\{z-index:7000!important/);assert.match(css,/body\.exam-open \.site-header/);
-  assert.match(css,/grid-template-columns:22px 32px minmax\(0,1fr\)!important/);assert.match(css,/height:100svh!important/);
+  assert.match(css,/grid-template-columns:22px 32px minmax\(0,1fr\)!important/);assert.match(css,/height:100dvh!important/);
   assert.match(css,/\.assignment-choices label>span[^}]+white-space:normal/);
   assert.match(app,/class="exam-save-exit" id="examExitBtn"/);
   assert.match(css,/\.exam-navigation\{display:grid;grid-template-columns:1fr 1fr/);
@@ -116,7 +116,7 @@ test('mobile exams and homework stay inside the iPhone viewport',()=>{
 test('exam timer uses Cairo time and locks answers after expiry with safe retry',()=>{
   const app=read('assets/app.js'),css=read('assets/v65-redesign.css');
   assert.match(app,/function examCairoDateTime/);assert.match(app,/timeZone:'Africa\/Cairo'/);
-  assert.match(app,/role="timer" aria-live="polite"/);assert.match(app,/const lockExpiredExam=/);
+  assert.match(app,/role="timer" aria-label="الوقت المتبقي"/);assert.doesNotMatch(app,/role="timer"[^>]+aria-live/);assert.match(app,/const lockExpiredExam=/);
   assert.match(app,/form\.querySelectorAll\('input,textarea'\).*disabled=true/);
   assert.match(app,/autoSubmitRetryTimer=setTimeout\(\(\)=>finish\(true\),8000\)/);
   assert.match(css,/\.exam-timer\.warn/);assert.match(css,/\.exam-timer\.danger/);
@@ -179,7 +179,8 @@ test('QR attendance survives offline use and syncs idempotently after reconnect'
   assert.match(backend,/exports\.syncOfflineAttendance = onCall/);assert.match(backend,/offlineRequestId/);assert.match(backend,/cairoDateKey\(new Date\(scannedMillis\)\)!==date/);
   assert.match(sync,/syncOfflineAttendance:callable\('syncOfflineAttendance'\)/);
   assert.match(worker,/technominds-attendance-sync/);assert.match(worker,/\/teacher-login\.html/);assert.match(worker,/cache\.put\(request,response\.clone\(\)\)/);
-  assert.match(worker,/\/assets\/vendor\/html5-qrcode-2\.3\.8\.min\.js/);assert.match(worker,/v66-1-comfort-theme/);
+  const appShell=worker.slice(0,worker.indexOf('];')+2);
+  assert.doesNotMatch(appShell,/html5-qrcode/);assert.match(worker,/v67-2-0-assessment-ux/);
   assert.match(admin,/qrScanBusy/);assert.match(admin,/offlineQrManualForm/);assert.match(admin,/state\?\.roster/);
   assert.match(app,/assets\/vendor\/html5-qrcode-2\.3\.8\.min\.js/);
   assert.match(page,/assets\/offline-attendance\.js/);
@@ -202,19 +203,29 @@ test('teacher exam and homework builders auto-save and restore local drafts',()=
   assert.match(workflow,/ADMIN_BUILDER_DRAFT_PREFIX/);assert.match(workflow,/saveAdminBuilderDraft/);assert.match(workflow,/restoreAdminBuilderDraft/);assert.match(workflow,/clearAdminBuilderDraft\('exam'/);assert.match(workflow,/clearAdminBuilderDraft\('homework'/);assert.match(workflow,/data-admin-draft-note/);
 });
 
-test('class recording links are targeted, server filtered and mobile friendly',()=>{
-  const app=read('assets/app.js'),admin=read('assets/admin.js'),backend=read('functions/index.js'),page=read('materials.html'),css=read('assets/v65-redesign.css');
-  assert.match(admin,/\['classLinks','external-link','روابط الحصص'\]/);
-  assert.match(admin,/resourceType:'class-link'/);
-  assert.match(admin,/MFCloud\.saveContent\('materials',item\)/);
+test('Drive links are integrated into targeted theoretical lectures and legacy links remain visible',()=>{
+  const app=read('assets/app.js'),admin=read('assets/admin.js'),workflow=read('assets/v60-admin-workflow.js'),backend=read('functions/index.js'),page=read('materials.html'),theoryPage=read('theory-lectures.html'),css=read('assets/v65-redesign.css');
+  assert.doesNotMatch(admin,/\['classLinks','external-link','روابط الحصص'\]/);
+  assert.match(admin,/requested==='classLinks'\?'theoryLectures'/);
+  assert.match(workflow,/name="linkUrl"/);
+  assert.match(workflow,/normalizeDriveUrl\(rawLink\)/);
+  assert.match(workflow,/resourceType:'theory-lecture'/);
+  assert.match(workflow,/isLegacyClassLink/);
+  assert.match(workflow,/MFCloud\.saveContent\('materials',item\)/);
   assert.match(backend,/resourceType: text\(data\.resourceType \|\| data\.materialType/);
   assert.match(backend,/linkUrl,/);
-  assert.match(app,/classLinksGrid/);
-  assert.match(app,/فتح تسجيل الحصة/);
-  assert.match(app,/\['materials\.html','الحصص المسجلة'\]/);
+  assert.match(backend,/function safeGoogleDriveUrl/);
+  assert.match(backend,/رابط المحاضرة يجب أن يكون رابط Google Drive صحيحًا/);
+  assert.doesNotMatch(app,/classLinksGrid/);
+  assert.match(app,/فتح رابط Google Drive/);
+  assert.match(app,/isLegacyClassLink/);
+  assert.match(app,/\['materials\.html','المحاضرات'\]/);
   assert.doesNotMatch(app,/\['learning-path\.html','المسار التعليمي'\]/);
-  assert.match(page,/روابط حصصك على Google Drive/);
-  assert.match(css,/\.class-links-admin-layout/);
+  assert.doesNotMatch(page,/classLinksSection/);
+  assert.match(theoryPage,/محاضرات النظري وروابطها/);
+  assert.match(theoryPage,/Google Drive/);
+  assert.match(css,/\.theory-lecture-actions/);
+  assert.match(css,/\.resource-actions/);
   assert.match(css,/Admin light mode: override every legacy hard-coded surface/);
   assert.match(css,/html:not\(\[data-theme="dark"\]\) \.admin-main/);
   assert.match(css,/@media\(max-width:480px\)/);

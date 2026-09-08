@@ -6,10 +6,10 @@ const root=path.join(__dirname,'..');
 const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 const {studentCanOpenPortal,studentIsApproved}=require('../functions/lib/student-access');
 
-test('lectures stay directly accessible and grade/group targeted without a duplicate tab',()=>{
+test('lectures stay directly accessible, targeted, and visible in the student dashboard',()=>{
   const app=read('assets/app.js'),workflow=read('assets/v60-admin-workflow.js'),backend=read('functions/index.js');
   assert.match(app,/portalUrl\('materials\.html',st\.studentCode\)/);
-  assert.doesNotMatch(app,/data-student-tab="lectures"/);
+  assert.match(app,/data-student-tab="lectures"/);
   assert.match(workflow,/renderLecturesV623/);
   assert.match(workflow,/name="group"/);
   assert.match(backend,/materialsForStudent/);
@@ -59,5 +59,5 @@ test('pending booking code opens the student portal while learning actions stay 
   assert.ok((backend.match(/requireApprovedStudent\(found\.data\)/g)||[]).length>=7);
   assert.match(app,/لم يتم قبول الحجز حتى الآن/);
   assert.match(app,/ستتفعّل المحاضرات والواجبات والاختبارات بعد قبول الحجز/);
-  assert.match(worker,/technominds-v64-0-0-resilient-assessments/);
+  assert.match(worker,/technominds-v67-2-0-assessment-ux/);
 });

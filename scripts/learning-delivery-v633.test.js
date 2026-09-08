@@ -18,14 +18,16 @@ test('a graded homework is the source for grades, last grade and homework averag
   assert.deepEqual({required:metrics.requiredCount,submitted:metrics.submittedCount,graded:metrics.gradedCount,average:metrics.averageGrade,last:metrics.lastGrade.percentage},{required:1,submitted:1,graded:1,average:80,last:80});
 });
 
-test('homework locks reject a second submission and reveal answers only after grading when enabled', () => {
+test('homework locks reject a second submission and reveal only wrong answers after grading', () => {
   assert.equal(decideHomeworkAttempt({lock:{submittedAttempts:1},legacySubmissionExists:true}).allowed,false);
-  const hidden = publicHomeworkProjection({assignmentId:'hw-1',score:8,maxScore:10,revealCorrectAnswersAfterGrading:false,answers:[{question:'Q',answer:'A',correctAnswer:'B',correct:false,mark:1,awardedMark:0}]});
-  const visible = publicHomeworkProjection({assignmentId:'hw-1',score:8,maxScore:10,revealCorrectAnswersAfterGrading:true,answers:[{question:'Q',answer:'A',correctAnswer:'B',correct:false,mark:1,awardedMark:0}]});
+  const hidden = publicHomeworkProjection({assignmentId:'hw-1',score:null,maxScore:10,needsManualReview:true,answers:[{question:'Q',answer:'A',correctAnswer:'B',correct:false,mark:1,awardedMark:0}]});
+  const visible = publicHomeworkProjection({assignmentId:'hw-1',score:8,maxScore:10,revealCorrectAnswersAfterGrading:false,answers:[{question:'Wrong',answer:'A',correctAnswer:'B',correct:false,mark:1,awardedMark:0},{question:'Right',answer:'B',correctAnswer:'B',correct:true,mark:1,awardedMark:1}]});
   assert.equal(hidden.answersRevealed,false);
   assert.equal('correctAnswer' in hidden.answers[0],false);
   assert.equal(visible.answersRevealed,true);
   assert.equal(visible.answers[0].correctAnswer,'B');
+  assert.equal('correctAnswer' in visible.answers[1],false);
+  assert.equal(visible.wrongAnswerCount,1);
 });
 
 test('exam correction is server-only and updates the canonical student attempt summary', () => {

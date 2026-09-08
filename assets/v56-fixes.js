@@ -36,9 +36,8 @@
     backdrop.addEventListener('click',closePublicMenu);drawer.querySelector('.v56-public-menu-head button').addEventListener('click',closePublicMenu);drawer.querySelectorAll('a').forEach(link=>link.addEventListener('click',closePublicMenu));
   }
 
-  function removeLegacyMobileBars(){
-    document.querySelectorAll('.mobile-bottom,.admin-mobile-bottom,.floating-top-tools,.pro-scroll-top').forEach(bar=>bar.remove());
-    document.body.classList.remove('mobile-nav-active');
+  function removeLegacyFloatingTools(){
+    document.querySelectorAll('.floating-top-tools,.pro-scroll-top').forEach(tool=>tool.remove());
   }
 
   function installCleanScrollTop(){
@@ -158,11 +157,11 @@
 
   document.addEventListener('DOMContentLoaded',()=>{
     connectLabels();
-    removeLegacyMobileBars();
+    removeLegacyFloatingTools();
     installCleanScrollTop();
     installPublicMobileMenu();
     setTimeout(()=>{applyAdminStudentList();installStudentPageEnhancement();installAdminDrawerActions();},30);
-    const adminMenuObserver=new MutationObserver(()=>{removeLegacyMobileBars();installAdminDrawerActions();if(document.querySelector('.admin-command-header'))adminMenuObserver.disconnect();});
+    const adminMenuObserver=new MutationObserver(()=>{removeLegacyFloatingTools();installAdminDrawerActions();if(document.querySelector('.admin-command-header'))adminMenuObserver.disconnect();});
     adminMenuObserver.observe(document.body,{childList:true,subtree:true});
     document.addEventListener('click',closeOpenMenus);
   });
