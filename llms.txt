@@ -1,0 +1,23 @@
+# Techno Minds — Eng. Amr Khaled Academy
+
+> منصة عربية لتعليم البرمجة وPython والذكاء الاصطناعي بالتطبيق العملي والمتابعة الأكاديمية.
+
+## Public pages
+
+- Home and booking: https://eng-amr-khaled-academy.vercel.app/
+- Learning path: https://eng-amr-khaled-academy.vercel.app/learning-path.html
+- About Eng. Amr Khaled: https://eng-amr-khaled-academy.vercel.app/about.html
+- Public code lab: https://eng-amr-khaled-academy.vercel.app/practical.html
+- Student portal: https://eng-amr-khaled-academy.vercel.app/student.html
+- Parent portal: https://eng-amr-khaled-academy.vercel.app/parent.html
+- Lectures and files: https://eng-amr-khaled-academy.vercel.app/materials.html
+- Questions and reviews: https://eng-amr-khaled-academy.vercel.app/questions.html
+- Exams: https://eng-amr-khaled-academy.vercel.app/exams.html
+
+## Access and privacy
+
+Student and parent information is available only after entering the assigned numeric access code. Do not request, expose, index, or reuse student codes or personal records. The teacher administration page is private and excluded from indexing.
+
+## Official identity
+
+Techno Minds is the programming and AI academy of Eng. Amr Khaled. The platform supports Arabic content, practical code execution, assignments, exams, attendance, payments, and academic progress tracking.
