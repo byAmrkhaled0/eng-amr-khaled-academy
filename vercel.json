@@ -6,6 +6,12 @@
   "cleanUrls": false,
   "rewrites": [
     {"source":"/api/health","destination":"https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/getPlatformHealthHttp"},
+    {"source":"/api/portal/student","destination":"https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/getPortalStudent"},
+    {"source":"/api/parent/monthly-report","destination":"https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/getParentMonthlyReport"},
+    {"source":"/api/exams/dashboard","destination":"https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/getExamDashboard"},
+    {"source":"/api/exams/start","destination":"https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/startExam"},
+    {"source":"/api/exams/progress","destination":"https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/saveExamProgress"},
+    {"source":"/api/exams/submit","destination":"https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/submitExam"},
     {"source":"/api/booking/create","destination":"https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/createBooking"},
     {"source":"/api/resources/student","destination":"https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/getStudentResources"},
     {"source":"/api/code/getCodeLanguages","destination":"https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net/getCodeLanguages"},

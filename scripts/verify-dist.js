@@ -6,7 +6,7 @@ const root = path.resolve(__dirname, '..');
 const dist = path.join(root, 'dist');
 const { version: releaseVersion } = require(path.join(root, 'package.json'));
 const releaseCacheVersion = releaseVersion.replace(/\./g, '-');
-const releaseCacheName = `technominds-v${releaseCacheVersion}-assessment-ux`;
+const releaseCacheName = `technominds-v${releaseCacheVersion}-backend-compatibility`;
 const failures = [];
 const required = ['index.html','404.html','teacher-login.html','service-worker.js','assets/app.js','assets/admin.js','assets/v60-payments.js','assets/v60-admin-workflow.js','assets/v60-technominds.css','assets/v61-design.css','assets/v67-learning-hub.css','assets/curriculum-admin.js','assets/curriculum-student.js'];
 

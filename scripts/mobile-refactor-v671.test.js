@@ -52,14 +52,14 @@ test('release build normalizes immutable asset versions and keeps heavy QR code 
   assert.match(build, /html\.replace\(/);
   assert.doesNotMatch(appShell, /html5-qrcode/);
   assert.match(worker, /fetch\(request,\{cache:"reload"\}\)/);
-  assert.match(worker, /technominds-v67-8-0-classroom-exam/);
+  assert.match(worker, /technominds-v67-8-1-backend-compatibility/);
 });
 
 test('health status reflects the usable default code runner without claiming a live probe', () => {
   const backend = read('functions/index.js');
   const functionsPackage = require(path.join(root, 'functions/package.json'));
 
-  assert.equal(functionsPackage.version, '67.8.0');
+  assert.equal(functionsPackage.version, '67.8.1');
   assert.match(backend, /\['http:', 'https:'\]\.includes\(endpoint\.protocol\)/);
   assert.match(backend, /default-provider-configured/);
   assert.match(backend, /codeRunnerVerification: 'configuration-only'/);

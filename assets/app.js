@@ -14,13 +14,52 @@ var HOMEWORK_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 var PENDING_BOOKING_REQUEST_KEY = 'mf_pending_booking_request_v1';
 var cloudSaveTimer = null;
 var staffCacheTimer = null;
-var MF_ASSET_VERSION = '67.8.0';
+var MF_ASSET_VERSION = '67.8.1';
 var mfLazyScriptPromises = Object.create(null);
 var publicScheduleUnsubscribe = null;
 
 function setupInteractionPerformance(){
   if(window.__tmPerformanceBound)return;window.__tmPerformanceBound=true;window.__tmPerformanceSamples=[];
   document.addEventListener('click',event=>{const button=event.target.closest('button,.btn,.small-btn');if(!button)return;const started=performance.now(),name=String(button.dataset.performanceName||button.textContent||button.getAttribute('aria-label')||'button').trim().replace(/\s+/g,' ').slice(0,80);button.classList.add('tm-pressed');requestAnimationFrame(()=>{button.classList.remove('tm-pressed');const visualMs=Math.round((performance.now()-started)*100)/100,record={name,visualMs,totalMs:null,at:new Date().toISOString()};window.__tmPerformanceSamples.push(record);if(window.__tmPerformanceSamples.length>100)window.__tmPerformanceSamples.shift();const finish=()=>{record.totalMs=Math.round((performance.now()-started)*100)/100;};let checks=0;const poll=()=>{checks+=1;if(!button.isConnected||(!button.disabled&&!button.classList.contains('is-loading'))||checks>=200)return finish();setTimeout(poll,50);};setTimeout(poll,0);});},{capture:true});
+}
+
+function setupFastNavigationPrefetch(){
+  if(window.__tmNavigationPrefetchBound)return;window.__tmNavigationPrefetchBound=true;
+  const seen=new Set();
+  const prefetch=event=>{
+    if(seen.size>=12||navigator.connection?.saveData)return;
+    const anchor=event.target.closest?.('a[href]');if(!anchor||anchor.hasAttribute('download'))return;
+    let url;try{url=new URL(anchor.href,location.href);}catch(_){return;}
+    if(url.origin!==location.origin||url.search||(!url.pathname.endsWith('.html')&&url.pathname!=='/'))return;
+    url.hash='';if(seen.has(url.href))return;seen.add(url.href);
+    fetch(url.href,{method:'GET',cache:'force-cache',credentials:'same-origin'}).catch(()=>seen.delete(url.href));
+  };
+  document.addEventListener('pointerover',prefetch,{passive:true});
+  document.addEventListener('touchstart',prefetch,{passive:true});
+  document.addEventListener('focusin',prefetch);
+}
+
+function setupValidationFeedback(){
+  if(window.__tmValidationBound)return;window.__tmValidationBound=true;
+  let notifiedForm=null;
+  document.addEventListener('invalid',event=>{
+    const control=event.target;if(!(control instanceof HTMLElement))return;
+    control.setAttribute('aria-invalid','true');const form=control.closest('form');
+    if(form!==notifiedForm){notifiedForm=form;toast('راجع الحقل المحدد وأكمل البيانات المطلوبة.');setTimeout(()=>{if(notifiedForm===form)notifiedForm=null;},800);}
+  },true);
+  const clear=event=>{const control=event.target;if(control instanceof HTMLElement&&control.matches('input,select,textarea')&&control.checkValidity?.())control.removeAttribute('aria-invalid');};
+  document.addEventListener('input',clear,{passive:true});document.addEventListener('change',clear,{passive:true});
+}
+
+function setupDuplicateSubmitGuard(){
+  if(window.__tmSubmitGuardBound)return;window.__tmSubmitGuardBound=true;
+  document.addEventListener('submit',event=>{
+    const form=event.target;if(!(form instanceof HTMLFormElement)||form.dataset.allowRapidSubmit==='true')return;
+    const now=Date.now(),lockedUntil=Number(form.dataset.tmSubmitLockedUntil||0);
+    if(lockedUntil>now){event.preventDefault();event.stopImmediatePropagation();toast('الطلب قيد التنفيذ بالفعل…');return;}
+    form.dataset.tmSubmitLockedUntil=String(now+900);
+    setTimeout(()=>{if(Number(form.dataset.tmSubmitLockedUntil||0)<=Date.now())delete form.dataset.tmSubmitLockedUntil;},950);
+  },true);
 }
 
 function loadLazyScript(key, source, readyCheck){
@@ -111,7 +150,7 @@ var appDataLoadFailed = false;
 function iconNameToKey(name){return String(name||'').replace(/-([a-z])/g,(_,c)=>c.toUpperCase());}
 function hydrateIcons(){document.querySelectorAll('[data-icon]').forEach(el=>{const key=iconNameToKey(el.dataset.icon);if(!icons[key]||el.dataset.iconRendered===key)return;el.innerHTML=icons[key];el.dataset.iconRendered=key;});}
 function toast(msg){const t=document.getElementById('toast'); if(!t) return; t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2800);}
-function firebaseFriendlyError(err,fallback){const raw=`${err?.code||''} ${err?.message||''}`;if(/BACKEND_VERSION_MISMATCH/i.test(raw))return 'يوجد تحديث غير مكتمل للمنصة. حاول لاحقًا أو تواصل مع الإدارة.';if(/functions\/not-found|function.*unavailable|service.*unavailable/i.test(raw))return 'الخدمة غير مفعّلة حاليًا. تواصل مع المدرس أو حاول لاحقًا.';if(/resource-exhausted/i.test(raw))return 'محاولات كثيرة. انتظر قليلًا ثم حاول مرة أخرى.';if(/failed-precondition/i.test(raw))return raw.split(':').pop().trim()||'الاختيار لم يعد متاحًا. حدّث الصفحة وحاول مرة أخرى.';if(/invalid-argument/i.test(raw)){const message=raw.split(':').pop().trim();return /firebase|firestore|function|permission|internal/i.test(message)?(fallback||'تعذر إتمام الطلب. راجع البيانات وحاول مرة أخرى.'):message;}if(/deadline-exceeded/i.test(raw))return 'انتهى وقت الامتحان.';if(/already-exists/i.test(raw)){const message=raw.split(':').pop().trim();return /الطالب موجود|كود الطالب|رقم الطالب|ولي الأمر/.test(message)?message:'تم تنفيذ العملية بالفعل.';}if(/permission-denied|unauthenticated/i.test(raw))return 'لا يمكن تنفيذ الطلب حاليًا. حدّث الصفحة ثم حاول مرة أخرى.';if(/unavailable|network|internal|fetch|offline|timeout/i.test(raw))return 'تعذر الاتصال بالخدمة. تحقق من الإنترنت وحاول مرة أخرى.';if(/not-found/i.test(raw))return 'الكود غير صحيح أو غير موجود.';return fallback||'حدث خطأ غير متوقع.';}
+function firebaseFriendlyError(err,fallback){const raw=`${err?.code||''} ${err?.message||''}`;if(/BACKEND_VERSION_MISMATCH/i.test(raw))return 'يوجد تحديث غير مكتمل للمنصة. حاول لاحقًا أو تواصل مع الإدارة.';if(/functions\/not-found|secure .* (?:function|service).*unavailable/i.test(raw))return 'الخدمة غير مفعّلة حاليًا. تواصل مع المدرس أو حاول لاحقًا.';if(/resource-exhausted/i.test(raw)){const message=raw.split(':').pop().trim();return /اكتمل عدد|تعذر إنشاء/.test(message)?message:'تم إرسال طلبات كثيرة لهذا الكود. انتظر لحظة ثم حاول مرة أخرى.';}if(/failed-precondition/i.test(raw))return raw.split(':').pop().trim()||'الاختيار لم يعد متاحًا. حدّث الصفحة وحاول مرة أخرى.';if(/invalid-argument/i.test(raw)){const message=raw.split(':').pop().trim();return /firebase|firestore|function|permission|internal/i.test(message)?(fallback||'تعذر إتمام الطلب. راجع البيانات وحاول مرة أخرى.'):message;}if(/deadline-exceeded/i.test(raw)){const message=raw.split(':').pop().trim();return /انتهى (?:وقت الامتحان|موعد تسليم)/.test(message)?message:'استغرق الاتصال وقتًا أطول من المعتاد. حاول مرة أخرى.';}if(/already-exists/i.test(raw)){const message=raw.split(':').pop().trim();return /الطالب موجود|كود الطالب|رقم الطالب|ولي الأمر/.test(message)?message:'تم تنفيذ العملية بالفعل.';}if(/permission-denied|unauthenticated/i.test(raw))return 'لا يمكن تنفيذ الطلب حاليًا. حدّث الصفحة ثم حاول مرة أخرى.';if(/unavailable|network|internal|fetch|offline|timeout/i.test(raw))return 'تعذر الاتصال بالخدمة. تحقق من الإنترنت وحاول مرة أخرى.';if(/not-found/i.test(raw))return 'الكود غير صحيح أو غير موجود.';return fallback||'حدث خطأ غير متوقع.';}
 function studentCodeFriendlyError(err,fallback){const raw=`${err?.code||''} ${err?.message||''}`;if(/functions\/not-found|\bnot-found\b/i.test(raw))return 'الكود غير صحيح أو غير موجود.';return firebaseFriendlyError(err,fallback);}
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function toEnglishDigits(v){return String(v||'').replace(/[٠-٩]/g,digit=>String(digit.charCodeAt(0)-1632)).replace(/[۰-۹]/g,digit=>String(digit.charCodeAt(0)-1776));}
@@ -296,7 +335,7 @@ function setupUnifiedHeader(){
     ['student.html','بوابة الطالب'],['parent.html','ولي الأمر'],['theory-lectures.html','محاضرات النظري'],['questions.html','بنوك الأسئلة'],['exams.html','الاختبارات']
   ];
   const activeFile=file==='teacher-login.html'?'':file;
-  header.innerHTML=`<div class="container navbar"><a aria-label="Techno Minds" class="logo" href="index.html"><span class="logo-mark"></span><span>Techno Minds <small>Programming &amp; AI</small></span></a><nav aria-label="روابط الموقع" class="navlinks">${links.map(([href,label])=>{const parts=href.split('#'),target=parts[0],hash=parts[1]||'';const active=hash?activeFile==='index.html'&&location.hash===`#${hash}`:target===activeFile&&!location.hash;return `<a href="${href}"${active?' class="active" aria-current="page"':''}>${label}</a>`;}).join('')}</nav><div class="header-actions"><button aria-label="تغيير الوضع" class="theme-toggle" id="themeToggle"></button></div></div>`;
+  header.innerHTML=`<div class="container navbar"><a aria-label="Techno Minds" class="logo" href="index.html"><span class="logo-mark"></span><span>Techno Minds <small>Programming &amp; AI</small></span></a><nav aria-label="روابط الموقع" class="navlinks">${links.map(([href,label])=>{const parts=href.split('#'),target=parts[0],hash=parts[1]||'';const active=hash?activeFile==='index.html'&&location.hash===`#${hash}`:target===activeFile&&!location.hash;return `<a href="${href}"${active?' class="active" aria-current="page"':''}>${label}</a>`;}).join('')}</nav><div class="header-actions"><button aria-label="تغيير الوضع" class="theme-toggle" id="themeToggle" type="button"></button></div></div>`;
 }
 function setupImageLazyLoading(){
   document.querySelectorAll('img').forEach(image=>{
@@ -766,9 +805,9 @@ function parentReportHTML(raw,selectedMonth=''){
     </div>
     <p class="parent-report-intro-v64">أهلًا بحضرتك، مع حضرتك م. عمرو خالد، مهندس برمجيات ومدرس البرمجة والذكاء الاصطناعي ومؤسس Techno Minds. ده تقرير المتابعة الشهري للطالب/ة <b>${esc(st.name||'-')}</b> عن شهر <b>${esc(parentMonthLabel(monthKey))}</b>.</p>
     <div class="parent-actions-v38 no-print">
-      <button class="btn primary" onclick="printParentReport()"><span data-icon="file-text"></span> طباعة / حفظ PDF</button>
-      <button class="btn ghost" onclick="copyParentReport('${esc(st.studentCode)}')"><span data-icon="clipboard"></span> نسخ التقرير</button>
-      ${st.parentPhone?`<button class="btn whatsapp-report-btn" onclick="openParentWhatsApp('${esc(st.studentCode)}')"><span data-icon="phone"></span> صورة التقرير + واتساب</button>`:''}
+      <button class="btn primary" type="button" onclick="printParentReport()"><span data-icon="file-text"></span> طباعة / حفظ PDF</button>
+      <button class="btn ghost" type="button" onclick="copyParentReport('${esc(st.studentCode)}')"><span data-icon="clipboard"></span> نسخ التقرير</button>
+      ${st.parentPhone?`<button class="btn whatsapp-report-btn" type="button" onclick="openParentWhatsApp('${esc(st.studentCode)}')"><span data-icon="phone"></span> صورة التقرير + واتساب</button>`:''}
     </div>
     <div class="metric-grid parent-report-metrics-v40">
       <div class="metric main-metric-v40"><b>${c.final}%</b><small>المستوى العام</small></div>
@@ -840,7 +879,7 @@ function parentMonthlyReportHTML(report){
   return `<div class="parent-monthly-report-v40 parent-monthly-report-server" id="parentMonthlyReport">
     <label class="parent-month-filter-v637"><span>عرض تقرير شهر</span><select onchange="renderParentMonth(this.value)">${monthOptions}</select></label>
     <div class="parent-report-cover-v40"><div class="parent-report-cover-content-v40"><div class="parent-report-main-v40"><span class="kicker">تقرير ولي الأمر الشهري</span><h2>${esc(st.name||'-')}</h2><p>${esc(reportMonthLabel(report.monthKey))} · ${esc(st.grade||'-')} · ${esc(st.group||'-')}</p></div><div class="parent-report-qr-v40"><b>QR الطالب</b>${makeQR(st.studentCode||'')}<small>${esc(st.studentCode||'')}</small></div></div></div>
-    <div class="parent-actions-v38 no-print"><button class="btn primary" onclick="printParentReport()">طباعة / حفظ PDF</button><button class="btn ghost" onclick="copyParentReport('${esc(st.studentCode||'')}')">نسخ التقرير</button>${st.parentPhone?`<button class="btn whatsapp-report-btn" onclick="openParentWhatsApp('${esc(st.studentCode||'')}')">صورة التقرير + واتساب</button>`:''}</div>
+    <div class="parent-actions-v38 no-print"><button class="btn primary" type="button" onclick="printParentReport()">طباعة / حفظ PDF</button><button class="btn ghost" type="button" onclick="copyParentReport('${esc(st.studentCode||'')}')">نسخ التقرير</button>${st.parentPhone?`<button class="btn whatsapp-report-btn" type="button" onclick="openParentWhatsApp('${esc(st.studentCode||'')}')">صورة التقرير + واتساب</button>`:''}</div>
     <div class="metric-grid parent-report-metrics-v40"><div class="metric main-metric-v40"><b>${score(report.overallScore)}</b><small>${esc(report.level||'المستوى العام')}</small></div><div class="metric"><b>${score(report.academicScore)}</b><small>المستوى الأكاديمي</small></div><div class="metric"><b>${score(report.commitmentScore)}</b><small>الالتزام والمذاكرة</small></div><div class="metric"><b>${score(attendance.percentage)}</b><small>الحضور</small></div><div class="metric"><b>${score(homework.completionPercentage)}</b><small>تسليم الواجبات</small></div><div class="metric"><b>${score(results.average)}</b><small>متوسط الدرجات</small></div></div>
     <div class="parent-status-card-v40 ${trendTone}"><div><span>التقدم مقارنة بالشهر السابق</span><h3>${esc(trend.label||'بيانات غير كافية')}</h3></div><p>${report.sufficientData?`حالة المذاكرة داخل المنصة: ${esc(report.commitmentLevel||'-')}.`:'لا توجد أنشطة كافية لإصدار حكم دقيق على انتظام المذاكرة.'}</p></div>
     ${report.motivation?`<section class="parent-motivation-summary"><div><span class="kicker">التحفيز الشهري</span><h3>${esc(report.motivation.level)} · ${esc(report.motivation.score)}%</h3><p>المركز ${esc(report.motivation.rank)} من ${esc(report.motivation.totalStudents)} في المسار · المركز ${esc(report.motivation.groupRank)} في المجموعة</p></div><div class="motivation-achievements">${(report.motivation.achievements||[]).map(item=>`<span class="badge good">${esc(item)}</span>`).join('')}</div><p><b>الخطوة المقترحة:</b> ${esc(report.motivation.nextAction||'الاستمرار على نفس المستوى')}</p>${(report.motivation.penaltyReasons||[]).length?`<div class="motivation-penalties">${report.motivation.penaltyReasons.map(item=>`<span class="badge danger">${esc(item.label)}</span>`).join('')}</div>`:''}</section>`:''}
@@ -1384,7 +1423,7 @@ function renderExamPortal(st,exams){
   }).join('');
   const resultCards=attempts.length?attempts.map(a=>{const ready=a.score!==null&&a.score!==undefined&&a.score!=='';const max=Number(a.maxScore||100),review=Array.isArray(a.review)?a.review:[];return `<article class="exam-result-card"><div><span class="record-eyebrow">${esc(formatPortalDate(a.submittedAt))}</span><h4>${esc(a.examTitle||'امتحان')}</h4><small>${a.needsManualReview?'ينتظر تصحيح الأسئلة المقالية':'تم التصحيح الآمن على الخادم'}</small>${review.length?`<details class="exam-answer-review"><summary>${a.answersRevealed?'مراجعة الإجابات ونموذج الحل':'عرض إجاباتي'}</summary>${review.map((row,index)=>`<div class="exam-review-item ${row.correct===true?'correct':row.correct===false?'wrong':'pending'}"><b>${index+1}. ${esc(row.question)}</b><small>إجابتك: ${esc(row.answer||'لم يجب')}</small>${a.answersRevealed?`<small>الإجابة النموذجية: ${esc(row.correctAnswer||'لا يوجد نموذج محفوظ')}</small><small>${row.awardedMark??0} من ${row.mark||1}</small>`:'<small>بيانات التصحيح محمية وفق سياسة المدرس، ويظهر النموذج بعد التصحيح إذا سمحت الإدارة.</small>'}</div>`).join('')}</details>`:''}</div><strong class="score-pill ${ready?scoreClass((Number(a.score)/max)*100):'warn'}">${ready?`${esc(a.score)} من ${esc(max)} — ${esc(Math.round(Number(a.score)/max*100))}%`:'قيد التصحيح'}</strong></article>`;}).join(''):'<div class="portal-empty"><span class="iconbox" data-icon="bar-chart"></span><h3>لا توجد محاولات بعد</h3><p>ستظهر نتائجك هنا بعد التسليم.</p></div>';
   box.innerHTML=`<section class="exam-student-banner"><span class="student-avatar">${esc(String(st.name||'ط').trim().split(/\s+/).slice(0,2).map(x=>x[0]||'').join(''))}</span><div><small>اختبارات الطالب</small><h2>${esc(st.name)}</h2><p>${esc(st.grade||'')} <span>•</span> ${esc(st.studentCode)}</p></div></section><div class="exam-security-note"><span data-icon="user-check"></span><div><b>التصحيح مؤمّن</b><small>الإجابات النموذجية تظل محمية، ويتم التصحيح تلقائيًا وبأمان بعد التسليم.</small></div></div><div class="exam-portal-section"><div class="student-panel-title"><div><span class="kicker"><span data-icon="clipboard"></span> المتاح الآن</span><h3>الاختبارات المتاحة</h3></div><span class="badge">${currentSecureExams.length} امتحان</span></div><div class="exam-portal-grid">${available||'<div class="portal-empty"><span class="iconbox" data-icon="clipboard"></span><h3>لا توجد اختبارات حاليًا</h3><p>ستظهر اختبارات مسارك هنا فور نشرها.</p></div>'}</div></div><div class="exam-portal-section"><div class="student-panel-title"><div><span class="kicker"><span data-icon="bar-chart"></span> النتائج</span><h3>سجل الاختبارات</h3></div><span class="badge good">${attempts.length} محاولة</span></div><div class="exam-results-grid">${resultCards}</div></div>`;
-  box.querySelectorAll('.exam-start-btn').forEach(btn=>btn.addEventListener('click',()=>window.startExam(btn.dataset.examId,btn.dataset.studentCode)));
+  box.querySelectorAll('.exam-start-btn').forEach(btn=>btn.addEventListener('click',()=>window.startExam(btn.dataset.examId,btn.dataset.studentCode,btn)));
   hydrateIcons();
   const resumableExam=currentSecureExams.find(ex=>{const saved=readExamDraft(ex.id,st.studentCode);return (ex.scheduleState||'open')==='open'&&saved?.sessionId&&Array.isArray(saved.questions)&&Number(saved.expiresAt)>examClockNow(saved);});
   if(resumableExam&&!document.body.classList.contains('exam-open')&&!window.__tmExamResumeScheduled){window.__tmExamResumeScheduled=true;setTimeout(()=>{window.__tmExamResumeScheduled=false;if(!document.body.classList.contains('exam-open'))window.startExam(resumableExam.id,st.studentCode);},180);}
@@ -1414,7 +1453,7 @@ function saveExamDraft(examId,studentCode,draft){portalSessionSet(examDraftKey(e
 function clearExamDraft(examId,studentCode){portalSessionRemove(examDraftKey(examId,studentCode));}
 function examClockNow(draft){return Date.now()+Number(draft?.serverOffset||0);}
 function findExamDraftForStudent(studentCode){try{for(let i=0;i<sessionStorage.length;i+=1){const key=sessionStorage.key(i)||'';if(!key.startsWith(EXAM_DRAFT_PREFIX))continue;const draft=JSON.parse(sessionStorage.getItem(key)||'null');if(normalizeText(draft?.studentCode)===normalizeText(studentCode)&&draft?.sessionId&&Array.isArray(draft.questions)&&Number(draft.expiresAt)>examClockNow(draft))return draft;}}catch(_){ }return null;}
-window.startExam=async function(examId,studentCode){
+async function openSecureExam(examId,studentCode){
   const metadata=currentSecureExams.find(e=>String(e.id)===String(examId));
   const st=(currentExamStudent&&normalizeText(currentExamStudent.studentCode)===normalizeText(studentCode)?currentExamStudent:null)||{studentCode};
   if(!metadata)return toast('الامتحان غير متاح. أعد إدخال كود الطالب.');
@@ -1465,6 +1504,20 @@ window.startExam=async function(examId,studentCode){
   form.addEventListener('submit',e=>{e.preventDefault();finish(timeExpired);});
   const updateTimer=()=>{const left=Math.max(0,Number(draft.expiresAt)-examClockNow(draft));const total=Math.ceil(left/1000),m=Math.floor(total/60),sec=total%60,timerBox=box.querySelector('#examTimer'),timerEl=timerBox?.querySelector('b');if(timerEl)timerEl.textContent=`${m}:${String(sec).padStart(2,'0')}`;timerBox?.classList.toggle('warn',total>60&&total<=300);timerBox?.classList.toggle('danger',total<=60);if(left<=0&&!autoSubmitTriggered)finish(true);};
   timer=setInterval(updateTimer,1000);updateConnectivity();updateTimer();renderCurrent();
+}
+const examStartRequests=new Map();
+window.startExam=function(examId,studentCode,triggerButton){
+  const key=`${String(examId)}:${normalizeText(studentCode)}`,existing=examStartRequests.get(key);
+  if(existing)return existing;
+  const buttons=[...document.querySelectorAll('.exam-start-btn')].filter(button=>String(button.dataset.examId)===String(examId)&&normalizeText(button.dataset.studentCode)===normalizeText(studentCode));
+  if(triggerButton&&!buttons.includes(triggerButton))buttons.push(triggerButton);
+  buttons.forEach(button=>{button.disabled=true;button.classList.add('is-loading');button.setAttribute('aria-busy','true');});
+  const request=Promise.resolve().then(()=>openSecureExam(examId,studentCode)).finally(()=>{
+    examStartRequests.delete(key);
+    buttons.forEach(button=>{if(!button.isConnected)return;button.disabled=false;button.classList.remove('is-loading');button.removeAttribute('aria-busy');});
+  });
+  examStartRequests.set(key,request);
+  return request;
 };
 async function submitExamAttempt(sessionId,st,answers){
   if(!window.MFCloud?.submitSecureExam)throw new Error('Secure submit function unavailable');
@@ -1588,5 +1641,5 @@ function setupAccessibleDialogs(){
   document.addEventListener('keydown',event=>{if(!active)return;if(event.key==='Escape'){event.preventDefault();const close=active.querySelector('[data-dialog-close],.modal-close,[onclick*="close" i]');if(close)close.click();else active.hidden=true;return;}if(event.key==='Tab'){const items=focusable(active);if(!items.length){event.preventDefault();active.focus();return;}const first=items[0],last=items[items.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}});
   document.querySelectorAll('input,select,textarea').forEach(control=>{if(control.type==='hidden'||control.getAttribute('aria-label')||control.getAttribute('aria-labelledby'))return;const label=control.id?document.querySelector(`label[for="${CSS.escape(control.id)}"]`):control.closest('label');if(!label)control.setAttribute('aria-label',control.placeholder||control.name||'حقل إدخال');});
 }
-function init(){setupInteractionPerformance();setupUnifiedHeader();setupImageLazyLoading();setupTheme(); setupActiveNavigation(); bindLocalizedDigits(); registerServiceWorker(); setupPWAInstall(); setupClientErrorReporting(); hydrateIcons(); fillSelects(); setupBooking(); setupStudent(); setupParent(); setupExamsPage(); setupStudentResourcesPage(); setupReviews(); setupContact(); setupAdminLink(); setupLeaderboardGradePicker(); renderHomeCounts(); renderPublicLeaderboard(); renderReviews(); renderUnifiedResourcesPage(); setupMotionReveal(); setupAccessibleDialogs(); initFirebaseData();}
+function init(){setupInteractionPerformance();setupFastNavigationPrefetch();setupValidationFeedback();setupDuplicateSubmitGuard();setupUnifiedHeader();setupImageLazyLoading();setupTheme(); setupActiveNavigation(); bindLocalizedDigits(); registerServiceWorker(); setupPWAInstall(); setupClientErrorReporting(); hydrateIcons(); fillSelects(); setupBooking(); setupStudent(); setupParent(); setupExamsPage(); setupStudentResourcesPage(); setupReviews(); setupContact(); setupAdminLink(); setupLeaderboardGradePicker(); renderHomeCounts(); renderPublicLeaderboard(); renderReviews(); renderUnifiedResourcesPage(); setupMotionReveal(); setupAccessibleDialogs(); initFirebaseData();}
 document.addEventListener('DOMContentLoaded',init);

@@ -27,6 +27,54 @@
         }
       },
       {
+        "source": "/api/portal/student",
+        "function": {
+          "functionId": "getPortalStudent",
+          "region": "europe-west1",
+          "pinTag": true
+        }
+      },
+      {
+        "source": "/api/parent/monthly-report",
+        "function": {
+          "functionId": "getParentMonthlyReport",
+          "region": "europe-west1",
+          "pinTag": true
+        }
+      },
+      {
+        "source": "/api/exams/dashboard",
+        "function": {
+          "functionId": "getExamDashboard",
+          "region": "europe-west1",
+          "pinTag": true
+        }
+      },
+      {
+        "source": "/api/exams/start",
+        "function": {
+          "functionId": "startExam",
+          "region": "europe-west1",
+          "pinTag": true
+        }
+      },
+      {
+        "source": "/api/exams/progress",
+        "function": {
+          "functionId": "saveExamProgress",
+          "region": "europe-west1",
+          "pinTag": true
+        }
+      },
+      {
+        "source": "/api/exams/submit",
+        "function": {
+          "functionId": "submitExam",
+          "region": "europe-west1",
+          "pinTag": true
+        }
+      },
+      {
         "source": "/api/booking/create",
         "function": {
           "functionId": "createBooking",

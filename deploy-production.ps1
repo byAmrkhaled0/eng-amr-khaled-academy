@@ -6,6 +6,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ReleaseVersion = (Get-Content -LiteralPath (Join-Path $ProjectRoot "package.json") -Raw | ConvertFrom-Json).version
 $StateFile = Join-Path $ProjectRoot ".deploy-state.txt"
 $SuccessFile = Join-Path $ProjectRoot ".deploy-success"
 $script:CurrentAction = "preflight"
@@ -120,9 +121,9 @@ try {
     }
   }
 
-  Set-Content -LiteralPath $SuccessFile -Value "V64.0.0" -Encoding ASCII
+  Set-Content -LiteralPath $SuccessFile -Value $ReleaseVersion -Encoding ASCII
   Remove-Item -LiteralPath $StateFile -Force -ErrorAction SilentlyContinue
-  Write-Host "Deployment V64.0.0 completed successfully. No GitHub push was performed." -ForegroundColor Green
+  Write-Host "Deployment V$ReleaseVersion completed successfully. No GitHub push was performed." -ForegroundColor Green
   exit 0
 } catch {
   Write-Host "" 

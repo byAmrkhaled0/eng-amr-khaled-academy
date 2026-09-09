@@ -72,7 +72,7 @@
   }
 
   function confirmDelete(item){
-    document.getElementById('curriculumConfirmModal')?.remove();document.body.insertAdjacentHTML('beforeend',`<div class="curriculum-modal" id="curriculumConfirmModal" role="dialog" aria-modal="true"><div class="card confirm-card"><h2>حذف المحتوى؟</h2><p>سيتم حذف «${safe(item.title)}». لا يؤثر ذلك في البيانات القديمة.</p><div class="mobile-actions"><button class="btn danger" data-confirm-delete>حذف</button><button class="btn ghost" data-cancel-delete>إلغاء</button></div></div></div>`);const modal=document.getElementById('curriculumConfirmModal');modal.querySelector('[data-cancel-delete]').onclick=()=>modal.remove();modal.querySelector('[data-confirm-delete]').onclick=async event=>{event.currentTarget.disabled=true;await window.MFCloud.deleteCurriculumEntity(active,item.id);modal.remove();await load();};
+    document.getElementById('curriculumConfirmModal')?.remove();document.body.insertAdjacentHTML('beforeend',`<div class="curriculum-modal" id="curriculumConfirmModal" role="dialog" aria-modal="true"><div class="card confirm-card"><h2>حذف المحتوى؟</h2><p>سيتم حذف «${safe(item.title)}». لا يؤثر ذلك في البيانات القديمة.</p><div class="mobile-actions"><button class="btn danger" type="button" data-confirm-delete>حذف</button><button class="btn ghost" type="button" data-cancel-delete>إلغاء</button></div></div></div>`);const modal=document.getElementById('curriculumConfirmModal');modal.querySelector('[data-cancel-delete]').onclick=()=>modal.remove();modal.querySelector('[data-confirm-delete]').onclick=async event=>{event.currentTarget.disabled=true;await window.MFCloud.deleteCurriculumEntity(active,item.id);modal.remove();await load();};
   }
 
   function bindRows(){

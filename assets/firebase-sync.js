@@ -2,7 +2,7 @@
   'use strict';
 
   const cfg=window.MF_FIREBASE_CONFIG||{};
-  const FRONTEND_VERSION='64.0.0';
+  const FRONTEND_VERSION='67.8.1';
   const API_SCHEMA_VERSION='portal-v64.0.0';
   if(!cfg.enabled||typeof firebase==='undefined'){
     window.MFCloud={ready:false,error:'Firebase غير مفعل'};
@@ -67,7 +67,7 @@
       }catch(error){
         if(error?.name==='AbortError'){
           const timeoutError=new Error('Request timeout');
-          timeoutError.code='functions/deadline-exceeded';
+          timeoutError.code='request-timeout';
           throw timeoutError;
         }
         throw error;
@@ -75,6 +75,7 @@
     };
 
     const transientFirebaseError=error=>/unavailable|internal|network|deadline-exceeded|fetch|timeout/i.test(`${error?.code||''} ${error?.message||''}`);
+    const missingProxyRoute=error=>/^functions\/(?:401|403|404|405)$/.test(String(error?.code||''));
     const retryTransient=async(operation,retries=1)=>{
       let lastError;
       for(let attempt=0;attempt<=retries;attempt+=1){
@@ -83,9 +84,21 @@
       }
       throw lastError;
     };
+    const proxyFirstCallable=async(path,payload,directCall,timeoutMs=12000,directRetries=0)=>{
+      try{return await sameOriginCallable(path,payload,timeoutMs);}
+      catch(proxyError){
+        if(!missingProxyRoute(proxyError)&&!transientFirebaseError(proxyError))throw proxyError;
+        if(!directCall)throw proxyError;
+        try{return await retryTransient(()=>directCall(payload),directRetries);}
+        catch(callableError){callableError.proxyError=proxyError;throw callableError;}
+      }
+    };
 
     const requireCompatibleBackend=result=>{
-      if(!result||result.apiSchemaVersion!==API_SCHEMA_VERSION||result.backendVersion!==FRONTEND_VERSION){
+      // Release numbers describe deployments, while apiSchemaVersion describes
+      // the callable response contract. Requiring identical release numbers
+      // locked every portal during normal staggered Hosting/Functions deploys.
+      if(!result||result.apiSchemaVersion!==API_SCHEMA_VERSION){
         const error=new Error('إصدار خدمة المنصة غير متوافق. يرجى نشر Firebase Functions قبل الواجهة.');
         error.code='BACKEND_VERSION_MISMATCH';
         throw error;
@@ -176,6 +189,11 @@
     };
 
     const portalSessionKey=(code,mode='student')=>`tm-portal-session-v64:${mode}:${normalizeCode(code)}`;
+    async function fetchPortalStudent(payload){
+      // Functional errors such as an invalid code are returned directly;
+      // only a missing/broken proxy route falls back to the Firebase SDK.
+      return proxyFirstCallable('/api/portal/student',payload,calls.getPortalStudent,8000,1);
+    }
     function readPortalSession(code,mode='student'){
       try{
         const value=JSON.parse(sessionStorage.getItem(portalSessionKey(code,mode))||'null');
@@ -193,7 +211,7 @@
       const normalized=normalizeCode(code),existing=readPortalSession(normalized,mode);
       if(existing)return existing;
       if(!calls.getPortalStudent)throw new Error('Secure portal session service unavailable');
-      const profile=await retryTransient(()=>calls.getPortalStudent({code:normalized,mode}),1);
+      const profile=requireCompatibleBackend(await fetchPortalStudent({code:normalized,mode}));
       const saved=savePortalSession(normalized,mode,profile);
       if(!saved)throw new Error('Portal session was not issued');
       return {...saved,profile};
@@ -642,7 +660,7 @@
         : Promise.reject(new Error('Unified access migration service unavailable')),
       createBooking:async booking=>{
         try{
-          return await retryTransient(()=>sameOriginCallable('/api/booking/create',booking),2);
+          return await sameOriginCallable('/api/booking/create',booking,12000);
         }catch(error){
           if(!transientFirebaseError(error)||!calls.createBooking)throw error;
           return retryTransient(()=>calls.createBooking(booking),1);
@@ -683,7 +701,7 @@
       searchStudentsAdmin:payload=>{if(!calls.searchStudentsAdmin)throw new Error('Student search service unavailable');return calls.searchStudentsAdmin(payload||{});},
       getStudentAdminProfile:payload=>{if(!calls.getStudentAdminProfile)throw new Error('Student profile service unavailable');return calls.getStudentAdminProfile(payload||{});},
       getStudentMonthlyReportAdmin:payload=>{if(!calls.getStudentMonthlyReportAdmin)throw new Error('Monthly report service unavailable');return calls.getStudentMonthlyReportAdmin(payload||{});},
-      getParentMonthlyReport:async(code,monthKey)=>{if(!calls.getParentMonthlyReport)throw new Error('Monthly parent report service unavailable');const normalized=normalizeCode(code),payload=await portalPayload(normalized,{studentCode:normalized,monthKey},'parent');return calls.getParentMonthlyReport(payload);},
+      getParentMonthlyReport:async(code,monthKey)=>{if(!calls.getParentMonthlyReport)throw new Error('Monthly parent report service unavailable');const normalized=normalizeCode(code),payload=await portalPayload(normalized,{studentCode:normalized,monthKey},'parent');return proxyFirstCallable('/api/parent/monthly-report',payload,calls.getParentMonthlyReport,12000,1);},
       saveStudentPrivateNote:payload=>{if(!calls.saveStudentPrivateNote)throw new Error('Student note service unavailable');return calls.saveStudentPrivateNote(payload||{});},
       getAdminOperationsDashboard:payload=>{if(!calls.getAdminOperationsDashboard)throw new Error('Operations dashboard service unavailable');return calls.getAdminOperationsDashboard(payload||{});},
       finalizeExamAbsencesAdmin:()=>{if(!calls.finalizeExamAbsencesAdmin)throw new Error('Exam absence service unavailable');return calls.finalizeExamAbsencesAdmin({});},
@@ -717,19 +735,19 @@
         if(!calls.recordClassProgress)throw new Error('Secure class progress service is unavailable');
         return retryTransient(()=>calls.recordClassProgress(record),1);
       },
-      getExamDashboard:async studentCode=>{if(!calls.getExamDashboard)throw new Error('Secure exam dashboard function is unavailable');const normalized=normalizeCode(studentCode);return calls.getExamDashboard(await portalPayload(normalized,{studentCode:normalized}));},
-      startSecureExam:async(examId,studentCode)=>{if(!calls.startExam)throw new Error('Secure start exam function is unavailable');const normalized=normalizeCode(studentCode);return calls.startExam(await portalPayload(normalized,{examId,studentCode:normalized}));},
-      saveSecureExamProgress:async(sessionId,studentCode,answers,current,revision)=>{if(!calls.saveExamProgress)throw new Error('Secure exam progress function is unavailable');const normalized=normalizeCode(studentCode);return calls.saveExamProgress(await portalPayload(normalized,{sessionId,studentCode:normalized,answers,current,revision}));},
-      submitSecureExam:async(sessionId,studentCode,answers)=>{if(!calls.submitExam)throw new Error('Secure submit exam function is unavailable');const normalized=normalizeCode(studentCode);return calls.submitExam(await portalPayload(normalized,{sessionId,studentCode:normalized,answers}));},
+      getExamDashboard:async studentCode=>{if(!calls.getExamDashboard)throw new Error('Secure exam dashboard function is unavailable');const normalized=normalizeCode(studentCode),payload=await portalPayload(normalized,{studentCode:normalized});return proxyFirstCallable('/api/exams/dashboard',payload,calls.getExamDashboard,10000,1);},
+      startSecureExam:async(examId,studentCode)=>{if(!calls.startExam)throw new Error('Secure start exam function is unavailable');const normalized=normalizeCode(studentCode),payload=await portalPayload(normalized,{examId,studentCode:normalized});return proxyFirstCallable('/api/exams/start',payload,calls.startExam,12000);},
+      saveSecureExamProgress:async(sessionId,studentCode,answers,current,revision)=>{if(!calls.saveExamProgress)throw new Error('Secure exam progress function is unavailable');const normalized=normalizeCode(studentCode),payload=await portalPayload(normalized,{sessionId,studentCode:normalized,answers,current,revision});return proxyFirstCallable('/api/exams/progress',payload,calls.saveExamProgress,8000);},
+      submitSecureExam:async(sessionId,studentCode,answers)=>{if(!calls.submitExam)throw new Error('Secure submit exam function is unavailable');const normalized=normalizeCode(studentCode),payload=await portalPayload(normalized,{sessionId,studentCode:normalized,answers});return proxyFirstCallable('/api/exams/submit',payload,calls.submitExam,15000);},
       reviewExamAttempt:async payload=>{if(!calls.reviewExamAttempt)throw new Error('Secure exam correction service is unavailable');return calls.reviewExamAttempt(payload||{});},
       upsertAttendance,getAttendanceForDate,
       recordAttendanceByQr:(attendanceCode,date)=>{if(!calls.recordAttendance)throw new Error('Secure attendance service unavailable');return calls.recordAttendance({attendanceCode:String(attendanceCode||'').trim().toUpperCase(),date,status:'present'});},
       syncOfflineAttendance:events=>{if(!calls.syncOfflineAttendance)throw new Error('Offline attendance sync service unavailable');return calls.syncOfflineAttendance({events:Array.isArray(events)?events:[]});},
       bulkMarkAttendance:payload=>{if(!calls.bulkMarkAttendance)throw new Error('Bulk attendance service unavailable');return calls.bulkMarkAttendance(payload||{});},
-      getStudentByCode:async(code,options={})=>{if(!calls.getPortalStudent)throw new Error('Secure student portal function is unavailable');const normalized=normalizeCode(code),result=requireCompatibleBackend(await retryTransient(()=>calls.getPortalStudent({code:normalized,mode:'student',includeTransfers:options.includeTransfers===true}),1));savePortalSession(normalized,'student',result);return result;},
+      getStudentByCode:async(code,options={})=>{const normalized=normalizeCode(code),result=requireCompatibleBackend(await fetchPortalStudent({code:normalized,mode:'student',includeTransfers:options.includeTransfers===true}));savePortalSession(normalized,'student',result);return result;},
       getStudentResources:async code=>{
         const normalized=normalizeCode(code),payload=await portalPayload(normalized,{code:normalized});
-        try{return requireCompatibleBackend(await retryTransient(()=>sameOriginCallable('/api/resources/student',payload),2));}
+        try{return requireCompatibleBackend(await sameOriginCallable('/api/resources/student',payload,12000));}
         catch(hostingError){
           // Local previews and older Hosting releases may not have the rewrite
           // yet. Always try the callable SDK before declaring the service off.
@@ -750,7 +768,7 @@
       migrateCurriculumV61:apply=>calls.migrateCurriculumV61({apply:apply===true}),
       getPublicLeaderboard:grade=>calls.getPublicLeaderboard?calls.getPublicLeaderboard({grade:String(grade||'').trim()}):Promise.resolve([]),
       getStudentLeaderboardPosition:async studentCode=>{const normalized=normalizeCode(studentCode);if(!calls.getStudentLeaderboardPosition)throw new Error('Student leaderboard position service unavailable');return calls.getStudentLeaderboardPosition(await portalPayload(normalized,{studentCode:normalized}));},
-      getParentStudent:async code=>{if(!calls.getPortalStudent)throw new Error('Secure parent portal function is unavailable');const normalized=normalizeCode(code),result=requireCompatibleBackend(await retryTransient(()=>calls.getPortalStudent({code:normalized,mode:'parent'}),1));savePortalSession(normalized,'parent',result);return result;},
+      getParentStudent:async code=>{const normalized=normalizeCode(code),result=requireCompatibleBackend(await fetchPortalStudent({code:normalized,mode:'parent'}));savePortalSession(normalized,'parent',result);return result;},
       createStudentTransferRequest:async payload=>{if(!calls.createStudentTransferRequest)throw new Error('Student transfer service unavailable');const normalized=normalizeCode(payload?.studentCode);return calls.createStudentTransferRequest(await portalPayload(normalized,{...payload,studentCode:normalized}));},
       reviewStudentTransferRequest:payload=>{if(!calls.reviewStudentTransferRequest)throw new Error('Student transfer review service unavailable');return calls.reviewStudentTransferRequest(payload||{});},
       uploadHomework:async(file,studentCode)=>{const normalized=normalizeCode(studentCode);if(!calls.prepareHomeworkUpload||!calls.registerHomeworkSubmission)throw new Error('Secure homework function is unavailable');const permit=await calls.prepareHomeworkUpload(await portalPayload(normalized,{studentCode:normalized,fileName:file.name,size:file.size,contentType:file.type}));const uploaded=await upload(file,`homework/${cleanDocId(normalized)}/${permit.uploadId}`,permit.safeName,true);await calls.registerHomeworkSubmission(await portalPayload(normalized,{studentCode:normalized,uploadId:permit.uploadId,...uploaded,fileName:file.name}));return uploaded;},

@@ -5,7 +5,7 @@ const root = path.resolve(__dirname, '..');
 const dist = path.join(root, 'dist');
 const { version: releaseVersion } = require(path.join(root, 'package.json'));
 const releaseCacheVersion = releaseVersion.replace(/\./g, '-');
-const releaseCacheName = `technominds-v${releaseCacheVersion}-assessment-ux`;
+const releaseCacheName = `technominds-v${releaseCacheVersion}-backend-compatibility`;
 const entriesToCopy = [
   'index.html',
   'learning-path.html',

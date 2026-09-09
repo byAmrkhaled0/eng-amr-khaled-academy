@@ -1,6 +1,7 @@
 param(
   [string]$BaseUrl = "https://eng-amr-khaled-academy.web.app",
-  [switch]$FullCodeRunner
+  [switch]$FullCodeRunner,
+  [int]$SlowRouteWarningMs = 1000
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,12 +17,40 @@ function Invoke-Callable([string]$Path, [hashtable]$Data, [int]$TimeoutSec = 45)
 }
 
 try {
-  $pages = @("/", "/teacher-login.html", "/student.html", "/parent.html", "/practical.html", "/service-worker.js")
+  # Use GET deliberately: Vercel's optional toolbar may issue its own HEAD
+  # request and receive 403 even while the actual student page returns 200.
+  $pages = @(
+    "/", "/index.html", "/student.html", "/parent.html", "/exams.html",
+    "/materials.html", "/theory-lectures.html", "/questions.html",
+    "/practical.html", "/learning-path.html", "/about.html", "/reviews.html",
+    "/privacy.html", "/terms.html", "/teacher-login.html", "/offline.html", "/404.html",
+    "/service-worker.js", "/site.webmanifest", "/teacher.webmanifest"
+  )
+  $slowPages = @()
   foreach ($page in $pages) {
-    $response = Invoke-WebRequest -UseBasicParsing -Uri ($BaseUrl.TrimEnd('/') + $page) -TimeoutSec 30
+    $timer = [System.Diagnostics.Stopwatch]::StartNew()
+    $response = Invoke-WebRequest -UseBasicParsing -Method Get -Uri ($BaseUrl.TrimEnd('/') + $page) -TimeoutSec 30
+    $timer.Stop()
     if ($response.StatusCode -ne 200) { throw "$page returned HTTP $($response.StatusCode)" }
-    Write-Host "OK $page" -ForegroundColor Green
+    $elapsedMs = [int]$timer.Elapsed.TotalMilliseconds
+    if ($elapsedMs -gt $SlowRouteWarningMs) {
+      $slowPages += "$page ($elapsedMs ms)"
+      Write-Host "OK $page - $elapsedMs ms (slow)" -ForegroundColor Yellow
+    } else {
+      Write-Host "OK $page - $elapsedMs ms" -ForegroundColor Green
+    }
   }
+
+  $escapedVersion = [regex]::Escape($ExpectedVersion)
+  $syncBundle = Invoke-WebRequest -UseBasicParsing -Method Get -Uri ($BaseUrl.TrimEnd('/') + "/assets/firebase-sync.js?v=$ExpectedVersion") -TimeoutSec 30
+  if ($syncBundle.Content -notmatch "FRONTEND_VERSION='$escapedVersion'") {
+    throw "The deployed firebase-sync.js is stale. Expected frontend version $ExpectedVersion. Wait for Hosting/Vercel deployment and check again."
+  }
+  $workerBundle = Invoke-WebRequest -UseBasicParsing -Method Get -Uri ($BaseUrl.TrimEnd('/') + "/service-worker.js") -TimeoutSec 30
+  if ($workerBundle.Content -notmatch "technominds-v$($ExpectedVersion.Replace('.', '-'))-") {
+    throw "The deployed service worker cache is stale. Expected release $ExpectedVersion."
+  }
+  Write-Host "OK deployed frontend and service-worker version $ExpectedVersion" -ForegroundColor Green
 
   $health = Invoke-Callable "/api/health" @{}
   if ($health.status -ne "ok" -or -not $health.firestore) { throw "Health endpoint did not confirm Firestore." }
@@ -54,6 +83,10 @@ try {
       if ([string]$run.stdout -notmatch $case.marker) { throw "Judge0 did not execute $($case.language). Output/status: $($run.stdout) $($run.status)" }
       Write-Host "OK real Judge0 execution: $($case.language)" -ForegroundColor Green
     }
+  }
+
+  if ($slowPages.Count -gt 0) {
+    Write-Host "Route speed warning (network/server time, not button visual feedback): $($slowPages -join ', ')" -ForegroundColor Yellow
   }
 
   Write-Host "Deployment check completed successfully." -ForegroundColor Green
