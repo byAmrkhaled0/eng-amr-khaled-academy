@@ -332,6 +332,22 @@ async function rateLimitPublic(action, identity, request, identityLimit, ipLimit
   ]);
 }
 
+// Classroom actions are keyed by a unique student/session (the initial portal
+// login uses the student's code; later actions also require a signed portal
+// session). Keep a sharded shared-IP ceiling for abuse detection without
+// creating one hot Firestore document when an entire class taps at once.
+async function rateLimitStudentAction(action, identity, request, identityLimit, sharedIpLimit, windowMs) {
+  const normalizedIdentity = text(identity || 'empty', 160);
+  const ip = requestIp(request);
+  const shardCount = 32;
+  const sharedShard = Number.parseInt(hash(normalizedIdentity).slice(0, 2), 16) % shardCount;
+  const sharedShardLimit = Math.max(10, Math.ceil(sharedIpLimit / shardCount));
+  await Promise.all([
+    rateLimit(`${action}-student-v678`, normalizedIdentity, identityLimit, windowMs),
+    rateLimit(`${action}-shared-network-v678-${sharedShard}`, ip, sharedShardLimit, windowMs)
+  ]);
+}
+
 function jsonByteSize(value) {
   try { return Buffer.byteLength(JSON.stringify(value), 'utf8'); }
   catch (_) { return Number.MAX_SAFE_INTEGER; }
@@ -1375,7 +1391,9 @@ exports.getPortalStudent = onCall(CALLABLE_OPTIONS, async request => {
   const code = normalizeCode(request.data && request.data.code);
   const mode = request.data && request.data.mode === 'parent' ? 'parent' : 'student';
   const includeTransfers = mode === 'student' && request.data?.includeTransfers === true;
-  await rateLimitPublic(`portal-${mode}`, code, request, 8, 35, 60 * 1000);
+  // Login still has a strict per-code limit, but a school network may contain
+  // dozens of legitimate students sharing one public IP.
+  await rateLimitStudentAction(`portal-${mode}`, code, request, 20, 3000, 60 * 1000);
   const found = mode === 'parent' ? await getParentPortalByCode(code) : await getStudentPortalByCode(code);
   const studentCode = normalizeCode(found.data.studentCode || found.data.code);
   const canonicalFound = mode === 'parent' ? await getStudentPortalByCode(studentCode).catch(() => null) : null;
@@ -2021,7 +2039,7 @@ function studentResourcePayload(doc, kind, progress = {}) {
     kind,
     title: text(data.title, 200),
     desc: text(data.desc || data.description, 1200),
-    content: text(data.content, 4000),
+    content: text(data.content, 50000),
     answer: kind === 'question' ? text(data.answer, 4000) : '',
     grade: text(canonicalAcademicLabel(data.grade), 80),
     group: text(data.group, 100),
@@ -2032,10 +2050,13 @@ function studentResourcePayload(doc, kind, progress = {}) {
     order: Math.max(0, Number(data.order || data.lectureNumber || 0)),
     lectureCategory: text(['theory', 'practical'].includes(rawLectureCategory) ? rawLectureCategory : 'general', 20),
     resourceType: text(data.resourceType || data.materialType, 40),
+    sourceCollection: text(data.sourceCollection || doc.ref?.parent?.id, 40),
+    questionBank: data.questionBank === true || doc.ref?.parent?.id === 'question_banks',
     linkedAssignmentId: text(data.linkedAssignmentId || data.assignmentId, 120),
     linkedExamId: text(data.linkedExamId || data.examId, 120),
     linkUrl,
     fileUrl,
+    filePath: text(data.filePath || data.path, 500),
     fileName: text(data.fileName, 220),
     fileType: text(data.fileType || data.type, 100),
     createdAt: text(data.createdAt, 60),
@@ -2049,15 +2070,16 @@ function studentResourcePayload(doc, kind, progress = {}) {
 exports.getStudentResources = onCall(CALLABLE_OPTIONS, async request => {
   const code = normalizeCode(request.data && request.data.code);
   await requirePortalSession(request, code, ['student']);
-  await rateLimitPublic('student-resources', code, request, 15, 60, 60 * 1000);
+  await rateLimitStudentAction('student-resources', code, request, 60, 5000, 60 * 1000);
   const found = await getStudentPortalByCode(code);
   requireApprovedStudent(found.data);
   const studentCode = normalizeCode(found.data.studentCode || found.data.code || code);
   const grade = text(canonicalAcademicLabel(found.data.grade), 80);
   if (!grade) throw new HttpsError('failed-precondition', 'مسار الطالب غير محدد. تواصل مع الإدارة لتحديد المسار أولًا.');
-  const [materialDocs, questionDocs, assignments, examDocs, progressSnap] = await Promise.all([
+  const [materialDocs, questionDocs, questionBankDocs, assignments, examDocs, progressSnap] = await Promise.all([
     targetedLearningDocs('materials', found.data),
     targetedLearningDocs('questions', found.data),
+    targetedLearningDocs('question_banks', found.data),
     assignmentsForStudent(found.data),
     targetedLearningDocs('exams', found.data),
     db.collection('student_progress').doc(studentCode).collection('lectures').limit(500).get().catch(() => null)
@@ -2077,7 +2099,10 @@ exports.getStudentResources = onCall(CALLABLE_OPTIONS, async request => {
       scheduleId: text(found.data.scheduleId || found.data.groupId, 100)
     },
     materials: materialDocs.filter(visible).filter(doc => learningTargetMatchesStudent(doc.data() || {}, found.data)).map(doc => studentResourcePayload(doc, 'material', progress.get(doc.id))),
-    questions: questionDocs.filter(visible).filter(doc => learningTargetMatchesStudent(doc.data() || {}, found.data)).map(doc => studentResourcePayload(doc, 'question')),
+    questions: [
+      ...questionBankDocs.filter(doc => contentIsOpen(doc.data() || {}) && learningTargetMatchesStudent(doc.data() || {}, found.data)).map(doc => studentResourcePayload(doc, 'question')),
+      ...questionDocs.filter(visible).filter(doc => learningTargetMatchesStudent(doc.data() || {}, found.data)).map(doc => studentResourcePayload(doc, 'question'))
+    ],
     assignments: assignments.map(row => publicAssignmentPayload(row, row.id)),
     exams: examDocs.map(doc => ({ id:doc.id,...doc.data() })).filter(exam => exam.archived !== true && exam.active !== false && exam.published !== false && learningTargetMatchesStudent(exam, found.data) && contentAvailableAfterStudentJoined(exam, found.data)).map(exam => ({ id:text(exam.id,120),title:text(exam.title,200),scheduleState:examScheduleState(exam),openAt:text(exam.openAt,60),closeAt:text(exam.closeAt,60) }))
   };
@@ -3385,7 +3410,7 @@ function examScheduleState(exam, now = Date.now()) {if(exam.active===false)retur
 exports.getExamDashboard = onCall(CALLABLE_OPTIONS, async request => {
   const studentCode = normalizeCode(request.data && request.data.studentCode);
   await requirePortalSession(request, studentCode, ['student']);
-  await rateLimitPublic('exam-dashboard', studentCode, request, 10, 35, 60 * 1000);
+  await rateLimitStudentAction('exam-dashboard', studentCode, request, 60, 5000, 60 * 1000);
   const found = await getStudentPortalByCode(studentCode);
   requireApprovedStudent(found.data);
   const examDocs = await targetedLearningDocs('exams', found.data);
@@ -3443,7 +3468,7 @@ exports.startExam = onCall(CALLABLE_OPTIONS, async request => {
   const studentCode = normalizeCode(request.data && request.data.studentCode);
   const examId = cleanDocId(request.data && request.data.examId);
   await requirePortalSession(request, studentCode, ['student']);
-  await rateLimitPublic('exam-start', `${studentCode}:${examId}`, request, 5, 20, 10 * 60 * 1000);
+  await rateLimitStudentAction('exam-start', `${studentCode}:${examId}`, request, 30, 5000, 10 * 60 * 1000);
   const found = await getStudentPortalByCode(studentCode);
   requireApprovedStudent(found.data);
   const examSnap = await db.collection('exams').doc(examId).get();
@@ -3537,7 +3562,7 @@ exports.saveExamProgress = onCall(CALLABLE_OPTIONS, async request => {
   const body=request.data||{},sessionId=cleanDocId(body.sessionId),studentCode=normalizeCode(body.studentCode),revision=Math.max(1,Math.min(1000000,Math.trunc(Number(body.revision||1))));
   if(!sessionId||!validLegacyOrStrongCode(studentCode))throw new HttpsError('invalid-argument','بيانات حفظ الامتحان غير مكتملة.');
   await requirePortalSession(request,studentCode,['student']);
-  await rateLimitPublic('exam-progress',`${studentCode}:${sessionId}`,request,180,360,60*60*1000);
+  await rateLimitStudentAction('exam-progress',`${studentCode}:${sessionId}`,request,5000,100000,60*60*1000);
   const raw=body.answers&&typeof body.answers==='object'&&!Array.isArray(body.answers)?body.answers:{};
   if(Object.keys(raw).length>205||jsonByteSize(raw)>64*1024)throw new HttpsError('invalid-argument','حجم مسودة الامتحان أكبر من الحد المسموح.');
   const ref=db.collection('exam_sessions').doc(sessionId);
@@ -3563,7 +3588,7 @@ exports.submitExam = onCall(CALLABLE_OPTIONS, async request => {
   await requirePortalSession(request, studentCode, ['student']);
   const clientAnswers = body.answers && typeof body.answers === 'object' && !Array.isArray(body.answers) ? body.answers : {};
   if (jsonByteSize(clientAnswers) > 64 * 1024) throw new HttpsError('invalid-argument', 'حجم الإجابات أكبر من الحد المسموح.');
-  await rateLimitPublic('exam-submit', `${studentCode}:${sessionId}`, request, 4, 20, 10 * 60 * 1000);
+  await rateLimitStudentAction('exam-submit', `${studentCode}:${sessionId}`, request, 30, 5000, 10 * 60 * 1000);
   if (!sessionId || !validLegacyOrStrongCode(studentCode)) throw new HttpsError('invalid-argument', 'بيانات المحاولة غير مكتملة.');
   const sessionRef = db.collection('exam_sessions').doc(sessionId);
   const sessionSnap = await sessionRef.get();
@@ -3705,6 +3730,9 @@ exports.submitExam = onCall(CALLABLE_OPTIONS, async request => {
     tx.update(sessionRef, { status: 'submitted', result: summary, submittedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), deleteAt: Timestamp.fromMillis(Date.now() + 30 * 24 * 60 * 60 * 1000) });
     return summary;
   });
+  // Exam grades are part of the monthly motivation score. Invalidate the
+  // leaderboard cache immediately so the new grade is reflected at once.
+  await markLeaderboardDirty('exam-submitted');
   return committedResult;
 });
 
@@ -3712,7 +3740,7 @@ exports.prepareHomeworkUpload = onCall(CALLABLE_OPTIONS, async request => {
   const body = request.data || {};
   const studentCode = normalizeCode(body.studentCode);
   await requirePortalSession(request, studentCode, ['student']);
-  await rateLimitPublic('homework-prepare', studentCode, request, 5, 15, 60 * 60 * 1000);
+  await rateLimitStudentAction('homework-prepare', studentCode, request, 20, 5000, 60 * 60 * 1000);
   const found = await getStudentPortalByCode(studentCode);
   requireApprovedStudent(found.data);
   const fileName = text(body.fileName, 180).replace(/[\\/#?\[\]]/g, '-');
@@ -3737,7 +3765,7 @@ exports.registerHomeworkSubmission = onCall(CALLABLE_OPTIONS, async request => {
   const body = request.data || {};
   const studentCode = normalizeCode(body.studentCode);
   await requirePortalSession(request, studentCode, ['student']);
-  await rateLimitPublic('homework-submit', studentCode, request, 5, 15, 60 * 60 * 1000);
+  await rateLimitStudentAction('homework-submit', studentCode, request, 20, 5000, 60 * 60 * 1000);
   const found = await getStudentPortalByCode(studentCode);
   requireApprovedStudent(found.data);
   const uploadId = text(body.uploadId, 80);
@@ -4444,6 +4472,7 @@ function normalizedCurriculumPayload(raw, staff, id) {
     lectureNumber: Math.max(0, Math.min(36, Number(data.lectureNumber || data.order || 0))),
     order: Math.max(0, Math.min(10000, Number(data.order || data.lectureNumber || 0))),
     title: text(data.title, 220), description: text(data.description, 4000),
+    content: text(data.content || data.questionsText, 50000),
     learningObjectives: Array.isArray(data.learningObjectives)
       ? data.learningObjectives.slice(0, 30).map(item => text(item, 300)).filter(Boolean)
       : text(data.learningObjectives, 4000).split('\n').map(item => item.trim()).filter(Boolean).slice(0, 30),
@@ -4678,7 +4707,7 @@ exports.getCurriculumFileUrl = onCall(CALLABLE_OPTIONS, async request => {
   const code = normalizeCode(request.data?.studentCode), collection = text(request.data?.collection, 80), id = curriculumId(request.data?.id);
   await requirePortalSession(request, code, ['student']);
   await rateLimitPublic('curriculum-file', `${code}:${collection}:${id}`, request, 20, 50, 60 * 1000);
-  if (!['lectures','lecture_materials','assignments_v2','bank_questions','monthly_exams'].includes(collection)) throw new HttpsError('invalid-argument', 'نوع الملف غير صالح.');
+  if (!['lectures','lecture_materials','assignments_v2','question_banks','bank_questions','monthly_exams'].includes(collection)) throw new HttpsError('invalid-argument', 'نوع الملف غير صالح.');
   const [found, snap] = await Promise.all([getStudentPortalByCode(code), db.collection(collection).doc(id).get()]);
   requireApprovedStudent(found.data);
   if (!snap.exists || !contentIsOpen(snap.data()) || !learningTargetMatchesStudent(snap.data(), found.data)) throw new HttpsError('permission-denied', 'الملف غير متاح لهذا الطالب.');

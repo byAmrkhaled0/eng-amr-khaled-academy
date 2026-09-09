@@ -34,11 +34,12 @@ const adminSections = [
   ['theoryLectures','book-open','محاضرات النظري'],
   ['assignments','file-text','الواجبات'],
   ['exams','clipboard','الاختبارات'],
+  ['questionBanks','help-circle','بنوك الأسئلة'],
   ['payments','database','المدفوعات'],
   ['bookings','calendar','طلبات التسجيل'],
   ['studentRequests','user-check','طلبات النقل'],
   ['warnings','alert-triangle','متابعة الغياب'],
-  ['curriculum','book-open','المنهج وبنك الأسئلة'],
+  ['curriculum','book-open','المنهج الدراسي'],
   ['reviews','star','التقييمات'],
   ['backup','database','النسخ والسجل'],
   ['settings','settings','الإعدادات']
@@ -48,13 +49,14 @@ const adminSectionDescriptions = {
   motivation:'النقاط وترتيب الطلاب',schedules:'المجموعات ومواعيدها',attendance:'التسجيل ومراجعة السجل',
   materials:'روابط وملفات العملي',theoryLectures:'روابط ومحاضرات النظري',assignments:'الإنشاء والتسليم',
   exams:'الإنشاء والتصحيح',payments:'الاشتراكات والتحصيل',bookings:'مراجعة الطلاب الجدد',
+  questionBanks:'أسئلة مكتوبة وملفات PDF للطلاب',
   studentRequests:'نقل الطلاب بين المجموعات',warnings:'الحالات التي تحتاج متابعة',
   curriculum:'الوحدات ومحتوى المنهج',reviews:'مراجعة آراء الطلاب',backup:'النسخ والاستعادة',settings:'إعدادات المنصة العامة'
 };
 const adminSectionGroups = [
   ['الرئيسية والمتابعة', ['overview','operations','warnings','motivation']],
   ['الطلاب والحصص', ['students','attendance','schedules','payments']],
-  ['المحتوى والتقييم', ['theoryLectures','materials','assignments','exams','curriculum']],
+  ['المحتوى والتقييم', ['theoryLectures','materials','assignments','exams','questionBanks','curriculum']],
   ['الطلبات والتواصل', ['bookings','studentRequests','reviews']],
   ['النظام والبيانات', ['backup','settings']]
 ];
@@ -961,7 +963,7 @@ function renderMotivationAdmin(){
   document.getElementById('freezeMotivationMonth').onclick=async event=>{event.currentTarget.disabled=true;try{await window.MFCloud.freezeLeaderboardMonthAdmin({academicYear:context.academicYear,month:context.month});aToast('تم تثبيت وأرشفة ترتيب الشهر.');}catch(error){aToast(adminActionErrorMessage(error,'تعذر أرشفة الشهر.'));}finally{event.currentTarget.disabled=false;}};
   document.getElementById('motivationAdminGrade').onchange=refreshMotivationAdminRanking;refreshMotivationAdminRanking();hydrateIcons();
 }
-function renderSection(){({overview:renderOverview,operations:()=>window.renderOperations?.(),students:renderStudents,motivation:renderMotivationAdmin,bookings:renderBookings,schedules:renderSchedules,attendance:renderAttendance,warnings:renderWarnings,studentRequests:renderStudentRequests,assignments:renderAssignments,payments:renderPayments,exams:renderExams,materials:renderMaterials,theoryLectures:()=>window.renderTheoryLectures?.(),curriculum:()=>window.renderCurriculumAdmin?.(),reviews:renderReviewsAdmin,backup:renderBackup,settings:renderSettings}[currentSection]||renderOverview)();if(currentSection==='students')bindAdminGradeGroupPicker();}
+function renderSection(){({overview:renderOverview,operations:()=>window.renderOperations?.(),students:renderStudents,motivation:renderMotivationAdmin,bookings:renderBookings,schedules:renderSchedules,attendance:renderAttendance,warnings:renderWarnings,studentRequests:renderStudentRequests,assignments:renderAssignments,payments:renderPayments,exams:renderExams,questionBanks:()=>window.renderQuestionBanksAdmin?.(),materials:renderMaterials,theoryLectures:()=>window.renderTheoryLectures?.(),curriculum:()=>window.renderCurriculumAdmin?.(),reviews:renderReviewsAdmin,backup:renderBackup,settings:renderSettings}[currentSection]||renderOverview)();if(currentSection==='students')bindAdminGradeGroupPicker();}
 function exportCSV(name, rows){const csv=rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'})); a.download=name; a.click();}
 window.exportBookingsCSV=function(){exportCSV('bookings.csv',[['code','name','grade','month','group','parentPhone','status'],...adminData.bookings.map(b=>[b.code,b.name,b.grade,b.month,b.group,b.parentPhone,b.status])]);};
 
