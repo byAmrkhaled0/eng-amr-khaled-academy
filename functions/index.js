@@ -51,6 +51,16 @@ const PAYMENT_MONTH_NAMES = ['يناير','فبراير','مارس','أبريل'
 // Callable endpoints must accept the browser's unauthenticated CORS preflight.
 // Sensitive operations still enforce staff authentication inside each handler.
 const CALLABLE_OPTIONS = { region: 'europe-west1', timeoutSeconds: 30, invoker: 'public' };
+// Keep only the live-exam entry points warm. This is intentionally narrower
+// than the global options so the rest of the administration services do not
+// reserve idle instances.
+const EXAM_ENTRY_OPTIONS = {
+  ...CALLABLE_OPTIONS,
+  minInstances: 1,
+  maxInstances: 20,
+  concurrency: 80,
+  memory: '512MiB'
+};
 const API_SCHEMA_VERSION = 'portal-v64.0.0';
 
 function apiMetadata() {
@@ -1387,7 +1397,7 @@ async function scheduleEnrollment(schedule, scheduleId, excludeStudentCode = '')
   );
 }
 
-exports.getPortalStudent = onCall(CALLABLE_OPTIONS, async request => {
+exports.getPortalStudent = onCall(EXAM_ENTRY_OPTIONS, async request => {
   const code = normalizeCode(request.data && request.data.code);
   const mode = request.data && request.data.mode === 'parent' ? 'parent' : 'student';
   const includeTransfers = mode === 'student' && request.data?.includeTransfers === true;
@@ -3407,7 +3417,7 @@ function examIsOpen(exam, now = Date.now()) {
 }
 function examScheduleState(exam, now = Date.now()) {if(exam.active===false)return 'inactive';const open=scheduledTimeMillis(exam.openAt),close=scheduledTimeMillis(exam.closeAt);if(open&&Number.isFinite(open)&&now<open)return 'upcoming';if(close&&Number.isFinite(close)&&now>close)return 'closed';return 'open';}
 
-exports.getExamDashboard = onCall(CALLABLE_OPTIONS, async request => {
+exports.getExamDashboard = onCall(EXAM_ENTRY_OPTIONS, async request => {
   const studentCode = normalizeCode(request.data && request.data.studentCode);
   await requirePortalSession(request, studentCode, ['student']);
   await rateLimitStudentAction('exam-dashboard', studentCode, request, 60, 5000, 60 * 1000);
@@ -3464,11 +3474,10 @@ async function finalizeExamAbsenceRecords(){
 exports.finalizeExamAbsencesAdmin = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds:120, memory:'512MiB' },async request=>{const staff=await requireStaff(request,['admin']);const result=await finalizeExamAbsenceRecords();await serverActivity(staff,'تحديث غياب الامتحانات',result);return result;});
 exports.finalizeExamAbsences = onSchedule({schedule:'every 60 minutes',timeZone:'Africa/Cairo',region:'europe-west1',timeoutSeconds:300,memory:'512MiB'},finalizeExamAbsenceRecords);
 
-exports.startExam = onCall(CALLABLE_OPTIONS, async request => {
+exports.startExam = onCall(EXAM_ENTRY_OPTIONS, async request => {
   const studentCode = normalizeCode(request.data && request.data.studentCode);
   const examId = cleanDocId(request.data && request.data.examId);
   await requirePortalSession(request, studentCode, ['student']);
-  await rateLimitStudentAction('exam-start', `${studentCode}:${examId}`, request, 30, 5000, 10 * 60 * 1000);
   const found = await getStudentPortalByCode(studentCode);
   requireApprovedStudent(found.data);
   const examSnap = await db.collection('exams').doc(examId).get();
@@ -3487,6 +3496,17 @@ exports.startExam = onCall(CALLABLE_OPTIONS, async request => {
   const sessionId = cleanDocId(`${examId}_${studentCode}`);
   const sessionRef = db.collection('exam_sessions').doc(sessionId);
   const lockRef = db.collection('exam_locks').doc(sessionId);
+
+  // Reopening a live session is a resume, not a new attempt. A weak connection
+  // may repeat this idempotent request, so do not let retries lock the student
+  // out before the transaction can return the existing session.
+  const resumableSessionSnap = await sessionRef.get();
+  const resumableSession = resumableSessionSnap.exists ? resumableSessionSnap.data() : null;
+  const resumableExpiresAt = resumableSession?.expiresAt?.toMillis ? resumableSession.expiresAt.toMillis() : 0;
+  const isActiveResume = resumableSession?.status === 'started' && resumableExpiresAt > now;
+  if (!isActiveResume) {
+    await rateLimitStudentAction('exam-start', `${studentCode}:${examId}`, request, 60, 10000, 10 * 60 * 1000);
+  }
 
   const sessionData = await db.runTransaction(async tx => {
     const [existingSessionSnap, lockSnap] = await Promise.all([tx.get(sessionRef), tx.get(lockRef)]);
@@ -3581,14 +3601,13 @@ exports.saveExamProgress = onCall(CALLABLE_OPTIONS, async request => {
   return {...result,serverNow:Date.now()};
 });
 
-exports.submitExam = onCall(CALLABLE_OPTIONS, async request => {
+exports.submitExam = onCall(EXAM_ENTRY_OPTIONS, async request => {
   const body = request.data || {};
   const sessionId = cleanDocId(body.sessionId);
   const studentCode = normalizeCode(body.studentCode);
   await requirePortalSession(request, studentCode, ['student']);
   const clientAnswers = body.answers && typeof body.answers === 'object' && !Array.isArray(body.answers) ? body.answers : {};
   if (jsonByteSize(clientAnswers) > 64 * 1024) throw new HttpsError('invalid-argument', 'حجم الإجابات أكبر من الحد المسموح.');
-  await rateLimitStudentAction('exam-submit', `${studentCode}:${sessionId}`, request, 30, 5000, 10 * 60 * 1000);
   if (!sessionId || !validLegacyOrStrongCode(studentCode)) throw new HttpsError('invalid-argument', 'بيانات المحاولة غير مكتملة.');
   const sessionRef = db.collection('exam_sessions').doc(sessionId);
   const sessionSnap = await sessionRef.get();
@@ -3596,6 +3615,9 @@ exports.submitExam = onCall(CALLABLE_OPTIONS, async request => {
   const session = sessionSnap.data();
   if (session.studentCode !== studentCode) throw new HttpsError('permission-denied', 'كود الطالب لا يطابق جلسة الامتحان.');
   if (session.status === 'submitted' && session.result) return session.result;
+  // If the browser lost the success response, a repeated submit immediately
+  // returns above. Only a genuinely pending submission consumes the limiter.
+  await rateLimitStudentAction('exam-submit', `${studentCode}:${sessionId}`, request, 60, 10000, 10 * 60 * 1000);
   const rawAnswers={...(session.draftAnswers&&typeof session.draftAnswers==='object'?session.draftAnswers:{}),...clientAnswers};
   if(jsonByteSize(rawAnswers)>64*1024)throw new HttpsError('invalid-argument','حجم الإجابات أكبر من الحد المسموح.');
   const expiresAt = session.expiresAt && session.expiresAt.toMillis ? session.expiresAt.toMillis() : 0;

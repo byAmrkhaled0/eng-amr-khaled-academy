@@ -14,7 +14,7 @@ var HOMEWORK_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 var PENDING_BOOKING_REQUEST_KEY = 'mf_pending_booking_request_v1';
 var cloudSaveTimer = null;
 var staffCacheTimer = null;
-var MF_ASSET_VERSION = '67.8.1';
+var MF_ASSET_VERSION = '67.8.2';
 var mfLazyScriptPromises = Object.create(null);
 var publicScheduleUnsubscribe = null;
 
@@ -346,8 +346,21 @@ function setupImageLazyLoading(){
   });
 }
 function setupTheme(){
-  const saved=localStorage.getItem('theme')||'light'; document.documentElement.dataset.theme=saved;
-  document.querySelectorAll('#themeToggle,#themeToggleAdmin').forEach(btn=>{btn.innerHTML=icons[saved==='dark'?'sun':'moon']; btn.onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark'; document.documentElement.dataset.theme=next; localStorage.setItem('theme',next); setupTheme();};});
+  const root=document.documentElement;
+  let saved='light';
+  try{saved=localStorage.getItem('theme')==='dark'?'dark':'light';}catch(_){}
+  root.dataset.theme=saved;
+  document.querySelectorAll('#themeToggle,#themeToggleAdmin').forEach(btn=>{
+    btn.innerHTML=icons[saved==='dark'?'sun':'moon'];
+    btn.onclick=()=>{
+      const next=root.dataset.theme==='dark'?'light':'dark';
+      root.classList.add('theme-switching');
+      root.dataset.theme=next;
+      try{localStorage.setItem('theme',next);}catch(_){}
+      document.querySelectorAll('#themeToggle,#themeToggleAdmin').forEach(toggle=>{toggle.innerHTML=icons[next==='dark'?'sun':'moon'];});
+      requestAnimationFrame(()=>requestAnimationFrame(()=>root.classList.remove('theme-switching')));
+    };
+  });
 }
 function fillSelects(){
   const grade=document.getElementById('bookingGrade'); if(grade) grade.innerHTML=GRADES.map(g=>`<option>${esc(g)}</option>`).join('');

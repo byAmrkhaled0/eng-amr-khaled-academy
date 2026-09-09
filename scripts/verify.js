@@ -103,7 +103,7 @@ if (!failures.some(x => x.includes('App Check/reCAPTCHA'))) ok('App Check and re
 
 const syncSource = read('assets/firebase-sync.js');
 if (/createBookingDirect|createReviewDirect/.test(syncSource)) fail('A public direct-write fallback still exists for booking or reviews');
-const bookingUsesSecureFunction = syncSource.includes("sameOriginCallable('/api/booking/create'") &&
+const bookingUsesSecureFunction = syncSource.includes("publicCallable('/api/booking/create'") &&
   read('firebase.json').includes('/api/booking/create') && read('vercel.json').includes('/api/booking/create');
 if (!bookingUsesSecureFunction || !syncSource.includes("throw new Error('Secure review function is unavailable')")) {
   fail('Booking/review Cloud Function enforcement is missing');
@@ -159,7 +159,7 @@ const appSourceCode = read('assets/app.js');
 const fixesSourceCode = read('assets/v56-fixes.js');
 if (!adminSourceCode.includes("loadSiteData({fast:true})") || !adminSourceCode.includes('hydrateAdminRecords')) fail('Staged admin loading is missing');
 if (!appSourceCode.includes('staffCacheOnly') || !appSourceCode.includes('if(isStaffWorkspace())return;')) fail('Compact staff browser cache protection is missing');
-if (!appSourceCode.includes("MF_ASSET_VERSION = '67.8.1'")) fail('Lazy asset loader version is stale');
+if (!appSourceCode.includes("MF_ASSET_VERSION = '67.8.2'")) fail('Lazy asset loader version is stale');
 if (!fixesSourceCode.includes('showMoreAdminStudents') || !fixesSourceCode.includes('slice(0,adminStudentVisible)')) fail('Paginated student rendering is missing');
 if (!appSourceCode.includes('ensureQrScannerLibrary') || !appSourceCode.includes("loadQrScanner:()=>loadLazyScript('qr-scanner'")) fail('Cross-browser lazy QR scanner fallback is missing');
 for (const page of ['student.html','parent.html','teacher-login.html']) {
@@ -204,7 +204,7 @@ if (manifest.display !== 'standalone' || manifest.scope !== '/' || !Array.isArra
 if (!manifest.icons.some(icon => String(icon.purpose || '').includes('maskable') && icon.sizes === '512x512')) fail('Maskable PWA icon is missing');
 const sw = read('service-worker.js');
 const appShellSource = sw.slice(0,sw.indexOf('];')+2);
-if (!/technominds-v67-8-1-backend-compatibility/.test(sw) || !sw.includes('/assets/v61-design.css') || !sw.includes('/assets/v67-learning-hub.css') || !sw.includes('/assets/v674-admin.css') || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/curriculum-student.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes("'/practical.html'") || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell or sensitive portal exclusions are incomplete');
+if (!/technominds-v67-8-2-backend-compatibility/.test(sw) || !sw.includes('/assets/v61-design.css') || !sw.includes('/assets/v67-learning-hub.css') || !sw.includes('/assets/v674-admin.css') || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/curriculum-student.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes("'/practical.html'") || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell or sensitive portal exclusions are incomplete');
 if (/xlsx|assets\/admin\.js|teacher-login\.html|html5-qrcode/.test(appShellSource) || !sw.includes('event.waitUntil(network.catch') || !sw.includes('fetch(request,{cache:"reload"})')) fail('Lazy tools or repeat-visit caching are incomplete');
 if (!read('index.html').includes('<script defer src="https://www.gstatic.com/firebasejs/')) fail('Firebase scripts are not downloaded in parallel with deferred execution');
 const upgrade = read('assets/v53-upgrades.js');
@@ -256,7 +256,7 @@ const deployScript = read('deploy-production.ps1');
 if (deployScript.includes('ValueFromRemainingArguments') || !deployScript.includes('Get-Command npm.cmd') || !deployScript.includes('-Executable $NpmExecutable -ArgumentList @("test")')) fail('Windows PowerShell command invocation is not explicit or npm.cmd-safe');
 if (!deployScript.includes('FUNCTIONS_DISCOVERY_TIMEOUT = "120"') || !read('DEPLOY-WINDOWS.cmd').includes('FUNCTIONS_DISCOVERY_TIMEOUT=120')) fail('Firebase Functions discovery timeout is not protected on Windows');
 if (!appSourceCode.includes("if(file==='teacher-login.html')return") || read('teacher-login.html').includes('<header class="site-header"')) fail('Public header must not appear in the administration workspace');
-if (!functionsSource.includes('exports.getStudentResources = onCall') || !firebaseSyncSource.includes("sameOriginCallable('/api/resources/student'") || !read('firebase.json').includes('/api/resources/student') || !read('vercel.json').includes('/api/resources/student')) fail('Secure student-track resource API is incomplete');
+if (!functionsSource.includes('exports.getStudentResources = onCall') || !firebaseSyncSource.includes("publicCallable('/api/resources/student'") || !read('firebase.json').includes('/api/resources/student') || !read('vercel.json').includes('/api/resources/student')) fail('Secure student-track resource API is incomplete');
 if (!read('materials.html').includes('studentResourceCodeForm') || !read('theory-lectures.html').includes('studentResourceCodeForm') || !read('questions.html').includes('studentResourceCodeForm') || !appSourceCode.includes('setupStudentResourcesPage')) fail('Student code gates for lectures or questions are incomplete');
 if (!rules.includes('match /materials/{id} { allow read: if isStaff();') || !rules.includes('match /questions/{id} { allow read: if isStaff();')) fail('Lecture or question collections are still publicly readable');
 if (!adminSourceCode.includes('admin-brand-logo') || !adminSourceCode.includes('admin-mobile-logo')) fail('Techno Minds logo is missing from the administration workspace');

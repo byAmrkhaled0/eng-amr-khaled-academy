@@ -2,7 +2,7 @@
   'use strict';
 
   const cfg=window.MF_FIREBASE_CONFIG||{};
-  const FRONTEND_VERSION='67.8.1';
+  const FRONTEND_VERSION='67.8.2';
   const API_SCHEMA_VERSION='portal-v64.0.0';
   if(!cfg.enabled||typeof firebase==='undefined'){
     window.MFCloud={ready:false,error:'Firebase غير مفعل'};
@@ -35,12 +35,12 @@
       };
     };
 
-    // Public actions use a Hosting rewrite first. This keeps booking on the
-    // same origin as the page and avoids ISP/DNS/CORS failures when a browser
-    // cannot reach cloudfunctions.net directly. The Firebase SDK callable is
-    // retained only as a transparent fallback for temporary Hosting errors.
+    // Firebase Hosting rewrites public callables reliably. Vercel proxies can
+    // wait for the full upstream timeout before falling back, so Vercel uses
+    // the callable SDK first and keeps the proxy only as a network fallback.
     const localHosts=new Set(['localhost','127.0.0.1','0.0.0.0']);
     const publicApiOrigin=localHosts.has(globalThis.location?.hostname)?'https://eng-amr-khaled-academy.web.app':'';
+    const preferDirectCallable=/\.vercel\.app$/i.test(String(globalThis.location?.hostname||''));
     const apiError=(payload,status)=>{
       const details=payload?.error||{};
       const error=new Error(details.message||`HTTP ${status}`);
@@ -84,6 +84,15 @@
       }
       throw lastError;
     };
+    const withDeadline=async(operation,timeoutMs)=>{
+      let timer;
+      try{
+        return await Promise.race([
+          operation(),
+          new Promise((_,reject)=>{timer=setTimeout(()=>{const error=new Error('Request timeout');error.code='request-timeout';reject(error);},timeoutMs);})
+        ]);
+      }finally{clearTimeout(timer);}
+    };
     const proxyFirstCallable=async(path,payload,directCall,timeoutMs=12000,directRetries=0)=>{
       try{return await sameOriginCallable(path,payload,timeoutMs);}
       catch(proxyError){
@@ -93,6 +102,18 @@
         catch(callableError){callableError.proxyError=proxyError;throw callableError;}
       }
     };
+    const directFirstCallable=async(path,payload,directCall,timeoutMs=8000,directRetries=0)=>{
+      if(!directCall)return sameOriginCallable(path,payload,timeoutMs);
+      try{return await withDeadline(()=>retryTransient(()=>directCall(payload),directRetries),timeoutMs);}
+      catch(callableError){
+        if(!transientFirebaseError(callableError))throw callableError;
+        try{return await sameOriginCallable(path,payload,timeoutMs);}
+        catch(proxyError){proxyError.callableError=callableError;throw proxyError;}
+      }
+    };
+    const publicCallable=(path,payload,directCall,timeoutMs=8000,directRetries=0)=>preferDirectCallable
+      ? directFirstCallable(path,payload,directCall,timeoutMs,directRetries)
+      : proxyFirstCallable(path,payload,directCall,timeoutMs,directRetries);
 
     const requireCompatibleBackend=result=>{
       // Release numbers describe deployments, while apiSchemaVersion describes
@@ -192,7 +213,7 @@
     async function fetchPortalStudent(payload){
       // Functional errors such as an invalid code are returned directly;
       // only a missing/broken proxy route falls back to the Firebase SDK.
-      return proxyFirstCallable('/api/portal/student',payload,calls.getPortalStudent,8000,1);
+      return publicCallable('/api/portal/student',payload,calls.getPortalStudent,6500,0);
     }
     function readPortalSession(code,mode='student'){
       try{
@@ -659,12 +680,8 @@
         ? calls.unifyStudentAccessCodes({})
         : Promise.reject(new Error('Unified access migration service unavailable')),
       createBooking:async booking=>{
-        try{
-          return await sameOriginCallable('/api/booking/create',booking,12000);
-        }catch(error){
-          if(!transientFirebaseError(error)||!calls.createBooking)throw error;
-          return retryTransient(()=>calls.createBooking(booking),1);
-        }
+        if(!calls.createBooking)throw new Error('Secure booking service is unavailable');
+        return publicCallable('/api/booking/create',booking,calls.createBooking,8000,0);
       },
       approveBooking:async code=>{
         if(!calls.approveBooking)throw new Error('Secure booking approval function is unavailable');
@@ -701,7 +718,7 @@
       searchStudentsAdmin:payload=>{if(!calls.searchStudentsAdmin)throw new Error('Student search service unavailable');return calls.searchStudentsAdmin(payload||{});},
       getStudentAdminProfile:payload=>{if(!calls.getStudentAdminProfile)throw new Error('Student profile service unavailable');return calls.getStudentAdminProfile(payload||{});},
       getStudentMonthlyReportAdmin:payload=>{if(!calls.getStudentMonthlyReportAdmin)throw new Error('Monthly report service unavailable');return calls.getStudentMonthlyReportAdmin(payload||{});},
-      getParentMonthlyReport:async(code,monthKey)=>{if(!calls.getParentMonthlyReport)throw new Error('Monthly parent report service unavailable');const normalized=normalizeCode(code),payload=await portalPayload(normalized,{studentCode:normalized,monthKey},'parent');return proxyFirstCallable('/api/parent/monthly-report',payload,calls.getParentMonthlyReport,12000,1);},
+      getParentMonthlyReport:async(code,monthKey)=>{if(!calls.getParentMonthlyReport)throw new Error('Monthly parent report service unavailable');const normalized=normalizeCode(code),payload=await portalPayload(normalized,{studentCode:normalized,monthKey},'parent');return publicCallable('/api/parent/monthly-report',payload,calls.getParentMonthlyReport,8000,0);},
       saveStudentPrivateNote:payload=>{if(!calls.saveStudentPrivateNote)throw new Error('Student note service unavailable');return calls.saveStudentPrivateNote(payload||{});},
       getAdminOperationsDashboard:payload=>{if(!calls.getAdminOperationsDashboard)throw new Error('Operations dashboard service unavailable');return calls.getAdminOperationsDashboard(payload||{});},
       finalizeExamAbsencesAdmin:()=>{if(!calls.finalizeExamAbsencesAdmin)throw new Error('Exam absence service unavailable');return calls.finalizeExamAbsencesAdmin({});},
@@ -735,10 +752,10 @@
         if(!calls.recordClassProgress)throw new Error('Secure class progress service is unavailable');
         return retryTransient(()=>calls.recordClassProgress(record),1);
       },
-      getExamDashboard:async studentCode=>{if(!calls.getExamDashboard)throw new Error('Secure exam dashboard function is unavailable');const normalized=normalizeCode(studentCode),payload=await portalPayload(normalized,{studentCode:normalized});return proxyFirstCallable('/api/exams/dashboard',payload,calls.getExamDashboard,10000,1);},
-      startSecureExam:async(examId,studentCode)=>{if(!calls.startExam)throw new Error('Secure start exam function is unavailable');const normalized=normalizeCode(studentCode),payload=await portalPayload(normalized,{examId,studentCode:normalized});return proxyFirstCallable('/api/exams/start',payload,calls.startExam,12000);},
-      saveSecureExamProgress:async(sessionId,studentCode,answers,current,revision)=>{if(!calls.saveExamProgress)throw new Error('Secure exam progress function is unavailable');const normalized=normalizeCode(studentCode),payload=await portalPayload(normalized,{sessionId,studentCode:normalized,answers,current,revision});return proxyFirstCallable('/api/exams/progress',payload,calls.saveExamProgress,8000);},
-      submitSecureExam:async(sessionId,studentCode,answers)=>{if(!calls.submitExam)throw new Error('Secure submit exam function is unavailable');const normalized=normalizeCode(studentCode),payload=await portalPayload(normalized,{sessionId,studentCode:normalized,answers});return proxyFirstCallable('/api/exams/submit',payload,calls.submitExam,15000);},
+      getExamDashboard:async studentCode=>{if(!calls.getExamDashboard)throw new Error('Secure exam dashboard function is unavailable');const normalized=normalizeCode(studentCode),payload=await portalPayload(normalized,{studentCode:normalized});return publicCallable('/api/exams/dashboard',payload,calls.getExamDashboard,6500,0);},
+      startSecureExam:async(examId,studentCode)=>{if(!calls.startExam)throw new Error('Secure start exam function is unavailable');const normalized=normalizeCode(studentCode),payload=await portalPayload(normalized,{examId,studentCode:normalized});return publicCallable('/api/exams/start',payload,calls.startExam,6500,0);},
+      saveSecureExamProgress:async(sessionId,studentCode,answers,current,revision)=>{if(!calls.saveExamProgress)throw new Error('Secure exam progress function is unavailable');const normalized=normalizeCode(studentCode),payload=await portalPayload(normalized,{sessionId,studentCode:normalized,answers,current,revision});return publicCallable('/api/exams/progress',payload,calls.saveExamProgress,5000,0);},
+      submitSecureExam:async(sessionId,studentCode,answers)=>{if(!calls.submitExam)throw new Error('Secure submit exam function is unavailable');const normalized=normalizeCode(studentCode),payload=await portalPayload(normalized,{sessionId,studentCode:normalized,answers});return publicCallable('/api/exams/submit',payload,calls.submitExam,10000,0);},
       reviewExamAttempt:async payload=>{if(!calls.reviewExamAttempt)throw new Error('Secure exam correction service is unavailable');return calls.reviewExamAttempt(payload||{});},
       upsertAttendance,getAttendanceForDate,
       recordAttendanceByQr:(attendanceCode,date)=>{if(!calls.recordAttendance)throw new Error('Secure attendance service unavailable');return calls.recordAttendance({attendanceCode:String(attendanceCode||'').trim().toUpperCase(),date,status:'present'});},
@@ -747,14 +764,8 @@
       getStudentByCode:async(code,options={})=>{const normalized=normalizeCode(code),result=requireCompatibleBackend(await fetchPortalStudent({code:normalized,mode:'student',includeTransfers:options.includeTransfers===true}));savePortalSession(normalized,'student',result);return result;},
       getStudentResources:async code=>{
         const normalized=normalizeCode(code),payload=await portalPayload(normalized,{code:normalized});
-        try{return requireCompatibleBackend(await sameOriginCallable('/api/resources/student',payload,12000));}
-        catch(hostingError){
-          // Local previews and older Hosting releases may not have the rewrite
-          // yet. Always try the callable SDK before declaring the service off.
-          if(!calls.getStudentResources)throw hostingError;
-          try{return requireCompatibleBackend(await retryTransient(()=>calls.getStudentResources(payload),1));}
-          catch(callableError){callableError.hostingError=hostingError;throw callableError;}
-        }
+        if(!calls.getStudentResources)throw new Error('Student resources service unavailable');
+        return requireCompatibleBackend(await publicCallable('/api/resources/student',payload,calls.getStudentResources,8000,0));
       },
       getStudentCurriculum:async studentCode=>{const normalized=normalizeCode(studentCode);return calls.getStudentCurriculum(await portalPayload(normalized,{studentCode:normalized}));},
       getLectureContent:async(studentCode,lectureId)=>{const normalized=normalizeCode(studentCode);return calls.getLectureContent(await portalPayload(normalized,{studentCode:normalized,lectureId}));},

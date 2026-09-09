@@ -8,7 +8,7 @@ const { version: releaseVersion } = require(path.join(root, 'package.json'));
 const releaseCacheVersion = releaseVersion.replace(/\./g, '-');
 const releaseCacheName = `technominds-v${releaseCacheVersion}-backend-compatibility`;
 const failures = [];
-const required = ['index.html','404.html','teacher-login.html','service-worker.js','assets/app.js','assets/admin.js','assets/v60-payments.js','assets/v60-admin-workflow.js','assets/v60-technominds.css','assets/v61-design.css','assets/v67-learning-hub.css','assets/curriculum-admin.js','assets/curriculum-student.js'];
+const required = ['index.html','404.html','teacher-login.html','service-worker.js','assets/theme-init.js','assets/app.js','assets/admin.js','assets/v60-payments.js','assets/v60-admin-workflow.js','assets/v60-technominds.css','assets/v61-design.css','assets/v67-learning-hub.css','assets/curriculum-admin.js','assets/curriculum-student.js'];
 
 for (const file of required) if (!fs.existsSync(path.join(dist, file))) failures.push(`Missing dist/${file}`);
 if (fs.existsSync(path.join(dist, '.env')) || fs.existsSync(path.join(dist, 'functions'))) failures.push('Secrets or backend source leaked into dist');
@@ -16,6 +16,9 @@ if (fs.existsSync(path.join(dist, '.env')) || fs.existsSync(path.join(dist, 'fun
 const htmlFiles = fs.existsSync(dist) ? fs.readdirSync(dist).filter(name => name.endsWith('.html')) : [];
 for (const name of htmlFiles) {
   const source = fs.readFileSync(path.join(dist, name), 'utf8');
+  const themeIndex = source.indexOf('assets/theme-init.js');
+  const cssIndex = source.search(/assets\/[^"']+\.css/);
+  if (themeIndex < 0 || (cssIndex >= 0 && themeIndex > cssIndex)) failures.push(`${name} does not load theme-init before CSS`);
   const localAssets = [...source.matchAll(/(?:src|href)=["'](\/?assets\/[^"'?#]+\.(?:css|js))(?:\?v=([^"']+))?["']/g)];
   for (const [,asset,version] of localAssets) if (version !== releaseVersion) failures.push(`${name} has stale or missing asset version: ${asset}`);
   for (const match of source.matchAll(/(?:src|href)=["']([^"'#?]+)(?:\?[^"']*)?["']/g)) {

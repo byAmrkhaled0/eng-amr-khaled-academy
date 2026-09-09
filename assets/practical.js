@@ -17,7 +17,10 @@
   const $=id=>document.getElementById(id);
   const editor=$('codeEditor'),language=$('codeLanguage'),stdin=$('codeStdin'),output=$('codeOutput'),runButton=$('runCodeButton');
   const LOCAL_HOSTS=['localhost','127.0.0.1','0.0.0.0'];
-  const FUNCTIONS_BASE=LOCAL_HOSTS.includes(location.hostname)?'https://eng-amr-khaled-academy.web.app/api/code':'/api/code';
+  const PROXY_FUNCTIONS_BASE=LOCAL_HOSTS.includes(location.hostname)?'https://eng-amr-khaled-academy.web.app/api/code':'/api/code';
+  const DIRECT_FUNCTIONS_BASE='https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net';
+  const PREFER_DIRECT=/\.vercel\.app$/i.test(location.hostname);
+  const FUNCTION_BASES=PREFER_DIRECT?[DIRECT_FUNCTIONS_BASE,PROXY_FUNCTIONS_BASE]:[PROXY_FUNCTIONS_BASE,DIRECT_FUNCTIONS_BASE];
   let languages=FALLBACK;
   const storageKey=key=>`tm_code_v60_${key}`;
   function visitorId(){const key='tm_public_code_visitor_v1';try{let value=localStorage.getItem(key);if(!value){value=crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`;localStorage.setItem(key,value);}return value;}catch(_){return'session-visitor';}}
@@ -29,15 +32,15 @@
   function errorMessage(error){const raw=`${error?.code||''} ${error?.message||''}`,detail=String(error?.message||'').replace(/^FirebaseError:\s*/,'').trim();if(/resource-exhausted|429|too many/i.test(raw))return 'عدد محاولات التشغيل كبير. انتظر دقيقة وحاول مرة أخرى.';if(/invalid-argument/i.test(raw))return detail.split(':').pop().trim()||'راجع الكود والبيانات المدخلة.';if(/انتهت مهلة|خدمة تشغيل الأكواد/i.test(detail))return detail;if(/unavailable|internal|network|fetch|timeout|abort/i.test(raw))return 'تعذر الوصول لخادم تشغيل الأكواد مؤقتًا. حاول مرة أخرى بعد لحظات.';return detail||'تعذر تشغيل الكود. راجع الكود وحاول مرة أخرى.';}
   async function publicCallable(name,data){
     let lastError;
-    for(let attempt=0;attempt<2;attempt+=1){
-      const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),38000);
+    for(let attempt=0;attempt<FUNCTION_BASES.length;attempt+=1){
+      const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),attempt===0?18000:12000);
       try{
-        const response=await fetch(`${FUNCTIONS_BASE}/${name}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:data||{}}),signal:controller.signal});
+        const response=await fetch(`${FUNCTION_BASES[attempt]}/${name}`,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({data:data||{}}),signal:controller.signal,cache:'no-store',credentials:'omit'});
         const payload=await response.json().catch(()=>({}));
         if(!response.ok||payload.error){const error=new Error(payload.error?.message||`HTTP ${response.status}`);error.code=payload.error?.status||response.status;throw error;}
         if(payload.result===undefined&&payload.data===undefined)throw new Error('استجابة خادم التشغيل غير صالحة. انشر Hosting وFunctions من النسخة الجديدة.');
         return payload.result??payload.data??payload;
-      }catch(error){lastError=error;if(attempt===0&&/fetch|network|internal|unavailable|abort|5\d\d/i.test(`${error?.code||''} ${error?.message||''}`)){await new Promise(resolve=>setTimeout(resolve,650));continue;}throw error;}
+      }catch(error){lastError=error;if(attempt===0&&/fetch|network|internal|unavailable|abort|timeout|5\d\d/i.test(`${error?.code||''} ${error?.message||''}`))continue;throw error;}
       finally{clearTimeout(timer);}
     }
     throw lastError;
@@ -52,7 +55,7 @@
     });
   }
   function showResult(result){const blocks=[];if(result.stdout)blocks.push(result.stdout);if(result.compileOutput)blocks.push(`Compile output:\n${result.compileOutput}`);if(result.stderr)blocks.push(`Error:\n${result.stderr}`);if(result.message)blocks.push(result.message);output.textContent=blocks.join('\n\n')||'انتهى البرنامج بدون مخرجات.';$('runStatus').textContent=result.status||'تم';$('runTime').textContent=result.time?`${result.time}s`:'—';$('runMemory').textContent=result.memory?`${Math.round(Number(result.memory)/1024)} MB`:'—';$('runExit').textContent=result.exitCode??'—';}
-  async function run(){if(!editor.value.trim())return notify('اكتب الكود قبل التشغيل.');save();runButton.disabled=true;runButton.classList.add('is-loading');output.textContent='جاري إرسال الكود ثم انتظار النتيجة…';$('runStatus').textContent='جاري التشغيل';try{let result;try{result=await publicCallable('submitCodeExecution',{visitorId:visitorId(),language:language.value,sourceCode:editor.value,stdin:stdin.value});}catch(error){if(language.value!=='javascript'||!/unavailable|internal|network|fetch|timeout|abort|5\d\d/i.test(`${error?.code||''} ${error?.message||''}`))throw error;result=await runJavascriptFallback(editor.value,stdin.value);result.message='تم التشغيل محليًا لأن خادم التشغيل غير متاح.';}showResult(result);}catch(error){output.textContent=errorMessage(error);$('runStatus').textContent='فشل التشغيل';$('runTime').textContent='—';$('runMemory').textContent='—';$('runExit').textContent='—';}finally{runButton.disabled=false;runButton.classList.remove('is-loading');}}
+  async function run(){if(!editor.value.trim())return notify('اكتب الكود قبل التشغيل.');save();runButton.disabled=true;runButton.classList.add('is-loading');output.textContent='جاري إرسال الكود ثم انتظار النتيجة…';$('runStatus').textContent='جاري التشغيل';await new Promise(resolve=>requestAnimationFrame(()=>resolve()));try{let result;try{result=await publicCallable('submitCodeExecution',{visitorId:visitorId(),language:language.value,sourceCode:editor.value,stdin:stdin.value});}catch(error){if(language.value!=='javascript'||!/unavailable|internal|network|fetch|timeout|abort|5\d\d/i.test(`${error?.code||''} ${error?.message||''}`))throw error;result=await runJavascriptFallback(editor.value,stdin.value);result.message='تم التشغيل محليًا لأن خادم التشغيل غير متاح.';}showResult(result);}catch(error){output.textContent=errorMessage(error);$('runStatus').textContent='فشل التشغيل';$('runTime').textContent='—';$('runMemory').textContent='—';$('runExit').textContent='—';}finally{runButton.disabled=false;runButton.classList.remove('is-loading');}}
   async function copy(){try{await navigator.clipboard.writeText(editor.value);notify('تم نسخ الكود');}catch(_){editor.select();document.execCommand('copy');notify('تم نسخ الكود');}}
   function download(){const ext={python:'py',javascript:'js',typescript:'ts',c:'c',cpp:'cpp',java:'java',csharp:'cs',go:'go',php:'php',ruby:'rb',rust:'rs',kotlin:'kt'}[language.value]||'txt';const link=document.createElement('a');link.href=URL.createObjectURL(new Blob([editor.value],{type:'text/plain;charset=utf-8'}));link.download=`techno-minds-code.${ext}`;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);}
   editor.addEventListener('keydown',event=>{if(event.key==='Tab'){event.preventDefault();const start=editor.selectionStart,end=editor.selectionEnd;editor.setRangeText('  ',start,end,'end');save();}if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();run();}});editor.addEventListener('input',save);

@@ -11,14 +11,14 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 test('classroom exam traffic is isolated per student and supports a shared network', () => {
   const source = read('functions/index.js');
   assert.match(source, /async function rateLimitStudentAction/);
-  assert.match(source, /exam-start',[\s\S]*?30,\s*5000,\s*10 \* 60 \* 1000/);
-  assert.match(source, /exam-submit',[\s\S]*?30,\s*5000,\s*10 \* 60 \* 1000/);
+  assert.match(source, /exam-start',[\s\S]*?60,\s*10000,\s*10 \* 60 \* 1000/);
+  assert.match(source, /exam-submit',[\s\S]*?60,\s*10000,\s*10 \* 60 \* 1000/);
   assert.match(source, /exam-progress',[\s\S]*?5000,\s*100000,\s*60\*60\*1000/);
   assert.match(source, /rateLimitStudentAction\(`portal-\$\{mode\}`[\s\S]*?20,\s*3000,\s*60 \* 1000/);
   assert.match(source, /const shardCount = 32/);
   assert.doesNotMatch(source, /rateLimitPublic\('exam-start'/);
   assert.doesNotMatch(source, /rateLimitPublic\('exam-submit'/);
-  assert.ok(5000 > 30, 'the shared-network ceiling must exceed the expected class size');
+  assert.ok(10000 > 30, 'the shared-network ceiling must exceed the expected class size');
 });
 
 test('exam and homework grades refresh and contribute to monthly motivation', () => {

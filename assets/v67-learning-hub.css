@@ -216,3 +216,7 @@ html[data-theme="dark"] .lecture-kind-badge{border-color:#4c6280!important;backg
   #examQuestionStage{padding-bottom:max(14px,env(safe-area-inset-bottom,0px))}
   .student-assignment-card[open],.assignment-answer-form[data-assignment-type="multi"]{min-height:0;overflow:visible!important}
 }
+
+/* V67.8.2 — apply the saved theme atomically and keep the official mark. */
+html.theme-switching *,html.theme-switching *::before,html.theme-switching *::after{transition:none!important}
+.site-header .logo .logo-mark,.topbar .logo .logo-mark,.mobile-brand .logo-mark{background-color:transparent!important;background-image:url("technominds-logo.webp")!important;background-position:center!important;background-repeat:no-repeat!important;background-size:contain!important;box-shadow:none!important}

@@ -45,7 +45,10 @@ test('routes and first-load assets keep non-blocking and cache-safe behavior',()
   const pages=fs.readdirSync(root).filter(name=>name.endsWith('.html'));
   for(const page of pages){
     const html=read(page);
-    for(const tag of html.match(/<script\b[^>]*\bsrc=[^>]+><\/script>/gi)||[])assert.match(tag,/\bdefer\b/i,`${page} has a render-blocking script`);
+    for(const tag of html.match(/<script\b[^>]*\bsrc=[^>]+><\/script>/gi)||[]){
+      if(/assets\/theme-init\.js/i.test(tag))assert.doesNotMatch(tag,/\bdefer\b/i,`${page} must apply the saved theme before CSS`);
+      else assert.match(tag,/\bdefer\b/i,`${page} has a render-blocking script`);
+    }
   }
   const worker=read('service-worker.js');
   assert.doesNotMatch(worker.match(/const APP_SHELL = \[[\s\S]*?\];/)?.[0]||'',/html5-qrcode|xlsx-0\.18/);

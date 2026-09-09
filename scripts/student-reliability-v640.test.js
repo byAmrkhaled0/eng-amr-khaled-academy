@@ -8,8 +8,8 @@ const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 
 test('service worker has one valid release cache and offline assessment shells',()=>{
   const worker=read('service-worker.js');
-  assert.match(worker,/technominds-v67-8-1-backend-compatibility/);
-  assert.match(worker,/ASSET_VERSION = "67\.8\.1"/);
+  assert.match(worker,/technominds-v67-8-2-backend-compatibility/);
+  assert.match(worker,/ASSET_VERSION = "67\.8\.2"/);
   assert.match(worker,/url\.pathname\.endsWith\("\.webmanifest"\)/);
   for(const route of ['/student.html','/exams.html'])assert.match(worker,new RegExp(route.replace('.','\\.')));
 });

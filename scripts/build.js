@@ -57,7 +57,10 @@ for (const entry of entriesToCopy) {
 // CSS/JS reference at build time so a release can never mix stale asset URLs.
 for (const name of fs.readdirSync(dist).filter(file => file.endsWith('.html'))) {
   const file = path.join(dist, name);
-  const html = fs.readFileSync(file, 'utf8');
+  let html = fs.readFileSync(file, 'utf8');
+  if (!html.includes('assets/theme-init.js')) {
+    html = html.replace(/<head>/i, '<head>\n<script src="assets/theme-init.js"></script>');
+  }
   const versioned = html.replace(/((?:src|href)=["']\/?assets\/[^"'?#]+\.(?:css|js))(?:\?v=[^"']*)?(["'])/g, `$1?v=${releaseVersion}$2`);
   fs.writeFileSync(file, versioned);
 }

@@ -88,9 +88,9 @@ test('refresh, admin curriculum and requested visual fixes are part of the relea
   const worker = read('service-worker.js');
   const login = read('teacher-login.html');
   const css = read('assets/v61-design.css');
-  assert.match(app, /MF_ASSET_VERSION = '67\.8\.1'/);
+  assert.match(app, /MF_ASSET_VERSION = '67\.8\.2'/);
   assert.match(app, /loadStudentForPortal\(code,\{force:true\}\)/);
-  assert.match(worker, /technominds-v67-8-1-backend-compatibility/);
+  assert.match(worker, /technominds-v67-8-2-backend-compatibility/);
   const assetFetch = worker.slice(worker.indexOf('if(url.pathname.startsWith("/assets/")'));
   assert.doesNotMatch(assetFetch, /ignoreSearch:true/);
   assert.match(login, /assets\/curriculum-admin\.js\?v=67\.8\.0/);
