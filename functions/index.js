@@ -789,6 +789,7 @@ function publicExamSession(sessionId, exam, questions, startedAtMs, expiresAtMs,
       id: text(exam.id, 100),
       title: text(exam.title, 200),
       instructions: text(exam.instructions, 1500),
+      encouragement: text(exam.encouragement, 300),
       duration: Math.max(1, Math.min(240, Number(exam.duration || 20))),
       questionMode: 'interactive'
     },
@@ -2013,7 +2014,8 @@ exports.getClassSessionWorkspace = onCall(CALLABLE_OPTIONS, async request => {
 function studentResourcePayload(doc, kind, progress = {}) {
   const data = doc.data() || {};
   const fileUrl = safePublicUrl(data.fileUrl || data.url);
-  const linkUrl = safePublicUrl(data.linkUrl);
+  const linkUrl = safeGoogleDriveUrl(data.linkUrl);
+  const rawLectureCategory = String(data.lectureCategory || data.materialType || '').toLowerCase();
   return {
     id: text(data.id || doc.id, 120),
     kind,
@@ -2028,7 +2030,7 @@ function studentResourcePayload(doc, kind, progress = {}) {
     lecture: text(data.lecture, 120),
     lectureNumber: Math.max(0, Number(data.lectureNumber || data.order || 0)),
     order: Math.max(0, Number(data.order || data.lectureNumber || 0)),
-    lectureCategory: text(String(data.lectureCategory || data.materialType || '').toLowerCase() === 'theory' ? 'theory' : 'general', 20),
+    lectureCategory: text(['theory', 'practical'].includes(rawLectureCategory) ? rawLectureCategory : 'general', 20),
     resourceType: text(data.resourceType || data.materialType, 40),
     linkedAssignmentId: text(data.linkedAssignmentId || data.assignmentId, 120),
     linkedExamId: text(data.linkedExamId || data.examId, 120),
@@ -3401,6 +3403,7 @@ exports.getExamDashboard = onCall(CALLABLE_OPTIONS, async request => {
       closeAt: text(exam.closeAt, 60),
       duration: Math.max(1, Math.min(240, Number(exam.duration || 20))),
       instructions: text(exam.instructions, 1500),
+      encouragement: text(exam.encouragement, 300),
       pdfUrl: safePublicUrl(exam.pdfUrl || exam.examPdfUrl),
       pdfName: text(exam.pdfName || exam.examPdfName, 220),
       allowRetake: exam.allowRetake === true,
@@ -3494,6 +3497,7 @@ exports.startExam = onCall(CALLABLE_OPTIONS, async request => {
       examTitle: text(exam.title, 200),
       examVersion: Math.max(1, Number(exam.version || 1)),
       instructions: text(exam.instructions, 1500),
+      encouragement: text(exam.encouragement, 300),
       pdfUrl: safePublicUrl(exam.pdfUrl || exam.examPdfUrl),
       pdfName: text(exam.pdfName || exam.examPdfName, 220),
       duration: durationMinutes,
@@ -3522,6 +3526,7 @@ exports.startExam = onCall(CALLABLE_OPTIONS, async request => {
     id: examId,
     title: sessionData.examTitle || exam.title,
     instructions: sessionData.instructions || exam.instructions,
+    encouragement: sessionData.encouragement || exam.encouragement,
     duration: sessionData.duration || durationMinutes,
     pdfUrl: sessionData.pdfUrl || exam.pdfUrl || exam.examPdfUrl,
     pdfName: sessionData.pdfName || exam.pdfName || exam.examPdfName

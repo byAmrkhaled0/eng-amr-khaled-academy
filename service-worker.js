@@ -1,9 +1,9 @@
-const CACHE_NAME = "technominds-v67-2-0-assessment-ux";
-const ASSET_VERSION = "67.2.0";
+const CACHE_NAME = "technominds-v67-7-0-assessment-ux";
+const ASSET_VERSION = "67.7.0";
 const APP_SHELL = [
   "/", "/index.html", "/student.html", "/parent.html", "/exams.html", "/materials.html", "/theory-lectures.html", "/questions.html", "/practical.html", "/learning-path.html", "/about.html", "/reviews.html", "/privacy.html",
   "/terms.html", "/offline.html", "/assets/site.css", "/assets/v55.css",
-  "/assets/v56.css", "/assets/v60-technominds.css", "/assets/v61-design.css", "/assets/v65-redesign.css", "/assets/v67-learning-hub.css", "/assets/app.js", "/assets/practical.js", "/assets/firebase-sync.js",
+  "/assets/v56.css", "/assets/v60-technominds.css", "/assets/v61-design.css", "/assets/v65-redesign.css", "/assets/v67-learning-hub.css", "/assets/v674-admin.css", "/assets/app.js", "/assets/practical.js", "/assets/firebase-sync.js",
   "/assets/firebase-config.js", "/assets/v53-upgrades.js", "/assets/v65-enhancements.js", "/assets/offline-attendance.js", "/assets/curriculum-student.js",
   "/assets/technominds-logo.png", "/assets/technominds-logo.webp",
   "/assets/amr-khaled-profile.webp", "/site.webmanifest", "/teacher.webmanifest"

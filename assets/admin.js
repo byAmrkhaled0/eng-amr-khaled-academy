@@ -30,7 +30,7 @@ const adminSections = [
   ['motivation','star','التحفيز والترتيب'],
   ['schedules','calendar','المواعيد'],
   ['attendance','qr','الحضور والغياب'],
-  ['materials','book-open','المحاضرات'],
+  ['materials','book-open','محاضرات العملي'],
   ['theoryLectures','book-open','محاضرات النظري'],
   ['assignments','file-text','الواجبات'],
   ['exams','clipboard','الاختبارات'],
@@ -43,12 +43,28 @@ const adminSections = [
   ['backup','database','النسخ والسجل'],
   ['settings','settings','الإعدادات']
 ];
+const adminSectionDescriptions = {
+  overview:'الملخص والتنبيهات',operations:'جلسة اليوم والتصحيح',students:'الملفات والأكواد',
+  motivation:'النقاط وترتيب الطلاب',schedules:'المجموعات ومواعيدها',attendance:'التسجيل ومراجعة السجل',
+  materials:'روابط وملفات العملي',theoryLectures:'روابط ومحاضرات النظري',assignments:'الإنشاء والتسليم',
+  exams:'الإنشاء والتصحيح',payments:'الاشتراكات والتحصيل',bookings:'مراجعة الطلاب الجدد',
+  studentRequests:'نقل الطلاب بين المجموعات',warnings:'الحالات التي تحتاج متابعة',
+  curriculum:'الوحدات ومحتوى المنهج',reviews:'مراجعة آراء الطلاب',backup:'النسخ والاستعادة',settings:'إعدادات المنصة العامة'
+};
 const adminSectionGroups = [
-  ['المتابعة اليومية', ['overview','operations','attendance','students','motivation','schedules']],
-  ['التعليم', ['materials','theoryLectures','assignments','exams','curriculum']],
-  ['الإدارة', ['payments','bookings','studentRequests','warnings']],
-  ['النظام', ['reviews','backup','settings']]
+  ['الرئيسية والمتابعة', ['overview','operations','warnings','motivation']],
+  ['الطلاب والحصص', ['students','attendance','schedules','payments']],
+  ['المحتوى والتقييم', ['theoryLectures','materials','assignments','exams','curriculum']],
+  ['الطلبات والتواصل', ['bookings','studentRequests','reviews']],
+  ['النظام والبيانات', ['backup','settings']]
 ];
+const adminGroupIcons = {
+  'الرئيسية والمتابعة':'bar-chart',
+  'الطلاب والحصص':'users',
+  'المحتوى والتقييم':'book-open',
+  'الطلبات والتواصل':'send',
+  'النظام والبيانات':'database'
+};
 
 function calculatedAdminAcademicYear(date=new Date()){
   const year=date.getFullYear();return date.getMonth()>=6?`${year}/${year+1}`:`${year-1}/${year}`;
@@ -265,6 +281,23 @@ async function tryOfflineStaffWorkspace(){
 }
 
 function adminSectionName(id){return adminSections.find(([sectionId])=>sectionId===id)?.[2]||'الرئيسية';}
+function adminSectionGroupName(id){return adminSectionGroups.find(([,ids])=>ids.includes(id))?.[0]||'لوحة الإدارة';}
+function adminSectionIcon(id){return adminSections.find(([sectionId])=>sectionId===id)?.[1]||'bar-chart';}
+const adminPrimarySections=['overview','operations','students','attendance','theoryLectures','assignments','exams'];
+function adminNavButtonHtml(id,label){
+  const section=adminSections.find(item=>item[0]===id);if(!section)return '';
+  const [,icon,name]=section,description=adminSectionDescriptions[id]||'',searchValue=`${label} ${name} ${description}`;
+  return `<button type="button" data-admin-nav="${id}" data-admin-nav-search="${safe(searchValue)}" class="${id===currentSection?'active':''}"><span class="admin-nav-icon" data-icon="${icon}"></span><span class="admin-nav-copy"><b>${safe(name)}</b><em>${safe(description)}</em></span></button>`;
+}
+function adminNavigationHtml(){
+  const primary=`<div class="admin-nav-primary"><span class="admin-nav-section-label">المهام الأساسية</span>${adminPrimarySections.map(id=>adminNavButtonHtml(id,'المهام الأساسية')).join('')}</div>`;
+  const secondaryGroups=adminSectionGroups.map(([label,ids])=>{
+    const secondaryIds=ids.filter(id=>!adminPrimarySections.includes(id));if(!secondaryIds.length)return '';
+    return `<details class="admin-nav-group" data-admin-nav-group="${safe(label)}" ${secondaryIds.includes(currentSection)?'open':''}><summary><span class="admin-nav-group-title"><i data-icon="${adminGroupIcons[label]||'database'}"></i><span>${safe(label)}</span></span><b>${secondaryIds.length}</b></summary><div class="admin-nav-group-items">${secondaryIds.map(id=>adminNavButtonHtml(id,label)).join('')}</div></details>`;
+  }).join('');
+  const secondaryCount=adminSections.length-adminPrimarySections.length;
+  return `${primary}<details class="admin-all-tools" id="adminAllTools" ${adminPrimarySections.includes(currentSection)?'':'open'}><summary><span><i data-icon="menu"></i><b>كل أدوات الإدارة</b></span><em>${secondaryCount}</em></summary><div class="admin-all-tools-body">${secondaryGroups}</div></details>`;
+}
 function setAdminDrawer(open){
   const shouldOpen=!!open;
   document.body.classList.toggle('admin-drawer-open',shouldOpen);
@@ -290,10 +323,19 @@ function setAdminDrawer(open){
 window.toggleAdminDrawer=function(open){setAdminDrawer(open ?? !document.body.classList.contains('admin-drawer-open'));};
 function syncAdminChrome(){
   document.querySelectorAll('[data-admin-nav]').forEach(btn=>btn.classList.toggle('active',btn.dataset.adminNav===currentSection));
+  const activeNavigation=document.querySelector(`[data-admin-nav="${currentSection}"]`);
+  activeNavigation?.closest('.admin-nav-group')?.setAttribute('open','');
+  activeNavigation?.closest('.admin-all-tools')?.setAttribute('open','');
   const label=document.getElementById('adminCurrentSectionLabel');
   if(label) label.textContent=adminSectionName(currentSection);
   const desktopLabel=document.getElementById('adminDesktopSectionLabel');
   if(desktopLabel)desktopLabel.textContent=adminSectionName(currentSection);
+  const breadcrumb=document.getElementById('adminDesktopSectionBreadcrumb');
+  if(breadcrumb)breadcrumb.textContent=adminSectionGroupName(currentSection);
+  const description=document.getElementById('adminDesktopSectionDescription');
+  if(description)description.textContent=adminSectionDescriptions[currentSection]||'';
+  const pageIcon=document.getElementById('adminDesktopSectionIcon');
+  if(pageIcon){pageIcon.dataset.icon=adminSectionIcon(currentSection);pageIcon.innerHTML='';hydrateIcons();}
   updateAdminBookingBadge();
 }
 function pendingBookingCount(){return (adminData.bookings||[]).filter(item=>!String(item.status||'').includes('تم القبول')&&!String(item.status||'').includes('مرفوض')).length;}
@@ -337,9 +379,16 @@ function renderAdmin(){
         <div class="logo admin-brand"><img class="admin-brand-logo" src="assets/technominds-logo.webp" alt="Techno Minds"><span>لوحة Techno Minds <small>حساب ${safe(currentStaff?.role||'staff')}</small></span></div>
         <button class="admin-sidebar-close" type="button" aria-label="إغلاق القائمة" onclick="toggleAdminDrawer(false)">×</button>
       </div>
-      <div class="admin-nav">${adminSectionGroups.map(([label,ids])=>`<div class="admin-nav-group"><small>${label}</small>${ids.map(id=>{const section=adminSections.find(item=>item[0]===id);if(!section)return '';const [,icon,name]=section;return `<button type="button" data-admin-nav="${id}" class="${id===currentSection?'active':''}"><span data-icon="${icon}"></span><span>${name}</span></button>`;}).join('')}</div>`).join('')}</div>
+      <label class="admin-nav-search" for="adminNavSearch">
+        <span data-icon="search" aria-hidden="true"></span>
+        <input id="adminNavSearch" type="search" autocomplete="off" placeholder="ابحث عن قسم أو وظيفة" aria-controls="adminNavList">
+        <kbd aria-hidden="true">/</kbd>
+      </label>
+      <div class="admin-nav-search-status" id="adminNavSearchStatus" aria-live="polite">${adminSections.length} قسمًا متاحًا</div>
+      <div class="admin-nav" id="adminNavList">${adminNavigationHtml()}</div>
       <div class="admin-sidebar-footer">
         <span class="admin-live-state"><i></i> متصل مباشرة بالموقع</span>
+        <div class="admin-staff-card"><span class="admin-staff-avatar">${safe(String(currentStaff?.name||'ع').trim().charAt(0)||'ع')}</span><span><small>الحساب الحالي</small><b>${safe(currentStaff?.name||'م. عمرو خالد')}</b></span><em>${safe(currentStaff?.role||'staff')}</em></div>
         <button class="btn dark" type="button" onclick="adminLogout()">تسجيل الخروج</button>
       </div>
     </aside>
@@ -350,10 +399,13 @@ function renderAdmin(){
         <button class="admin-mobile-home" type="button" aria-label="معاينة الموقع" onclick="location.href='index.html'"><span data-icon="external-link"></span></button>
       </header>
       <header class="admin-top admin-command-header" aria-label="أوامر لوحة الإدارة">
-        <div class="admin-welcome">
-          <span class="kicker">لوحة الإدارة</span>
-          <h1 id="adminDesktopSectionLabel">${safe(adminSectionName(currentSection))}</h1>
-          <p>مرحبًا ${safe(currentStaff?.name||'م. عمرو خالد')} — كل عملية ناجحة تتحدث في المنصة مباشرة.</p>
+        <div class="admin-heading-cluster">
+          <span class="admin-page-icon" id="adminDesktopSectionIcon" data-icon="${adminSectionIcon(currentSection)}" aria-hidden="true"></span>
+          <div class="admin-welcome">
+            <span class="admin-location"><span>لوحة الإدارة</span><i aria-hidden="true">/</i><b id="adminDesktopSectionBreadcrumb">${safe(adminSectionGroupName(currentSection))}</b></span>
+            <h1 id="adminDesktopSectionLabel">${safe(adminSectionName(currentSection))}</h1>
+            <p id="adminDesktopSectionDescription">${safe(adminSectionDescriptions[currentSection]||'')}</p>
+          </div>
         </div>
         <div class="header-actions admin-command-actions">
           <button class="admin-hero-theme-icon" id="themeToggleAdmin" type="button" aria-label="تغيير الوضع" title="تغيير الوضع"></button>
@@ -372,6 +424,7 @@ function renderAdmin(){
     </nav>`;
   setupTheme();
   bindNav();
+  bindAdminNavigationTools();
   bindAdminWorkspaceBar();
   setAdminDrawer(false);
   renderSection();
@@ -425,13 +478,47 @@ function bindNav(){
     window.__adminEscapeBound=true;
   }
 }
+function bindAdminNavigationTools(){
+  const input=document.getElementById('adminNavSearch'),status=document.getElementById('adminNavSearchStatus');
+  if(!input)return;
+  const normalize=value=>typeof normalizeText==='function'?normalizeText(value):String(value||'').trim().toLocaleLowerCase('ar');
+  const filter=()=>{
+    const query=normalize(input.value),buttons=[...document.querySelectorAll('#adminNavList [data-admin-nav]')];
+    let visible=0;
+    buttons.forEach(button=>{const match=!query||normalize(button.dataset.adminNavSearch).includes(query);button.hidden=!match;if(match)visible+=1;});
+    const primary=document.querySelector('#adminNavList .admin-nav-primary');
+    if(primary)primary.hidden=!!query&&![...primary.querySelectorAll('[data-admin-nav]')].some(button=>!button.hidden);
+    document.querySelectorAll('#adminNavList [data-admin-nav-group]').forEach(group=>{
+      const hasVisible=[...group.querySelectorAll('[data-admin-nav]')].some(button=>!button.hidden);
+      group.hidden=!hasVisible;
+      if(query&&hasVisible)group.open=true;
+    });
+    const allTools=document.getElementById('adminAllTools');
+    if(allTools&&query){const hasVisible=[...allTools.querySelectorAll('[data-admin-nav]')].some(button=>!button.hidden);allTools.hidden=!hasVisible;allTools.open=hasVisible;}
+    else if(allTools)allTools.hidden=false;
+    if(status)status.textContent=query?`${visible} نتيجة من ${adminSections.length}`:`${adminSections.length} قسمًا متاحًا`;
+  };
+  input.addEventListener('input',filter);
+  input.addEventListener('keydown',event=>{if(event.key==='Escape'&&input.value){event.stopPropagation();input.value='';filter();}});
+  if(!window.__adminNavShortcutBound){
+    document.addEventListener('keydown',event=>{
+      const target=event.target;
+      if(event.key==='/'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!(target instanceof HTMLElement&&target.matches('input,textarea,select,[contenteditable="true"]'))){
+        const search=document.getElementById('adminNavSearch');if(!search)return;event.preventDefault();setAdminDrawer(true);search.focus();
+      }
+    });
+    window.__adminNavShortcutBound=true;
+  }
+}
 window.adminLogout=async function(){try{localStorage.removeItem(OFFLINE_STAFF_PROFILE_KEY);bookingNotificationUnsubscribe?.();adminGroupsUnsubscribe?.();adminStudentsUnsubscribe?.();adminTransferRequestsUnsubscribe?.();adminHomeworkSubmissionsUnsubscribe?.();adminExamAttemptsUnsubscribe?.();adminMotivationUnsubscribe?.();window.stopMonthlyPaymentListeners?.();await window.MFCloud?.unregisterTeacherPushToken?.();await window.MFCloud?.signOut?.();}catch(e){}location.reload();};
 window.forceFirestoreSync=async function(){const button=document.getElementById('adminSaveButton'),label=button?.querySelector('.admin-save-label');if(button?.disabled)return;try{if(!window.MFCloud?.saveSiteData)throw new Error('Sync service unavailable');if(button)button.disabled=true;if(label)label.textContent='جارٍ الحفظ…';await window.MFCloud.saveSiteData(adminData);saveData(adminData);if(label)label.textContent='تم الحفظ';aToast('تم حفظ جميع التغييرات');setTimeout(()=>{if(label)label.textContent='حفظ التغييرات';},1600);}catch(error){if(label)label.textContent='إعادة المحاولة';aToast(adminActionErrorMessage(error,'تعذر حفظ التغييرات.'));}finally{if(button)button.disabled=false;}};
 
 function stats(){fresh(); const today=isoDateAdmin(); const att=(adminData.students||[]).filter(s=>(s.attendance||[]).some(a=>String(a.date)===today&&a.status==='present')).length; const bookings=adminData.bookings.filter(b=>!String(b.status||'').includes('تم القبول')).length; return {students:adminData.students.length,bookings,unpaid:adminData.students.filter(s=>!s.paid).length,att};}
 function renderOverview(){
   const s=stats(),pendingExam=(adminData.examAttempts||[]).filter(row=>row.needsManualReview||row.status==='pending_manual').length,pendingTransfers=(adminData.studentTransferRequests||[]).filter(row=>!row.status||row.status==='pending').length;
-  content(`<div class="section-head"><div><span class="kicker"><span data-icon="bar-chart"></span> مركز العمل</span><h2 class="section-title">ما يحتاج تدخلك الآن</h2><p class="section-desc">الأرقام تخص البيانات الحالية، والسجلات السابقة تظل محفوظة داخل كل قسم.</p></div></div><div class="grid grid-4 admin-action-kpis"><button class="card" onclick="goAdminSection('bookings')"><small>طلبات تسجيل</small><b class="big-num">${s.bookings}</b><span>مراجعة الطلبات</span></button><button class="card" onclick="goAdminSection('exams')"><small>تصحيح امتحانات</small><b class="big-num">${pendingExam}</b><span>فتح التصحيح</span></button><button class="card" onclick="goAdminSection('studentRequests')"><small>طلبات نقل</small><b class="big-num">${pendingTransfers}</b><span>مراجعة الطلبات</span></button><button class="card" onclick="goAdminSection('payments')"><small>الدفع الشهري</small><b class="big-num">${s.unpaid}</b><span>متابعة الشهر الحالي</span></button></div><div class="card admin-daily-actions"><div><h3>إجراءات سريعة</h3><p class="section-desc">ابدأ المهمة مباشرة دون البحث في القائمة.</p></div><div class="admin-task-grid-v37"><button class="btn primary" onclick="goAdminSection('attendance')"><span data-icon="qr"></span> تسجيل الحضور</button><button class="btn ghost motivation-quick-action" onclick="goAdminSection('motivation')"><span data-icon="star"></span> التحفيز والترتيب</button><button class="btn ghost" onclick="goAdminSection('materials')"><span data-icon="book-open"></span> إضافة محاضرة</button><button class="btn ghost" onclick="goAdminSection('assignments')"><span data-icon="file-text"></span> إضافة واجب</button><button class="btn ghost" onclick="goAdminSection('exams')"><span data-icon="clipboard"></span> إضافة امتحان</button></div></div><div class="grid grid-3 admin-overview-summary"><article class="card"><small>إجمالي الطلاب</small><b class="big-num">${s.students}</b></article><article class="card"><small>حضور اليوم</small><b class="big-num">${s.att}</b></article><article class="card"><small>المجموعات النشطة</small><b class="big-num">${(adminData.groups||[]).filter(group=>group.active!==false).length}</b></article></div>`);
+  const activeGroups=(adminData.groups||[]).filter(group=>group.active!==false).length,urgent=s.bookings+pendingExam+pendingTransfers+s.unpaid;
+  const today=new Intl.DateTimeFormat('ar-EG',{weekday:'long',day:'numeric',month:'long'}).format(new Date());
+  content(`<section class="admin-overview-hero"><div><span class="admin-overview-eyebrow"><i></i> نظرة عامة مباشرة</span><h2>مساء الخير، ${safe(currentStaff?.name||'م. عمرو خالد')}</h2><p>تابع المهام المهمة وابدأ إجراءات اليوم من مكان واحد.</p></div><div class="admin-overview-hero-meta"><small>${safe(today)}</small><strong>${urgent}</strong><span>مهمة تحتاج متابعة</span></div></section><div class="admin-metric-grid admin-action-kpis"><button class="admin-metric-card metric-bookings" onclick="goAdminSection('bookings')"><span class="admin-metric-icon" data-icon="user-check"></span><span class="admin-metric-copy"><small>طلبات التسجيل</small><b>${s.bookings}</b><em>فتح الطلبات</em></span><span class="admin-metric-arrow">←</span></button><button class="admin-metric-card metric-exams" onclick="goAdminSection('exams')"><span class="admin-metric-icon" data-icon="clipboard"></span><span class="admin-metric-copy"><small>بانتظار التصحيح</small><b>${pendingExam}</b><em>فتح الامتحانات</em></span><span class="admin-metric-arrow">←</span></button><button class="admin-metric-card metric-transfers" onclick="goAdminSection('studentRequests')"><span class="admin-metric-icon" data-icon="users"></span><span class="admin-metric-copy"><small>طلبات النقل</small><b>${pendingTransfers}</b><em>مراجعة الطلبات</em></span><span class="admin-metric-arrow">←</span></button><button class="admin-metric-card metric-payments" onclick="goAdminSection('payments')"><span class="admin-metric-icon" data-icon="database"></span><span class="admin-metric-copy"><small>لم يسدد هذا الشهر</small><b>${s.unpaid}</b><em>فتح المدفوعات</em></span><span class="admin-metric-arrow">←</span></button></div><div class="admin-overview-layout"><section class="card admin-daily-actions admin-focus-panel"><div class="admin-panel-heading"><div><span class="admin-panel-label">اختصارات العمل</span><h3>ابدأ إجراءً جديدًا</h3><p class="section-desc">أكثر الأدوات استخدامًا أثناء اليوم الدراسي.</p></div><span class="admin-panel-heading-icon" data-icon="sparkles"></span></div><div class="admin-task-grid-v37"><button class="admin-task-button primary-task" onclick="goAdminSection('attendance')"><span data-icon="qr"></span><b>تسجيل الحضور</b><small>مسح QR أو إدخال الكود</small></button><button class="admin-task-button" onclick="goAdminSection('motivation')"><span data-icon="star"></span><b>تحفيز الطلاب</b><small>النقاط ولوحة الترتيب</small></button><button class="admin-task-button" onclick="goAdminSection('materials')"><span data-icon="book-open"></span><b>إضافة محاضرة</b><small>رفع ملف أو رابط جديد</small></button><button class="admin-task-button" onclick="goAdminSection('assignments')"><span data-icon="file-text"></span><b>إنشاء واجب</b><small>الأسئلة وموعد التسليم</small></button><button class="admin-task-button" onclick="goAdminSection('exams')"><span data-icon="clipboard"></span><b>إنشاء امتحان</b><small>إعداد ونشر الاختبار</small></button></div></section><aside class="card admin-pulse-panel"><div class="admin-panel-heading"><div><span class="admin-panel-label">حالة الأكاديمية</span><h3>ملخص اليوم</h3></div><span class="admin-panel-heading-icon" data-icon="bar-chart"></span></div><div class="admin-pulse-list"><button onclick="goAdminSection('students')"><span class="admin-pulse-icon" data-icon="users"></span><span><small>إجمالي الطلاب</small><b>${s.students}</b></span></button><button onclick="goAdminSection('attendance')"><span class="admin-pulse-icon" data-icon="user-check"></span><span><small>حضور اليوم</small><b>${s.att}</b></span></button><button onclick="goAdminSection('schedules')"><span class="admin-pulse-icon" data-icon="calendar"></span><span><small>المجموعات النشطة</small><b>${activeGroups}</b></span></button></div><div class="admin-system-note"><i></i><span><b>النظام متصل</b><small>التحديثات الناجحة تظهر للطلاب مباشرة</small></span></div></aside></div>`);
 }
 
 function studentRow(st){const s=normalizeStudent(st), c=calcStudentAdmin(s); return `<tr><td><b>${safe(s.studentCode)}</b><small style="display:block">موحّد للطالب وولي الأمر</small></td><td>${safe(s.name)}</td><td>${safe(s.grade)}</td><td>${safe(s.group||'بدون مجموعة')}</td><td><span class="badge ${badgeStatus(s.paid)}">${s.paid?'تم الدفع':'لم يتم الدفع'}</span></td><td>${c.attendancePct||0}%</td><td>${c.avg||0}%</td><td><div class="pay-row"><button class="small-btn primary" onclick="moveStudentToGroup('${safe(s.studentCode)}')">نقل لمجموعة</button><button class="small-btn" onclick="editStudent('${safe(s.studentCode)}')">تعديل</button><button class="small-btn" onclick="copyStudentCodes('${safe(s.studentCode)}')">نسخ الكود</button><button class="small-btn danger" onclick="regenerateStudentCode('${safe(s.studentCode)}')">تغيير الكود الموحّد</button><button class="small-btn" onclick="quickPresent('${safe(s.studentCode)}')">حضور</button><button class="small-btn" onclick="printStudentReport('${safe(s.studentCode)}')">تفاصيل</button><button class="small-btn whatsapp-report-btn" onclick="sendParentMonthlyReport('${safe(s.studentCode)}')">واتساب</button><button class="small-btn danger" onclick="deleteStudent('${safe(s.studentCode)}')">حذف</button></div></td></tr>`;}
@@ -845,7 +932,7 @@ window.updateExamQuestionType=function(select){const card=select.closest('[data-
 window.updateExamTotal=function(){const total=[...document.querySelectorAll('[data-question-mark]')].reduce((sum,input)=>sum+(Number(input.value)||0),0),output=document.getElementById('examCalculatedTotal');if(output)output.textContent=total;return total;};
 window.removeExamQuestion=function(button){const list=document.getElementById('examQuestionsBuilder');if(!list)return;if(list.children.length===1)return aToast('لازم الامتحان يحتوي على سؤال واحد على الأقل');button.closest('[data-exam-question]')?.remove();renumberExamQuestions();};
 function serializeExamQuestions(){const cards=[...document.querySelectorAll('[data-exam-question]')];return cards.map(card=>{const question=card.querySelector('[data-question-text]')?.value.trim(),type=card.querySelector('[data-question-type]')?.value||'mcq',mark=Number(card.querySelector('[data-question-mark]')?.value||1),options=[...card.querySelectorAll('[data-question-option]')].filter(input=>!input.closest('label').hidden).map(input=>input.value.trim()),answer=card.querySelector('[data-correct-answer]')?.value,model=card.querySelector('[data-question-model]')?.value.trim();if(!question||!mark)return null;if(type==='mcq'||type==='truefalse'){if(options.length<2||options.some(value=>!value)||!answer)return null;return `${question}\nالنوع: ${type}\nالدرجة: ${mark}\n${options.map((value,i)=>`${['أ','ب','ج','د'][i]}) ${value}`).join('\n')}\nالإجابة: ${answer}`;}return `${question}\nالنوع: ${type}\nالدرجة: ${mark}${model?`\nالنموذج: ${model}`:''}`;}).filter(Boolean).join('\n\n');}
-function renderExams(){fresh();const attempts=(adminData.examAttempts||[]).slice().reverse(),pending=attempts.filter(a=>a.needsManualReview||a.status==='pending_manual'),gradeRows=examGradeRows();window.__adminExamGradeRows=gradeRows;content(`<div class="section-head compact-admin-head"><div><span class="kicker"><span data-icon="clipboard"></span> الاختبارات</span><h2 class="section-title">إنشاء امتحان</h2><p class="section-desc">اكتب السؤال وأربع إجابات، ثم اختار الإجابة الصحيحة للتصحيح التلقائي.</p></div></div><div class="exam-admin-layout"><form id="examForm" class="card exam-builder-form"><div class="exam-meta-grid"><div class="field"><label>اسم الامتحان</label><input name="title" required placeholder="مثال: امتحان الوحدة الأولى"></div><div class="field"><label>المسار</label><select name="grade"><option>كل المسارات</option>${GRADES.map(g=>`<option>${safe(g)}</option>`).join('')}</select></div><div class="field"><label>المدة بالدقائق</label><input name="duration" type="number" min="1" value="20"></div></div><div class="field"><label>تعليمات للطلاب</label><textarea name="instructions" rows="2" placeholder="تعليمات اختيارية"></textarea></div><label class="exam-pdf-upload"><span><b>ملف PDF اختياري</b><small>يمكن إرفاق ملف مع الأسئلة بحجم أقصى 15MB.</small></span><input name="pdfFile" type="file" accept="application/pdf,.pdf"></label><textarea name="text" hidden></textarea><div class="exam-builder-title"><div><h3>الأسئلة</h3><small>كل سؤال له أربع اختيارات وإجابة صحيحة.</small></div><button class="btn ghost" type="button" onclick="addExamQuestion()">+ إضافة سؤال</button></div><div id="examQuestionsBuilder" class="exam-questions-builder">${examBuilderCard(0)}</div><label class="option-card"><input type="checkbox" name="allowRetake" value="true"> السماح للطالب بإعادة الامتحان</label><label class="option-card"><input type="checkbox" name="revealCorrectAnswersAfterGrading" value="true" checked> إظهار نموذج الإجابة للطالب بعد التصحيح فقط</label><button class="btn primary full-width" type="submit"><span data-icon="clipboard"></span> حفظ ونشر الامتحان</button></form><aside class="card compact-exam-list"><h3>الاختبارات الحالية</h3>${adminData.exams.map(e=>`<div class="mobile-row"><div><b>${safe(e.title)}</b><small>${safe(e.grade)} · ${safe(e.duration)} دقيقة · ${safe(e.questionCount||0)} سؤال</small></div>${e.pdfUrl?`<a class="small-btn" href="${safe(e.pdfUrl)}" target="_blank">PDF</a>`:''}<button class="small-btn danger" onclick="deleteItem('exams','${safe(e.id)}')">حذف</button></div>`).join('')||'<p class="section-desc">لا توجد اختبارات بعد.</p>'}</aside></div><details class="card admin-collapsible" ${pending.length?'open':''}><summary>محاولات تحتاج تصحيح <span class="badge warn">${pending.length}</span></summary>${pending.map(examAttemptRowHTML).join('')||'<p class="section-desc">لا توجد محاولات معلقة.</p>'}</details><details class="card admin-collapsible"><summary>كل المحاولات والنتائج <span class="badge">${attempts.length}</span></summary>${attempts.map(examAttemptRowHTML).join('')||'<p class="section-desc">لا توجد محاولات.</p>'}</details><details class="card admin-collapsible"><summary>درجات الطلاب وإرسال واتساب</summary>${gradeRows.map(examGradeRowHTML).join('')||'<p class="section-desc">لا توجد درجات بعد.</p>'}</details>`);const form=document.getElementById('examForm');form.addEventListener('submit',event=>{const text=serializeExamQuestions(),count=document.querySelectorAll('[data-exam-question]').length;if(!text||text.split('\n\n').length!==count){event.preventDefault();event.stopImmediatePropagation();return aToast('كمّل السؤال والاختيارات وحدد الإجابة الصحيحة لكل سؤال');}form.elements.text.value=text;},true);hydrateIcons();}
+function renderExams(){fresh();const attempts=(adminData.examAttempts||[]).slice().reverse(),pending=attempts.filter(a=>a.needsManualReview||a.status==='pending_manual'),gradeRows=examGradeRows();window.__adminExamGradeRows=gradeRows;content(`<div class="section-head compact-admin-head"><div><span class="kicker"><span data-icon="clipboard"></span> الاختبارات</span><h2 class="section-title">إنشاء امتحان</h2><p class="section-desc">اكتب السؤال وأربع إجابات، ثم اختار الإجابة الصحيحة للتصحيح التلقائي.</p></div></div><div class="exam-admin-layout"><form id="examForm" class="card exam-builder-form"><div class="exam-meta-grid"><div class="field"><label>اسم الامتحان</label><input name="title" required placeholder="مثال: امتحان الوحدة الأولى"></div><div class="field"><label>المسار</label><select name="grade"><option>كل المسارات</option>${GRADES.map(g=>`<option>${safe(g)}</option>`).join('')}</select></div><div class="field"><label>المدة بالدقائق</label><input name="duration" type="number" min="1" value="20"></div></div><div class="exam-message-grid"><div class="field"><label>تعليمات للطلاب</label><textarea name="instructions" rows="2" maxlength="2000" placeholder="مثال: اقرأ كل سؤال جيدًا"></textarea></div><div class="field exam-encouragement-field"><label>رسالة تشجيع تظهر للطالب</label><textarea name="encouragement" rows="2" maxlength="300" placeholder="مثال: حل يا بطل، ركّز وأنا مستني تفرّحني"></textarea></div></div><label class="exam-pdf-upload"><span><b>ملف PDF اختياري</b><small>يمكن إرفاق ملف مع الأسئلة بحجم أقصى 15MB.</small></span><input name="pdfFile" type="file" accept="application/pdf,.pdf"></label><textarea name="text" hidden></textarea><div class="exam-builder-title"><div><h3>الأسئلة</h3><small>كل سؤال له أربع اختيارات وإجابة صحيحة.</small></div><button class="btn ghost" type="button" onclick="addExamQuestion()">+ إضافة سؤال</button></div><div id="examQuestionsBuilder" class="exam-questions-builder">${examBuilderCard(0)}</div><label class="option-card"><input type="checkbox" name="allowRetake" value="true"> السماح للطالب بإعادة الامتحان</label><label class="option-card"><input type="checkbox" name="revealCorrectAnswersAfterGrading" value="true" checked> إظهار نموذج الإجابة للطالب بعد التصحيح فقط</label><button class="btn primary full-width" type="submit"><span data-icon="clipboard"></span> حفظ ونشر الامتحان</button></form><aside class="card compact-exam-list"><h3>الاختبارات الحالية</h3>${adminData.exams.map(e=>`<div class="mobile-row"><div><b>${safe(e.title)}</b><small>${safe(e.grade)} · ${safe(e.duration)} دقيقة · ${safe(e.questionCount||0)} سؤال</small></div>${e.pdfUrl?`<a class="small-btn" href="${safe(e.pdfUrl)}" target="_blank">PDF</a>`:''}<button class="small-btn danger" onclick="deleteItem('exams','${safe(e.id)}')">حذف</button></div>`).join('')||'<p class="section-desc">لا توجد اختبارات بعد.</p>'}</aside></div><details class="card admin-collapsible" ${pending.length?'open':''}><summary>محاولات تحتاج تصحيح <span class="badge warn">${pending.length}</span></summary>${pending.map(examAttemptRowHTML).join('')||'<p class="section-desc">لا توجد محاولات معلقة.</p>'}</details><details class="card admin-collapsible"><summary>كل المحاولات والنتائج <span class="badge">${attempts.length}</span></summary>${attempts.map(examAttemptRowHTML).join('')||'<p class="section-desc">لا توجد محاولات.</p>'}</details><details class="card admin-collapsible"><summary>درجات الطلاب وإرسال واتساب</summary>${gradeRows.map(examGradeRowHTML).join('')||'<p class="section-desc">لا توجد درجات بعد.</p>'}</details>`);const form=document.getElementById('examForm');form.addEventListener('submit',event=>{const text=serializeExamQuestions(),count=document.querySelectorAll('[data-exam-question]').length;if(!text||text.split('\n\n').length!==count){event.preventDefault();event.stopImmediatePropagation();return aToast('كمّل السؤال والاختيارات وحدد الإجابة الصحيحة لكل سؤال');}form.elements.text.value=text;},true);hydrateIcons();}
 function bindAdminGradeGroupPicker(){
   const form=document.getElementById('addStudentForm'),grade=form?.elements?.grade,group=form?.elements?.group;
   if(!form||!grade||!group)return;

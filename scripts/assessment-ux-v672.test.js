@@ -65,14 +65,14 @@ test('homework drafts have a short retention period and a shared-device clear ac
   assert.match(app, /clearHomeworkDraft\(form,true\)/);
 });
 
-test('release metadata stays synchronized at version 67.2.0', () => {
+test('release metadata stays synchronized after the assessment UX release', () => {
   const frontend = require(path.join(root, 'package.json'));
   const backend = require(path.join(root, 'functions/package.json'));
   const worker = read('service-worker.js');
 
-  assert.equal(frontend.version, '67.2.0');
+  assert.equal(frontend.version, '67.7.0');
   assert.equal(backend.version, frontend.version);
-  assert.match(read('assets/app.js'), /MF_ASSET_VERSION = '67\.2\.0'/);
-  assert.match(worker, /technominds-v67-2-0-assessment-ux/);
-  assert.match(worker, /ASSET_VERSION = "67\.2\.0"/);
+  assert.match(read('assets/app.js'), /MF_ASSET_VERSION = '67\.7\.0'/);
+  assert.match(worker, /technominds-v67-7-0-assessment-ux/);
+  assert.match(worker, /ASSET_VERSION = "67\.7\.0"/);
 });

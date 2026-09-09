@@ -22,7 +22,8 @@ test('homework and exams are interactive while PDF remains lecture-only',()=>{
   const homework=(workflow.match(/<form id="assignmentFormV6061"[\s\S]*?<\/form>/)||[''])[0];
   assert.doesNotMatch(exam,/pdfFile|exam-pdf-upload/);
   assert.doesNotMatch(homework,/name="file"|application\/pdf/);
-  assert.match(workflow,/رفع محاضرة أو PDF/);
+  assert.match(workflow,/إضافة محاضرة عملي/);
+  assert.match(workflow,/يمكنك إضافة رابط Drive أو ملف أو الاثنين معًا/);
 });
 
 test('admin reports homework completion and QR attendance keeps schedule metadata without blocking other days',()=>{
@@ -59,5 +60,5 @@ test('pending booking code opens the student portal while learning actions stay 
   assert.ok((backend.match(/requireApprovedStudent\(found\.data\)/g)||[]).length>=7);
   assert.match(app,/لم يتم قبول الحجز حتى الآن/);
   assert.match(app,/ستتفعّل المحاضرات والواجبات والاختبارات بعد قبول الحجز/);
-  assert.match(worker,/technominds-v67-2-0-assessment-ux/);
+  assert.match(worker,/technominds-v67-7-0-assessment-ux/);
 });
