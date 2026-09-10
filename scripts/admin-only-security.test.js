@@ -25,10 +25,11 @@ test('Firestore and Storage resolve every legacy staff helper to the single Admi
   assert.doesNotMatch(storage, /role in \['admin', 'teacher'/);
 });
 
-test('the browser verifies fresh claims and observes token revocation', () => {
+test('the browser verifies claims and observes token revocation without duplicate refreshes', () => {
   const sync = read('assets/firebase-sync.js');
   const admin = read('assets/admin.js');
-  assert.match(sync, /getIdTokenResult\(true\)/);
+  assert.match(sync, /getIdTokenResult\(false\)/);
+  assert.doesNotMatch(sync, /getIdTokenResult\(true\)/);
   assert.match(sync, /token\.claims\.admin===true/);
   assert.match(admin, /onIdTokenChanged/);
   assert.match(admin, /signOut/);

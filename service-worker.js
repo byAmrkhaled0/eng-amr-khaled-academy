@@ -1,5 +1,5 @@
-const CACHE_NAME = "technominds-v67-8-3-correction-motivation";
-const ASSET_VERSION = "67.8.3";
+const CACHE_NAME = "technominds-v67-8-4-admin-session";
+const ASSET_VERSION = "67.8.4";
 const APP_SHELL = [
   "/", "/index.html", "/student.html", "/parent.html", "/exams.html", "/materials.html", "/theory-lectures.html", "/questions.html", "/practical.html", "/learning-path.html", "/about.html", "/reviews.html", "/privacy.html",
   "/terms.html", "/offline.html", "/assets/site.css", "/assets/v55.css",

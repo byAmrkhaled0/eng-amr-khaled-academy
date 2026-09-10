@@ -2,7 +2,7 @@
   'use strict';
 
   const cfg=window.MF_FIREBASE_CONFIG||{};
-  const FRONTEND_VERSION='67.8.3';
+  const FRONTEND_VERSION='67.8.4';
   const API_SCHEMA_VERSION='portal-v64.0.0';
   if(!cfg.enabled||typeof firebase==='undefined'){
     window.MFCloud={ready:false,error:'Firebase غير مفعل'};
@@ -365,7 +365,12 @@
 
     async function getCurrentStaffProfile(){
       const user=auth.currentUser;if(!user)return null;
-      const token=await user.getIdTokenResult(true);
+      // The auth observer already receives refreshed tokens. Forcing another
+      // refresh on every profile check creates a second Identity Toolkit
+      // request and can return a transient HTTP 400 while a valid admin is
+      // opening a local workspace panel. Use the current verified token here;
+      // Firebase will refresh it automatically when required.
+      const token=await user.getIdTokenResult(false);
       const userDoc=await db.collection('users').doc(user.uid).get();
       const profile=userDoc.exists?userDoc.data():{};
       const role=profile.role||'';

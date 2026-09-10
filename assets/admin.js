@@ -3,6 +3,7 @@
 let adminData = typeof loadData === 'function' ? loadData() : {students:[],bookings:[],materials:[],questions:[],exams:[],examAttempts:[],reviews:[],groups:[],assignments:[],studentTransferRequests:[],settings:{}};
 let currentSection = 'overview';
 let currentStaff = null;
+let adminLoginInProgress = false;
 let qrScanner = null,qrScanBusy=false,qrLastValue='',qrLastAt=0;
 let attendanceDate = isoDateAdmin();
 let adminCloudSaveTimer = null;
@@ -251,6 +252,8 @@ function adminLogin(){
     e.preventDefault();
     const email=form.email.value.trim(); const pass=form.password.value;
     if(!window.MFCloud?.ready || !window.MFCloud.signIn) return aToast('خدمة تسجيل الدخول غير متاحة الآن. تحقق من الإنترنت وحاول مرة أخرى.');
+    if(adminLoginInProgress)return;
+    adminLoginInProgress=true;
     try{
       await window.MFCloud.signIn(email,pass);
       currentStaff = await window.MFCloud.getCurrentStaffProfile();
@@ -260,6 +263,7 @@ function adminLogin(){
       renderAdmin();
       aToast('تم الدخول إلى لوحة الإدارة');
     }catch(err){const raw=String(err?.code||'')+' '+String(err?.message||'');const message=/invalid-credential|wrong-password|user-not-found|invalid-login/i.test(raw)?'البريد أو كلمة المرور غير صحيحة. استخدم نفس البريد الموجود في Firebase Authentication.':/permission-denied/i.test(raw)?'تم تسجيل الدخول لكن البريد غير موجود ضمن حسابات الإدارة المسموحة.':/unauthenticated/i.test(raw)?'تعذر تأكيد جلسة الدخول. حدّث الصفحة وحاول مرة أخرى.':/network|unavailable|internal|function.*unavailable/i.test(raw)?'تم الوصول إلى Firebase لكن وظائف الإدارة غير مرفوعة أو الاتصال غير متاح. ارفع Functions ثم حاول.':'تعذر فتح لوحة الإدارة. راجع البريد وكلمة المرور وصلاحية المستخدم.';aToast(message); }
+    finally{adminLoginInProgress=false;}
   });
 }
 
@@ -267,13 +271,25 @@ async function tryRestoreSession(){
   if(!window.MFCloud?.auth?.onIdTokenChanged) return;
   window.MFCloud.auth.onIdTokenChanged(async user=>{
     if(!user) return;
+    // signIn already performs the authoritative profile check. Avoid racing it
+    // with a second observer request that can invalidate an otherwise valid UI.
+    if(adminLoginInProgress)return;
     try{
       currentStaff = await window.MFCloud.getCurrentStaffProfile();
       if(currentStaff?.allowed){
         cacheOfflineStaffProfile();
         if(!document.querySelector('.admin-page')){ await reloadFromCloud(); renderAdmin(); }
       }else { await window.MFCloud.signOut?.(); unauthorized(); }
-    }catch(e){if(navigator.onLine===false){await tryOfflineStaffWorkspace();return;}await window.MFCloud.signOut?.();unauthorized();}
+    }catch(e){
+      if(navigator.onLine===false){await tryOfflineStaffWorkspace();return;}
+      const raw=`${e?.code||''} ${e?.message||''}`;
+      const sessionRejected=/auth\/(?:user-token-expired|invalid-user-token|user-disabled)|permission-denied|unauthenticated/i.test(raw);
+      console.warn('admin-session-refresh',e);
+      if(sessionRejected){await window.MFCloud.signOut?.();unauthorized('انتهت جلسة الإدارة. سجّل الدخول مرة أخرى.');return;}
+      // A temporary 400/timeout during token refresh must not destroy the
+      // current admin workspace or discard an exam editor in progress.
+      if(document.querySelector('.admin-page'))aToast('تعذر تحديث جلسة الإدارة مؤقتًا. بياناتك ما زالت مفتوحة؛ حاول الحفظ مرة أخرى بعد لحظات.');
+    }
   });
 }
 
