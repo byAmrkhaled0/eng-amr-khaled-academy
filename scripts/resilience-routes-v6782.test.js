@@ -56,8 +56,9 @@ test('Vercel uses bounded direct callables before its slower proxy fallback', ()
   assert.match(practical, /requestAnimationFrame\(\(\)=>resolve\(\)\)/);
 });
 
-test('exam entry functions are warm, scalable and retry-safe', () => {
-  assert.match(functionsSource, /const EXAM_ENTRY_OPTIONS = \{[\s\S]*minInstances: 1,[\s\S]*maxInstances: 20,[\s\S]*concurrency: 80,[\s\S]*memory: '512MiB'/);
+test('exam entry functions scale without reserved instances and remain retry-safe', () => {
+  assert.match(functionsSource, /const EXAM_ENTRY_OPTIONS = \{[\s\S]*maxInstances: 20,[\s\S]*concurrency: 80,[\s\S]*memory: '512MiB'/);
+  assert.doesNotMatch(functionsSource, /minInstances\s*:/);
   for (const name of ['getPortalStudent', 'getExamDashboard', 'startExam', 'submitExam']) {
     assert.match(functionsSource, new RegExp(`exports\\.${name} = onCall\\(EXAM_ENTRY_OPTIONS`));
   }
