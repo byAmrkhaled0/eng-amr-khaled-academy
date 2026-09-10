@@ -56,7 +56,6 @@ const CALLABLE_OPTIONS = { region: 'europe-west1', timeoutSeconds: 30, invoker: 
 // reserve idle instances.
 const EXAM_ENTRY_OPTIONS = {
   ...CALLABLE_OPTIONS,
-  minInstances: 1,
   maxInstances: 20,
   concurrency: 80,
   memory: '512MiB'
