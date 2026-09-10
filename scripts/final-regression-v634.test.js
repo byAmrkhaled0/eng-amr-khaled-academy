@@ -46,7 +46,7 @@ test('mobile homework correction binds the tapped button and remains server conf
   assert.match(workflow, /activeButton\.setAttribute\('aria-busy','true'\)/);
   assert.match(workflow, /if\(!result\?\.ok\)throw new Error\('الخادم لم يؤكد حفظ التصحيح'\)/);
   assert.match(functions, /reviewerUid:staff\.uid/);
-  assert.match(functions, /action:'تصحيح واجب'/);
+  assert.match(functions, /'تعديل تصحيح واجب':'تصحيح واجب'/);
 });
 
 test('homework correction updates only the affected card instead of rebuilding the full section', () => {

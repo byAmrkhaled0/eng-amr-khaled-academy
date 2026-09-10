@@ -24,9 +24,11 @@ const commitmentLabel=value=>value===null?'بيانات غير كافية':value
 function uniqueScoredRows(grades=[],examAttempts=[]){
   const rows=new Map();
   [...grades,...examAttempts].forEach((row,index)=>{
-    const key=String(row?.id||`${row?.examId||row?.activityName||row?.examTitle||'result'}:${row?.submittedAt||row?.date||index}`);
+    const activityId=String(row?.examId||'').trim();
+    const key=activityId?`exam:${activityId}:${Math.max(1,Number(row?.attemptNumber||1))}`:String(row?.id||`${row?.activityName||row?.examTitle||'result'}:${row?.submittedAt||row?.date||index}`);
     const existing=rows.get(key);
-    if(!existing||scorePercent(existing)===null)rows.set(key,row);
+    const existingDate=String(existing?.submittedAt||existing?.date||''),rowDate=String(row?.submittedAt||row?.date||'');
+    if(!existing||(scorePercent(existing)===null&&scorePercent(row)!==null)||rowDate>=existingDate)rows.set(key,row);
   });
   return [...rows.values()];
 }

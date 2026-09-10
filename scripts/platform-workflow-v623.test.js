@@ -60,5 +60,5 @@ test('pending booking code opens the student portal while learning actions stay 
   assert.ok((backend.match(/requireApprovedStudent\(found\.data\)/g)||[]).length>=7);
   assert.match(app,/لم يتم قبول الحجز حتى الآن/);
   assert.match(app,/ستتفعّل المحاضرات والواجبات والاختبارات بعد قبول الحجز/);
-  assert.match(worker,/technominds-v67-8-2-backend-compatibility/);
+  assert.match(worker,/technominds-v67-8-3-correction-motivation/);
 });

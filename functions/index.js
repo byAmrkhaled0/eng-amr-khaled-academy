@@ -1933,7 +1933,7 @@ async function buildStudentMonthlyReport(student,monthKey,options={}) {
   if(!/^\d{4}-\d{2}$/.test(monthKey))throw new HttpsError('invalid-argument','اختر شهر التقرير بصورة صحيحة.');
   const studentCode=normalizeCode(student.studentCode||student.code||student.id),ref=db.collection('monthly_reports').doc(cleanDocId(`${studentCode}_${monthKey}`));
   const existing=await ref.get().catch(()=>null);
-  if(existing?.exists&&existing.data()?.lockedAt&&options.force!==true)return existing.data().report;
+  if(existing?.exists&&existing.data()?.lockedAt&&!existing.data()?.invalidatedAt&&options.force!==true)return existing.data().report;
   const source=await loadStudentMonthlyReportSource(student,options),previousKey=reportPreviousMonthKey(monthKey);
   const current=calculateMonthlyReport(monthlyReportInput(student,source,monthKey)),previous=calculateMonthlyReport(monthlyReportInput(student,source,previousKey));
   const availableMonths=reportAvailableMonths(source,monthKey);
@@ -1950,7 +1950,7 @@ async function buildStudentMonthlyReport(student,monthKey,options={}) {
     if(row)motivation={rank:row.rank,groupRank:row.groupRank,totalStudents:ranked.length,score:row.score,scoreDelta:row.scoreDelta,rankDelta:row.rankDelta,level:row.level,achievements:row.achievements,penaltyReasons:row.penaltyReasons,nextAction:row.nextAction,nextRankGap:row.nextRankGap,attendancePct:row.attendancePct,gradePct:row.gradePct,homeworkPct:row.homeworkPct,homeworkGradePct:row.homeworkGradePct,recitationPct:row.recitationPct};
   }catch(error){console.warn('monthly-report-motivation',studentCode,monthKey,error?.message||error);}
   const report={...attachTrend(current,previous),motivation,previousMonth:{monthKey:previousKey,overallScore:previous.overallScore,academicScore:previous.academicScore,commitmentScore:previous.commitmentScore},availableMonths,history,generatedAt:new Date().toISOString(),timeZone:'Africa/Cairo'};
-  await ref.set({studentCode,monthKey,parentPhone:digits(student.parentPhone),report,status:options.lock===true?'ready':'draft',generatedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp(),...(options.lock===true?{lockedAt:FieldValue.serverTimestamp()}:{})},{merge:true});
+  await ref.set({studentCode,monthKey,parentPhone:digits(student.parentPhone),report,status:options.lock===true?'ready':'draft',generatedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp(),invalidatedAt:FieldValue.delete(),invalidationReason:FieldValue.delete(),...(options.lock===true?{lockedAt:FieldValue.serverTimestamp()}:{})},{merge:true});
   return report;
 }
 
@@ -2273,7 +2273,10 @@ exports.submitAssignmentAnswer = onCall(CALLABLE_OPTIONS, async request => {
     if (grantRef) tx.update(grantRef, { status: 'used', usedAt: FieldValue.serverTimestamp(), submissionId, updatedAt: FieldValue.serverTimestamp() });
     return { submissionId, submission, duplicate:false };
   });
-  if(!committed.duplicate)await markLeaderboardDirty('assignment-submitted');
+  if(!committed.duplicate)await Promise.all([
+    markLeaderboardDirty('assignment-submitted'),
+    markStudentMonthlyReportDirty(studentCode,committed.submission?.submittedAt||submittedAt,'homework-submitted')
+  ]);
   const publicSubmission = publicHomeworkProjection(committed.submission);
   return {
     ok: true,
@@ -2311,14 +2314,16 @@ exports.reviewHomeworkSubmission = onCall(CALLABLE_OPTIONS, async request => {
     const score = answers.reduce((sum, answer) => sum + Number(answer.awardedMark || 0), 0);
     const oldGrade = Number.isFinite(Number(submission.score)) ? Number(submission.score) : null;
     const oldMaxScore = Number.isFinite(Number(submission.maxScore)) ? Number(submission.maxScore) : null;
+    const reviewType=submission.reviewedAt||submission.needsManualReview===false?'revision':'manual';
+    const studentCode=normalizeCode(submission.studentCode),submittedAt=reportIso(submission.submittedAt||submission.createdAt||new Date());
     const reviewRef = db.collection('homework_review_history').doc();
-    tx.set(ref, {answers,score,maxScore,needsManualReview:false,approved:true,status:'تم تصحيح الواجب',reviewedBy:staff.email||staff.uid,reviewerUid:staff.uid,reviewerEmail:staff.email||'',reviewedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()},{merge:true});
-    tx.create(reviewRef, {id:reviewRef.id,submissionId,assignmentId:text(submission.assignmentId,120),studentCode:normalizeCode(submission.studentCode),oldGrade,oldMaxScore,newGrade:score,newMaxScore:maxScore,reviewerUid:staff.uid,reviewerEmail:staff.email||'',reviewerRole:staff.role||'',comment:reason,createdAt:FieldValue.serverTimestamp()});
-    tx.create(db.collection('activityLog').doc(), {action:'تصحيح واجب',actorUid:staff.uid,actorEmail:staff.email||'',actorRole:'admin',metadata:{submissionId,assignmentId:text(submission.assignmentId,120),studentCode:normalizeCode(submission.studentCode),score,maxScore},createdAt:FieldValue.serverTimestamp()});
-    return { score, maxScore };
+    tx.set(ref, {answers,score,maxScore,needsManualReview:false,approved:true,status:'تم تصحيح الواجب',reviewedBy:staff.email||staff.uid,reviewerUid:staff.uid,reviewerEmail:staff.email||'',reviewedAt:FieldValue.serverTimestamp(),reviewRevision:FieldValue.increment(1),lastReviewType:reviewType,updatedAt:FieldValue.serverTimestamp()},{merge:true});
+    tx.create(reviewRef, {id:reviewRef.id,submissionId,assignmentId:text(submission.assignmentId,120),studentCode,oldGrade,oldMaxScore,newGrade:score,newMaxScore:maxScore,reviewType,reviewerUid:staff.uid,reviewerEmail:staff.email||'',reviewerRole:staff.role||'',comment:reason,createdAt:FieldValue.serverTimestamp()});
+    tx.create(db.collection('activityLog').doc(), {action:reviewType==='revision'?'تعديل تصحيح واجب':'تصحيح واجب',actorUid:staff.uid,actorEmail:staff.email||'',actorRole:staff.role||'',metadata:{submissionId,assignmentId:text(submission.assignmentId,120),studentCode,score,maxScore,reviewType},createdAt:FieldValue.serverTimestamp()});
+    return { score, maxScore, studentCode, submittedAt };
   });
-  await markLeaderboardDirty('homework-reviewed');
-  return {ok:true,submissionId,...result};
+  await Promise.all([markLeaderboardDirty('homework-reviewed'),markStudentMonthlyReportDirty(result.studentCode,result.submittedAt,'homework-reviewed')]);
+  return {ok:true,submissionId,score:result.score,maxScore:result.maxScore};
 });
 
 exports.reviewExamAttempt = onCall(CALLABLE_OPTIONS, async request => {
@@ -2327,6 +2332,7 @@ exports.reviewExamAttempt = onCall(CALLABLE_OPTIONS, async request => {
   const awarded = request.data?.awarded && typeof request.data.awarded === 'object' ? request.data.awarded : {};
   const reason = text(request.data?.reason || request.data?.comment, 800);
   if (!attemptId) throw new HttpsError('invalid-argument', 'رقم محاولة الامتحان غير صالح.');
+  if (Array.isArray(awarded) || Object.keys(awarded).length > 200 || jsonByteSize(awarded) > 32 * 1024) throw new HttpsError('invalid-argument', 'بيانات التصحيح أكبر من الحد المسموح.');
   const attemptRef = db.collection('exam_attempts').doc(attemptId);
   const result = await db.runTransaction(async tx => {
     const attemptSnap = await tx.get(attemptRef);
@@ -2352,6 +2358,7 @@ exports.reviewExamAttempt = onCall(CALLABLE_OPTIONS, async request => {
     const exam = examSnap.exists ? examSnap.data() || {} : {};
     const reveal = exam.revealCorrectAnswersAfterGrading === true;
     const reviewedAt = new Date().toISOString();
+    const reviewType=attempt.status==='corrected'||attempt.reviewedAt?'revision':attempt.needsManualReview===true||attempt.status==='pending_manual'?'manual':'automatic_override';
     const publicReview = answers.map(answer => ({
       question: text(answer.question, 1500),
       type: text(answer.type, 30),
@@ -2376,17 +2383,17 @@ exports.reviewExamAttempt = onCall(CALLABLE_OPTIONS, async request => {
       status: 'corrected',
       reviewedAt
     };
-    tx.set(attemptRef, { answers, score, maxScore, needsManualReview:false, status:'corrected', reviewedByUid:staff.uid, reviewedByEmail:staff.email||'', reviewedAt:FieldValue.serverTimestamp(), updatedAt:FieldValue.serverTimestamp() }, { merge:true });
+    tx.set(attemptRef, { answers, score, maxScore, needsManualReview:false, status:'corrected', reviewedByUid:staff.uid, reviewedByEmail:staff.email||'', reviewedAt:FieldValue.serverTimestamp(), reviewRevision:FieldValue.increment(1), lastReviewType:reviewType, updatedAt:FieldValue.serverTimestamp() }, { merge:true });
     tx.set(parentRef.collection('attempts').doc(attemptId), summary, { merge:true });
     const existingLast = parentSnap.exists ? parentSnap.data()?.lastAttempt : null;
     const correctedIsLatest = !existingLast || String(existingLast.id || '') === attemptId || String(existingLast.submittedAt || '') <= String(summary.submittedAt || '');
     tx.set(parentRef, { studentCode, ...(correctedIsLatest ? {lastAttempt:summary} : {}), updatedAt:FieldValue.serverTimestamp() }, { merge:true });
-    tx.create(db.collection('exam_review_history').doc(), { attemptId, examId, studentCode, oldGrade:attempt.score ?? null, oldMaxScore:attempt.maxScore ?? null, newGrade:score, newMaxScore:maxScore, reviewerUid:staff.uid, reviewerEmail:staff.email||'', reviewerRole:'admin', comment:reason, createdAt:FieldValue.serverTimestamp() });
-    tx.create(db.collection('activityLog').doc(), { action:'تصحيح امتحان', actorUid:staff.uid, actorEmail:staff.email||'', actorRole:'admin', metadata:{attemptId,examId,studentCode,score,maxScore}, createdAt:FieldValue.serverTimestamp() });
-    return summary;
+    tx.create(db.collection('exam_review_history').doc(), { attemptId, examId, studentCode, oldGrade:attempt.score ?? null, oldMaxScore:attempt.maxScore ?? null, newGrade:score, newMaxScore:maxScore, reviewType, reviewerUid:staff.uid, reviewerEmail:staff.email||'', reviewerRole:staff.role||'', comment:reason, createdAt:FieldValue.serverTimestamp() });
+    tx.create(db.collection('activityLog').doc(), { action:reviewType==='automatic_override'?'تعديل التصحيح التلقائي':reviewType==='revision'?'إعادة مراجعة تصحيح امتحان':'تصحيح امتحان', actorUid:staff.uid, actorEmail:staff.email||'', actorRole:staff.role||'', metadata:{attemptId,examId,studentCode,score,maxScore,reviewType}, createdAt:FieldValue.serverTimestamp() });
+    return {summary,studentCode,submittedAt:summary.submittedAt};
   });
-  await markLeaderboardDirty('exam-reviewed');
-  return { ok:true, attempt:result };
+  await Promise.all([markLeaderboardDirty('exam-reviewed'),markStudentMonthlyReportDirty(result.studentCode,result.submittedAt,'exam-reviewed')]);
+  return { ok:true, attempt:result.summary };
 });
 
 exports.grantHomeworkRetake = onCall(CALLABLE_OPTIONS, async request => {
@@ -2504,6 +2511,20 @@ async function markLeaderboardDirty(reason = 'activity') {
   }
 }
 
+async function markStudentMonthlyReportDirty(studentCode, activityDate, reason = 'assessment-updated') {
+  const normalized=normalizeCode(studentCode),monthKey=cairoDateKey(activityDate||new Date()).slice(0,7);
+  if(!validLegacyOrStrongCode(normalized)||!/^\d{4}-\d{2}$/.test(monthKey))return;
+  try{
+    await db.collection('monthly_reports').doc(cleanDocId(`${normalized}_${monthKey}`)).set({
+      studentCode:normalized,
+      monthKey,
+      invalidatedAt:FieldValue.serverTimestamp(),
+      invalidationReason:text(reason,80),
+      updatedAt:FieldValue.serverTimestamp()
+    },{merge:true});
+  }catch(error){console.warn('monthly-report-dirty-marker-failed',normalized,monthKey,error?.message||error);}
+}
+
 function cairoDateKey(value = new Date()) {
   let date;
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
@@ -2591,7 +2612,7 @@ async function leaderboardRowsForPeriod(academicYear='',monthName='') {
   const rows=studentsSnap.docs.map(doc=>{
     const st=doc.data()||{},code=normalizeCode(st.studentCode||st.code||doc.id);
     const att=currentMonthRows(attendance.get(code)||st.attendance||[]),present=att.filter(x=>['present','حاضر','متأخر'].includes(x.status)).length,attendancePct=att.length?Math.round(present/att.length*100):0;
-    const gradeRows=[...currentMonthRows(grades.get(code)||st.grades||[]),...currentMonthRows(examAttempts.get(code)||[])].filter(x=>Number.isFinite(Number(x.score))),gradePct=gradeRows.length?Math.round(gradeRows.reduce((sum,x)=>sum+(Number(x.maxScore)>0?Number(x.score)/Number(x.maxScore)*100:Number(x.score)),0)/gradeRows.length):0;
+    const gradeRows=normalizeUnifiedResults({grades:currentMonthRows(grades.get(code)||st.grades||[]),examAttempts:currentMonthRows(examAttempts.get(code)||[])}).filter(row=>row.status==='graded'&&Number.isFinite(Number(row.percentage))),gradePct=gradeRows.length?Math.round(gradeRows.reduce((sum,row)=>sum+Number(row.percentage),0)/gradeRows.length):0;
     const allStudentHomework=homeworks.get(code)||st.homeworks||[],hw=currentMonthRows(allStudentHomework).filter(complete),rec=currentMonthRows(recitations.get(code)||st.recitations||[]).filter(complete);
     const requiredAssignments=assignmentSnap.docs.map(item=>({id:item.id,...item.data()})).filter(item=>assignmentIsReleased(item)&&learningTargetMatchesStudent(item,st)&&cairoDateKey(item.publishAt||item.createdAt||item.dueDate).slice(0,7)===period.monthKey);
     const homeworkSummary=homeworkMetrics(requiredAssignments,allStudentHomework);
@@ -3181,7 +3202,7 @@ exports.recordClassProgress = onCall(CALLABLE_OPTIONS, async request => {
   const ref = db.collection(collection).doc(id);
   if (!completed) {
     await ref.delete().catch(() => {});
-    await markLeaderboardDirty(`${type}-removed`);
+    await Promise.all([markLeaderboardDirty(`${type}-removed`),markStudentMonthlyReportDirty(studentCode,date,`${type}-removed`)]);
     return { id, type, studentCode, date, completed: false, removed: true };
   }
   const payload = {
@@ -3206,7 +3227,7 @@ exports.recordClassProgress = onCall(CALLABLE_OPTIONS, async request => {
     updatedAt: FieldValue.serverTimestamp()
   };
   await ref.set(payload, { merge: true });
-  await markLeaderboardDirty(type);
+  await Promise.all([markLeaderboardDirty(type),markStudentMonthlyReportDirty(studentCode,date,type)]);
   return { ...payload, updatedAt: new Date().toISOString() };
 });
 
@@ -3754,7 +3775,10 @@ exports.submitExam = onCall(EXAM_ENTRY_OPTIONS, async request => {
   });
   // Exam grades are part of the monthly motivation score. Invalidate the
   // leaderboard cache immediately so the new grade is reflected at once.
-  await markLeaderboardDirty('exam-submitted');
+  await Promise.all([
+    markLeaderboardDirty('exam-submitted'),
+    markStudentMonthlyReportDirty(studentCode,submittedAt,'exam-submitted')
+  ]);
   return committedResult;
 });
 

@@ -220,3 +220,27 @@ html[data-theme="dark"] .lecture-kind-badge{border-color:#4c6280!important;backg
 /* V67.8.2 — apply the saved theme atomically and keep the official mark. */
 html.theme-switching *,html.theme-switching *::before,html.theme-switching *::after{transition:none!important}
 .site-header .logo .logo-mark,.topbar .logo .logo-mark,.mobile-brand .logo-mark{background-color:transparent!important;background-image:url("technominds-logo.webp")!important;background-position:center!important;background-repeat:no-repeat!important;background-size:contain!important;box-shadow:none!important}
+
+/* V67.8.3 — one touch-safe scroll surface for exam grading and re-grading. */
+body.correction-open{overflow:hidden!important;overscroll-behavior:none!important}
+.correction-modal-v40{overflow:hidden!important;overscroll-behavior:none!important;padding:max(10px,env(safe-area-inset-top,0px)) max(10px,env(safe-area-inset-right,0px)) max(10px,env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px))!important}
+.correction-card-v40{display:grid!important;grid-template-rows:auto minmax(0,1fr) auto!important;width:min(980px,100%)!important;height:min(900px,calc(100dvh - 20px))!important;min-height:0!important;max-height:calc(100dvh - 20px)!important;overflow:hidden!important;overscroll-behavior:none;border-radius:24px!important}
+.correction-card-v40.card:before{display:none!important}
+.correction-head-v683{min-width:0;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.correction-head-v683>div{min-width:0}.correction-head-v683 h2,.correction-head-v683 p{overflow-wrap:anywhere}
+.correction-mode-note-v683{margin:8px 0 0;padding:9px 11px;border:1px solid color-mix(in srgb,var(--brand) 22%,var(--border));border-radius:12px;background:color-mix(in srgb,var(--brand) 7%,var(--surface));color:var(--text)!important;font-size:.84rem;line-height:1.7!important}
+.correction-list-v40{display:grid!important;align-content:start;gap:12px;min-height:0!important;margin:0!important;padding:12px 4px 24px;overflow-x:hidden!important;overflow-y:auto!important;overscroll-behavior-y:contain!important;touch-action:pan-y!important;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable}
+.correction-question-v40{min-width:0}.correction-question-v40 h3,.correction-answer-grid-v40 p{overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap}
+.correction-question-v40 label{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;font-weight:900}.correction-question-v40 input[type="number"]{min-height:48px;margin-inline-start:0!important;font-size:16px;text-align:center;touch-action:manipulation}
+.correction-final-v40{position:relative!important;bottom:auto!important;z-index:2;grid-template-columns:minmax(140px,.5fr) minmax(220px,1fr) auto!important;min-width:0;margin:0!important;border-radius:16px!important;box-shadow:0 -8px 24px rgba(15,23,42,.08)}
+.correction-final-v40 label{min-width:0}.correction-final-v40 input,.correction-final-v40 textarea{width:100%;min-width:0!important;font-size:16px}.correction-final-v40 textarea{min-height:48px;max-height:96px;resize:vertical}.correction-final-v40 .btn{min-width:190px;min-height:50px}
+html[data-theme="dark"] .correction-mode-note-v683{border-color:#39516d;background:#102945;color:#edf5ff!important}
+.motivation-score-breakdown-v683{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;width:100%;margin:12px 0}.motivation-score-breakdown-v683 span{display:grid;gap:4px;min-width:0;padding:10px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--muted);font-size:.78rem;font-weight:850}.motivation-score-breakdown-v683 b{color:var(--text);font-size:1rem}.leaderboard-metrics{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+@media(max-width:720px){
+  .correction-modal-v40{place-items:stretch!important;padding:0!important}
+  .correction-card-v40{width:100vw!important;height:100dvh!important;max-height:100dvh!important;border-radius:0!important;padding:calc(12px + env(safe-area-inset-top,0px)) 12px calc(8px + env(safe-area-inset-bottom,0px))!important}
+  .correction-head-v683{align-items:flex-start!important;gap:8px}.correction-head-v683 h2{font-size:1.22rem;margin-block:5px}.correction-head-v683 .section-desc{font-size:.8rem}.correction-mode-note-v683{font-size:.78rem;padding:7px 9px}
+  .correction-list-v40{padding:10px 0 20px}.correction-question-v40{padding:11px!important}.correction-answer-grid-v40{grid-template-columns:1fr!important}.correction-answer-grid-v40 p{line-height:1.65}
+  .correction-final-v40{grid-template-columns:1fr 1fr!important;gap:8px!important;padding:9px!important}.correction-reason-v683{grid-column:2}.correction-final-v40 .btn{grid-column:1/-1;width:100%;min-width:0}.correction-final-v40 textarea{max-height:72px}.motivation-score-breakdown-v683{grid-template-columns:1fr 1fr}.leaderboard-metrics{grid-template-columns:1fr 1fr!important}
+}
+@media(max-width:430px){.correction-final-v40{grid-template-columns:112px minmax(0,1fr)!important}.correction-final-v40 label{font-size:.78rem}.correction-final-v40 input,.correction-final-v40 textarea{padding:8px!important}}
