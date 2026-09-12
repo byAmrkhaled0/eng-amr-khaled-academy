@@ -1,5 +1,5 @@
-const CACHE_NAME = "technominds-v67-8-4-admin-session";
-const ASSET_VERSION = "67.8.4";
+const CACHE_NAME = "technominds-v67-8-5-admin-session";
+const ASSET_VERSION = "67.8.5";
 const APP_SHELL = [
   "/", "/index.html", "/student.html", "/parent.html", "/exams.html", "/materials.html", "/theory-lectures.html", "/questions.html", "/practical.html", "/learning-path.html", "/about.html", "/reviews.html", "/privacy.html",
   "/terms.html", "/offline.html", "/assets/site.css", "/assets/v55.css",
@@ -43,21 +43,21 @@ self.addEventListener("install", event => {
   event.waitUntil((async()=>{
     const cache=await caches.open(CACHE_NAME);
     await Promise.allSettled(VERSIONED_APP_SHELL.map(url=>cache.add(new Request(url,{cache:"reload"}))));
-    await self.skipWaiting();
+    // A waiting release activates when existing tabs close, or after explicit update.
   })());
 });
 
 self.addEventListener("activate", event => {
   event.waitUntil((async()=>{
     const keys=await caches.keys();
-    await Promise.all(keys.filter(key=>key!==CACHE_NAME).map(key=>caches.delete(key)));
+    await Promise.all(keys.filter(key=>key.startsWith('technominds-')&&key!==CACHE_NAME).map(key=>caches.delete(key)));
     await self.clients.claim();
   })());
 });
 
 self.addEventListener("message", event => {
   if(event.data && event.data.type==="SKIP_WAITING") self.skipWaiting();
-  if(event.data && event.data.type==="CLEAR_OLD_CACHES") event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE_NAME).map(key=>caches.delete(key)))));
+  if(event.data && event.data.type==="CLEAR_OLD_CACHES") event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('technominds-')&&key!==CACHE_NAME).map(key=>caches.delete(key)))));
 });
 
 self.addEventListener('sync',event=>{
@@ -76,7 +76,7 @@ self.addEventListener("fetch", event => {
       try{
         const response=await fetch(request);
         // Never cache a URL carrying a student/parent access code.
-        if(response.ok && url.pathname==='/teacher-login.html'){
+        if(response.ok && !url.search && url.pathname==='/teacher-login.html'){
           // The teacher shell contains no credentials, so keep the last opened
           // copy for offline attendance without putting the heavy admin bundle
           // in the first-install cache.
@@ -115,16 +115,11 @@ self.addEventListener("fetch", event => {
   }
 
   if(url.pathname.startsWith("/assets/")){
-    // Versioned static assets are returned from cache immediately on repeat
-    // visits while a background request refreshes them. Large QR and Excel
-    // bundles enter this cache only after the user actually opens that tool.
-    const network=fetch(request,{cache:"reload"}).then(async response=>{
-      if(response.ok){const cache=await caches.open(CACHE_NAME);await cache.put(request,response.clone());}
-      return response;
-    });
-    event.respondWith(caches.match(request).then(cached=>{
-      if(cached){event.waitUntil(network.catch(()=>null));return cached;}
-      return network.catch(()=>caches.match(request));
-    }));
+    event.respondWith((async()=>{
+      const cache=await caches.open(CACHE_NAME),cached=await cache.match(request);
+      if(cached&&url.searchParams.get('v')===ASSET_VERSION)return cached;
+      try{const response=await fetch(request);if(response.ok)await cache.put(request,response.clone());return response;}
+      catch(error){if(cached)return cached;throw error;}
+    })());
   }
 });

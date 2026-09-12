@@ -24,15 +24,16 @@
     if(toast){toast.setAttribute('role','status');toast.setAttribute('aria-live','polite');}
   }
 
-  function closePublicMenu(){document.body.classList.remove('v56-public-menu-open');document.querySelector('.v56-site-menu-button')?.setAttribute('aria-expanded','false');}
+  function closePublicMenu(){document.body.classList.remove('v56-public-menu-open');document.documentElement.classList.remove('v56-public-menu-open');const drawer=document.querySelector('.v56-public-menu');if(drawer){drawer.inert=true;drawer.setAttribute('aria-hidden','true');}const button=document.querySelector('.v56-site-menu-button');button?.setAttribute('aria-expanded','false');button?.focus();}
   function installPublicMobileMenu(){
     const navbar=document.querySelector('.site-header .navbar'),nav=document.querySelector('.site-header .navlinks');
     if(!navbar||!nav||document.querySelector('.v56-site-menu-button'))return;
     const links=[...nav.querySelectorAll('a')].map(link=>`<a href="${link.getAttribute('href')||'#'}">${link.textContent.trim()}</a>`).join('');
     navbar.insertAdjacentHTML('beforeend','<button class="v56-site-menu-button" type="button" aria-label="فتح قائمة الموقع" aria-expanded="false"><span></span><span></span><span></span></button>');
-    document.body.insertAdjacentHTML('beforeend',`<div class="v56-public-menu-backdrop" aria-hidden="true"></div><aside class="v56-public-menu" aria-label="قائمة الموقع"><div class="v56-public-menu-head"><div><small>Techno Minds</small><b>م. عمرو خالد</b></div><button type="button" aria-label="إغلاق القائمة">×</button></div><nav>${links}</nav><a class="btn primary" href="index.html#booking">احجز مكانك الآن</a></aside>`);
+    document.body.insertAdjacentHTML('beforeend',`<div class="v56-public-menu-backdrop" aria-hidden="true"></div><aside class="v56-public-menu" role="dialog" aria-modal="true" aria-hidden="true" inert aria-label="قائمة الموقع"><div class="v56-public-menu-head"><div><small>Techno Minds</small><b>م. عمرو خالد</b></div><button type="button" aria-label="إغلاق القائمة">×</button></div><nav>${links}</nav><a class="btn primary" href="index.html#booking">احجز مكانك الآن</a></aside>`);
     const button=document.querySelector('.v56-site-menu-button'),backdrop=document.querySelector('.v56-public-menu-backdrop'),drawer=document.querySelector('.v56-public-menu');
-    button.addEventListener('click',()=>{const open=!document.body.classList.contains('v56-public-menu-open');document.body.classList.toggle('v56-public-menu-open',open);button.setAttribute('aria-expanded',String(open));});
+    button.addEventListener('click',()=>{const open=!document.body.classList.contains('v56-public-menu-open');if(!open){closePublicMenu();return;}document.body.classList.add('v56-public-menu-open');document.documentElement.classList.add('v56-public-menu-open');drawer.inert=false;drawer.setAttribute('aria-hidden','false');button.setAttribute('aria-expanded','true');drawer.querySelector('button').focus();});
+    drawer.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();closePublicMenu();}if(event.key==='Tab'){const items=[...drawer.querySelectorAll('button,a[href]')],first=items[0],last=items.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}});
     backdrop.addEventListener('click',closePublicMenu);drawer.querySelector('.v56-public-menu-head button').addEventListener('click',closePublicMenu);drawer.querySelectorAll('a').forEach(link=>link.addEventListener('click',closePublicMenu));
   }
 

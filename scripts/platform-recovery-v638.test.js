@@ -12,17 +12,17 @@ test('Firebase functions use the recovery entrypoint without dropping existing e
   const entry=read('functions/entry.js');
   assert.equal(pkg.main,'entry.js');
   assert.match(entry,/const base = require\('\.\/index'\)/);
-  assert.match(entry,/module\.exports=\{\.\.\.base,restoreAutomaticBackup,restoreContentItem,repairLegacyExamFormats\}/);
+  assert.match(entry,/module\.exports=\{\.\.\.base,restoreContentItem,repairLegacyExamFormats\}/);
 });
 
-test('schema 63 backups restore with a safety backup and nested progress',()=>{
-  const entry=read('functions/entry.js');
-  assert.match(entry,/RESTORE-V63/);
-  assert.match(entry,/\[53,54,60,63\]\.includes\(payload\.schemaVersion\)/);
-  assert.match(entry,/createSafetyBackup\('pre-restore',staff\)/);
-  assert.match(entry,/name==='student_attempts'/);
-  assert.match(entry,/name==='student_progress'/);
-  assert.match(entry,/row\.lectures/);
+test('all backup entrypoints share the same recursive schema',()=>{
+  const entry=read('functions/entry.js'),backend=read('functions/index.js');
+  assert.match(entry,/createBackupService/);assert.match(backend,/createBackupService/);
+  assert.doesNotMatch(entry,/const restoreAutomaticBackup/);
+  const {BACKUP_COLLECTIONS,planRestore}=require('../functions/lib/backup');
+  assert(BACKUP_COLLECTIONS.includes('exam_review_history'));
+  const result=planRestore({schemaVersion:63,backupFormatVersion:2,project:'test',collections:{student_progress:[{id:'s1',data:{},monthlyEvents:[{id:'m1',data:{value:2}}]}]}},'test');
+  assert.equal(result.documents[1].path,'student_progress/s1/monthly_events/m1');assert.equal(result.plan.deletes,0);
 });
 
 test('archive restore is admin-only and limited to exams and homework',()=>{

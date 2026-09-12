@@ -1063,7 +1063,7 @@ html{overflow-x:hidden;-webkit-text-size-adjust:100%}
 body{overflow-x:hidden;padding-bottom:0;-webkit-tap-highlight-color:transparent}
 img{max-width:100%;height:auto}
 button,.btn,a,input,select,textarea{touch-action:manipulation}
-button:focus-visible,.btn:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid rgba(21,94,239,.28);outline-offset:3px}
+button:focus-visible,.btn:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--primary,#155eef);outline-offset:3px}
 .btn,.theme-toggle,.mobile-bottom a{min-height:var(--tap)}
 .btn.is-loading{position:relative;color:transparent!important;pointer-events:none}
 .btn.is-loading:after{content:"";position:absolute;width:20px;height:20px;border:3px solid currentColor;border-top-color:transparent;border-radius:50%;animation:portalSpin .7s linear infinite;color:#fff}
@@ -1249,3 +1249,15 @@ body{background:radial-gradient(circle at 12% 4%,rgba(21,154,165,.14),transparen
 .exam-pdf-upload{display:grid;gap:10px;padding:14px;border:2px dashed rgba(11,107,116,.28);border-radius:16px;background:rgba(11,107,116,.07)}.exam-pdf-upload span{display:grid;gap:3px}.exam-pdf-upload small{color:var(--muted);line-height:1.6}.exam-pdf-upload input{padding:10px;background:var(--surface)}.exam-pdf-link{display:inline-flex;margin:4px 0 10px}.exam-live-pdf{display:inline-flex;align-items:center;gap:5px;margin-top:5px;padding:5px 9px;border-radius:9px;background:rgba(255,255,255,.14);color:inherit;font-size:.78rem;font-weight:900}.exam-live-pdf svg{width:16px}.teacher-install-button{width:100%;margin-top:12px;min-height:48px}
 @media(max-width:980px){.booking-admin-card{grid-template-columns:1fr}.booking-admin-card>.mobile-actions{min-width:0}.booking-admin-details{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:600px){.booking-admin-details{grid-template-columns:1fr}.booking-admin-card>.mobile-actions{grid-template-columns:1fr!important}.issued-codes-card .mobile-actions{grid-template-columns:1fr!important}.exam-pdf-link{width:100%;justify-content:center}.exam-app-header{align-items:flex-start}}
+
+/* Reviewed shared interactions: immediate feedback, bounded dialogs, printable reports. */
+button:active,.btn:active{transform:translateY(1px)}
+#monthlyPaymentModal .payment-dialog{max-height:calc(100dvh - 24px);overflow-y:auto;overscroll-behavior:contain;padding-bottom:max(20px,env(safe-area-inset-bottom))}
+#monthlyPaymentModal .field{min-width:0}#monthlyPaymentModal input,#monthlyPaymentModal select{max-width:100%}
+.payment-history-shell{grid-column:1/-1;min-width:0;overflow-wrap:anywhere}
+.payment-history-actions{display:flex;gap:8px;flex-wrap:wrap}.payment-history-actions button{min-height:44px}
+#parentMonthlyReport [role=note]{padding:12px;border:1px solid var(--border);border-radius:12px}#parentMonthlyReport p,#parentMonthlyReport small{overflow-wrap:anywhere}
+@media(max-width:480px){#monthlyPaymentModal .grid-2{grid-template-columns:minmax(0,1fr)}.payment-toolbar{grid-template-columns:minmax(0,1fr)}.parent-detail-grid-v40{grid-template-columns:minmax(0,1fr)}}
+@media print{.report-print-button,.parent-month-filter-v637{display:none!important}body.printing-parent-report #parentMonthlyReport{color:#111;background:#fff}body.printing-parent-report .parent-panel-v40{break-inside:auto!important}body.printing-parent-report .report-list-row-v40{break-inside:avoid}body.printing-parent-report .parent-detail-grid-v40{display:block!important}}
+
+html.payment-dialog-open,body.payment-dialog-open{overflow-y:hidden}

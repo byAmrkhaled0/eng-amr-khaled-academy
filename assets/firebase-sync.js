@@ -2,7 +2,7 @@
   'use strict';
 
   const cfg=window.MF_FIREBASE_CONFIG||{};
-  const FRONTEND_VERSION='67.8.4';
+  const FRONTEND_VERSION='67.8.5';
   const API_SCHEMA_VERSION='portal-v64.0.0';
   if(!cfg.enabled||typeof firebase==='undefined'){
     window.MFCloud={ready:false,error:'Firebase غير مفعل'};
@@ -138,6 +138,8 @@
       registerTeacherPushToken:callable('registerTeacherPushToken'),
       unregisterTeacherPushToken:callable('unregisterTeacherPushToken'),
       createPaymentTransaction:callable('createPaymentTransaction'),
+      getPaymentDashboard:callable('getPaymentDashboard'),
+      getPaymentHistory:callable('getPaymentHistory'),
       editPaymentTransaction:callable('editPaymentTransaction'),
       cancelPaymentTransaction:callable('cancelPaymentTransaction'),
       addStudentMotivationPoints:callable('addStudentMotivationPoints'),
@@ -177,6 +179,7 @@
       grantHomeworkRetake:callable('grantHomeworkRetake'),
       recordAttendance:callable('recordAttendance'),
       syncOfflineAttendance:callable('syncOfflineAttendance'),
+      prepareOfflineAttendance:callable('prepareOfflineAttendance'),
       bulkMarkAttendance:callable('bulkMarkAttendance'),
       upsertVersionedContent:callable('upsertVersionedContent'),
       getHomeworkAdminWorkspace:callable('getHomeworkAdminWorkspace'),
@@ -187,6 +190,7 @@
       listAutomaticBackups:callable('listAutomaticBackups'),
       getBackupDownloadUrl:callable('getBackupDownloadUrl'),
       restoreAutomaticBackup:callable('restoreAutomaticBackup'),
+      previewAutomaticBackup:callable('previewAutomaticBackup'),
       deleteStudentSafely:callable('deleteStudentSafely'),
       activateOwnerAccount:callable('activateOwnerAccount'),
       getPlatformHealth:callable('getPlatformHealth'),
@@ -697,8 +701,8 @@
       subscribeToGroups:handler=>db.collection('groups').onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>console.warn('group-listener',error)),
       subscribeToStudents:handler=>db.collection('students').orderBy('updatedAt','desc').limit(200).onSnapshot(snap=>handler(snap.docs.map(doc=>normalizedStudent({id:doc.id,...doc.data()})),snap.docChanges()),error=>console.warn('student-listener',error)),
       subscribeToStudentTransferRequests:handler=>db.collection('student_transfer_requests').limit(1000).onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>console.warn('student-transfer-listener',error)),
-      subscribeMonthlyPayments:handler=>db.collection('monthly_payments').orderBy('updatedAt','desc').limit(500).onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>handler(null,[],error)),
-      subscribePaymentTransactions:handler=>db.collection('payment_transactions').orderBy('paymentDate','desc').limit(500).onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>handler(null,[],error)),
+      getPaymentDashboard:data=>calls.getPaymentDashboard(data),
+      getPaymentHistory:data=>calls.getPaymentHistory(data),
       subscribeToHomeworkSubmissions:(handler,assignmentId='')=>{let query=db.collection('homework_submissions').orderBy('submittedAt','desc').limit(120);if(assignmentId)query=db.collection('homework_submissions').where('assignmentId','==',String(assignmentId)).orderBy('submittedAt','desc').limit(120);return query.onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>handler(null,[],error));},
       subscribeToExamAttempts:(handler,examId='')=>{let query=db.collection('exam_attempts').orderBy('submittedAt','desc').limit(120);if(examId)query=db.collection('exam_attempts').where('examId','==',String(examId)).orderBy('submittedAt','desc').limit(120);return query.onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>handler(null,[],error));},
       subscribeToMotivationTransactions:handler=>db.collection('motivation_transactions').orderBy('createdAt','desc').limit(120).onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>handler(null,[],error)),
@@ -764,6 +768,7 @@
       reviewExamAttempt:async payload=>{if(!calls.reviewExamAttempt)throw new Error('Secure exam correction service is unavailable');return calls.reviewExamAttempt(payload||{});},
       upsertAttendance,getAttendanceForDate,
       recordAttendanceByQr:(attendanceCode,date)=>{if(!calls.recordAttendance)throw new Error('Secure attendance service unavailable');return calls.recordAttendance({attendanceCode:String(attendanceCode||'').trim().toUpperCase(),date,status:'present'});},
+      prepareOfflineAttendance:data=>calls.prepareOfflineAttendance(data),
       syncOfflineAttendance:events=>{if(!calls.syncOfflineAttendance)throw new Error('Offline attendance sync service unavailable');return calls.syncOfflineAttendance({events:Array.isArray(events)?events:[]});},
       bulkMarkAttendance:payload=>{if(!calls.bulkMarkAttendance)throw new Error('Bulk attendance service unavailable');return calls.bulkMarkAttendance(payload||{});},
       getStudentByCode:async(code,options={})=>{const normalized=normalizeCode(code),result=requireCompatibleBackend(await fetchPortalStudent({code:normalized,mode:'student',includeTransfers:options.includeTransfers===true}));savePortalSession(normalized,'student',result);return result;},
@@ -820,7 +825,8 @@
       createBackupNow:()=>{if(!calls.createBackupNow)throw new Error('Backup function unavailable');return calls.createBackupNow({});},
       listAutomaticBackups:()=>{if(!calls.listAutomaticBackups)throw new Error('Backup function unavailable');return calls.listAutomaticBackups({});},
       getBackupDownloadUrl:name=>{if(!calls.getBackupDownloadUrl)throw new Error('Backup function unavailable');return calls.getBackupDownloadUrl({name});},
-      restoreAutomaticBackup:name=>{if(!calls.restoreAutomaticBackup)throw new Error('Restore function unavailable');return calls.restoreAutomaticBackup({name,confirmation:'RESTORE-V60.6'});},
+      previewAutomaticBackup:name=>calls.previewAutomaticBackup({name}),
+      restoreAutomaticBackup:(name,planId)=>calls.restoreAutomaticBackup({name,planId,confirmation:'RESTORE-MERGE'}),
       deleteWhere
     };
   }catch(error){console.error(error);window.MFCloud={ready:false,error};}

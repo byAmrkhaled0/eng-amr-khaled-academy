@@ -80,8 +80,8 @@ service firebase.storage {
     }
 
     match /teacher-files/{fileName} {
-      allow read, create, update, delete: if isTeacher()
-        && (request.resource == null || (fileName.size() <= 220 && safeTeacherFile()));
+      allow read, delete: if isTeacher();
+      allow create, update: if isTeacher() && fileName.size() <= 220 && safeTeacherFile();
     }
 
     match /public/uploads/{fileName} {

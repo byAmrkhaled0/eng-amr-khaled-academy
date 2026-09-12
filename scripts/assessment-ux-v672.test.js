@@ -70,9 +70,9 @@ test('release metadata stays synchronized after the assessment UX release', () =
   const backend = require(path.join(root, 'functions/package.json'));
   const worker = read('service-worker.js');
 
-  assert.equal(frontend.version, '67.8.4');
+  assert.equal(frontend.version, '67.8.5');
   assert.equal(backend.version, frontend.version);
-  assert.match(read('assets/app.js'), /MF_ASSET_VERSION = '67\.8\.4'/);
-  assert.match(worker, /technominds-v67-8-4-admin-session/);
-  assert.match(worker, /ASSET_VERSION = "67\.8\.4"/);
+  assert.match(read('assets/app.js'), /MF_ASSET_VERSION = '67\.8\.5'/);
+  assert.match(worker, /technominds-v67-8-5-admin-session/);
+  assert.match(worker, /ASSET_VERSION = "67\.8\.5"/);
 });
