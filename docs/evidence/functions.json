@@ -1,0 +1,956 @@
+[
+  {
+    "name": "activateOwnerAccount",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "addStudentMotivationPoints",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "approveBooking",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "archiveContentItem",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "bulkMarkAttendance",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 60,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "cancelPaymentTransaction",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "cleanupArchivedStorage",
+    "type": "schedule",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 300,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "createBackupNow",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 540,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "createBooking",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "createMonthlyExamPlan",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "createPaymentTransaction",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "createReview",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "createStudentAccess",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "createStudentTransferRequest",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "deleteCurriculumEntity",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "deleteStudentSafely",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 120,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "editPaymentTransaction",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "finalizeExamAbsences",
+    "type": "schedule",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 300,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "finalizeExamAbsencesAdmin",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 120,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "freezeLeaderboardMonthAdmin",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 120,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "freezeMonthlyLeaderboard",
+    "type": "schedule",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 180,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getAdminCollectionPage",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getAdminOperationsDashboard",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 60,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getBackupDownloadUrl",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getBookingStatus",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getClassSessionWorkspace",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getCodeExecutionResult",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 15,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getCodeLanguages",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 15,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getCurriculumFileUrl",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getExamDashboard",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 30,
+    "maxInstances": 20,
+    "concurrency": 80
+  },
+  {
+    "name": "getHomeworkAdminWorkspace",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getLectureContent",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getMotivationLeaderboardAdmin",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getMotivationSettingsAdmin",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getParentMonthlyReport",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 60,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getPaymentDashboard",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 60,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getPaymentHistory",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getPlatformHealth",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 15,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getPlatformHealthHttp",
+    "type": "HTTP",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 15,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getPortalStudent",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 30,
+    "maxInstances": 20,
+    "concurrency": 80
+  },
+  {
+    "name": "getPublicLeaderboard",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getStudentAdminProfile",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getStudentCurriculum",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getStudentLeaderboardPosition",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getStudentMonthlyReportAdmin",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 60,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getStudentMotivationAdmin",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getStudentResources",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "getTheoryLectureAnalytics",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "grantHomeworkRetake",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "invalidateReport_assignments",
+    "type": "event",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": null,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "invalidateReport_attendance",
+    "type": "event",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": null,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "invalidateReport_class_sessions",
+    "type": "event",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": null,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "invalidateReport_exam_attempts",
+    "type": "event",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": null,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "invalidateReport_exam_sessions",
+    "type": "event",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": null,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "invalidateReport_exams",
+    "type": "event",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": null,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "invalidateReport_grades",
+    "type": "event",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": null,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "invalidateReport_homework_submissions",
+    "type": "event",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": null,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "invalidateReport_monthly_payments",
+    "type": "event",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": null,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "invalidateReport_recitations",
+    "type": "event",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": null,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "invalidateReport_student_transfer_requests",
+    "type": "event",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": null,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "invalidateReport_students",
+    "type": "event",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": null,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "listAutomaticBackups",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "listCurriculumAdmin",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "logStaffActivity",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "migrateCurriculumV61",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 1024,
+    "timeoutSeconds": 540,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "migrateLegacyPayments",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 540,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "migratePlatformV63",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 1024,
+    "timeoutSeconds": 540,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "migrateStudentCodeSafely",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "notifyStaffOnBookingCreated",
+    "type": "event",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": null,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "prepareHomeworkUpload",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "prepareMonthlyParentReports",
+    "type": "schedule",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 540,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "prepareOfflineAttendance",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 60,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "previewAutomaticBackup",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 120,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "recordAttendance",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "recordClassProgress",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "recordLectureProgress",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "regenerateParentAccessCode",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "registerHomeworkSubmission",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "registerTeacherPushToken",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "rejectBooking",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "repairLegacyExamFormats",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 540,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "reportClientError",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "restoreAutomaticBackup",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 1024,
+    "timeoutSeconds": 540,
+    "maxInstances": 1,
+    "concurrency": 1
+  },
+  {
+    "name": "restoreContentItem",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "reverseStudentMotivationTransaction",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "reviewExamAttempt",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "reviewHomeworkSubmission",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "reviewStudentTransferRequest",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "saveExamProgress",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "saveMotivationSettingsAdmin",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "saveStudentPrivateNote",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "scheduledPlatformBackup",
+    "type": "schedule",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 540,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "searchStudentsAdmin",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "startExam",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 30,
+    "maxInstances": 20,
+    "concurrency": 80
+  },
+  {
+    "name": "submitAssignmentAnswer",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "submitCodeExecution",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "submitExam",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 30,
+    "maxInstances": 20,
+    "concurrency": 80
+  },
+  {
+    "name": "syncOfflineAttendance",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 60,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "unifyLegacyStudentAccess",
+    "type": "schedule",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 120,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "unifyStudentAccessCodes",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 512,
+    "timeoutSeconds": 120,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "unregisterTeacherPushToken",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "updateStudentSafely",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "upsertClassSession",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "upsertCurriculumEntity",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "upsertGroupSchedule",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  },
+  {
+    "name": "upsertVersionedContent",
+    "type": "callable",
+    "region": "europe-west1",
+    "memoryMiB": 256,
+    "timeoutSeconds": 30,
+    "maxInstances": 10,
+    "concurrency": null
+  }
+]

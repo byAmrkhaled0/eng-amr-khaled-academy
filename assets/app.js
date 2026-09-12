@@ -14,7 +14,7 @@ var HOMEWORK_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 var PENDING_BOOKING_REQUEST_KEY = 'mf_pending_booking_request_v1';
 var cloudSaveTimer = null;
 var staffCacheTimer = null;
-var MF_ASSET_VERSION = '67.8.4';
+var MF_ASSET_VERSION = '67.8.5';
 var mfLazyScriptPromises = Object.create(null);
 var publicScheduleUnsubscribe = null;
 
@@ -330,9 +330,9 @@ function setupUnifiedHeader(){
     document.body.insertAdjacentElement('afterbegin',header);
   }
   const links=[
-    ['index.html','الرئيسية'],['materials.html','المحاضرات'],
+    ['index.html','الرئيسية'],['materials.html','محاضرات عملي'],['theory-lectures.html','محاضرات نظري'],
     ['about.html','عن م. عمرو'],['practical.html','العملي'],['index.html#booking','الحجز'],
-    ['student.html','بوابة الطالب'],['parent.html','ولي الأمر'],['theory-lectures.html','محاضرات النظري'],['questions.html','بنوك الأسئلة'],['exams.html','الاختبارات']
+    ['student.html','بوابة الطالب'],['parent.html','ولي الأمر'],['questions.html','بنوك الأسئلة'],['exams.html','الاختبارات']
   ];
   const activeFile=file==='teacher-login.html'?'':file;
   header.innerHTML=`<div class="container navbar"><a aria-label="Techno Minds" class="logo" href="index.html"><span class="logo-mark"></span><span>Techno Minds <small>Programming &amp; AI</small></span></a><nav aria-label="روابط الموقع" class="navlinks">${links.map(([href,label])=>{const parts=href.split('#'),target=parts[0],hash=parts[1]||'';const active=hash?activeFile==='index.html'&&location.hash===`#${hash}`:target===activeFile&&!location.hash;return `<a href="${href}"${active?' class="active" aria-current="page"':''}>${label}</a>`;}).join('')}</nav><div class="header-actions"><button aria-label="تغيير الوضع" class="theme-toggle" id="themeToggle" type="button"></button></div></div>`;
@@ -739,7 +739,7 @@ async function setupStudent(){
     const dashboard=document.querySelector('.student-app-dashboard'),active=dashboard?.querySelector('[data-student-tab].active')?.dataset.studentTab||'overview';
     try{const refreshed=await loadStudentForPortal(lastPortalStudent.studentCode,{force:true});if(protectedStudentWorkOpen())return;lastPortalStudent=refreshed;const box=document.getElementById('studentResult');if(box)renderStudentPortal(box,refreshed,{portalForm:form,activeTab:active});}
     catch(error){console.warn('student-portal-background-refresh',error?.code||error?.message||error);}
-  };document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});window.addEventListener('focus',refresh);window.setInterval(refresh,60000);window.__studentPortalAutoRefreshBound=true;}
+  };document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});window.addEventListener('focus',refresh);window.__studentPortalAutoRefreshBound=true;}
 }
 var parentQrScanner = null;
 var lastParentStudent = null;
@@ -882,14 +882,20 @@ function parentReportHTML(raw,selectedMonth=''){
   </div>`;
 }
 
+function monthlyResultStatus(row){
+  return ({absent:'غائب عن الامتحان',available:'متاح للبدء',upcoming:'لم يبدأ موعده',started:'بدأ ولم يسلّم',pending_review:'قيد التصحيح'})[row.status]||(row.score===null||row.score===undefined?'قيد التصحيح':`${row.score} من ${row.maxScore} — ${row.percentage===null||row.percentage===undefined?'-':Math.round(row.percentage*100)/100}%`);
+}
 function parentMonthlyReportText(report){
-  const st=report?.student||{},attendance=report?.attendance||{},results=report?.results||{},homework=report?.homework||{},study=report?.study||{},trend=report?.trend||{};
-  const absenceWarning=attendance.consecutiveAbsenceWarning,absenceWarningText=absenceWarning?`\n⚠️ ${absenceWarning.message} (${(absenceWarning.dates||[]).join('، ')})`:'';
-  const resultLines=(results.rows||[]).length?(results.rows||[]).map(row=>`- ${row.activityName||row.examTitle||'درجة'}: ${row.status==='absent'||row.absent===true?'غائب عن الامتحان':row.score===null||row.score===undefined?'قيد التصحيح':`${row.score} من ${row.maxScore||100}`}`).join('\n'):'- لا توجد درجات مسجلة في الشهر';
-  const homeworkLines=(homework.rows||[]).length?(homework.rows||[]).map(row=>`- ${row.assignment?.title||'واجب'}: ${row.status==='missing'?'لم يسلّم':row.submission?.score===null||row.submission?.score===undefined?'تم التسليم وقيد التصحيح':`تم التسليم — ${row.submission.score} من ${row.submission.maxScore||row.assignment?.totalScore||100}`}`).join('\n'):'- لا توجد واجبات مطلوبة في الشهر';
-  const evidence=report?.sufficientData?`الالتزام بالمذاكرة داخل المنصة: ${report.commitmentLevel} (${report.commitmentScore}%)`:'لا توجد بيانات كافية للحكم على انتظام المذاكرة داخل المنصة.';
-  const motivation=report?.motivation,motivationLines=motivation?`\nترتيب التحفيز الشهري: المركز ${motivation.rank||'-'} من ${motivation.totalStudents||'-'} — ${motivation.level||'-'} (${motivation.score??0}%)\nدرجات الامتحانات في الترتيب: ${motivation.gradePct??0}%\nتسليم الواجبات في الترتيب: ${motivation.homeworkPct??0}%\nدرجات الواجبات في الترتيب: ${motivation.homeworkGradePct??0}%\n`:'';
-  return `أهلًا بحضرتك، مع حضرتك م. عمرو خالد، مهندس برمجيات ومدرس البرمجة والذكاء الاصطناعي ومؤسس Techno Minds.\n\nتقرير الطالب/ة ${st.name||'-'} عن شهر ${reportMonthLabel(report.monthKey)}\nالكود: ${st.studentCode||'-'}\nالمسار: ${st.grade||'-'}\nالمجموعة: ${st.group||'-'}\n\nالمستوى العام: ${report.overallScore??'-'}% — ${report.level||'بيانات غير كافية'}\nالمستوى الأكاديمي: ${report.academicScore??'-'}%\n${evidence}\nالتقدم: ${trend.label||'لا توجد بيانات كافية للمقارنة'}\n${motivationLines}\nالحضور: ${attendance.present||0} من ${attendance.total||0}${attendance.percentage===null||attendance.percentage===undefined?'':` — ${attendance.percentage}%`}${absenceWarningText}\nالواجبات: سلّم ${homework.submitted||0} من ${homework.required||0} — لم يسلّم ${homework.missing||0}\nمتوسط درجات الواجبات: ${homework.averageGrade??'-'}%\nمتوسط الدرجات والامتحانات: ${results.average??'-'}%\nالمحاضرات: فتح ${study.lecturesOpened||0} وأكمل ${study.lecturesCompleted||0}\n\nكل درجات الشهر:\n${resultLines}\n\nالواجبات والمتابعة:\n${homeworkLines}\n\nنقاط القوة:\n${(report.strengths||[]).map(value=>`- ${value}`).join('\n')||'- لا توجد بيانات كافية'}\n\nيحتاج متابعة في:\n${(report.concerns||[]).map(value=>`- ${value}`).join('\n')||'- لا توجد ملاحظات مقلقة'}\n\nملاحظات م. عمرو خالد:\n${report.teacherNotes||'لا توجد ملاحظات خاصة بهذا الشهر.'}`;
+  const st=report.student||{},a=report.attendance||{},r=report.results||{},h=report.homework||{},study=report.study||{},lines=[];
+  const add=(title,rows)=>lines.push('',title,...(rows.length?rows:['لا توجد بيانات كافية.']));
+  lines.push('Techno Minds — تقرير ولي الأمر الشهري',`الطالب: ${st.name||'-'} — ${st.studentCode||'-'}`,`المسار: ${st.grade||'-'} — المجموعة: ${st.group||'-'}`,`الشهر: ${reportMonthLabel(report.monthKey)} — العام: ${st.academicYear||'-'}`,`آخر تحديث: ${formatPortalDate(report.generatedAt)} — Africa/Cairo`,
+    `المستوى الأكاديمي: ${report.academicScore??'-'}% — ${report.academicLevel||'-'}`,`الالتزام: ${report.commitmentScore??'-'}% — ${report.commitmentLevel||'-'}`,`التقييم العام: ${report.overallScore??'-'}% — ${report.level||'-'}`,`المقارنة: ${report.trend?.label||'لا توجد بيانات كافية وقابلة للمقارنة'}`);
+  add('الحضور', [`المستحق: ${a.required??'غير مؤكد'} — حاضر: ${a.present||0} — غائب: ${a.absent||0} — متأخر: ${a.late||0} — بعذر: ${a.excused||0} — غير مسجل: ${a.unrecorded||0}`,`نسبة الحضور: ${a.percentage??'-'}%`,...(a.rows||[]).map(row=>`${row.date}: ${({present:'حاضر',absent:'غائب',late:'متأخر',excused:'غياب بعذر',unrecorded:'غير مسجل'})[row.status]||row.status}`),...(a.consecutiveAbsenceWarning?[a.consecutiveAbsenceWarning.message]:[])]);
+  add('الامتحانات والدرجات',[`مستحق: ${r.requiredExams||0} — متاح: ${r.availableExams||0} — بدأ: ${r.startedExams||0} — سلّم: ${r.submittedExams||0} — غاب: ${r.missedExams||0} — ينتظر التصحيح: ${r.pendingReview||0}`,`متوسط الاختبارات المصححة: ${r.average??'-'}%`,r.retakePolicy||'',...(r.rows||[]).map(row=>`${row.activityName||row.examTitle||'امتحان'} — ${formatPortalDate(row.date)}: ${monthlyResultStatus(row)}`)]);
+  add('الواجبات',[`مطلوب: ${h.required||0} — سلّم: ${h.submitted||0} — ناقص: ${h.missing||0} — متأخر: ${h.late||0}`,`متوسط المصحح: ${h.averageGrade??'-'}%`,...(h.rows||[]).map(row=>`${row.assignment?.title||'واجب'} — الموعد: ${row.assignment?.dueDate||'غير محدد'}: ${row.status==='missing'?'لم يسلّم':row.status==='available'?'متاح للتسليم':row.submission?.score===null||row.submission?.score===undefined?'قيد التصحيح':`${row.submission.score} من ${row.submission.maxScore}`}${row.late?' — تسليم متأخر':''}`)]);
+  add('التطبيق والمحاضرات',[`تطبيق عملي موثق: ${report.practical?.completed||0}`,`فتح محاضرات: ${study.lecturesOpened||0} — إكمال موثق: ${study.lecturesCompleted||0}`]);
+  add('حدود البيانات',report.warnings||[]);add('نقاط القوة',report.strengths||[]);add('يحتاج متابعة',report.concerns||[]);add('خطوات المتابعة',report.recommendations||[]);add('ملاحظات م. عمرو خالد',[report.teacherNotes||'لا توجد ملاحظات خاصة بهذا الشهر.']);
+  return lines.join('\n');
 }
 window.parentMonthlyReportText=parentMonthlyReportText;
 
@@ -898,27 +904,32 @@ function parentMonthlyReportHTML(report){
   const score=value=>value===null||value===undefined?'-':`${value}%`,monthOptions=(report.availableMonths||[report.monthKey]).map(key=>`<option value="${esc(key)}" ${key===report.monthKey?'selected':''}>${esc(reportMonthLabel(key))}</option>`).join('');
   return `<div class="parent-monthly-report-v40 parent-monthly-report-server" id="parentMonthlyReport">
     <label class="parent-month-filter-v637"><span>عرض تقرير شهر</span><select onchange="renderParentMonth(this.value)">${monthOptions}</select></label>
-    <div class="parent-report-cover-v40"><div class="parent-report-cover-content-v40"><div class="parent-report-main-v40"><span class="kicker">تقرير ولي الأمر الشهري</span><h2>${esc(st.name||'-')}</h2><p>${esc(reportMonthLabel(report.monthKey))} · ${esc(st.grade||'-')} · ${esc(st.group||'-')}</p></div><div class="parent-report-qr-v40"><b>QR الطالب</b>${makeQR(st.studentCode||'')}<small>${esc(st.studentCode||'')}</small></div></div></div>
+    <div class="parent-report-cover-v40"><div class="parent-report-cover-content-v40"><div class="parent-report-main-v40"><span class="kicker">تقرير ولي الأمر الشهري</span><h2>${esc(st.name||'-')}</h2><p>${esc(reportMonthLabel(report.monthKey))} · ${esc(st.academicYear||'-')} · ${esc(st.grade||'-')} · ${esc(st.group||'-')}</p><small>آخر تحديث: ${esc(formatPortalDate(report.generatedAt))} — Africa/Cairo</small></div><div class="parent-report-qr-v40"><b>QR الطالب</b>${makeQR(st.studentCode||'')}<small>${esc(st.studentCode||'')}</small></div></div></div>
     <div class="parent-actions-v38 no-print"><button class="btn primary" type="button" onclick="printParentReport()">طباعة / حفظ PDF</button><button class="btn ghost" type="button" onclick="copyParentReport('${esc(st.studentCode||'')}')">نسخ التقرير</button>${st.parentPhone?`<button class="btn whatsapp-report-btn" type="button" onclick="openParentWhatsApp('${esc(st.studentCode||'')}')">صورة التقرير + واتساب</button>`:''}</div>
     <div class="metric-grid parent-report-metrics-v40"><div class="metric main-metric-v40"><b>${score(report.overallScore)}</b><small>${esc(report.level||'المستوى العام')}</small></div><div class="metric"><b>${score(report.academicScore)}</b><small>المستوى الأكاديمي</small></div><div class="metric"><b>${score(report.commitmentScore)}</b><small>الالتزام والمذاكرة</small></div><div class="metric"><b>${score(attendance.percentage)}</b><small>الحضور</small></div><div class="metric"><b>${score(homework.completionPercentage)}</b><small>تسليم الواجبات</small></div><div class="metric"><b>${score(results.average)}</b><small>متوسط الدرجات</small></div></div>
     <div class="parent-status-card-v40 ${trendTone}"><div><span>التقدم مقارنة بالشهر السابق</span><h3>${esc(trend.label||'بيانات غير كافية')}</h3></div><p>${report.sufficientData?`حالة المذاكرة داخل المنصة: ${esc(report.commitmentLevel||'-')}.`:'لا توجد أنشطة كافية لإصدار حكم دقيق على انتظام المذاكرة.'}</p></div>
     ${report.motivation?`<section class="parent-motivation-summary"><div><span class="kicker">التحفيز الشهري</span><h3>${esc(report.motivation.level)} · ${esc(report.motivation.score)}%</h3><p>المركز ${esc(report.motivation.rank)} من ${esc(report.motivation.totalStudents)} في المسار · المركز ${esc(report.motivation.groupRank)} في المجموعة</p></div><div class="motivation-score-breakdown-v683"><span>درجات الامتحانات <b>${esc(report.motivation.gradePct??0)}%</b></span><span>تسليم الواجبات <b>${esc(report.motivation.homeworkPct??0)}%</b></span><span>درجات الواجبات <b>${esc(report.motivation.homeworkGradePct??0)}%</b></span><span>الحضور <b>${esc(report.motivation.attendancePct??0)}%</b></span></div><div class="motivation-achievements">${(report.motivation.achievements||[]).map(item=>`<span class="badge good">${esc(item)}</span>`).join('')}</div><p><b>الخطوة المقترحة:</b> ${esc(report.motivation.nextAction||'الاستمرار على نفس المستوى')}</p>${(report.motivation.penaltyReasons||[]).length?`<div class="motivation-penalties">${report.motivation.penaltyReasons.map(item=>`<span class="badge danger">${esc(item.label)}</span>`).join('')}</div>`:''}</section>`:''}
     ${(report.history||[]).length>1?`<section class="parent-progress-chart-v65"><div class="student-panel-title"><div><span class="kicker">تطور المستوى</span><h3>آخر ${(report.history||[]).length} أشهر</h3></div></div><div class="parent-progress-bars-v65">${report.history.map(item=>`<div class="parent-progress-column-v65"><span style="height:${Math.max(6,Number(item.overallScore||0))}%"></span><b>${item.overallScore===null||item.overallScore===undefined?'-':`${esc(item.overallScore)}%`}</b><small>${esc(reportMonthLabel(item.monthKey))}</small></div>`).join('')}</div></section>`:''}
     ${attendance.consecutiveAbsenceWarning?`<div class="parent-status-card-v40 danger"><div><span>تحذير غياب متتالٍ</span><h3>${esc(attendance.consecutiveAbsenceWarning.message)}</h3></div><p>الحصص: ${esc((attendance.consecutiveAbsenceWarning.dates||[]).join('، '))}</p></div>`:''}
-    <div class="parent-detail-grid-v40">
-      <section class="mini-panel parent-panel-v40"><h3>الدرجات والامتحانات</h3>${(results.rows||[]).map(row=>{const absent=row.status==='absent'||row.absent===true;return `<div class="report-list-row-v40"><div><b>${esc(row.activityName||row.examTitle||'درجة')}</b><small>${esc(formatPortalDate(row.date||row.submittedAt))}</small></div><span class="badge ${absent?'danger':row.score===null||row.score===undefined?'warn':'good'}">${absent?'غائب عن الامتحان':row.score===null||row.score===undefined?'قيد التصحيح':`${esc(row.score)} من ${esc(row.maxScore||100)}`}</span></div>`;}).join('')||'<p>لا توجد درجات مسجلة في هذا الشهر.</p>'}</section>
-      <section class="mini-panel parent-panel-v40"><h3>الواجبات</h3>${(homework.rows||[]).map(row=>`<div class="report-list-row-v40"><div><b>${esc(row.assignment?.title||'واجب')}</b><small>${row.assignment?.dueDate?`آخر موعد: ${esc(row.assignment.dueDate)}`:'بدون موعد نهائي'}</small></div><span class="badge ${row.status==='missing'?'danger':row.submission?.score===null||row.submission?.score===undefined?'warn':'good'}">${row.status==='missing'?'لم يسلّم':row.submission?.score===null||row.submission?.score===undefined?'قيد التصحيح':`${esc(row.submission.score)} من ${esc(row.submission.maxScore||row.assignment?.totalScore||100)}`}</span></div>`).join('')||'<p>لا توجد واجبات مطلوبة في هذا الشهر.</p>'}</section>
-      <section class="mini-panel parent-panel-v40"><h3>الحضور والمذاكرة</h3><p>الحضور: <b>${esc(attendance.present||0)} من ${esc(attendance.total||0)}</b></p><p>فتح المحاضرات: <b>${esc(study.lecturesOpened||0)}</b> · أكمل: <b>${esc(study.lecturesCompleted||0)}</b></p><p>التطبيق العملي: <b>${esc(report.practical?.completed||0)}</b></p></section>
+    <div role="note">${(report.warnings||[]).map(item=>`<p>${esc(item)}</p>`).join('')}</div><div class="parent-detail-grid-v40">
+      <section class="mini-panel parent-panel-v40"><h3>الدرجات والامتحانات</h3><p>مستحق ${results.requiredExams??0} · متاح ${results.availableExams??0} · بدأ ${results.startedExams??0} · سلّم ${results.submittedExams??0} · غياب ${results.missedExams??0} · ينتظر التصحيح ${results.pendingReview??0}</p><small>${esc(results.retakePolicy||'')}</small>${(results.rows||[]).map(row=>{const absent=row.status==='absent'||row.absent===true;return `<div class="report-list-row-v40"><div><b>${esc(row.activityName||row.examTitle||'درجة')}</b><small>${esc(formatPortalDate(row.date||row.submittedAt))}</small></div><span class="badge ${esc(monthlyResultStatus(row))}</span></div>`;}).join('')||'<p>لا توجد درجات مسجلة في هذا الشهر.</p>'}</section>
+      <section class="mini-panel parent-panel-v40"><h3>الواجبات</h3><p>مطلوب ${homework.required??0} · سلّم ${homework.submitted??0} · ناقص ${homework.missing??0} · متأخر ${homework.late??0}</p>${(homework.rows||[]).map(row=>`<div class="report-list-row-v40"><div><b>${esc(row.assignment?.title||'واجب')}</b><small>${row.assignment?.dueDate?`آخر موعد: ${esc(row.assignment.dueDate)}`:'بدون موعد نهائي'}</small></div><span class="badge ${row.status==='missing'?'danger':row.submission?.score===null||row.submission?.score===undefined?'warn':'good'}">${row.status==='missing'?'لم يسلّم':row.status==='available'?'متاح للتسليم':row.submission?.score===null||row.submission?.score===undefined?'قيد التصحيح':`${esc(row.submission.score)} من ${esc(row.submission.maxScore||row.assignment?.totalScore||100)}`}</span></div>`).join('')||'<p>لا توجد واجبات مطلوبة في هذا الشهر.</p>'}</section>
+      <section class="mini-panel parent-panel-v40"><h3>الحضور والمذاكرة</h3><p>الحصص المستحقة: ${attendance.required??'غير مؤكد'} · غياب ${attendance.absent??0} · متأخر ${attendance.late??0} · بعذر ${attendance.excused??0} · غير مسجل ${attendance.unrecorded??0}</p>${(attendance.rows||[]).map(row=>`<p>${esc(row.date)} — ${esc(({present:'حاضر',absent:'غائب',late:'متأخر',excused:'غياب بعذر',unrecorded:'لم يسجل'})[row.status]||row.status)}</p>`).join('')}<p>الحضور: <b>${esc(attendance.present||0)} من ${esc(attendance.total||0)}</b></p><p>فتح المحاضرات: <b>${esc(study.lecturesOpened||0)}</b> · إكمال موثّق: <b>${esc(study.lecturesCompleted||0)}</b></p><p>التطبيق العملي: <b>${esc(report.practical?.completed||0)}</b></p></section>
       <section class="mini-panel parent-panel-v40"><h3>نقاط القوة</h3>${(report.strengths||[]).map(item=>`<p>✓ ${esc(item)}</p>`).join('')||'<p>لا توجد بيانات كافية بعد.</p>'}</section>
-      <section class="mini-panel parent-panel-v40"><h3>يحتاج متابعة في</h3>${(report.concerns||[]).map(item=>`<p>• ${esc(item)}</p>`).join('')||'<p>لا توجد ملاحظات مقلقة.</p>'}</section>
+      <section class="mini-panel parent-panel-v40"><h3>يحتاج متابعة في</h3>${(report.concerns||[]).map(item=>`<p>• ${esc(item)}</p>`).join('')||'<p>لا توجد جوانب إضافية مثبتة بالبيانات.</p>'}</section>
       <section class="mini-panel parent-panel-v40 parent-pay-v40"><h3>دفع الشهر</h3><p>${pay?`الحالة: <b>${esc(pay.status==='paid'?'تم الدفع':pay.status==='partial'?'دفع جزئي':'لم يدفع')}</b> · المتبقي: <b>${esc(formatPortalMoney(pay.remainingAmount))}</b>`:'لا توجد حالة دفع مسجلة لهذا الشهر.'}</p></section>
-      <section class="mini-panel parent-panel-v40 parent-notes-v40"><h3>ملاحظات م. عمرو خالد</h3><p>${esc(report.teacherNotes||'لا توجد ملاحظات خاصة بهذا الشهر.')}</p></section>
+      <section class="mini-panel parent-panel-v40"><h3>خطوات المتابعة</h3>${(report.recommendations||[]).map(item=>`<p>${esc(item)}</p>`).join('')||'<p>لا توجد توصية كافية مدعومة بالبيانات بعد.</p>'}</section><section class="mini-panel parent-panel-v40 parent-notes-v40"><h3>ملاحظات م. عمرو خالد</h3><p>${esc(report.teacherNotes||'لا توجد ملاحظات خاصة بهذا الشهر.')}</p></section>
     </div><div class="report-footer-v40">مع تحيات م. عمرو خالد — Techno Minds</div></div>`;
 }
 
+let parentReportLoadGeneration=0;
 async function loadParentMonthlyReport(monthKey){
   if(!lastParentStudent||!window.MFCloud?.getParentMonthlyReport)return null;
-  const report=await window.MFCloud.getParentMonthlyReport(lastParentStudent.studentCode,monthKey);lastParentMonthlyReport=report;lastParentReportMonth=report.monthKey;
+  const generation=++parentReportLoadGeneration;lastParentMonthlyReport=null;
+  const report=await window.MFCloud.getParentMonthlyReport(lastParentStudent.studentCode,monthKey);
+  if(generation!==parentReportLoadGeneration)return null;
+  if(report.monthKey!==monthKey)throw new Error('فترة التقرير غير مطابقة للطلب');
+  lastParentMonthlyReport=report;lastParentReportMonth=report.monthKey;
   const box=document.getElementById('parentResult');if(box)box.innerHTML=parentMonthlyReportHTML(report);hydrateIcons();return report;
 }
 
@@ -969,10 +980,10 @@ async function setupParent(){
     finally{button?.classList.remove('is-loading');if(button)button.disabled=false;form.removeAttribute('aria-busy');}
   });
   if(quickCode&&!form.dataset.autoLoaded){form.dataset.autoLoaded='true';setTimeout(()=>form.requestSubmit(),120);}
-  if(!window.__parentPortalAutoRefreshBound){let lastRefresh=0;const refresh=async()=>{if(document.hidden||!lastParentStudent||Date.now()-lastRefresh<15000)return;lastRefresh=Date.now();try{await showParentReportByCode(lastParentStudent.studentCode);}catch(error){console.warn('parent-portal-background-refresh',error?.code||error?.message||error);}};document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});window.addEventListener('focus',refresh);window.setInterval(refresh,60000);window.__parentPortalAutoRefreshBound=true;}
+  if(!window.__parentPortalAutoRefreshBound){let lastRefresh=0;const refresh=async()=>{if(document.hidden||!lastParentStudent||Date.now()-lastRefresh<15000)return;lastRefresh=Date.now();try{await showParentReportByCode(lastParentStudent.studentCode);}catch(error){console.warn('parent-portal-background-refresh',error?.code||error?.message||error);}};document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});window.addEventListener('focus',refresh);window.__parentPortalAutoRefreshBound=true;}
 }
 
-window.renderParentMonth=async function(month){lastParentReportMonth=month;const box=document.getElementById('parentResult');if(!box||!lastParentStudent)return;box.innerHTML='<div class="skeleton" style="height:220px"></div>';try{if(await loadParentMonthlyReport(month))return;}catch(error){toast(firebaseFriendlyError(error,'تعذر تحميل تقرير الشهر.'));}box.innerHTML=parentReportHTML(lastParentStudent,month);hydrateIcons();};
+window.renderParentMonth=async function(month){lastParentReportMonth=month;const box=document.getElementById('parentResult');if(!box||!lastParentStudent)return;box.innerHTML='<div class="skeleton" style="height:220px"></div>';try{if(await loadParentMonthlyReport(month))return;}catch(error){toast(firebaseFriendlyError(error,'تعذر تحميل تقرير الشهر.'));}lastParentMonthlyReport=null;box.innerHTML='<p role="alert">تعذر تحميل تقرير الشهر. أعد المحاولة؛ لم يتم عرض بيانات شهر آخر.</p>';hydrateIcons();};
 
 window.copyParentReport = async function(code){
   const st = (lastParentStudent && lastParentStudent.studentCode===code) ? lastParentStudent : (window.MF_FIREBASE_CONFIG?.useSecureFunctions===false ? findStudentByCode(code) : null);
@@ -987,28 +998,19 @@ function parentReportWhatsAppIntro(report){
 }
 window.parentReportWhatsAppIntro=parentReportWhatsAppIntro;
 
-function parentReportImageBlob(report){
-  return new Promise((resolve,reject)=>{
-    try{
-      const results=report?.results?.rows||[],homework=report?.homework?.rows||[],concerns=report?.concerns||[],strengths=report?.strengths||[];
-      const width=1080,height=Math.max(1500,1180+(results.length+homework.length+concerns.length+strengths.length)*58),canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
-      const ctx=canvas.getContext('2d');ctx.direction='rtl';ctx.textAlign='right';ctx.fillStyle='#f5f8fc';ctx.fillRect(0,0,width,height);
-      const box=(y,h,color='#fff')=>{ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(55,y,width-110,h,28);ctx.fill();};
-      const text=(value,x,y,size=31,color='#15233b',weight=500)=>{ctx.fillStyle=color;ctx.font=`${weight} ${size}px Cairo, Arial, sans-serif`;ctx.fillText(String(value??''),x,y);};
-      const line=(label,value,x,y)=>{text(label,x,y,25,'#637089',500);text(value,x,y+39,32,'#14213d',700);};
-      ctx.fillStyle='#07111f';ctx.fillRect(0,0,width,270);text('TECHNO MINDS',width-70,83,35,'#56d6ff',800);text('تقرير ولي الأمر الشهري',width-70,145,48,'#fff',800);text(`${report?.student?.name||'-'}  •  ${reportMonthLabel(report?.monthKey)}`,width-70,207,32,'#dce9f7',600);text(`كود الطالب: ${report?.student?.studentCode||'-'}`,width-70,250,24,'#9fb2c8',500);
-      box(305,190);line('المستوى العام',`${report?.overallScore??'-'}% — ${report?.level||'-'}`,width-95,360);line('التقدم مقارنة بالشهر السابق',report?.trend?.label||'لا توجد بيانات كافية',width-95,445);
-      box(525,190);const metrics=[['الحضور',report?.attendance?.percentage],['الواجبات',report?.homework?.completionPercentage],['الدرجات',report?.results?.average],['المذاكرة',report?.commitmentScore]];metrics.forEach(([label,value],index)=>{const cell=width-95-index*235;line(label,value===null||value===undefined?'-':`${value}%`,cell,580);});
-      let y=755;const section=(title,rows,empty)=>{const sectionHeight=85+Math.max(1,rows.length)*52;box(y,sectionHeight);text(title,width-95,y+49,30,'#07111f',800);if(!rows.length)text(empty,width-95,y+100,25,'#718096',500);else rows.forEach((row,index)=>text(row,width-95,y+100+index*52,25,'#24324a',600));y+=sectionHeight+25;};
-      section('الامتحانات والدرجات',results.map(row=>`${row.activityName||row.examTitle||'امتحان'}: ${row.status==='absent'||row.absent===true?'غائب عن الامتحان':row.score===null||row.score===undefined?'قيد التصحيح':`${row.score} من ${row.maxScore||100}`}`),'لا توجد امتحانات مسجلة في هذا الشهر');
-      section('الواجبات',homework.map(row=>`${row.assignment?.title||'واجب'}: ${row.status==='missing'?'لم يتم التسليم':row.submission?.score===null||row.submission?.score===undefined?'تم التسليم وقيد التصحيح':`${row.submission.score} من ${row.submission.maxScore||row.assignment?.totalScore||100}`}`),'لا توجد واجبات مطلوبة في هذا الشهر');
-      section('نقاط القوة',strengths.map(item=>`✓ ${item}`),'لا توجد بيانات كافية بعد');
-      section('يحتاج متابعة',concerns.map(item=>`• ${item}`),'لا توجد ملاحظات مقلقة');
-      if(report?.teacherNotes)section('ملاحظات م. عمرو خالد',[report.teacherNotes],'');
-      text('يمكن متابعة التقرير من صفحة ولي الأمر باستخدام كود الطالب الموحّد',width-70,height-70,24,'#65758b',600);
-      canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('تعذر إنشاء صورة التقرير')),'image/png',0.94);
-    }catch(error){reject(error);}
-  });
+async function parentReportImageBlob(report){
+  await document.fonts?.ready;
+  const canvas=document.createElement('canvas'),width=1080,margin=65,lineHeight=48,ctx=canvas.getContext('2d');
+  ctx.font='28px Cairo, Arial, sans-serif';
+  const lines=[];
+  for(const paragraph of parentMonthlyReportText(report).split('\n')){
+    let line='';for(const word of paragraph.split(' ')){const next=line?`${line} ${word}`:word;if(line&&ctx.measureText(next).width>width-2*margin){lines.push(line);line=word;}else line=next;}lines.push(line);
+  }
+  const height=130+lines.length*lineHeight;
+  if(height>24000)throw new Error('التقرير طويل للصورة؛ استخدم طباعة / حفظ PDF للاحتفاظ بكل البيانات.');
+  canvas.width=width;canvas.height=height;ctx.fillStyle='#f5f8fc';ctx.fillRect(0,0,width,height);ctx.direction='rtl';ctx.textAlign='right';ctx.fillStyle='#15233b';ctx.font='28px Cairo, Arial, sans-serif';
+  lines.forEach((line,index)=>ctx.fillText(line,width-margin,70+index*lineHeight));
+  return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('تعذر إنشاء صورة التقرير')),'image/png'));
 }
 window.parentReportImageBlob=parentReportImageBlob;
 
@@ -1623,7 +1625,7 @@ function registerServiceWorker(){
     // student/parent links. Development does not need offline caching.
     Promise.all([
       navigator.serviceWorker.getRegistrations().then(rows=>Promise.all(rows.map(row=>row.unregister()))),
-      'caches' in window?caches.keys().then(keys=>Promise.all(keys.map(key=>caches.delete(key)))):Promise.resolve()
+      'caches' in window?caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('technominds-')).map(key=>caches.delete(key)))):Promise.resolve()
     ]).finally(()=>{
       if(navigator.serviceWorker.controller&&!sessionStorage.getItem('mf_local_sw_cleaned')){
         sessionStorage.setItem('mf_local_sw_cleaned','1');location.reload();
@@ -1635,11 +1637,12 @@ function registerServiceWorker(){
     try{
       const registration=await navigator.serviceWorker.register('/service-worker.js',{updateViaCache:'none'});
       await registration.update().catch(()=>{});
-      if(registration.waiting)registration.waiting.postMessage({type:'SKIP_WAITING'});
-      registration.addEventListener('updatefound',()=>{const worker=registration.installing;worker?.addEventListener('statechange',()=>{if(worker.state==='installed'&&navigator.serviceWorker.controller)worker.postMessage({type:'SKIP_WAITING'});});});
+      const notifyUpdate=()=>toast('تحديث جديد جاهز؛ احفظ عملك ثم أغلق تبويبات المنصة وأعد فتحها.');
+      if(registration.waiting)notifyUpdate();
+      registration.addEventListener('updatefound',()=>{const worker=registration.installing;worker?.addEventListener('statechange',()=>{if(worker.state==='installed'&&navigator.serviceWorker.controller)notifyUpdate();});});
     }catch(_){ }
   });
-  navigator.serviceWorker.addEventListener('controllerchange',()=>{try{if(protectedStudentWorkOpen()){sessionStorage.setItem('mf_sw_reload_deferred_v6400','1');return;}if(sessionStorage.getItem('mf_sw_reloaded_v6400'))return;sessionStorage.setItem('mf_sw_reloaded_v6400','1');location.reload();}catch(_){ }});
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{try{if(protectedStudentWorkOpen()||location.pathname.endsWith('teacher-login.html')||document.querySelector('[role=dialog]')){sessionStorage.setItem('mf_sw_reload_deferred_v6400','1');return;}if(sessionStorage.getItem('mf_sw_reloaded_v6400'))return;sessionStorage.setItem('mf_sw_reloaded_v6400','1');location.reload();}catch(_){ }});
 }
 function setupPWAInstall(){
   const button=document.getElementById('installAppButton');if(!button)return;let installPrompt=null;
@@ -1663,3 +1666,5 @@ function setupAccessibleDialogs(){
 }
 function init(){setupInteractionPerformance();setupFastNavigationPrefetch();setupValidationFeedback();setupDuplicateSubmitGuard();setupUnifiedHeader();setupImageLazyLoading();setupTheme(); setupActiveNavigation(); bindLocalizedDigits(); registerServiceWorker(); setupPWAInstall(); setupClientErrorReporting(); hydrateIcons(); fillSelects(); setupBooking(); setupStudent(); setupParent(); setupExamsPage(); setupStudentResourcesPage(); setupReviews(); setupContact(); setupAdminLink(); setupLeaderboardGradePicker(); renderHomeCounts(); renderPublicLeaderboard(); renderReviews(); renderUnifiedResourcesPage(); setupMotionReveal(); setupAccessibleDialogs(); initFirebaseData();}
 document.addEventListener('DOMContentLoaded',init);
+
+window.printCurrentMonthlyReport=function(){if(!lastParentMonthlyReport)return toast('انتظر تحميل التقرير الصحيح أولًا.');window.printParentReport();};

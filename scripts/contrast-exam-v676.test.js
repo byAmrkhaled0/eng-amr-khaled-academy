@@ -52,6 +52,6 @@ test('routes and first-load assets keep non-blocking and cache-safe behavior',()
   }
   const worker=read('service-worker.js');
   assert.doesNotMatch(worker.match(/const APP_SHELL = \[[\s\S]*?\];/)?.[0]||'',/html5-qrcode|xlsx-0\.18/);
-  assert.match(worker,/if\(cached\)\{event\.waitUntil\(network\.catch\(\(\)=>null\)\);return cached;\}/);
+  assert.ok(worker.includes("if(cached&&url.searchParams.get('v')===ASSET_VERSION)return cached"));
   assert.match(read('firebase.json'),/"public": "dist"/);
 });

@@ -16,9 +16,9 @@ const functionBody = name => {
 };
 
 test('release, theme bootstrap and transparent logo stay synchronized', () => {
-  assert.equal(require(path.join(root, 'package.json')).version, '67.8.4');
-  assert.equal(require(path.join(root, 'functions/package.json')).version, '67.8.4');
-  assert.match(read('service-worker.js'), /technominds-v67-8-4-admin-session/);
+  assert.equal(require(path.join(root, 'package.json')).version, '67.8.5');
+  assert.equal(require(path.join(root, 'functions/package.json')).version, '67.8.5');
+  assert.match(read('service-worker.js'), /technominds-v67-8-5-admin-session/);
 
   for (const name of fs.readdirSync(root).filter(file => file.endsWith('.html'))) {
     const html = read(name);
@@ -82,7 +82,7 @@ test('Firebase and Vercel route maps resolve to exported functions', () => {
   const firebaseRoutes = new Map(firebase.hosting.rewrites.map(item => [item.source, item.function.functionId]));
   const vercelRoutes = new Map(vercel.rewrites.map(item => [item.source, item.destination.split('/').pop()]));
   const expected = {
-    '/api/health': ['getPlatformHealth', 'getPlatformHealthHttp'],
+    '/api/health': ['getPlatformHealthHttp', 'getPlatformHealthHttp'],
     '/api/portal/student': ['getPortalStudent', 'getPortalStudent'],
     '/api/parent/monthly-report': ['getParentMonthlyReport', 'getParentMonthlyReport'],
     '/api/exams/dashboard': ['getExamDashboard', 'getExamDashboard'],

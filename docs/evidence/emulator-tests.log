@@ -1,0 +1,36 @@
+i  emulators: Starting emulators: firestore, storage
+i  emulators: Detected demo project ID "demo-technominds", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+i  firestore: Firestore Emulator logging to firestore-debug.log
+✔  firestore: Firestore Emulator was started in standard edition.
+✔  firestore: Firestore Emulator UI websocket is running on 9150.
+i  Running script: node --test --test-concurrency=1 scripts/firebase-rules.emulator.test.js scripts/review.integration.test.js
+✔ only the verified active Admin can read student data (1702.127952ms)
+[2026-09-12T08:24:54.678Z]  @firebase/firestore: Firestore (12.17.0): GrpcConnection RPC 'Write' stream 0x23542069 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'update' @ L116, false for 'update' @ L209
+✔ exam grading cannot be written directly even by Admin (93.389767ms)
+[2026-09-12T08:24:54.803Z]  @firebase/firestore: Firestore (12.17.0): GrpcConnection RPC 'Write' stream 0x2354206c error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L166, false for 'create' @ L209, false for 'update' @ L166, false for 'update' @ L209
+[2026-09-12T08:24:54.833Z]  @firebase/firestore: Firestore (12.17.0): GrpcConnection RPC 'Write' stream 0x2354206d error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L167, false for 'create' @ L209, false for 'update' @ L167, false for 'update' @ L209
+✔ class sessions and private notes are Admin-readable but server-write-only (193.632478ms)
+✔ only the intended public settings document is anonymous-readable (35.345887ms)
+✔ private curriculum files are readable only by the verified active Admin (290.071983ms)
+✔ payment: concurrent retry, cancel, new equal payment, changed payload and second device (3879.711007ms)
+✔ offline: prepared scope, replay, two devices, bad QR and revoked session (3111.630455ms)
+✔ shared backup restores old and complete nested snapshots without removing omitted records (1304.616277ms)
+✔ report cache invalidates after a corrected grade and never exposes internal notes (180.084995ms)
+✔ dashboard pages the complete 1201-student and 610-summary period on Firestore (891.282139ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 12239.631906
+✔  Script exited successfully (code 0)
+i  emulators: Shutting down emulators.
+i  firestore: Stopping Firestore Emulator
+i  storage: Stopping Storage Emulator
+i  hub: Stopping emulator hub
+i  logging: Stopping Logging Emulator

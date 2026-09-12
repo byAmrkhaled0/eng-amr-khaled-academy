@@ -1,0 +1,14 @@
+i  emulators: Starting emulators: firestore, storage
+i  emulators: Detected demo project ID "demo-technominds", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+i  firestore: Firestore Emulator logging to firestore-debug.log
+✔  firestore: Firestore Emulator was started in standard edition.
+✔  firestore: Firestore Emulator UI websocket is running on 9150.
+i  Running script: node scripts/review.performance.js /workspace/scratch/6010d2e1ad5a/baseline before && node scripts/review.performance.js . after
+{"label":"before","samples":20,"environment":"Node direct handler + local emulators; no device/network or Cloud Run cold start","metrics":{"payment":{"firstMs":91.97,"warmP50Ms":32.78,"warmP95Ms":40.22},"attendance":{"firstMs":40.35,"warmP50Ms":13.57,"warmP95Ms":18.65},"monthlyReport":{"firstMs":179.8,"warmP50Ms":50.73,"warmP95Ms":69.27}}}
+{"label":"after","samples":20,"environment":"Node direct handler + local emulators; no device/network or Cloud Run cold start","metrics":{"payment":{"firstMs":41.93,"warmP50Ms":19.17,"warmP95Ms":23.53},"attendance":{"firstMs":23.2,"warmP50Ms":9.03,"warmP95Ms":11.4},"monthlyReport":{"firstMs":59.41,"warmP50Ms":12.88,"warmP95Ms":14.65},"paymentDashboard":{"firstMs":20.03,"warmP50Ms":3.91,"warmP95Ms":4.69}}}
+✔  Script exited successfully (code 0)
+i  emulators: Shutting down emulators.
+i  firestore: Stopping Firestore Emulator
+i  storage: Stopping Storage Emulator
+i  hub: Stopping emulator hub
+i  logging: Stopping Logging Emulator

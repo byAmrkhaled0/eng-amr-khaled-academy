@@ -1,12 +1,11 @@
 'use strict';
 
 const crypto = require('crypto');
-const zlib = require('zlib');
 const admin = require('firebase-admin');
 const { version: PLATFORM_VERSION } = require('./package.json');
 const { money, paymentStatus, paymentTotals } = require('./payment-domain');
 const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
-const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onDocumentCreated, onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { setGlobalOptions } = require('firebase-functions/v2/options');
 const { scheduledTimeMillis, assignmentIsReleased, assignmentDueDatePassed } = require('./lib/assignment-schedule');
@@ -33,7 +32,7 @@ const {
   configurableOverallAverage
 } = require('./lib/portal-results');
 const { configuredScheduleDays, cairoWeekdayForDate } = require('./lib/attendance-domain');
-const { calculateMonthlyReport, attachTrend } = require('./lib/monthly-report');
+const { calculateMonthlyReport, attachTrend, membershipAt } = require('./lib/monthly-report');
 const {
   studentNameKey,
   recordNameKey,
@@ -51,9 +50,8 @@ const PAYMENT_MONTH_NAMES = ['يناير','فبراير','مارس','أبريل'
 // Callable endpoints must accept the browser's unauthenticated CORS preflight.
 // Sensitive operations still enforce staff authentication inside each handler.
 const CALLABLE_OPTIONS = { region: 'europe-west1', timeoutSeconds: 30, invoker: 'public' };
-// Keep only the live-exam entry points warm. This is intentionally narrower
-// than the global options so the rest of the administration services do not
-// reserve idle instances.
+// Exam entry points have a separate capacity ceiling. No idle instances
+// are reserved; cold-start latency still requires production measurement.
 const EXAM_ENTRY_OPTIONS = {
   ...CALLABLE_OPTIONS,
   maxInstances: 20,
@@ -325,12 +323,7 @@ async function rateLimit(action, identity, limit, windowMs) {
   });
 }
 
-function requestIp(request) {
-  const forwarded = request.rawRequest && request.rawRequest.headers
-    ? request.rawRequest.headers['x-forwarded-for']
-    : '';
-  return text(String(forwarded || request.rawRequest?.ip || 'unknown').split(',')[0], 100);
-}
+const { requestIp } = require('./lib/request-ip');
 
 async function rateLimitPublic(action, identity, request, identityLimit, ipLimit, windowMs) {
   const normalizedIdentity = text(identity || 'empty', 160);
@@ -500,6 +493,34 @@ function paymentLegacyMirrorWrites(tx, student, summary, paymentDate) {
   if (parentCode) tx.set(db.collection('parent_portal').doc(cleanDocId(parentCode)), { ...legacy, studentCode, parentCode }, { merge: true });
 }
 
+const { buildPaymentDashboard } = require('./lib/payment-dashboard');
+const paymentDashboardCache=new Map();
+exports.getPaymentDashboard = onCall({...CALLABLE_OPTIONS,timeoutSeconds:60,memory:'512MiB'}, async request => {
+  await requireStaff(request);
+  const body=request.data||{},filters={month:text(body.month,40)||'all',academicYear:text(body.academicYear,30)||'all',grade:text(body.grade,100)||'all',status:['paid','partial','unpaid'].includes(body.status)?body.status:'all',query:text(body.query,100)};
+  if(filters.month!=='all'&&!PAYMENT_MONTH_NAMES.includes(filters.month))throw new HttpsError('invalid-argument','الشهر غير صالح.');
+  const cacheKey=JSON.stringify([filters.month,filters.academicYear,cairoDateKey()]);
+  let cached=paymentDashboardCache.get(cacheKey);
+  if(!cached||Date.now()-cached.at>15000||body.force===true){
+    const scope=q=>{if(filters.month!=='all')q=q.where('month','==',filters.month);if(filters.academicYear!=='all')q=q.where('academicYear','==',filters.academicYear);return q;};
+    const [students,summaries,today,settings]=await Promise.all([fetchAllCollectionDocuments('students'),fetchAllCollectionDocuments('monthly_payments',scope),fetchAllCollectionDocuments('payment_transactions',q=>scope(q).where('paymentDate','==',cairoDateKey()).where('status','==','active')),db.collection('settings').doc('platform').get()]);
+    const rows=result=>result.docs.map(doc=>({id:doc.id,...doc.data()}));
+    cached={at:Date.now(),students:rows(students),summaries:rows(summaries),todayTransactions:rows(today),prices:settings.data()?.coursePrices||{}};
+    if(paymentDashboardCache.size>=8)paymentDashboardCache.clear();paymentDashboardCache.set(cacheKey,cached);
+  }
+  const result=buildPaymentDashboard({...cached,filters,canonical:canonicalAcademicLabel});
+  const after=text(body.cursor,500),pageSize=40,rows=result.rows.filter(row=>!after||row.key.localeCompare(after,'en')>0).slice(0,pageSize);
+  return {...result,rows,nextCursor:rows.length===pageSize?rows.at(-1).key:null,generatedAt:new Date(cached.at).toISOString(),maxStalenessSeconds:15};
+});
+exports.getPaymentHistory = onCall(CALLABLE_OPTIONS, async request => {
+  await requireStaff(request);
+  const body=request.data||{},studentCode=normalizeCode(body.studentCode),periodId=paymentPeriodId(studentCode,body.academicYear,body.month,body.course);
+  let query=db.collection('payment_transactions').where('periodId','==',periodId).orderBy(admin.firestore.FieldPath.documentId()).limit(41);
+  if(body.cursor)query=query.startAfter(text(body.cursor,100));
+  const snap=await query.get(),docs=snap.docs.slice(0,40);
+  return {rows:docs.map(doc=>({id:doc.id,...doc.data(),createdAt:reportIso(doc.data().createdAt),updatedAt:reportIso(doc.data().updatedAt)})),nextCursor:snap.size>40?docs.at(-1).id:null};
+});
+
 exports.createPaymentTransaction = onCall(CALLABLE_OPTIONS, async request => {
   const staff = await requireStaff(request);
   const body = request.data || {};
@@ -524,18 +545,18 @@ exports.createPaymentTransaction = onCall(CALLABLE_OPTIONS, async request => {
   const periodId = paymentPeriodId(studentCode, academicYear, month, course);
   const summaryRef = db.collection('monthly_payments').doc(periodId);
   const transactionRef = db.collection('payment_transactions').doc(hash(`${staff.uid}|${requestId}`).slice(0, 48));
-  const duplicateWindow = Math.floor(Date.now() / (2 * 60 * 1000));
-  const duplicateRef = db.collection('_payment_dedup').doc(hash(`${staff.uid}|${studentCode}|${periodId}|${amount}|${paidOn}|${duplicateWindow}`).slice(0, 48));
+  const requestFingerprint=hash(JSON.stringify({studentCode,academicYear,month,course,amount,paidOn,paymentMethod:text(body.paymentMethod||'cash',40),notes:text(body.notes,1000),expectedAmount:money(body.expectedAmount)}));
   let result;
 
   await db.runTransaction(async tx => {
-    const [existingTransaction, duplicate, summarySnap] = await Promise.all([tx.get(transactionRef), tx.get(duplicateRef), tx.get(summaryRef)]);
+    const [existingTransaction, summarySnap] = await Promise.all([tx.get(transactionRef), tx.get(summaryRef)]);
     if (existingTransaction.exists) {
       const existing = existingTransaction.data();
-      result = { id: existingTransaction.id, duplicate: true, periodId: existing.periodId, studentCode: existing.studentCode, amount: money(existing.amount), status: existing.status };
+      if(existing.requestFingerprint!==requestFingerprint)throw new HttpsError('already-exists','معرّف الطلب مستخدم لبيانات أخرى. راجع السجل وابدأ عملية جديدة.');
+      if(existing.status!=='active')throw new HttpsError('failed-precondition','العملية السابقة ملغاة؛ ابدأ دفعة جديدة بمعرّف جديد.');
+      result = { id: existingTransaction.id, duplicate: true, transactionStatus:'active', periodId: existing.periodId, studentCode: existing.studentCode, amount: money(existing.amount), status: existing.status };
       return;
     }
-    if (duplicate.exists) throw new HttpsError('already-exists', 'تم تسجيل دفعة مماثلة منذ لحظات. راجع السجل قبل المحاولة مرة أخرى.');
     const current = summarySnap.exists ? summarySnap.data() : {};
     const periodExpected = money(current.expectedAmount) || expectedAmount;
     const totals = paymentTotals(current, amount, periodExpected);
@@ -554,6 +575,7 @@ exports.createPaymentTransaction = onCall(CALLABLE_OPTIONS, async request => {
       status: 'active',
       periodId,
       requestId,
+      requestFingerprint,
       recordedByUid: staff.uid,
       recordedByEmail: staff.email || '',
       recordedByRole: staff.role || '',
@@ -579,12 +601,12 @@ exports.createPaymentTransaction = onCall(CALLABLE_OPTIONS, async request => {
       updatedAt: FieldValue.serverTimestamp()
     };
     tx.create(transactionRef, transaction);
-    tx.create(duplicateRef, { transactionId: transactionRef.id, expiresAt: Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000) });
     tx.set(summaryRef, summary, { merge: true });
     paymentLegacyMirrorWrites(tx, { ...student, studentCode }, summary, paidOn);
     tx.set(db.collection('activityLog').doc(), paymentAudit(staff, 'تم تسجيل دفعة شهرية', { transactionId: transactionRef.id, studentCode, amount, academicYear, month, course }));
-    result = { id: transactionRef.id, duplicate: false, periodId, studentCode, amount, expectedAmount: summary.expectedAmount, paidAmount: summary.paidAmount, remainingAmount: summary.remainingAmount, status: summary.status };
+    result = { id: transactionRef.id, duplicate: false, transactionStatus:'active', periodId, studentCode, amount, expectedAmount: summary.expectedAmount, paidAmount: summary.paidAmount, remainingAmount: summary.remainingAmount, status: summary.status };
   });
+  paymentDashboardCache.clear();
   return result;
 });
 
@@ -623,6 +645,7 @@ exports.editPaymentTransaction = onCall(CALLABLE_OPTIONS, async request => {
     tx.set(db.collection('activityLog').doc(), paymentAudit(staff, 'تم تعديل دفعة شهرية', { transactionId, oldAmount: money(original.amount), newAmount }));
     result = { id: transactionId, amount: newAmount, expectedAmount: summary.expectedAmount, paidAmount: summary.paidAmount, remainingAmount: summary.remainingAmount, status: summary.status };
   });
+  paymentDashboardCache.clear();
   return result;
 });
 
@@ -656,6 +679,7 @@ exports.cancelPaymentTransaction = onCall(CALLABLE_OPTIONS, async request => {
     tx.set(db.collection('activityLog').doc(), paymentAudit(staff, 'تم إلغاء دفعة شهرية', { transactionId, amount: money(original.amount), reason: text(request.data?.reason, 500) }));
     result = { id: transactionId, cancelled: true, expectedAmount: summary.expectedAmount, paidAmount: summary.paidAmount, remainingAmount: summary.remainingAmount, status: summary.status };
   });
+  paymentDashboardCache.clear();
   return result;
 });
 
@@ -989,7 +1013,7 @@ function portalResponse(data, attempts, records = {}) {
     attendanceCode: text(data.attendanceCode, 40),
     paid: data.paid === true,
     paymentDate: text(data.paymentDate, 40),
-    notes: text(data.notes, 1500),
+    notes: text(data.parentNotes, 1500),
     attendance,
     grades,
     homeworks: rawHomeworks.map(row => publicHomeworkProjection(row)),
@@ -1844,6 +1868,17 @@ exports.getStudentAdminProfile = onCall(CALLABLE_OPTIONS, async request => {
   return { student, period:{academicYear,month}, attendance:filterPeriod(records.attendance).slice(-80).reverse(), grades:filterPeriod(records.grades).slice(-80).reverse(), results:filterPeriod(student.results).slice(0,120), examAttempts:filterPeriod(attempts).slice(0,120), homeworks:filterPeriod(records.homeworks).slice(-80).reverse(), recitations:filterPeriod(records.recitations).slice(-80).reverse(), monthlyPayments:filterPeriod(records.monthlyPayments).slice(-36).reverse(), motivationSummaries:filterPeriod(records.motivationSummaries).slice(0,36), motivationTransactions:filterPeriod(records.motivationTransactions).slice(0,80), privateNotes:notesSnap?notesSnap.docs.map(doc=>({id:doc.id,...doc.data()})):[] };
 });
 
+const REPORT_STUDENT_SOURCES=['attendance','grades','homework_submissions','exam_attempts','exam_sessions','recitations','monthly_payments','student_transfer_requests','students'];
+for(const collection of REPORT_STUDENT_SOURCES){
+  exports[`invalidateReport_${collection}`]=onDocumentWritten({document:`${collection}/{id}`,region:'europe-west1'},async event=>{
+    const codes=new Set([event.data?.before.data(),event.data?.after.data()].filter(Boolean).map(row=>normalizeCode(row.studentCode||row.code||(collection==='students'?event.params.id:''))).filter(Boolean));
+    await Promise.all([...codes].map(code=>db.collection('monthly_report_state').doc(code).set({version:FieldValue.increment(1),updatedAt:FieldValue.serverTimestamp()},{merge:true})));
+  });
+}
+for(const collection of ['assignments','exams','class_sessions']){
+  exports[`invalidateReport_${collection}`]=onDocumentWritten({document:`${collection}/{id}`,region:'europe-west1'},()=>db.doc('_system/report_content').set({version:FieldValue.increment(1),updatedAt:FieldValue.serverTimestamp()},{merge:true}));
+}
+
 function reportPreviousMonthKey(monthKey) {
   const match=String(monthKey||'').match(/^(\d{4})-(\d{2})$/);
   if(!match)return '';
@@ -1866,7 +1901,7 @@ function reportMonthForRow(row={},preferredFields=[]) {
 }
 
 async function reportRowsByStudent(collection,studentCode,fields=['studentCode']) {
-  const snapshots=await Promise.all(fields.map(field=>db.collection(collection).where(field,'==',studentCode).get().catch(()=>null)));
+  const snapshots=await Promise.all(fields.map(field=>db.collection(collection).where(field,'==',studentCode).get()));
   const rows=new Map();
   snapshots.filter(Boolean).forEach(snap=>snap.docs.forEach(doc=>rows.set(doc.id,{id:doc.id,...doc.data()})));
   return [...rows.values()];
@@ -1874,13 +1909,13 @@ async function reportRowsByStudent(collection,studentCode,fields=['studentCode']
 
 function reportPublicRows(rows,kind) {
   return (rows||[]).map(row=>{
-    if(kind==='attendance')return {id:text(row.id,120),sessionId:text(row.sessionId,120),sessionKey:text(row.sessionKey,160),scheduleId:text(row.scheduleId,120),date:text(row.date,10),time:text(row.time,20),status:text(row.status,30),method:text(row.method,30),group:text(row.group,100)};
+    if(kind==='attendance')return {id:text(row.id,120),sessionId:text(row.sessionId,120),classSessionId:text(row.classSessionId,120),sessionKey:text(row.sessionKey,160),scheduleId:text(row.scheduleId,120),date:text(row.date,10),time:text(row.time,20),status:text(row.status,30),method:text(row.method,30),group:text(row.group,100)};
     if(kind==='assignment')return {id:text(row.id,120),title:text(row.title,200),lessonTitle:text(row.lessonTitle,200),publishAt:reportIso(row.publishAt),dueDate:text(row.dueDate,40),totalScore:Number(row.totalScore||1),submissionClosed:row.submissionClosed===true};
     if(kind==='homework')return {id:text(row.id,120),assignmentId:text(row.assignmentId,120),title:text(row.homeworkTitle||row.title,200),submittedAt:reportIso(row.submittedAt||row.date),score:row.score===null||row.score===undefined?null:Number(row.score),maxScore:Number(row.maxScore||100),status:text(row.status,50),attemptNumber:Number(row.attemptNumber||1),needsManualReview:row.needsManualReview===true,approved:row.approved===true};
-    if(kind==='result')return {id:text(row.id,120),examId:text(row.examId,120),activityName:text(row.activityName||row.examTitle||row.exam||row.title,200),examTitle:text(row.examTitle||row.exam,200),type:text(row.type,40),typeLabel:text(row.typeLabel,80),date:reportIso(row.date||row.submittedAt),submittedAt:reportIso(row.submittedAt||row.date),score:row.score===null||row.score===undefined?null:Number(row.score),maxScore:Number(row.maxScore||100),status:text(row.status,50),needsManualReview:row.needsManualReview===true};
-    if(kind==='exam')return {id:text(row.id,120),title:text(row.title||row.examTitle,200),openAt:reportIso(row.openAt||row.createdAt),closeAt:reportIso(row.closeAt),createdAt:reportIso(row.createdAt),totalScore:Number(row.totalScore||row.maxScore||100),required:row.required!==false,finished:row.active===false||row.archived===true||(scheduledTimeMillis(row.closeAt)>0&&scheduledTimeMillis(row.closeAt)<=Date.now())};
+    if(kind==='result')return {id:text(row.id,120),examId:text(row.examId,120),activityName:text(row.activityName||row.examTitle||row.exam||row.title,200),examTitle:text(row.examTitle||row.exam,200),type:text(row.type,40),typeLabel:text(row.typeLabel,80),date:reportIso(row.date||row.submittedAt),submittedAt:reportIso(row.submittedAt||row.date),score:row.score===null||row.score===undefined?null:Number(row.score),maxScore:Number(row.maxScore||100),status:text(row.status,50),needsManualReview:row.needsManualReview===true,attemptNumber:Number(row.attemptNumber||1),reviewedAt:reportIso(row.reviewedAt),updatedAt:reportIso(row.updatedAt),approved:row.approved===true};
+    if(kind==='exam')return {id:text(row.id,120),title:text(row.title||row.examTitle,200),openAt:reportIso(row.openAt||row.createdAt),closeAt:reportIso(row.closeAt),createdAt:reportIso(row.createdAt),totalScore:Number(row.totalScore||row.maxScore||100),required:row.required!==false,cancelled:row.cancelled===true||row.status==='cancelled',finished:(scheduledTimeMillis(row.closeAt)>0&&scheduledTimeMillis(row.closeAt)<=Date.now())};
     if(kind==='practical')return {id:text(row.id,120),title:text(row.title,200),date:reportIso(row.date||row.createdAt),status:text(row.status,60),completed:row.completed===true,approved:row.approved===true};
-    if(kind==='progress')return {id:text(row.id,120),lectureId:text(row.lectureId||row.id,120),title:text(row.title,200),percent:Number(row.maxPercent??row.percent??0),viewed:row.viewed===true,completed:row.completed===true||Number(row.maxPercent??row.percent)>=100,lastOpenedAt:reportIso(row.lastOpenedAt||row.updatedAt),completedAt:reportIso(row.completedAt)};
+    if(kind==='progress')return {id:text(row.id,120),lectureId:text(row.lectureId||row.id,120),title:text(row.title,200),percent:Number(row.maxPercent??row.percent??0),viewed:row.viewed===true,completed:row.completed===true||Number(row.maxPercent??row.percent)>=100,lastOpenedAt:reportIso(row.lastOpenedAt||row.updatedAt),completedAt:reportIso(row.completedAt),completionVerified:row.completionVerified===true,completionEvidence:text(row.completionEvidence,40)};
     return row;
   });
 }
@@ -1888,36 +1923,43 @@ function reportPublicRows(rows,kind) {
 async function loadStudentMonthlyReportSource(student,options={}) {
   const studentCode=normalizeCode(student.studentCode||student.code||student.id);
   const progressRef=db.collection('student_progress').doc(studentCode);
+  const transfers=await reportRowsByStudent('student_transfer_requests',studentCode);
+  const historicalTarget=row=>{const date=cairoDateKey(row.publishAt||row.openAt||row.createdAt);const membership=membershipAt(student,transfers,date);return membership&&learningTargetMatchesStudent(row,{...student,...membership,groupId:membership.scheduleId});};
   const [attendance,grades,homeworks,recitations,payments,attempts,legacyAttempts,progressEvents,progressLectures,assignmentsResult,examsResult]=await Promise.all([
-    reportRowsByStudent('attendance',studentCode,['studentCode','studentId','code']),reportRowsByStudent('grades',studentCode),reportRowsByStudent('homework_submissions',studentCode),reportRowsByStudent('recitations',studentCode),reportRowsByStudent('monthly_payments',studentCode),reportRowsByStudent('exam_attempts',studentCode),db.collection('student_attempts').doc(cleanDocId(studentCode)).collection('attempts').get().catch(()=>null),progressRef.collection('monthly_events').get().catch(()=>null),progressRef.collection('lectures').get().catch(()=>null),options.sharedAssignments?Promise.resolve(options.sharedAssignments):fetchAllCollectionDocuments('assignments'),options.sharedExams?Promise.resolve(options.sharedExams):fetchAllCollectionDocuments('exams')
+    reportRowsByStudent('attendance',studentCode,['studentCode','studentId','code']),reportRowsByStudent('grades',studentCode),reportRowsByStudent('homework_submissions',studentCode),reportRowsByStudent('recitations',studentCode),reportRowsByStudent('monthly_payments',studentCode),reportRowsByStudent('exam_attempts',studentCode),db.collection('student_attempts').doc(cleanDocId(studentCode)).collection('attempts').get(),progressRef.collection('monthly_events').get(),progressRef.collection('lectures').get(),options.sharedAssignments?Promise.resolve(options.sharedAssignments):fetchAllCollectionDocuments('assignments'),options.sharedExams?Promise.resolve(options.sharedExams):fetchAllCollectionDocuments('exams')
   ]);
-  const examRows=new Map(attempts.map(row=>[String(row.id),row]));
+  const sessions=await reportRowsByStudent('class_sessions',String(student.scheduleId||student.groupId||''),['scheduleId']);
+  for(const id of new Set(transfers.map(t=>t.currentScheduleId).filter(id=>id&&id!==student.scheduleId)))sessions.push(...await reportRowsByStudent('class_sessions',id,['scheduleId']));
+  const started=await reportRowsByStudent('exam_sessions',studentCode);
+  const examRows=new Map([...started.map(row=>({...row,status:row.status==='submitted'?row.status:'started',examId:row.examId})),...attempts].map(row=>[String(row.id),row]));
   legacyAttempts?.docs?.forEach(doc=>examRows.set(doc.id,{id:doc.id,...doc.data()}));
-  const assignments=(assignmentsResult?.docs||[]).map(doc=>typeof doc.data==='function'?{id:doc.id,...doc.data()}:doc).filter(row=>row.published!==false&&row.status!=='مسودة'&&learningTargetMatchesStudent(row,student)&&contentAvailableAfterStudentJoined(row,student));
-  const exams=(examsResult?.docs||[]).map(doc=>typeof doc.data==='function'?{id:doc.id,...doc.data()}:doc).filter(row=>row.published!==false&&row.status!=='مسودة'&&learningTargetMatchesStudent(row,student)&&contentAvailableAfterStudentJoined(row,student));
+  const assignments=(Array.isArray(assignmentsResult)?assignmentsResult:assignmentsResult?.docs||[]).map(doc=>typeof doc.data==='function'?{id:doc.id,...doc.data()}:doc).filter(row=>row.published!==false&&row.status!=='مسودة'&&historicalTarget(row)&&contentAvailableAfterStudentJoined(row,student));
+  const exams=(Array.isArray(examsResult)?examsResult:examsResult?.docs||[]).map(doc=>typeof doc.data==='function'?{id:doc.id,...doc.data()}:doc).filter(row=>row.published!==false&&row.status!=='مسودة'&&historicalTarget(row)&&contentAvailableAfterStudentJoined(row,student));
   const monthlyProgress=progressEvents?.docs?.map(doc=>({id:doc.id,...doc.data()}))||[];
   // Older records predate monthly events. They remain usable when their latest
   // activity belongs to the requested month, while all new activity is exact.
   progressLectures?.docs?.forEach(doc=>{if(!monthlyProgress.some(row=>String(row.lectureId)===doc.id))monthlyProgress.push({id:doc.id,lectureId:doc.id,...doc.data()});});
-  return {attendance,grades,homeworks,recitations,payments,examAttempts:[...examRows.values()],progress:monthlyProgress,assignments,exams};
+  return {sessions,transfers,attendance,grades,homeworks,recitations,payments,examAttempts:[...examRows.values()],progress:monthlyProgress,assignments,exams};
 }
 
 function monthlyReportInput(student,source,monthKey) {
   const inMonth=(rows,fields=[])=>rows.filter(row=>reportMonthForRow(row,fields)===monthKey);
-  const assignments=inMonth(source.assignments,['publishAt']);
+  const assignments=inMonth(source.assignments,['publishAt']),exams=inMonth(source.exams,['openAt','createdAt']);
+  const examIds=new Set(exams.map(row=>String(row.id))),knownExamIds=new Set(source.exams.map(row=>String(row.id)));
+  const belongsToExamMonth=row=>examIds.has(String(row.examId))||(!knownExamIds.has(String(row.examId))&&reportMonthForRow(row,['submittedAt','date'])===monthKey);
   const payments=source.payments.filter(row=>reportMonthForRow(row)===monthKey);
   return {
-    monthKey,student,
+    monthKey,student,sessions:inMonth(source.sessions,['date']),transfers:source.transfers,sessionsComplete:student.sessionCalendarCompleteMonths?.includes(monthKey)===true,
     attendance:reportPublicRows(inMonth(source.attendance,['date']),'attendance'),
-    grades:reportPublicRows(inMonth(source.grades,['date']),'result'),
-    examAttempts:reportPublicRows(inMonth(source.examAttempts,['submittedAt']),'result'),
-    homeworks:reportPublicRows(inMonth(source.homeworks,['submittedAt']),'homework'),
+    grades:reportPublicRows(source.grades.filter(belongsToExamMonth),'result'),
+    examAttempts:reportPublicRows(source.examAttempts.filter(belongsToExamMonth),'result'),
+    homeworks:reportPublicRows(source.homeworks.filter(row=>assignments.some(a=>a.id===row.assignmentId)),'homework'),
     assignments:reportPublicRows(assignments,'assignment'),
-    exams:reportPublicRows(inMonth(source.exams,['openAt','createdAt']),'exam'),
+    exams:reportPublicRows(exams,'exam'),
     recitations:reportPublicRows(inMonth(source.recitations,['date']),'practical'),
     lectureProgress:reportPublicRows(inMonth(source.progress,['lastOpenedAt','completedAt']),'progress'),
-    payment:payments.sort((a,b)=>firestoreMillis(b.updatedAt)-firestoreMillis(a.updatedAt))[0]||null,
-    teacherNotes:student.notes||''
+    payment:payments.length?(()=>{const expectedAmount=payments.reduce((sum,row)=>sum+money(row.expectedAmount),0),paidAmount=payments.reduce((sum,row)=>sum+money(row.paidAmount),0);return {expectedAmount,paidAmount,remainingAmount:Math.max(0,expectedAmount-paidAmount),status:paymentStatus(expectedAmount,paidAmount)};})():null,
+    teacherNotes:student.parentNotesByMonth?.[monthKey]||''
   };
 }
 
@@ -1929,10 +1971,12 @@ function reportAvailableMonths(source,currentMonthKey) {
 }
 
 async function buildStudentMonthlyReport(student,monthKey,options={}) {
-  if(!/^\d{4}-\d{2}$/.test(monthKey))throw new HttpsError('invalid-argument','اختر شهر التقرير بصورة صحيحة.');
+  if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(monthKey))throw new HttpsError('invalid-argument','اختر شهر التقرير بصورة صحيحة.');
   const studentCode=normalizeCode(student.studentCode||student.code||student.id),ref=db.collection('monthly_reports').doc(cleanDocId(`${studentCode}_${monthKey}`));
-  const existing=await ref.get().catch(()=>null);
-  if(existing?.exists&&existing.data()?.lockedAt&&!existing.data()?.invalidatedAt&&options.force!==true)return existing.data().report;
+  const stateRef=db.collection('monthly_report_state').doc(studentCode),contentRef=db.doc('_system/report_content');
+  const [existing,stateSnap,contentSnap]=await Promise.all([ref.get(),stateRef.get(),contentRef.get()]);
+  const sourceRevision=Number(stateSnap.data()?.version||0),contentRevision=Number(contentSnap.data()?.version||0),cached=existing.data();
+  if(cached?.report?.schemaVersion===2&&!cached.invalidatedAt&&cached.sourceRevision===sourceRevision&&cached.contentRevision===contentRevision&&Date.now()-firestoreMillis(cached.generatedAt)<60000&&options.force!==true)return cached.report;
   const source=await loadStudentMonthlyReportSource(student,options),previousKey=reportPreviousMonthKey(monthKey);
   const current=calculateMonthlyReport(monthlyReportInput(student,source,monthKey)),previous=calculateMonthlyReport(monthlyReportInput(student,source,previousKey));
   const availableMonths=reportAvailableMonths(source,monthKey);
@@ -1940,16 +1984,13 @@ async function buildStudentMonthlyReport(student,monthKey,options={}) {
     const item=calculateMonthlyReport(monthlyReportInput(student,source,key));
     return {monthKey:key,overallScore:item.overallScore,academicScore:item.academicScore,commitmentScore:item.commitmentScore,attendancePercentage:item.attendance.percentage,homeworkPercentage:item.homework.completionPercentage};
   });
-  let motivation=null;
-  try{
-    const period=periodFromMonthKey(monthKey),previousPeriod=previousPeriodFor(period),grade=canonicalLeaderboardGrade(student.grade);
-    const [currentRows,previousRows]=await Promise.all([leaderboardRowsForPeriod(period.academicYear,period.monthName),leaderboardRowsForPeriod(previousPeriod.academicYear,previousPeriod.monthName)]);
-    const ranked=enrichLeaderboardRows(currentRows.filter(row=>canonicalLeaderboardGrade(row.grade)===grade),previousRows.filter(row=>canonicalLeaderboardGrade(row.grade)===grade));
-    const row=ranked.find(item=>item.studentCode===studentCode);
-    if(row)motivation={rank:row.rank,groupRank:row.groupRank,totalStudents:ranked.length,score:row.score,scoreDelta:row.scoreDelta,rankDelta:row.rankDelta,level:row.level,achievements:row.achievements,penaltyReasons:row.penaltyReasons,nextAction:row.nextAction,nextRankGap:row.nextRankGap,attendancePct:row.attendancePct,gradePct:row.gradePct,homeworkPct:row.homeworkPct,homeworkGradePct:row.homeworkGradePct,recitationPct:row.recitationPct};
-  }catch(error){console.warn('monthly-report-motivation',studentCode,monthKey,error?.message||error);}
+  const motivation=null; // A parent report never rebuilds the all-student leaderboard.
   const report={...attachTrend(current,previous),motivation,previousMonth:{monthKey:previousKey,overallScore:previous.overallScore,academicScore:previous.academicScore,commitmentScore:previous.commitmentScore},availableMonths,history,generatedAt:new Date().toISOString(),timeZone:'Africa/Cairo'};
-  await ref.set({studentCode,monthKey,parentPhone:digits(student.parentPhone),report,status:options.lock===true?'ready':'draft',generatedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp(),invalidatedAt:FieldValue.delete(),invalidationReason:FieldValue.delete(),...(options.lock===true?{lockedAt:FieldValue.serverTimestamp()}:{})},{merge:true});
+  await db.runTransaction(async tx=>{
+    const [currentState,currentContent]=await Promise.all([tx.get(stateRef),tx.get(contentRef)]);
+    if(Number(currentState.data()?.version||0)!==sourceRevision||Number(currentContent.data()?.version||0)!==contentRevision)throw new HttpsError('aborted','تغيرت بيانات الطالب أثناء تجهيز التقرير؛ أعد المحاولة.');
+    tx.set(ref,{studentCode,monthKey,report,sourceRevision,contentRevision,status:'ready',generatedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp(),invalidatedAt:FieldValue.delete(),invalidationReason:FieldValue.delete()},{merge:true});
+  });
   return report;
 }
 
@@ -2526,7 +2567,7 @@ async function markStudentMonthlyReportDirty(studentCode, activityDate, reason =
 
 function cairoDateKey(value = new Date()) {
   let date;
-  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value.slice(0, 10);
   if (value && typeof value.toDate === 'function') date = value.toDate();
   else date = value instanceof Date ? value : new Date(value);
   if (!date || Number.isNaN(date.getTime())) return '';
@@ -3350,8 +3391,13 @@ exports.recordAttendance = onCall(CALLABLE_OPTIONS, async request => {
   const payload = attendanceServerPayload(student, date, status, attendanceCode ? 'qr_scan' : 'manual_button', staff);
   if (!payload.scheduleId && attendanceSchedule.scheduleId) payload.scheduleId = attendanceSchedule.scheduleId;
   payload.classSessionId = cleanDocId(text(body.classSessionId, 120));
-
-  await db.collection('attendance').doc(payload.id).set(payload, { merge: true });
+  if(!payload.classSessionId&&payload.scheduleId){const defaultId=`${payload.scheduleId}_${date}`,session=await db.collection('class_sessions').doc(defaultId).get();if(session.exists)payload.classSessionId=defaultId;}
+  if(payload.classSessionId){
+    const session=await db.collection('class_sessions').doc(payload.classSessionId).get();
+    if(!session.exists||session.data().date!==date||session.data().scheduleId!==payload.scheduleId||(session.data().status==='cancelled'||session.data().cancelled===true))throw new HttpsError('failed-precondition','الحصة غير مطابقة أو ملغاة.');
+    payload.id=cleanDocId(`${payload.studentCode}_${payload.classSessionId}`);
+    const committed=await commitAttendanceOnce(payload,text(body.requestId,100)||crypto.randomUUID(),staff);payload.id=committed.id;payload.duplicate=committed.duplicate===true;
+  }else{await db.collection('attendance').doc(payload.id).set(payload,{merge:true});}
   await markLeaderboardDirty('attendance');
 
   return {
@@ -3361,30 +3407,65 @@ exports.recordAttendance = onCall(CALLABLE_OPTIONS, async request => {
   };
 });
 
-exports.syncOfflineAttendance = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds:60, memory:'512MiB' }, async request => {
-  const staff=await requireStaff(request),events=Array.isArray(request.data?.events)?request.data.events.slice(0,60):[];
-  await rateLimit('offline-attendance-sync',staff.uid,20,60*1000);
-  if(!events.length)throw new HttpsError('invalid-argument','لا توجد سجلات حضور معلقة للمزامنة.');
-  const results=[];let saved=0;
+exports.prepareOfflineAttendance = onCall({...CALLABLE_OPTIONS,timeoutSeconds:60,memory:'512MiB'},async request=>{
+  const staff=await requireStaff(request),scheduleId=cleanDocId(text(request.data?.scheduleId,100)),date=text(request.data?.date,10);
+  if(!scheduleId||!/^\d{4}-\d{2}-\d{2}$/.test(date)||Math.abs(Date.parse(`${date}T12:00:00Z`)-Date.now())>7*86400000)throw new HttpsError('invalid-argument','اختر مجموعة وحصة في حدود أسبوع من اليوم.');
+  const groupSnap=await db.collection('groups').doc(scheduleId).get();if(!groupSnap.exists)throw new HttpsError('not-found','المجموعة غير موجودة.');
+  const group=groupSnap.data(),sessionId=`${scheduleId}_${date}`,sessionRef=db.collection('class_sessions').doc(sessionId),sessionSnap=await sessionRef.get();
+  if(sessionSnap.exists&&(sessionSnap.data().status==='cancelled'||sessionSnap.data().cancelled===true))throw new HttpsError('failed-precondition','الحصة ملغاة.');
+  if(!sessionSnap.exists){
+    const days=configuredScheduleDays(group.days||group.scheduleDays);
+    if(!days.includes(cairoWeekdayForDate(date)))throw new HttpsError('failed-precondition','أنشئ جلسة حصة فعلية لهذا اليوم من إدارة الحصص قبل تجهيزها أوفلاين.');
+    await sessionRef.set({id:sessionId,date,scheduleId,group:group.name||group.group||'',grade:group.grade||'',status:'open',preparedByUid:staff.uid,createdAt:FieldValue.serverTimestamp()});
+  }
+  const students=await fetchAllCollectionDocuments('students',q=>q.where('scheduleId','==',scheduleId));
+  const roster=students.docs.map(doc=>({id:doc.id,...doc.data()})).filter(row=>row.active!==false&&row.attendanceCode).map(row=>({studentCode:normalizeCode(row.studentCode||row.code||row.id),attendanceCode:row.attendanceCode,name:row.studentName||row.name||'',studentName:row.studentName||row.name||'',grade:row.grade||'',group:row.group||'',scheduleId,scheduleDays:String(group.days||group.scheduleDays||''),active:true}));
+  if(!roster.length)throw new HttpsError('failed-precondition','لا توجد قائمة ذات أكواد حضور مستقلة؛ راجع ترحيل أكواد الحضور وربط المجموعة.');
+  const preparation=db.collection('_attendance_preparations').doc(),expiresAt=Date.now()+21*86400000;
+  await preparation.set({uid:staff.uid,sessionId,scheduleId,date,studentCodes:roster.map(r=>r.studentCode),expiresAt:Timestamp.fromMillis(expiresAt),createdAt:FieldValue.serverTimestamp()});
+  return {preparationId:preparation.id,ownerUid:staff.uid,sessionId,scheduleId,date,roster,expiresAt:new Date(expiresAt).toISOString(),preparedAt:new Date().toISOString()};
+});
+
+async function commitAttendanceOnce(payload,requestId,staff){
+  const ref=db.collection('attendance').doc(payload.id),dedup=db.collection('_attendance_requests').doc(hash(`${staff.uid}|${requestId}`));
+  const fingerprint=hash(JSON.stringify([payload.studentCode,payload.classSessionId,payload.date,payload.status]));
+  return db.runTransaction(async tx=>{
+    const legacyRef=db.collection('attendance').doc(cleanDocId(`${payload.studentCode}_${payload.date}`));
+    const [seen,existing,legacy]=await Promise.all([tx.get(dedup),tx.get(ref),tx.get(legacyRef)]);
+    if(seen.exists){if(seen.data().fingerprint!==fingerprint)throw new HttpsError('already-exists','معرّف المزامنة مستخدم لسجل مختلف.');return {id:seen.data().id||ref.id,duplicate:true,status:seen.data().status};}
+    if(!existing.exists&&legacy.exists&&!legacy.data().classSessionId&&(!legacy.data().scheduleId||legacy.data().scheduleId===payload.scheduleId)){if(legacy.data().status!==payload.status)throw new HttpsError('failed-precondition','سجل قديم بحالة مختلفة؛ يحتاج مراجعة.');tx.create(dedup,{fingerprint,id:legacy.id,status:payload.status,expiresAt:Timestamp.fromMillis(Date.now()+30*86400000)});return {id:legacy.id,duplicate:true,status:payload.status};}
+    if(existing.exists&&existing.data().status!==payload.status)throw new HttpsError('failed-precondition','توجد حالة مختلفة للحصة؛ راجع السجل قبل تعديلها.');
+    if(!existing.exists)tx.create(ref,payload);
+    tx.create(dedup,{fingerprint,id:ref.id,status:payload.status,expiresAt:Timestamp.fromMillis(Date.now()+30*86400000)});
+    return {id:ref.id,duplicate:existing.exists,status:payload.status};
+  });
+}
+
+exports.syncOfflineAttendance = onCall({...CALLABLE_OPTIONS,timeoutSeconds:60,memory:'512MiB'},async request=>{
+  const staff=await requireStaff(request),events=request.data?.events;
+  if(!Array.isArray(events)||!events.length||events.length>60)throw new HttpsError('invalid-argument','أرسل من 1 إلى 60 سجلًا.');
+  const results=[],preparations=new Map();
   for(const event of events){
     const requestId=text(event?.requestId,100);
     try{
-      if(!requestId)throw new HttpsError('invalid-argument','معرّف سجل الحضور غير صالح.');
-      const date=text(event.date,10),attendanceCode=text(event.attendanceCode,60).toUpperCase(),studentCode=normalizeCode(event.studentCode),scannedAt=text(event.scannedAt,60),scannedMillis=Date.parse(scannedAt);
-      if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(scannedMillis))throw new HttpsError('invalid-argument','تاريخ المسح غير صالح.');
-      if(scannedMillis>Date.now()+5*60*1000||scannedMillis<Date.now()-21*24*60*60*1000)throw new HttpsError('failed-precondition','سجل الحضور خارج فترة المزامنة المسموحة.');
-      if(cairoDateKey(new Date(scannedMillis))!==date)throw new HttpsError('failed-precondition','تاريخ الحضور لا يطابق وقت المسح بتوقيت القاهرة.');
-      let studentSnap=null;
-      if(attendanceCode){const match=await db.collection('students').where('attendanceCode','==',attendanceCode).limit(1).get();if(!match.empty)studentSnap=match.docs[0];if(!studentSnap&&validLegacyOrStrongCode(attendanceCode)){const legacy=await findAttendanceStudentSnapshot(attendanceCode);if(legacy?.exists&&!legacy.data()?.attendanceCode)studentSnap=legacy;}}
-      if(!studentSnap)studentSnap=await findAttendanceStudentSnapshot(studentCode);
-      if(!studentSnap?.exists||studentSnap.data().active===false)throw new HttpsError('not-found','الطالب غير موجود أو غير نشط.');
-      const student={id:studentSnap.id,...studentSnap.data()},schedule=await validateAttendanceSchedule(student,date),payload=attendanceServerPayload(student,date,event.attendanceStatus==='absent'?'absent':'present','offline_qr_sync',staff,new Date(scannedMillis).toISOString());
-      if(!payload.scheduleId&&schedule.scheduleId)payload.scheduleId=schedule.scheduleId;payload.classSessionId=cleanDocId(text(event.classSessionId,120));payload.offlineRequestId=requestId;
-      await db.collection('attendance').doc(payload.id).set(payload,{merge:true});saved+=1;results.push({requestId,ok:true,id:payload.id});
-    }catch(error){const code=String(error?.code||''),retryable=/unavailable|internal|deadline/i.test(code);results.push({requestId,ok:false,retryable,error:text(error?.message||'تعذر حفظ سجل الحضور.',300)});}
+      if(!requestId||!event.preparationId)throw new HttpsError('failed-precondition','السجل لم يُجهز بجلسة موثقة. احتفظ به للمراجعة اليدوية.');
+      let preparation=preparations.get(event.preparationId);
+      if(!preparation){const snap=await db.collection('_attendance_preparations').doc(cleanDocId(event.preparationId)).get();preparation=snap.data();if(preparation)preparations.set(event.preparationId,preparation);}
+      if(!preparation||preparation.uid!==staff.uid||firestoreMillis(preparation.expiresAt)<Date.now())throw new HttpsError('permission-denied','التجهيز منتهي أو يخص حساب مدرس آخر.');
+      const studentCode=normalizeCode(event.studentCode),date=text(event.date,10),scannedMillis=Date.parse(event.scannedAt);
+      if(date!==preparation.date||event.classSessionId!==preparation.sessionId||!preparation.studentCodes.includes(studentCode))throw new HttpsError('failed-precondition','الطالب أو الحصة خارج القائمة المجهزة.');
+      if(!Number.isFinite(scannedMillis)||scannedMillis>Date.now()+300000||scannedMillis<Date.now()-21*86400000||cairoDateKey(new Date(scannedMillis))!==date)throw new HttpsError('failed-precondition','وقت المسح خارج فترة المزامنة.');
+      const [studentSnap,sessionSnap]=await Promise.all([findAttendanceStudentSnapshot(studentCode),db.collection('class_sessions').doc(preparation.sessionId).get()]);
+      if(!studentSnap?.exists||studentSnap.data().active===false||!sessionSnap.exists||sessionSnap.data().status==='cancelled'||sessionSnap.data().cancelled===true)throw new HttpsError('failed-precondition','الطالب غير نشط أو الحصة ملغاة.');
+      const student={id:studentSnap.id,...studentSnap.data()};
+      if(!student.attendanceCode||normalizeCode(event.attendanceCode)!==normalizeCode(student.attendanceCode))throw new HttpsError('permission-denied','رمز الحضور غير مطابق.');
+      const payload=attendanceServerPayload(student,date,'present','offline_qr_sync',staff,new Date(scannedMillis).toISOString());
+      payload.classSessionId=preparation.sessionId;payload.scheduleId=preparation.scheduleId;payload.group=sessionSnap.data().group||payload.group;payload.id=cleanDocId(`${studentCode}_${preparation.sessionId}`);payload.offlineRequestId=requestId;
+      const result=await commitAttendanceOnce(payload,requestId,staff);
+      results.push({requestId,ok:true,...result});
+    }catch(error){results.push({requestId,ok:false,retryable:/unavailable|internal|deadline|aborted|resource-exhausted/i.test(String(error.code||'')),error:text(error.message,300)});}
   }
-  if(saved)await markLeaderboardDirty('offline-attendance-sync');
-  return {ok:true,saved,results,syncedAt:new Date().toISOString()};
+  return {ok:true,results,saved:results.filter(r=>r.ok&&!r.duplicate).length,syncedAt:new Date().toISOString()};
 });
 
 exports.bulkMarkAttendance = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 60, memory: '512MiB' }, async request => {
@@ -3881,78 +3962,8 @@ exports.reportClientError = onCall(CALLABLE_OPTIONS, async request => {
 });
 
 
-const BACKUP_COLLECTIONS = [
-  'settings','users','students','student_portal','parent_portal','bookings','booking_status','reviews',
-  'materials','questions','groups','assignments','exams','exam_attempts','exam_absences','homework_submissions',
-  'attendance','recitations','grades','payments','monthly_payments','payment_transactions','monthly_reports','reports','activityLog','client_errors',
-  'student_attempts','exam_locks','homework_submission_locks','homework_attempt_grants','homework_review_history','assessment_versions','class_sessions','student_notes','leaderboard_archives'
-  ,'curriculum','units','lectures','lecture_materials','assignments_v2','assignment_questions',
-  'question_banks','bank_questions','monthly_exams','exam_questions_v2','teacher_files','student_progress'
-  ,'theory_lecture_progress'
-];
-
-function encodeBackupValue(value) {
-  if (value instanceof Timestamp) return { __mfType: 'timestamp', iso: value.toDate().toISOString() };
-  if (value instanceof admin.firestore.GeoPoint) return { __mfType: 'geopoint', latitude: value.latitude, longitude: value.longitude };
-  if (Array.isArray(value)) return value.map(encodeBackupValue);
-  if (value && typeof value === 'object') {
-    const output = {};
-    for (const [key, item] of Object.entries(value)) output[key] = encodeBackupValue(item);
-    return output;
-  }
-  return value;
-}
-
-function decodeBackupValue(value) {
-  if (Array.isArray(value)) return value.map(decodeBackupValue);
-  if (value && typeof value === 'object') {
-    if (value.__mfType === 'timestamp' && value.iso) return Timestamp.fromDate(new Date(value.iso));
-    if (value.__mfType === 'geopoint') return new admin.firestore.GeoPoint(Number(value.latitude), Number(value.longitude));
-    const output = {};
-    for (const [key, item] of Object.entries(value)) output[key] = decodeBackupValue(item);
-    return output;
-  }
-  return value;
-}
-
-async function exportCollection(collectionName) {
-  const snap = await db.collection(collectionName).get();
-  const rows = [];
-  for (const doc of snap.docs) {
-    const row = { id: doc.id, data: encodeBackupValue(doc.data()) };
-    if (collectionName === 'student_attempts') {
-      const attempts = await doc.ref.collection('attempts').get();
-      row.attempts = attempts.docs.map(attempt => ({ id: attempt.id, data: encodeBackupValue(attempt.data()) }));
-    }
-    if (collectionName === 'student_progress') {
-      const lectures = await doc.ref.collection('lectures').get();
-      row.lectures = lectures.docs.map(lecture => ({ id: lecture.id, data: encodeBackupValue(lecture.data()) }));
-    }
-    rows.push(row);
-  }
-  return rows;
-}
-
-async function createPlatformBackup(reason, actor = {}) {
-  const collections = {};
-  for (const name of BACKUP_COLLECTIONS) collections[name] = await exportCollection(name);
-  const payload = {
-    schemaVersion: 63,
-    backupFormatVersion: 2,
-    project: process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || 'eng-amr-khaled-academy',
-    reason: text(reason, 100),
-    createdAt: new Date().toISOString(),
-    actor: { uid: text(actor.uid, 120), email: text(actor.email, 200), role: text(actor.role, 40) },
-    collections
-  };
-  const buffer = zlib.gzipSync(Buffer.from(JSON.stringify(payload), 'utf8'), { level: 9 });
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const name = `automatic-backups/${stamp}-${text(reason || 'scheduled', 40).replace(/[^a-zA-Z0-9_-]/g, '-')}.json.gz`;
-  const bucket = admin.storage().bucket();
-  await bucket.file(name).save(buffer, { resumable: false, contentType: 'application/gzip', metadata: { cacheControl: 'private, max-age=0', metadata: { schemaVersion: '63', reason: text(reason, 100) } } });
-  await db.collection('backup_runs').add({ name, reason: text(reason, 100), size: buffer.length, createdAt: FieldValue.serverTimestamp(), actorUid: text(actor.uid, 120) });
-  return { name, size: buffer.length, createdAt: payload.createdAt };
-}
+const { createBackupService } = require('./lib/backup');
+const { createPlatformBackup, readBackup, applyRestore } = createBackupService({db,admin,project:process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || 'eng-amr-khaled-academy'});
 
 async function pruneBackups(retentionDays = 14) {
   const bucket = admin.storage().bucket();
@@ -4120,75 +4131,19 @@ exports.getBackupDownloadUrl = onCall(CALLABLE_OPTIONS, async request => {
 });
 
 
-async function deleteRootCollection(collectionName) {
-  while (true) {
-    const snap = await db.collection(collectionName).limit(350).get();
-    if (snap.empty) return;
-    const refs = [];
-    for (const doc of snap.docs) {
-      if (collectionName === 'student_attempts') {
-        const attempts = await doc.ref.collection('attempts').get().catch(() => null);
-        if (attempts) refs.push(...attempts.docs.map(item => item.ref));
-      }
-      refs.push(doc.ref);
-    }
-    await commitDeleteRefs(refs);
-    if (snap.size < 350) return;
-  }
-}
+exports.previewAutomaticBackup = onCall({...CALLABLE_OPTIONS,timeoutSeconds:120,memory:'512MiB'}, async request => {
+  await requireStaff(request);
+  try { return (await readBackup(text(request.data?.name,500))).plan; }
+  catch(error) { throw new HttpsError('failed-precondition',error.message); }
+});
 
-async function restoreCollection(collectionName, rows) {
-  await deleteRootCollection(collectionName);
-  const operations = [];
-  for (const row of Array.isArray(rows) ? rows : []) {
-    if (!row || !row.id || !row.data) continue;
-    const ref = db.collection(collectionName).doc(cleanDocId(row.id));
-    operations.push(batch => batch.set(ref, decodeBackupValue(row.data)));
-    if (collectionName === 'student_attempts') {
-      for (const attempt of Array.isArray(row.attempts) ? row.attempts : []) {
-        if (!attempt || !attempt.id || !attempt.data) continue;
-        operations.push(batch => batch.set(ref.collection('attempts').doc(cleanDocId(attempt.id)), decodeBackupValue(attempt.data)));
-      }
-    }
-  }
-  const queue = operations.slice();
-  while (queue.length) {
-    const batch = db.batch();
-    queue.splice(0, 350).forEach(operation => operation(batch));
-    await batch.commit();
-  }
-}
-
-exports.restoreAutomaticBackup = onCall({ region: 'europe-west1', timeoutSeconds: 540, memory: '1GiB' }, async request => {
-  const staff = await requireStaff(request, ['admin', 'teacher']);
-  const name = text(request.data && request.data.name, 500);
-  const confirmation = text(request.data && request.data.confirmation, 50);
-  if (!name.startsWith('automatic-backups/') || !name.endsWith('.json.gz')) {
-    throw new HttpsError('invalid-argument', 'مسار النسخة غير صالح.');
-  }
-  if (!['RESTORE-V53', 'RESTORE-V54', 'RESTORE-V60.6'].includes(confirmation)) throw new HttpsError('failed-precondition', 'تأكيد الاستعادة غير صحيح.');
-
-  const file = admin.storage().bucket().file(name);
-  const [exists] = await file.exists();
-  if (!exists) throw new HttpsError('not-found', 'النسخة الاحتياطية غير موجودة.');
-  const [compressed] = await file.download();
-  let payload;
-  try { payload = JSON.parse(zlib.gunzipSync(compressed).toString('utf8')); }
-  catch (_) { throw new HttpsError('data-loss', 'تعذر قراءة النسخة الاحتياطية.'); }
-  if (!payload || ![53,54,60].includes(payload.schemaVersion) || payload.backupFormatVersion !== 2 || !payload.collections) {
-    throw new HttpsError('failed-precondition', 'هذه النسخة ليست بصيغة استعادة مدعومة.');
-  }
-
-  const safetyBackup = await createPlatformBackup('pre-restore', staff);
-  for (const collectionName of BACKUP_COLLECTIONS) {
-    await restoreCollection(collectionName, payload.collections[collectionName] || []);
-  }
-  await db.collection('activityLog').add({
-    action: 'تمت استعادة نسخة احتياطية سحابية',
-    meta: { restoredFrom: name, safetyBackup: safetyBackup.name },
-    actorUid: staff.uid, actorEmail: staff.email || '', actorRole: staff.role || '', createdAt: FieldValue.serverTimestamp()
-  });
-  return { ok: true, restoredFrom: name, safetyBackup: safetyBackup.name };
+exports.restoreAutomaticBackup = onCall({...CALLABLE_OPTIONS,timeoutSeconds:540,memory:'1GiB',maxInstances:1,concurrency:1}, async request => {
+  const staff=await requireStaff(request);
+  let result;
+  try { result=await readBackup(text(request.data?.name,500)); }
+  catch(error) { throw new HttpsError('failed-precondition',error.message); }
+  if(request.data?.confirmation!=='RESTORE-MERGE' || request.data?.planId!==result.plan.planId) throw new HttpsError('failed-precondition','راجع خطة الاستعادة أولًا؛ لم تتغير أي بيانات.');
+  return applyRestore(result,staff);
 });
 
 async function queryStudentDocuments(collection, studentCode) {
@@ -4339,7 +4294,9 @@ async function platformHealthPayload() {
     },
     configuration: {
       codeRunner: codeRunnerConfigured ? (customCodeRunner ? 'custom-provider-configured' : 'default-provider-configured') : 'invalid-provider-configuration',
-      codeRunnerVerification: 'configuration-only'
+      codeRunnerVerification: 'configuration-only',
+      journeyVerification:'not-run',
+      ipPolicy:process.env.TM_TRUSTED_PROXY_HOPS?'configured-trusted-hops':'socket-peer-conservative'
     }
   };
 }

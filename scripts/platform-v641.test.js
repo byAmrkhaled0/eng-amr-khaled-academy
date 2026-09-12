@@ -38,14 +38,15 @@ test('monthly report separates academic level from study commitment and lists mi
     lectureProgress:[{lectureId:'l1',viewed:true,percent:100}],recitations:[{date:'2026-08-01',completed:true}]
   });
   assert.equal(report.homework.required,2);assert.equal(report.homework.submitted,1);assert.equal(report.homework.missing,1);
-  assert.equal(report.results.average,80);assert.equal(report.study.lecturesCompleted,1);
+  assert.equal(report.results.average,80);assert.equal(report.study.lecturesCompleted,0);
   assert.notEqual(report.academicScore,null);assert.notEqual(report.commitmentScore,null);
-  assert.match(report.concerns.join(' '),/واجب لم يتم تسليمه/);
+  assert.match(report.concerns.join(' '),/واجب مستحق لم يُسلّم/);
 });
 
 test('monthly trend reports improvement decline and insufficient data honestly',()=>{
-  assert.equal(attachTrend({overallScore:80},{overallScore:70}).trend.status,'improved');
-  assert.equal(attachTrend({overallScore:60},{overallScore:70}).trend.status,'declined');
+  const comparable={sufficientData:true,policyVersion:'v2',comparisonBasis:'exams',student:{grade:'test'}};
+  assert.equal(attachTrend({...comparable,overallScore:80},{...comparable,overallScore:70}).trend.status,'improved');
+  assert.equal(attachTrend({...comparable,overallScore:60},{...comparable,overallScore:70}).trend.status,'declined');
   assert.equal(attachTrend({overallScore:null},{overallScore:70}).trend.status,'insufficient');
 });
 
@@ -63,7 +64,7 @@ test('two consecutive absences warn the teacher and appear in the parent report 
   const admin=read('assets/admin.js'),app=read('assets/app.js');
   assert.match(admin,/حصتين متتاليتين/);
   assert.match(app,/تحذير غياب متتالٍ/);
-  assert.match(app,/absenceWarningText/);
+  assert.match(app,/consecutiveAbsenceWarning/);
 });
 
 test('server owns complete monthly reports and prepares previous month automatically',()=>{
@@ -163,9 +164,9 @@ test('finished class exams register missing students as absent in admin and pare
     exams:[{id:'e1',title:'امتحان أول',finished:true},{id:'e2',title:'امتحان ثان',finished:true},{id:'e3',title:'امتحان قادم',finished:false}],
     examAttempts:[{id:'a1',examId:'e1',examTitle:'امتحان أول',score:8,maxScore:10,submittedAt:'2026-08-10T10:00:00Z'}]
   });
-  assert.equal(report.results.requiredExams,2);assert.equal(report.results.attendedExams,1);assert.equal(report.results.missedExams,1);
+  assert.equal(report.results.requiredExams,3);assert.equal(report.results.attendedExams,1);assert.equal(report.results.missedExams,1);
   assert.equal(report.results.rows.find(row=>row.examId==='e2').status,'absent');
-  assert.match(report.concerns.join(' '),/امتحان غاب عنه الطالب/);
+  assert.match(report.concerns.join(' '),/امتحان مستحق دون تسليم/);
   const backend=read('functions/index.js'),app=read('assets/app.js'),operations=read('assets/v64-admin-operations.js'),sync=read('assets/firebase-sync.js');
   assert.match(backend,/exports\.finalizeExamAbsences = onSchedule/);assert.match(backend,/exam_absences/);assert.match(backend,/expectedStudentCount/);
   assert.match(app,/غائب عن الامتحان/);assert.match(operations,/refreshExamAbsences/);assert.match(sync,/finalizeExamAbsencesAdmin/);
@@ -173,14 +174,14 @@ test('finished class exams register missing students as absent in admin and pare
 
 test('QR attendance survives offline use and syncs idempotently after reconnect',()=>{
   const offline=read('assets/offline-attendance.js'),admin=read('assets/admin.js'),app=read('assets/app.js'),backend=read('functions/index.js'),sync=read('assets/firebase-sync.js'),worker=read('service-worker.js'),page=read('teacher-login.html');
-  assert.match(offline,/indexedDB\.open/);assert.match(offline,/studentDate/);assert.match(offline,/async function enqueue/);assert.match(offline,/async function sync/);
+  assert.match(offline,/indexedDB\.open/);assert.match(offline,/studentSession/);assert.match(offline,/async function enqueue/);assert.match(offline,/async function sync/);
   assert.match(admin,/offline_qr_pending/);assert.match(admin,/syncOfflineAttendanceNow/);assert.match(admin,/tryOfflineStaffWorkspace/);
   assert.match(admin,/__adminQrOfflinePrepared/);assert.match(admin,/MFAssets\?\.loadQrScanner/);
   assert.match(backend,/exports\.syncOfflineAttendance = onCall/);assert.match(backend,/offlineRequestId/);assert.match(backend,/cairoDateKey\(new Date\(scannedMillis\)\)!==date/);
   assert.match(sync,/syncOfflineAttendance:callable\('syncOfflineAttendance'\)/);
   assert.match(worker,/technominds-attendance-sync/);assert.match(worker,/\/teacher-login\.html/);assert.match(worker,/cache\.put\(request,response\.clone\(\)\)/);
   const appShell=worker.slice(0,worker.indexOf('];')+2);
-  assert.doesNotMatch(appShell,/html5-qrcode/);assert.match(worker,/v67-8-4-admin-session/);
+  assert.doesNotMatch(appShell,/html5-qrcode/);assert.match(worker,/v67-8-5-admin-session/);
   assert.match(admin,/qrScanBusy/);assert.match(admin,/offlineQrManualForm/);assert.match(admin,/state\?\.roster/);
   assert.match(app,/assets\/vendor\/html5-qrcode-2\.3\.8\.min\.js/);
   assert.match(page,/assets\/offline-attendance\.js/);
@@ -219,7 +220,7 @@ test('Drive links are integrated into targeted theoretical lectures and legacy l
   assert.doesNotMatch(app,/classLinksGrid/);
   assert.match(app,/فتح رابط Google Drive/);
   assert.match(app,/isLegacyClassLink/);
-  assert.match(app,/\['materials\.html','المحاضرات'\]/);
+  assert.match(app,/\['materials\.html','محاضرات عملي'\]/);
   assert.doesNotMatch(app,/\['learning-path\.html','المسار التعليمي'\]/);
   assert.doesNotMatch(page,/classLinksSection/);
   assert.match(theoryPage,/محاضرات النظري وروابطها/);

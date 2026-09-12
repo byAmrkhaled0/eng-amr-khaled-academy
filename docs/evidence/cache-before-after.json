@@ -1,0 +1,5 @@
+{
+  "test": "cached versioned app.js request; VM mocked cache and network",
+  "beforeRequests": 1,
+  "afterRequests": 0
+}

@@ -111,7 +111,7 @@ body{position:relative;background-image:linear-gradient(rgba(36,107,253,.035) 1p
 
 /* V60.6.2 — unified navigation, clean portrait and mobile-first flows. */
 body:not(.admin-dashboard-active){padding-top:74px}
-.site-header{position:fixed!important;top:0!important;inset-inline:0!important;width:100%!important;margin:0!important;z-index:3500!important}
+.site-header{position:fixed!important;top:0!important;inset-inline:0!important;width:100%!important;margin:0!important;z-index:2500!important}
 .site-header .navbar{display:flex!important;align-items:center!important;gap:12px!important;height:74px!important;min-height:74px!important}
 .site-header .navlinks{flex:1;justify-content:center;overflow:hidden}
 .site-header .navlinks a{font-size:.78rem!important;padding:8px 8px!important;white-space:nowrap}

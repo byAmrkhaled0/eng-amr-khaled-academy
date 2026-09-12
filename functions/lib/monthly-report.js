@@ -1,130 +1,125 @@
 'use strict';
 
-const asNumber=value=>Number.isFinite(Number(value))?Number(value):null;
-const clamp=value=>Math.max(0,Math.min(100,Math.round(Number(value)||0)));
-const isComplete=row=>row?.completed===true||row?.approved===true||/^تم/.test(String(row?.status||''));
-const scorePercent=row=>{
-  const score=asNumber(row?.score),max=asNumber(row?.maxScore);
-  if(score===null)return null;
-  return max!==null&&max>0?clamp(score/max*100):clamp(score);
-};
-const average=values=>{
-  const valid=values.filter(value=>value!==null&&Number.isFinite(Number(value))).map(Number);
-  return valid.length?clamp(valid.reduce((sum,value)=>sum+value,0)/valid.length):null;
-};
-const weighted=components=>{
-  const available=components.filter(item=>item.value!==null&&Number.isFinite(Number(item.value))&&item.weight>0);
-  if(!available.length)return null;
-  const weight=available.reduce((sum,item)=>sum+item.weight,0);
-  return clamp(available.reduce((sum,item)=>sum+Number(item.value)*item.weight,0)/weight);
-};
+const {scheduledTimeMillis}=require('./assignment-schedule');
+const asNumber=value=>value===null||value===undefined||value===''?null:Number.isFinite(Number(value))?Number(value):null;
+const clamp=value=>Math.max(0,Math.min(100,Math.round(value)));
+const average=values=>{const valid=values.filter(Number.isFinite);return valid.length?clamp(valid.reduce((s,v)=>s+v,0)/valid.length):null;};
+const weighted=parts=>{const valid=parts.filter(p=>Number.isFinite(p.value));return valid.length?clamp(valid.reduce((s,p)=>s+p.value*p.weight,0)/valid.reduce((s,p)=>s+p.weight,0)):null;};
+const pending=row=>row?.needsManualReview===true||['pending','pending_review','pending-review','pending_manual','started','in_progress','awaiting_review'].includes(row?.status)&&row?.approved!==true&&row?.reviewed!==true;
+const scorePercent=row=>{const score=asNumber(row?.score),max=asNumber(row?.maxScore);return !pending(row)&&score!==null&&max!==null&&max>0?Math.max(0,Math.min(100,score/max*100)):null;};
 const levelLabel=value=>value===null?'بيانات غير كافية':value>=90?'ممتاز':value>=75?'جيد جدًا':value>=60?'جيد':'يحتاج متابعة';
 const commitmentLabel=value=>value===null?'بيانات غير كافية':value>=80?'منتظم':value>=60?'مقبول':value>=40?'متقطع':'يحتاج متابعة';
-
-function uniqueScoredRows(grades=[],examAttempts=[]){
-  const rows=new Map();
-  [...grades,...examAttempts].forEach((row,index)=>{
-    const activityId=String(row?.examId||'').trim();
-    const key=activityId?`exam:${activityId}:${Math.max(1,Number(row?.attemptNumber||1))}`:String(row?.id||`${row?.activityName||row?.examTitle||'result'}:${row?.submittedAt||row?.date||index}`);
-    const existing=rows.get(key);
-    const existingDate=String(existing?.submittedAt||existing?.date||''),rowDate=String(row?.submittedAt||row?.date||'');
-    if(!existing||(scorePercent(existing)===null&&scorePercent(row)!==null)||rowDate>=existingDate)rows.set(key,row);
-  });
-  return [...rows.values()];
+function dateKey(value){
+  if(!value)return '';
+  if(typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value))return value;
+  const date=value?.toDate?value.toDate():new Date(value);if(!Number.isFinite(date.getTime()))return '';
+  const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date).map(x=>[x.type,x.value]));return `${p.year}-${p.month}-${p.day}`;
 }
-
+function membershipAt(student,transfers,date){
+  const joined=dateKey(student.acceptedAt||student.activatedAt||student.enrolledAt||student.createdAt);
+  if(joined&&date<joined)return null;
+  let scheduleId=String(student.scheduleId||student.groupId||''),group=student.group||'';
+  const history=transfers.filter(t=>t.status==='approved'&&dateKey(t.effectiveAt||t.reviewedAt)).sort((a,b)=>dateKey(b.effectiveAt||b.reviewedAt).localeCompare(dateKey(a.effectiveAt||a.reviewedAt)));
+  for(const transfer of history){if(date<dateKey(transfer.effectiveAt||transfer.reviewedAt)){scheduleId=transfer.currentScheduleId;group=transfer.currentGroup;}}
+  return {scheduleId,group};
+}
+function entitledSessions(student,sessions,transfers,monthKey,now){
+  return sessions.filter(session=>{
+    const date=dateKey(session.date),membership=membershipAt(student,transfers,date);
+    return date.startsWith(monthKey)&&date<=dateKey(now)&&membership&&session.cancelled!==true&&session.status!=='cancelled'&&
+      (session.scheduleId?session.scheduleId===membership.scheduleId:session.group===membership.group);
+  });
+}
+const sessionKey=row=>String(row.classSessionId||row.sessionId||row.sessionKey||`${row.scheduleId||row.group||''}:${dateKey(row.date)}`);
 function normalizedAttendanceRows(rows=[]){
-  const sessions=new Map();
-  (rows||[]).forEach((row,index)=>{
-    const date=String(row?.date||row?.createdAt||'').slice(0,10);
-    let status=String(row?.status||'').trim();
-    if(['حاضر','متأخر','late'].includes(status))status='present';
-    if(status==='غائب')status='absent';
-    if(!date||!['present','absent'].includes(status))return;
-    const key=String(row?.sessionId||row?.sessionKey||row?.id||`${date}:${row?.time||''}:${row?.scheduleId||row?.group||''}`||index);
-    sessions.set(key,{...row,date,status});
-  });
-  return [...sessions.values()].sort((a,b)=>`${a.date} ${a.time||''}`.localeCompare(`${b.date} ${b.time||''}`));
+  const sessions=new Map(),aliases={'حاضر':'present','غائب':'absent','متأخر':'late','غياب بعذر':'excused','بعذر':'excused'};
+  for(const row of rows){const date=dateKey(row.date||row.createdAt),status=aliases[row.status]||row.status;if(date&&['present','absent','late','excused','unrecorded'].includes(status))sessions.set(sessionKey(row),{...row,date,status});}
+  return [...sessions.values()].sort((a,b)=>a.date.localeCompare(b.date));
 }
-
 function consecutiveAbsenceWarning(rows=[],threshold=2){
-  const attendance=normalizedAttendanceRows(rows);
-  let streak=[],warning=null;
-  attendance.forEach(row=>{
-    if(row.status==='absent')streak.push(row);
-    else streak=[];
-    if(streak.length>=threshold)warning={count:streak.length,dates:streak.map(item=>item.date),latestDate:row.date};
-  });
-  if(!warning)return null;
-  const active=attendance.at(-1)?.status==='absent'&&warning.latestDate===attendance.at(-1)?.date;
-  return {...warning,active,message:`تحذير غياب: غاب الطالب ${warning.count===2?'حصتين متتاليتين':`${warning.count} حصص متتالية`}`};
+  const attendance=normalizedAttendanceRows(rows);let streak=[],warning=null;
+  for(const row of attendance){streak=row.status==='absent'?[...streak,row]:[];if(streak.length>=threshold)warning={count:streak.length,dates:streak.map(x=>x.date),latestDate:row.date};}
+  return warning?{...warning,active:attendance.at(-1)?.date===warning.latestDate,message:`تحذير غياب: غاب الطالب ${warning.count===2?'حصتين متتاليتين':`${warning.count} حصص متتالية`}`}:null;
 }
-
+function newestBy(rows,key){
+  const result=new Map();for(const row of rows){const id=key(row);if(!id)continue;const old=result.get(id),attempt=Number(row.attemptNumber||1),oldAttempt=Number(old?.attemptNumber||1);
+    if(!old||attempt>oldAttempt||(attempt===oldAttempt&&String(row.reviewedAt||row.updatedAt||row.submittedAt||row.date||'')>=String(old.reviewedAt||old.updatedAt||old.submittedAt||old.date||'')))result.set(id,row);
+  }return result;
+}
 function calculateMonthlyReport(input={}){
-  const student=input.student||{},attendance=normalizedAttendanceRows(input.attendance||[]),assignments=input.assignments||[],homeworks=input.homeworks||[],exams=input.exams||[],recitations=input.recitations||[],lectureProgress=input.lectureProgress||[];
-  const resultRows=uniqueScoredRows(input.grades||[],input.examAttempts||[]),scoredResults=resultRows.filter(row=>scorePercent(row)!==null);
-  const completedExams=exams.filter(exam=>exam.finished===true);
-  const normalizedTitle=value=>String(value||'').trim().toLowerCase();
-  const examWasAttempted=exam=>resultRows.some(row=>String(row.examId||'')===String(exam.id||exam.examId||'')||(normalizedTitle(exam.title||exam.examTitle)&&normalizedTitle(row.activityName||row.examTitle||row.exam||row.title)===normalizedTitle(exam.title||exam.examTitle)));
-  const missedExams=completedExams.filter(exam=>exam.required!==false&&!examWasAttempted(exam)).map(exam=>({id:`absence:${exam.id||exam.examId}`,examId:String(exam.id||exam.examId||''),examTitle:String(exam.title||exam.examTitle||'امتحان'),activityName:String(exam.title||exam.examTitle||'امتحان'),date:exam.openAt||exam.date||exam.createdAt||'',status:'absent',absent:true,score:null,maxScore:Number(exam.totalScore||exam.maxScore||100)}));
-  const reportResultRows=[...resultRows,...missedExams].sort((a,b)=>String(b.submittedAt||b.date||'').localeCompare(String(a.submittedAt||a.date||'')));
-  const present=attendance.filter(row=>['present','حاضر','متأخر'].includes(row.status)).length,absent=attendance.filter(row=>['absent','غائب'].includes(row.status)).length;
-  const attendancePct=attendance.length?clamp(present/attendance.length*100):null;
-  const latestSubmission=new Map();
-  homeworks.forEach(row=>{const id=String(row.assignmentId||'');if(!id)return;const current=latestSubmission.get(id);if(!current||Number(row.attemptNumber||1)>=Number(current.attemptNumber||1))latestSubmission.set(id,row);});
-  const assignmentRows=assignments.map(assignment=>({assignment,submission:latestSubmission.get(String(assignment.id))||null}));
-  const submittedAssignments=assignmentRows.filter(row=>row.submission),missingAssignments=assignmentRows.filter(row=>!row.submission);
-  const homeworkCompletionPct=assignments.length?clamp(submittedAssignments.length/assignments.length*100):null;
-  const homeworkGradeAvg=average(homeworks.map(scorePercent));
-  const onTimeRows=submittedAssignments.filter(row=>row.assignment.dueDate&&row.submission.submittedAt);
-  const homeworkOnTimePct=onTimeRows.length?clamp(onTimeRows.filter(row=>String(row.submission.submittedAt).slice(0,10)<=String(row.assignment.dueDate).slice(0,10)).length/onTimeRows.length*100):null;
-  const lectureOpened=lectureProgress.filter(row=>row.viewed===true||Number(row.percent)>0).length,lectureCompleted=lectureProgress.filter(row=>Number(row.percent)>=100||row.completed===true).length;
-  const lectureCompletionPct=lectureOpened?clamp(lectureCompleted/lectureOpened*100):null;
-  const classDates=new Set(attendance.map(row=>String(row.date||'').slice(0,10)).filter(Boolean));
-  recitations.forEach(row=>{const date=String(row.date||row.createdAt||'').slice(0,10);if(date)classDates.add(date);});
-  const completedPracticalDates=new Set(recitations.filter(isComplete).map(row=>String(row.date||row.createdAt||'').slice(0,10)).filter(Boolean));
-  const practicalPct=classDates.size?clamp(completedPracticalDates.size/classDates.size*100):null;
-  const gradeAvg=average(scoredResults.map(scorePercent));
+  const student=input.student||{},now=input.now||new Date(),monthKey=String(input.monthKey||''),transfers=input.transfers||[];
+  const sessions=entitledSessions(student,input.sessions||[],transfers,monthKey,now);
+  const recorded=normalizedAttendanceRows(input.attendance||[]).filter(row=>{const membership=membershipAt(student,transfers,row.date);return membership&&(!row.scheduleId||row.scheduleId===membership.scheduleId);});
+  const attendance=(input.sessionsComplete===true||sessions.length)?sessions.map(session=>{
+    const matching=recorded.find(row=>sessionKey(row)===session.id||(!row.classSessionId&&!row.sessionId&&row.date===session.date&&(!row.scheduleId||row.scheduleId===session.scheduleId)));
+    return matching||{sessionId:session.id,date:session.date,time:session.time||'',status:'unrecorded'};
+  }):recorded;
+  const count=status=>attendance.filter(row=>row.status===status).length;
+  const present=count('present'),late=count('late'),absent=count('absent'),excused=count('excused'),unrecorded=count('unrecorded');
+  const entitlementKnown=input.sessionsComplete===true;
+  const denominator=attendance.length-excused;
+  const attendancePct=entitlementKnown&&!unrecorded&&denominator>0?clamp((present+late)/denominator*100):null;
+  const attempts=newestBy([...(input.grades||[]),...(input.examAttempts||[])],row=>String(row.examId||row.id||''));
+  const exams=new Map((input.exams||[]).filter(e=>e.cancelled!==true&&e.status!=='cancelled').map(e=>[String(e.id||e.examId),e]));
+  const rows=[];let required=0,available=0,started=0,submitted=0,missed=0,awaiting=0;
+  for(const [id,exam] of exams){
+    const row=attempts.get(id),isStarted=Boolean(row),isSubmitted=Boolean(row&&!['started','in_progress'].includes(row.status)&&row.status!=='absent');
+    const open=!exam.openAt||Date.parse(exam.openAt)<=new Date(now).getTime(),finished=exam.finished===true||(exam.closeAt&&Date.parse(exam.closeAt)<=new Date(now).getTime());
+    if(exam.required!==false)required++;if(open&&!finished)available++;if(isStarted)started++;if(isSubmitted)submitted++;
+    const isMissed=finished&&exam.required!==false&&!isSubmitted;
+    if(isMissed)missed++;
+    const percentage=isSubmitted?scorePercent(row):null;
+    const status=isSubmitted?(percentage===null?'pending_review':'graded'):isMissed?'absent':isStarted?'started':open?'available':'upcoming';
+    if(status==='pending_review')awaiting++;
+    rows.push({...row,examId:id,activityName:exam.title||row?.activityName||'امتحان',date:exam.openAt||row?.date||'',maxScore:row?.maxScore||exam.totalScore||null,score:percentage===null?null:asNumber(row.score),percentage,status,attemptNumber:row?.attemptNumber||null,absent:isMissed});
+    attempts.delete(id);
+  }
+  // Retain standalone/manual grades and legacy exams without inventing an entitlement.
+  for(const row of attempts.values()){const percentage=scorePercent(row);rows.push({...row,percentage,score:percentage===null?null:asNumber(row.score),status:percentage===null?'pending_review':'graded'});if(percentage===null)awaiting++;}
+  const scored=rows.filter(row=>row.percentage!==null),gradeAvg=average(scored.map(row=>row.percentage));
+  const assignments=input.assignments||[],latest=newestBy(input.homeworks||[],row=>String(row.assignmentId||''));
+  const homeworkRows=assignments.map(assignment=>{
+    const raw=latest.get(String(assignment.id)),percentage=raw?scorePercent(raw):null;
+    const submission=raw?{...raw,score:percentage===null?null:asNumber(raw.score),percentage}:null;
+    const due=assignment.dueDate?scheduledTimeMillis(assignment.dueDate.length===10?`${assignment.dueDate}T23:59:59`:assignment.dueDate):null;
+    const late=Boolean(submission&&due&&Date.parse(submission.submittedAt)>due);
+    return {assignment,submission,late,status:submission?'submitted':assignment.submissionClosed||due&&due<new Date(now).getTime()?'missing':'available'};
+  });
+  const submittedHw=homeworkRows.filter(row=>row.submission),missingHw=homeworkRows.filter(row=>row.status==='missing'),lateHw=submittedHw.filter(row=>row.late);
+  const homeworkGradeAvg=average(submittedHw.map(row=>row.submission.percentage));
+  const dueHw=homeworkRows.filter(row=>row.status==='missing'||row.submission),homeworkCompletionPct=dueHw.length?clamp(submittedHw.length/dueHw.length*100):null;
+  const timed=submittedHw.filter(row=>row.assignment.dueDate),onTimePct=timed.length?clamp((timed.length-lateHw.length)/timed.length*100):null;
+  const progress=input.lectureProgress||[],opened=progress.filter(row=>row.viewed===true||Number(row.percent)>0).length;
+  const verified=progress.filter(row=>row.completionVerified===true||row.completionEvidence==='assessment').length;
+  const recitations=input.recitations||[],completedPractical=recitations.filter(row=>row.approved===true||row.completed===true).length;
   const academicScore=weighted([{value:gradeAvg,weight:70},{value:homeworkGradeAvg,weight:30}]);
-  const commitmentScore=weighted([
-    {value:attendancePct,weight:30},{value:homeworkCompletionPct,weight:35},{value:homeworkOnTimePct,weight:10},{value:lectureCompletionPct,weight:15},{value:practicalPct,weight:10}
-  ]);
+  const commitmentScore=weighted([{value:attendancePct,weight:60},{value:homeworkCompletionPct,weight:30},{value:onTimePct,weight:10}]);
   const overallScore=weighted([{value:academicScore,weight:60},{value:commitmentScore,weight:40}]);
-  const activityCount=attendance.length+homeworks.length+resultRows.length+recitations.length+lectureOpened;
-  const concerns=[];
-  if(missingAssignments.length)concerns.push(`${missingAssignments.length} واجب لم يتم تسليمه`);
-  if(missedExams.length)concerns.push(`${missedExams.length} امتحان غاب عنه الطالب ولم يسجل محاولة`);
-  const absenceWarning=consecutiveAbsenceWarning(attendance);
-  if(absenceWarning)concerns.push(`${absenceWarning.message} (${absenceWarning.dates.join('، ')})`);
-  if(absent)concerns.push(`${absent} غياب خلال الشهر`);
-  if(lectureProgress.length&&!lectureOpened)concerns.push('لا يوجد نشاط مسجل في المحاضرات');
-  if(gradeAvg!==null&&gradeAvg<60)concerns.push('متوسط الدرجات يحتاج مراجعة');
-  const strengths=[];
-  if(attendancePct!==null&&attendancePct>=85)strengths.push('حضور منتظم');
-  if(homeworkCompletionPct!==null&&homeworkCompletionPct>=85)strengths.push('التزام جيد بتسليم الواجبات');
-  if(gradeAvg!==null&&gradeAvg>=75)strengths.push('مستوى أكاديمي جيد');
-  if(lectureCompleted)strengths.push(`أكمل ${lectureCompleted} محاضرة`);
-  const payment=input.payment||null;
-  return {
-    schemaVersion:1,monthKey:String(input.monthKey||''),student:{studentCode:String(student.studentCode||student.code||student.id||''),name:String(student.studentName||student.name||''),grade:String(student.grade||''),group:String(student.group||''),parentPhone:String(student.parentPhone||'')},
-    overallScore,level:levelLabel(overallScore),academicScore,academicLevel:levelLabel(academicScore),commitmentScore,commitmentLevel:commitmentLabel(commitmentScore),activityCount,
-    attendance:{total:attendance.length,present,absent,percentage:attendancePct,rows:attendance,consecutiveAbsenceWarning:absenceWarning},
-    results:{count:reportResultRows.length,gradedCount:scoredResults.length,average:gradeAvg,rows:reportResultRows,requiredExams:completedExams.length,attendedExams:Math.max(0,completedExams.length-missedExams.length),missedExams:missedExams.length},
-    homework:{required:assignments.length,submitted:submittedAssignments.length,missing:missingAssignments.length,completionPercentage:homeworkCompletionPct,averageGrade:homeworkGradeAvg,onTimePercentage:homeworkOnTimePct,rows:assignmentRows.map(row=>({assignment:row.assignment,submission:row.submission,status:row.submission?'submitted':'missing'}))},
-    practical:{count:recitations.length,completed:recitations.filter(isComplete).length,percentage:practicalPct,rows:recitations},
-    study:{lecturesOpened:lectureOpened,lecturesCompleted:lectureCompleted,lectureCompletionPercentage:lectureCompletionPct,rows:lectureProgress},
-    payment:payment?{status:String(payment.status||''),expectedAmount:Number(payment.expectedAmount||0),paidAmount:Number(payment.paidAmount||0),remainingAmount:Number(payment.remainingAmount||0)}:null,
-    strengths,concerns,teacherNotes:String(input.teacherNotes||student.notes||''),sufficientData:overallScore!==null&&activityCount>=2
-  };
+  const strengths=[],concerns=[],recommendations=[];
+  const absenceWarning=consecutiveAbsenceWarning(attendance);if(absenceWarning?.active){concerns.push(absenceWarning.message);recommendations.push('تواصل مع المعلم لتحديد سبب الغياب وخطة تعويض الحصص.');}
+  if(gradeAvg!==null&&gradeAvg>=75)strengths.push('نتائج أكاديمية جيدة في الاختبارات المصححة');
+  if(attendancePct!==null&&attendancePct>=85)strengths.push('حضور منتظم في الحصص المسجلة');
+  if(missingHw.length){concerns.push(`${missingHw.length} واجب مستحق لم يُسلّم`);recommendations.push('راجع الواجبات الناقصة مع المعلم وحدد موعد استكمالها.');}
+  if(missed){concerns.push(`${missed} امتحان مستحق دون تسليم`);recommendations.push('راجع سبب عدم تسليم الامتحانات مع المعلم.');}
+  if(gradeAvg!==null&&gradeAvg<60){concerns.push('متوسط الاختبارات المصححة أقل من 60%');recommendations.push('راجع الأسئلة التي أخطأ فيها الطالب ثم نفذ تدريبًا قصيرًا عليها.');}
+  const warnings=[];if(!entitlementKnown)warnings.push('سجل المواعيد الفعلية غير مكتمل؛ عدد الحصص المستحقة ونسبة الحضور غير مؤكدين.');if(unrecorded)warnings.push(`${unrecorded} حصة بلا حالة حضور؛ لم تُحوّل إلى غياب.`);
+  if(opened)warnings.push('فتح المحاضرة أو تقدم المشغّل لا يثبت إكمالها أو فهمها.');
+  const activityCount=recorded.length+submittedHw.length+rows.length+recitations.length+opened;
+  const payment=input.payment;
+  return {schemaVersion:2,policyVersion:'monthly-v2-latest-attempt',monthKey,student:{studentCode:String(student.studentCode||student.code||student.id||''),name:student.studentName||student.name||'',grade:student.grade||'',group:student.group||'',academicYear:student.academicYear||''},
+    overallScore,level:levelLabel(overallScore),academicScore,academicLevel:levelLabel(academicScore),commitmentScore,commitmentLevel:commitmentLabel(commitmentScore),activityCount,sufficientData:scored.length>=2,
+    comparisonBasis:[gradeAvg!==null,homeworkGradeAvg!==null,attendancePct!==null,homeworkCompletionPct!==null,onTimePct!==null].join(','),
+    attendance:{total:attendance.length,required:entitlementKnown?sessions.length:null,entitlementKnown,present,late,absent,excused,unrecorded,percentage:attendancePct,rows:attendance,consecutiveAbsenceWarning:consecutiveAbsenceWarning(attendance)},
+    results:{count:rows.length,gradedCount:scored.length,average:gradeAvg,rows,requiredExams:required,availableExams:available,startedExams:started,submittedExams:submitted,attendedExams:submitted,missedExams:missed,pendingReview:awaiting,retakePolicy:'أحدث محاولة؛ إن كانت تنتظر التصحيح تُستبعد من المتوسط حتى اعتمادها.'},
+    homework:{required:assignments.length,submitted:submittedHw.length,missing:missingHw.length,late:lateHw.length,completionPercentage:homeworkCompletionPct,averageGrade:homeworkGradeAvg,onTimePercentage:onTimePct,rows:homeworkRows},
+    practical:{count:recitations.length,completed:completedPractical,percentage:null,rows:recitations},study:{lecturesOpened:opened,lecturesCompleted:verified,lectureCompletionPercentage:null,rows:progress},
+    payment:payment?{status:payment.status,expectedAmount:payment.expectedAmount,paidAmount:payment.paidAmount,remainingAmount:payment.remainingAmount}:null,
+    strengths,concerns,recommendations,warnings,teacherNotes:String(input.teacherNotes||'')};
 }
-
 function attachTrend(current,previous){
-  const currentScore=current?.overallScore,previousScore=previous?.overallScore;
-  if(currentScore===null||currentScore===undefined||previousScore===null||previousScore===undefined)return {...current,trend:{status:'insufficient',label:'لا توجد بيانات كافية للمقارنة',delta:null,previousScore:previousScore??null}};
-  const delta=Math.round(Number(currentScore)-Number(previousScore));
-  const status=delta>=5?'improved':delta<=-5?'declined':'stable';
-  const label=status==='improved'?`تحسن ${Math.abs(delta)}% عن الشهر السابق`:status==='declined'?`انخفض ${Math.abs(delta)}% عن الشهر السابق`:'مستواه مستقر مقارنة بالشهر السابق';
-  return {...current,trend:{status,label,delta,previousScore:Number(previousScore)}};
+  const comparable=current?.sufficientData&&previous?.sufficientData&&current.policyVersion===previous.policyVersion&&current.comparisonBasis===previous.comparisonBasis&&current.student?.grade===previous.student?.grade&&Number.isFinite(current.overallScore)&&Number.isFinite(previous.overallScore);
+  if(!comparable)return {...current,trend:{status:'insufficient',label:'لا توجد بيانات كافية وقابلة للمقارنة',delta:null,previousScore:previous?.overallScore??null}};
+  const delta=current.overallScore-previous.overallScore,status=delta>=5?'improved':delta<=-5?'declined':'stable';
+  return {...current,trend:{status,delta,previousScore:previous.overallScore,label:status==='stable'?'النتائج مستقرة في حدود 4 نقاط':`${delta>0?'ارتفع':'انخفض'} التقييم ${Math.abs(delta)} نقطة مئوية عن الشهر السابق`}};
 }
-
-module.exports={calculateMonthlyReport,attachTrend,levelLabel,commitmentLabel,normalizedAttendanceRows,consecutiveAbsenceWarning};
+module.exports={calculateMonthlyReport,attachTrend,levelLabel,commitmentLabel,normalizedAttendanceRows,consecutiveAbsenceWarning,dateKey,membershipAt,entitledSessions,scorePercent};

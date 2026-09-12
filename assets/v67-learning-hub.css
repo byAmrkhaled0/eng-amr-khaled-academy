@@ -14,7 +14,7 @@
 /* V67.5 — one mobile-first visual layer for the public platform, portals, exams and homework. */
 @media(max-width:760px){
   html{scroll-padding-top:72px}
-  body:not(.admin-dashboard-active){overflow-x:hidden;padding-bottom:max(86px,calc(78px + env(safe-area-inset-bottom,0px)))!important}
+  body:not(.admin-dashboard-active){overflow-x:hidden;padding-top:0!important;padding-bottom:max(86px,calc(78px + env(safe-area-inset-bottom,0px)))!important}
   .container{width:calc(100% - 20px)!important;max-width:none!important;padding-inline:0!important}
   .site-header{position:sticky!important;top:0;z-index:70;background:color-mix(in srgb,var(--card) 94%,transparent)!important;border-bottom:1px solid color-mix(in srgb,var(--tm-gold) 24%,var(--border))!important;box-shadow:0 7px 24px rgba(8,26,51,.08)!important;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
   .navbar{min-height:62px!important;padding-block:6px!important}.logo{gap:8px!important}.logo-mark{width:42px!important;height:42px!important;border-radius:13px!important}.logo-text{line-height:1.25!important}.logo-text strong{font-size:.9rem!important}.logo-text small{font-size:.61rem!important}.theme-toggle,.menu-toggle{width:42px!important;height:42px!important;min-width:42px!important}
@@ -221,7 +221,7 @@ html[data-theme="dark"] .lecture-kind-badge{border-color:#4c6280!important;backg
 html.theme-switching *,html.theme-switching *::before,html.theme-switching *::after{transition:none!important}
 .site-header .logo .logo-mark,.topbar .logo .logo-mark,.mobile-brand .logo-mark{background-color:transparent!important;background-image:url("technominds-logo.webp")!important;background-position:center!important;background-repeat:no-repeat!important;background-size:contain!important;box-shadow:none!important}
 
-/* V67.8.4 — one touch-safe scroll surface for exam grading and re-grading. */
+/* V67.8.5 — one touch-safe scroll surface for exam grading and re-grading. */
 body.correction-open{overflow:hidden!important;overscroll-behavior:none!important}
 .correction-modal-v40{overflow:hidden!important;overscroll-behavior:none!important;padding:max(10px,env(safe-area-inset-top,0px)) max(10px,env(safe-area-inset-right,0px)) max(10px,env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px))!important}
 .correction-card-v40{display:grid!important;grid-template-rows:auto minmax(0,1fr) auto!important;width:min(980px,100%)!important;height:min(900px,calc(100dvh - 20px))!important;min-height:0!important;max-height:calc(100dvh - 20px)!important;overflow:hidden!important;overscroll-behavior:none;border-radius:24px!important}

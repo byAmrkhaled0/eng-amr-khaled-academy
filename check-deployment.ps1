@@ -52,13 +52,10 @@ try {
   }
   Write-Host "OK deployed frontend and service-worker version $ExpectedVersion" -ForegroundColor Green
 
-  $health = Invoke-Callable "/api/health" @{}
+  $health = Invoke-RestMethod -Method Get -Uri ($BaseUrl.TrimEnd('/') + "/api/health") -TimeoutSec 30
   if ($health.status -ne "ok" -or -not $health.firestore) { throw "Health endpoint did not confirm Firestore." }
   if ($health.version -ne $ExpectedVersion) { throw "Backend version $($health.version) does not match source version $ExpectedVersion. Deploy Firebase Functions before the interface." }
-  if (-not $health.services.booking -or -not $health.services.studentPortal -or -not $health.services.administration -or -not $health.services.studentResources) {
-    throw "One or more backend capability flags are false."
-  }
-  Write-Host "OK Firebase health, booking, portal, administration, and resources" -ForegroundColor Green
+  Write-Host "OK backend version and Firestore connectivity. Capability flags do not verify booking, payments, or portal journeys." -ForegroundColor Green
 
   $languages = Invoke-Callable "/api/code/getCodeLanguages" @{}
   if (-not $languages.languages) { throw "Code language endpoint returned no languages." }

@@ -41,7 +41,7 @@ test('automatic and previously reviewed exams stay editable after the exam close
 test('assessment changes invalidate ranking and any locked parent monthly report',()=>{
   const backend=read('functions/index.js');
   assert.match(backend,/async function markStudentMonthlyReportDirty/);
-  assert.match(backend,/lockedAt&&!existing\.data\(\)\?\.invalidatedAt/);
+  assert.match(backend,/cached\.sourceRevision===sourceRevision&&cached\.contentRevision===contentRevision/);
   assert.match(backend,/invalidatedAt:FieldValue\.delete\(\)/);
   for(const name of ['submitExam','reviewExamAttempt','submitAssignmentAnswer','reviewHomeworkSubmission']){
     const body=functionBody(name);

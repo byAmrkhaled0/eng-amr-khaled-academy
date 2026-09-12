@@ -1,0 +1,67 @@
+{
+  "date": "2026-09-12",
+  "scope": "local iframe width simulation; no physical device",
+  "checks": [
+    {
+      "case": "public menu 360",
+      "viewport": 360,
+      "documentWidth": 360,
+      "focusOpen": "إغلاق القائمة",
+      "focusClose": "فتح قائمة الموقع",
+      "overflowOpen": "hidden",
+      "overflowClose": "auto"
+    },
+    {
+      "case": "payment dialog 360",
+      "viewport": 360,
+      "documentWidth": 360,
+      "dialogScrollHeight": 1130,
+      "tabWrap": "إغلاق",
+      "focusClose": "دفع جزئي",
+      "overflowClose": "auto"
+    },
+    {
+      "case": "report 390 dark",
+      "viewport": 375,
+      "documentWidth": 375,
+      "reportHeight": 3256,
+      "reachedLastNotes": true
+    },
+    {
+      "case": "public header 768",
+      "viewport": 753,
+      "documentWidth": 753
+    },
+    {
+      "case": "public header 1200",
+      "viewport": 1185,
+      "documentWidth": 1185,
+      "visibleLinks": [
+        "محاضرات عملي",
+        "محاضرات نظري"
+      ]
+    },
+    {
+      "case": "payment fixture",
+      "serverDelayMs": 200,
+      "confirmedAmount": 40,
+      "expected": 100,
+      "remaining": 60
+    },
+    {
+      "case": "IndexedDB",
+      "concurrentScans": 2,
+      "storedRows": 1,
+      "observedSaveMs": 4,
+      "survivedReload": true,
+      "acknowledgementRetained": true
+    }
+  ],
+  "notVerified": [
+    "physical camera",
+    "airplane-mode app relaunch",
+    "exported Arabic PDF",
+    "mobile keyboard/landscape/zoom",
+    "real admin login"
+  ]
+}

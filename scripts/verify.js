@@ -146,7 +146,7 @@ if (!read('firestore.rules').includes('match /code_execution_runs/{id}') || !rea
 if (!functionsSource.includes("db.collection('_booking_requests')") || !functionsSource.includes('requestId')) fail('Idempotent booking request protection is missing');
 if (!functionsSource.includes("db.collection('_homework_upload_tokens')") || !read('storage.rules').includes('_homework_upload_tokens')) fail('One-time homework upload authorization is missing');
 if (/questions:\s*questions\.map\(q\s*=>\s*\(\{[^}]*answer/s.test(functionsSource)) fail('startExam response appears to expose answers');
-if (!functionsSource.includes("backupFormatVersion: 2") || !functionsSource.includes("createPlatformBackup('pre-restore'")) {
+if (!read("functions/lib/backup.js").includes("backupFormatVersion:3") || !read("functions/lib/backup.js").includes("createPlatformBackup('pre-restore'")) {
   fail('Safe backup restore protection is incomplete');
 }
 if (!failures.some(x => x.startsWith('Missing callable') || x.includes('Scheduled daily') || x.includes('expose answers') || x.includes('backup restore'))) {
@@ -159,7 +159,7 @@ const appSourceCode = read('assets/app.js');
 const fixesSourceCode = read('assets/v56-fixes.js');
 if (!adminSourceCode.includes("loadSiteData({fast:true})") || !adminSourceCode.includes('hydrateAdminRecords')) fail('Staged admin loading is missing');
 if (!appSourceCode.includes('staffCacheOnly') || !appSourceCode.includes('if(isStaffWorkspace())return;')) fail('Compact staff browser cache protection is missing');
-if (!appSourceCode.includes("MF_ASSET_VERSION = '67.8.4'")) fail('Lazy asset loader version is stale');
+if (!appSourceCode.includes("MF_ASSET_VERSION = '67.8.5'")) fail('Lazy asset loader version is stale');
 if (!fixesSourceCode.includes('showMoreAdminStudents') || !fixesSourceCode.includes('slice(0,adminStudentVisible)')) fail('Paginated student rendering is missing');
 if (!appSourceCode.includes('ensureQrScannerLibrary') || !appSourceCode.includes("loadQrScanner:()=>loadLazyScript('qr-scanner'")) fail('Cross-browser lazy QR scanner fallback is missing');
 for (const page of ['student.html','parent.html','teacher-login.html']) {
@@ -204,8 +204,8 @@ if (manifest.display !== 'standalone' || manifest.scope !== '/' || !Array.isArra
 if (!manifest.icons.some(icon => String(icon.purpose || '').includes('maskable') && icon.sizes === '512x512')) fail('Maskable PWA icon is missing');
 const sw = read('service-worker.js');
 const appShellSource = sw.slice(0,sw.indexOf('];')+2);
-if (!/technominds-v67-8-4-admin-session/.test(sw) || !sw.includes('/assets/v61-design.css') || !sw.includes('/assets/v67-learning-hub.css') || !sw.includes('/assets/v674-admin.css') || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/curriculum-student.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes("'/practical.html'") || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell or sensitive portal exclusions are incomplete');
-if (/xlsx|assets\/admin\.js|teacher-login\.html|html5-qrcode/.test(appShellSource) || !sw.includes('event.waitUntil(network.catch') || !sw.includes('fetch(request,{cache:"reload"})')) fail('Lazy tools or repeat-visit caching are incomplete');
+if (!/technominds-v67-8-5-admin-session/.test(sw) || !sw.includes('/assets/v61-design.css') || !sw.includes('/assets/v67-learning-hub.css') || !sw.includes('/assets/v674-admin.css') || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/curriculum-student.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes("'/practical.html'") || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell or sensitive portal exclusions are incomplete');
+if (/xlsx|assets\/admin\.js|teacher-login\.html|html5-qrcode/.test(appShellSource) || !sw.includes("if(cached&&url.searchParams.get('v')===ASSET_VERSION)return cached")) fail('Lazy tools or repeat-visit caching are incomplete');
 if (!read('index.html').includes('<script defer src="https://www.gstatic.com/firebasejs/')) fail('Firebase scripts are not downloaded in parallel with deferred execution');
 const upgrade = read('assets/v53-upgrades.js');
 if (!upgrade.includes('beforeinstallprompt') || !upgrade.includes('إضافة إلى الشاشة الرئيسية') || !upgrade.includes('navigator.standalone')) fail('Mobile install handling is incomplete');
@@ -251,7 +251,7 @@ if (!read('assets/v55-admin.js').includes('coursePrices') || !read('assets/v55-a
 const deploymentChecks = read('deploy-production.ps1') + '\n' + read('check-deployment.ps1');
 if (!read('assets/practical.js').includes('runJavascriptFallback') || !deploymentChecks.includes('getCodeLanguages') || !deploymentChecks.includes('TM_JS_OK')) fail('Code runner fallback or deployed execution smoke test is incomplete');
 if (!functionsSource.includes('wait=false') || !functionsSource.includes('judge0-poll-') || !functionsSource.includes('fields=stdout,time,memory')) fail('Judge0 asynchronous submission and polling support is incomplete');
-if (!functionsSource.includes('exports.getPlatformHealth = onCall') || !deploymentChecks.includes('/api/health') || !deploymentChecks.includes('services.booking')) fail('Post-deploy Firebase, booking, and portal health check is incomplete');
+if (!functionsSource.includes('exports.getPlatformHealth = onCall') || !deploymentChecks.includes('/api/health') || !deploymentChecks.includes('-Method Get')) fail('Post-deploy Firebase, booking, and portal health check is incomplete');
 const deployScript = read('deploy-production.ps1');
 if (deployScript.includes('ValueFromRemainingArguments') || !deployScript.includes('Get-Command npm.cmd') || !deployScript.includes('-Executable $NpmExecutable -ArgumentList @("test")')) fail('Windows PowerShell command invocation is not explicit or npm.cmd-safe');
 if (!deployScript.includes('FUNCTIONS_DISCOVERY_TIMEOUT = "120"') || !read('DEPLOY-WINDOWS.cmd').includes('FUNCTIONS_DISCOVERY_TIMEOUT=120')) fail('Firebase Functions discovery timeout is not protected on Windows');
@@ -281,7 +281,7 @@ for (const callable of ['createPaymentTransaction','editPaymentTransaction','can
 }
 if (!monthlyPaymentSource.includes('paymentPartialCount') || !monthlyPaymentSource.includes('exportMonthlyPaymentsExcel') || !monthlyPaymentSource.includes('runLegacyPaymentMigration')) fail('Monthly cashbox totals, Excel export, or legacy migration UI is incomplete');
 if (!monthlyPaymentSource.includes('installV606PaymentHandlers') || !monthlyPaymentSource.includes('window.setPaid=(code,value)=>value?window.markStudentPaid') || !monthlyPaymentSource.includes('window.markStudentPaid=async function')) fail('One-tap payment override is not safely isolated');
-if (!functionsSource.includes("db.collection('_payment_dedup')") || !functionsSource.includes("createPlatformBackup('pre-payment-migration'") || !functionsSource.includes('legacyRowsPreserved: true')) fail('Payment idempotency, pre-migration backup, or legacy preservation is incomplete');
+if (!functionsSource.includes("existing.requestFingerprint!==requestFingerprint") || !functionsSource.includes("createPlatformBackup('pre-payment-migration'") || !functionsSource.includes('legacyRowsPreserved: true')) fail('Payment idempotency, pre-migration backup, or legacy preservation is incomplete');
 if (!rules.includes('match /monthly_payments/{id}') || !rules.includes('match /payment_transactions/{id}') || !rules.includes('allow write: if false;')) fail('Monthly payment ledger rules are not server-write-only');
 if (!read('firestore.indexes.json').includes('payment_transactions') || !read('firestore.indexes.json').includes('_payment_dedup')) fail('Payment indexes or deduplication TTL are missing');
 if (!appSourceCode.includes('data-student-tab="payments"') || !functionsSource.includes('monthlyPayments:')) fail('Student payment history is missing from the student file');
