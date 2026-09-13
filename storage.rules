@@ -75,7 +75,8 @@ service firebase.storage {
     match /curriculum/{grade}/{entity}/{fileName} {
       // Students receive a short-lived URL only after server-side grade checks.
       allow read: if isTeacher();
-      allow create, update: if isTeacher() && fileName.size() <= 220 && safeTeacherFile();
+      allow create, update: if isTeacher() && fileName.size() <= 220 && safeTeacherFile()
+        && (entity != 'question_banks' || (request.resource.contentType == 'application/pdf' && fileName.matches('.*[.][pP][dD][fF]$')));
       allow delete: if isTeacher();
     }
 

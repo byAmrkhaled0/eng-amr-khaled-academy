@@ -1,14 +1,16 @@
 const CACHE_NAME = "technominds-v67-8-5-admin-session";
 const ASSET_VERSION = "67.8.5";
+// Build fills these hashes; source previews continue to use the release URLs.
+const ASSET_REVISIONS = {};
 const APP_SHELL = [
   "/", "/index.html", "/student.html", "/parent.html", "/exams.html", "/materials.html", "/theory-lectures.html", "/questions.html", "/practical.html", "/learning-path.html", "/about.html", "/reviews.html", "/privacy.html",
   "/terms.html", "/offline.html", "/assets/site.css", "/assets/v55.css",
-  "/assets/v56.css", "/assets/v60-technominds.css", "/assets/v61-design.css", "/assets/v65-redesign.css", "/assets/v67-learning-hub.css", "/assets/v674-admin.css", "/assets/theme-init.js", "/assets/app.js", "/assets/practical.js", "/assets/firebase-sync.js",
+  "/assets/v56.css", "/assets/v60-technominds.css", "/assets/v61-design.css", "/assets/v65-redesign.css", "/assets/v67-learning-hub.css", "/assets/v674-admin.css", "/assets/theme-init.js", "/assets/app.js", "/assets/portal-results.js", "/assets/student-grade-records.js", "/assets/practical.js", "/assets/firebase-sync.js",
   "/assets/firebase-config.js", "/assets/v53-upgrades.js", "/assets/v65-enhancements.js", "/assets/offline-attendance.js", "/assets/curriculum-student.js",
   "/assets/technominds-logo.png", "/assets/technominds-logo.webp",
   "/assets/amr-khaled-profile.webp", "/site.webmanifest", "/teacher.webmanifest"
 ];
-const VERSIONED_APP_SHELL=APP_SHELL.map(url=>/\.(?:css|js)$/.test(url)?`${url}?v=${ASSET_VERSION}`:url);
+const VERSIONED_APP_SHELL=APP_SHELL.map(url=>/\.(?:css|js)$/.test(url)?`${url}?v=${ASSET_VERSION}${ASSET_REVISIONS[url]?`&rev=${ASSET_REVISIONS[url]}`:''}`:url);
 const SENSITIVE_NAVIGATION=new Set(['/student.html','/parent.html','/exams.html','/materials.html','/theory-lectures.html','/questions.html','/practical.html','/teacher-login.html']);
 
 // Background FCM uses the browser's standard Push API with no external worker

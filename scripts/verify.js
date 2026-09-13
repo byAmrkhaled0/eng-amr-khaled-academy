@@ -25,6 +25,7 @@ for (const relative of requiredFiles) {
   if (!fs.existsSync(path.join(root, relative))) fail(`Missing required file: ${relative}`);
 }
 if (!failures.length) ok('Required files exist');
+if(read('assets/portal-results.js')!==read('functions/lib/portal-results.js'))fail('Shared portal results are stale; run node scripts/sync-shared-assets.js');
 
 const jsFiles = [
   'assets/app.js', 'assets/admin.js', 'assets/v53-upgrades.js', 'assets/v55-admin.js', 'assets/v56-fixes.js',

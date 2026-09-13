@@ -1,3 +1,80 @@
+# ملفات دفعة 13 سبتمبر 2026
+
+التغييرات التالية مقارنةً مع main عند `3eb73c6`. ملفات docs/evidence وصورها الواردة في السجل القديم لا تمثل معاينة لهذه الدفعة. الأدلة الحالية داخل docs/verification. dist مولّدة ويعاد بناؤها؛ portal-results.js في assets نسخة مولّدة من المصدر الموجود في functions/lib.
+
+- `about.html`
+- `assets/admin.js`
+- `assets/app.js`
+- `assets/curriculum-admin.js`
+- `assets/curriculum-student.js`
+- `assets/firebase-sync.js`
+- `assets/portal-results.js`
+- `assets/student-grade-records.js`
+- `assets/v55.css`
+- `assets/v56-fixes.js`
+- `assets/v56.css`
+- `assets/v60-admin-workflow.js`
+- `assets/v65-redesign.css`
+- `assets/v67-learning-hub.css`
+- `assets/v674-admin.css`
+- `docs/AI_WORKFLOW.md`
+- `docs/ANIMATIONS.md`
+- `docs/BRAND_GUIDELINES.md`
+- `docs/CHANGED_FILES.md`
+- `docs/CODE_STANDARDS.md`
+- `docs/DEPLOYMENT_REVIEW.md`
+- `docs/FUNCTION_INVENTORY.md`
+- `docs/PERFORMANCE_AND_COST.md`
+- `docs/REVIEW_REPORT_AR.md`
+- `docs/UI_CONTEXT.md`
+- `docs/verification/asset-sizes-and-contrast.json`
+- `docs/verification/node22-emulators.log`
+- `docs/verification/node22-tests.log`
+- `docs/verification/public-routes-2026-09-13.json`
+- `exams.html`
+- `firestore.indexes.json`
+- `functions/index.js`
+- `functions/lib/portal-results.js`
+- `index.html`
+- `learning-path.html`
+- `materials.html`
+- `package-lock.json`
+- `package.json`
+- `parent.html`
+- `practical.html`
+- `privacy.html`
+- `questions.html`
+- `reviews.html`
+- `scripts/admin-theme.cascade.test.js`
+- `scripts/admin-ui.behavior.test.js`
+- `scripts/browser/attendance-fixture.html`
+- `scripts/browser/attendance-fixture.js`
+- `scripts/browser/attendance-review.html`
+- `scripts/browser/attendance-review.js`
+- `scripts/browser/fixture.html`
+- `scripts/build.js`
+- `scripts/firebase-rules.emulator.test.js`
+- `scripts/mobile-design-v675.test.js`
+- `scripts/question-banks.integration.test.js`
+- `scripts/review.service-worker.test.js`
+- `scripts/student-grades.behavior.test.js`
+- `scripts/student-grades.integration.test.js`
+- `scripts/sync-shared-assets.js`
+- `scripts/testing/admin-dom.js`
+- `scripts/testing/css-cascade.js`
+- `scripts/verify-dist.js`
+- `scripts/verify.js`
+- `service-worker.js`
+- `storage.rules`
+- `student.html`
+- `teacher-login.html`
+- `terms.html`
+- `theory-lectures.html`
+
+---
+
+## سجل الدفعة السابقة
+
 # الملفات المعدلة والمضافة
 
 المسارات نسبة إلى جذر المشروع. أصول الإصدار والاختبارات حُدّثت إلى 67.8.5 لمنع كاش قديم؛ ليست طبقات runtime جديدة. أدلة التشغيل في docs/evidence؛ dist مولّدة ويعاد بناؤها.

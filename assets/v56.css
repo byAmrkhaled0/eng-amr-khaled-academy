@@ -138,10 +138,10 @@
 
 .admin-offline-banner,.offline-attendance-status{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px;border:1px solid rgba(217,139,0,.35);border-radius:14px;background:rgba(217,139,0,.09);color:var(--text)}
 .admin-draft-note{margin:0 0 12px;padding:9px 11px;border:1px solid rgba(20,150,105,.25);border-radius:12px;background:rgba(20,150,105,.08);color:var(--text);font-size:.82rem;font-weight:800}
-.admin-offline-banner{margin-bottom:12px}.admin-offline-banner span,.offline-attendance-status small{display:block;color:var(--muted);font-size:.78rem;font-weight:750}.offline-attendance-status{margin-top:12px}.offline-attendance-status.online{border-color:rgba(20,150,105,.28);background:rgba(20,150,105,.08)}
+.admin-offline-banner{margin-bottom:12px}.admin-offline-banner span,.offline-attendance-status small{display:block;color:var(--muted);font-size:.78rem;font-weight:750}.offline-attendance-status{margin-top:0;flex-wrap:wrap}.offline-attendance-status>div{flex:1 1 20rem;min-width:0}.offline-attendance-status .small-btn{flex:0 0 auto;min-height:44px;white-space:normal;word-break:normal}.offline-attendance-status.online{border-color:rgba(20,150,105,.28);background:rgba(20,150,105,.08)}
 @media(max-width:760px){
   .compact-student-actions .small-btn,.compact-booking-actions .small-btn{min-height:44px!important}
-  .admin-offline-banner,.offline-attendance-status{align-items:stretch;flex-direction:column}.offline-attendance-status .small-btn{width:100%;min-height:44px}
+  .admin-offline-banner,.offline-attendance-status{align-items:stretch;flex-direction:column}.offline-attendance-status>div{flex-basis:auto}.offline-attendance-status .small-btn{width:100%;min-height:44px}
 }
 
 /* Unified A4 printing for every report, table and student/parent file. */
