@@ -47,23 +47,29 @@
 
   function renderItems(rows,kind){
     if(!rows.length)return '<div class="empty-state"><h3>لا يوجد محتوى في هذا القسم حاليًا</h3></div>';
-    return rows.map(row=>`<article class="lecture-content-item"><h3>${esc(row.title)}</h3><p>${esc(row.description||'')}</p>${row.filePath?`<button class="btn ghost small" type="button" data-content-file="${esc(kind)}:${esc(row.id)}">فتح الملف</button>`:''}</article>`).join('');
+    const collections={materials:'lecture_materials',assignments:'assignments_v2',questions:'bank_questions',exams:'monthly_exams'};
+    return rows.map(row=>`<article class="lecture-content-item"><h3>${esc(row.title)}</h3><p>${esc(row.description||'')}</p>${row.content?`<div class="written-box">${esc(row.content)}</div>`:''}${row.filePath?`<button class="btn ghost small" type="button" data-content-file="${esc(row.sourceCollection||collections[kind])}:${esc(row.id)}">فتح الملف</button>`:''}</article>`).join('');
   }
 
   async function openLecture(id){
+    const returnFocus=document.activeElement;
     document.getElementById('curriculumLectureModal')?.remove();
-    document.body.insertAdjacentHTML('beforeend','<div class="curriculum-modal" id="curriculumLectureModal" role="dialog" aria-modal="true"><div class="card curriculum-modal-card"><div class="portal-loading"><span></span><b>جاري فتح المحاضرة...</b></div></div></div>');
+    document.body.insertAdjacentHTML('beforeend','<div class="curriculum-modal" id="curriculumLectureModal" role="dialog" aria-modal="true"><div class="card curriculum-modal-card"><button class="curriculum-modal-close" type="button" aria-label="إغلاق">×</button><div class="portal-loading" role="status"><span></span><b>جاري فتح المحاضرة...</b></div></div></div>');
     const modal=document.getElementById('curriculumLectureModal');
+    const close=()=>{modal.remove();document.documentElement.classList.remove('lecture-dialog-open');if(returnFocus?.isConnected)returnFocus.focus({preventScroll:true});};
+    document.documentElement.classList.add('lecture-dialog-open');
+    modal.querySelector('.curriculum-modal-close').onclick=close;modal.querySelector('button').focus();
+    modal.addEventListener('click',event=>{if(event.target===modal)close();});
+    modal.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();close();}if(event.key==='Tab'){const controls=[...modal.querySelectorAll('button,a[href],input,select,textarea')].filter(el=>!el.disabled&&(!el.closest('.lecture-tab-panel')||el.closest('.lecture-tab-panel').classList.contains('show'))),first=controls[0],last=controls.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}});
     try{
-      const data=await window.MFCloud.getLectureContent(currentCode,id);
+      const data=await window.MFCloud.getLectureContent(currentCode,id);if(!modal.isConnected)return;
       modal.querySelector('.curriculum-modal-card').innerHTML=`<button class="curriculum-modal-close" type="button" aria-label="إغلاق">×</button><header><small>المحاضرة ${Number(data.lecture.lectureNumber||0)}</small><h2>${esc(data.lecture.title)}</h2><p>${esc(data.lecture.description||'')}</p></header>${tabs(data)}<footer><button class="btn primary" type="button" data-complete-lecture>تحديد كمكتملة</button></footer>`;
-      modal.querySelector('.curriculum-modal-close').onclick=()=>modal.remove();
-      modal.addEventListener('click',event=>{if(event.target===modal)modal.remove();});
+      modal.querySelector('.curriculum-modal-close').onclick=close;modal.querySelector('button').focus();
       modal.querySelectorAll('[data-lecture-tab]').forEach(button=>button.addEventListener('click',()=>{modal.querySelectorAll('[data-lecture-tab]').forEach(item=>item.classList.toggle('active',item===button));modal.querySelectorAll('[data-lecture-panel]').forEach(panel=>panel.classList.toggle('show',panel.dataset.lecturePanel===button.dataset.lectureTab));}));
-      modal.querySelector('[data-complete-lecture]').onclick=async event=>{event.currentTarget.disabled=true;await window.MFCloud.recordLectureProgress(currentCode,id,100);event.currentTarget.textContent='تم إكمال المحاضرة';};
-      modal.querySelectorAll('[data-content-file]').forEach(button=>button.addEventListener('click',async()=>{const [,entityId]=button.dataset.contentFile.split(':');button.disabled=true;try{const file=await window.MFCloud.getCurriculumFileUrl(currentCode,'lecture_materials',entityId);window.open(file.url,'_blank','noopener');}finally{button.disabled=false;}}));
-      await window.MFCloud.recordLectureProgress(currentCode,id,10);
-    }catch(error){modal.querySelector('.curriculum-modal-card').innerHTML=`<button class="curriculum-modal-close" type="button">×</button><div class="empty-state"><h3>تعذر فتح المحاضرة</h3><p>${esc(error?.message||'حاول مرة أخرى.')}</p></div>`;modal.querySelector('button').onclick=()=>modal.remove();}
+      modal.querySelector('[data-complete-lecture]').onclick=async event=>{const button=event.currentTarget;button.disabled=true;button.textContent='جارٍ الحفظ…';try{await window.MFCloud.recordLectureProgress(currentCode,id,100);button.textContent='سجلت إكمال المحاضرة';}catch(error){button.disabled=false;button.textContent='إعادة محاولة حفظ الإكمال';window.toast?.(error?.message||'تعذر حفظ التقدم.');}};
+      modal.querySelectorAll('[data-content-file]').forEach(button=>button.addEventListener('click',async()=>{const [collection,entityId]=button.dataset.contentFile.split(':'),placeholder=window.open('about:blank','_blank');button.disabled=true;button.classList.add('is-loading');try{const file=await window.MFCloud.getCurriculumFileUrl(currentCode,collection,entityId);if(placeholder){placeholder.opener=null;placeholder.location.replace(file.url);}else location.assign(file.url);}catch(error){placeholder?.close();window.toast?.(error?.message||'تعذر فتح الملف.');}finally{button.disabled=false;button.classList.remove('is-loading');}}));
+      window.MFCloud.recordLectureProgress(currentCode,id,10).catch(()=>window.toast?.('فُتحت المحاضرة، وتعذر حفظ سجل الفتح.'));
+    }catch(error){if(!modal.isConnected)return;modal.querySelector('.curriculum-modal-card').innerHTML=`<button class="curriculum-modal-close" type="button">×</button><div class="empty-state"><h3>تعذر فتح المحاضرة</h3><p>${esc(error?.message||'حاول مرة أخرى.')}</p></div>`;modal.querySelector('button').onclick=close;modal.querySelector('button').focus();}
   }
 
   document.addEventListener('technominds:student-loaded',async event=>{

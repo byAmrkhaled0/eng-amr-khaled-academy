@@ -244,3 +244,9 @@ html[data-theme="dark"] .correction-mode-note-v683{border-color:#39516d;backgrou
   .correction-final-v40{grid-template-columns:1fr 1fr!important;gap:8px!important;padding:9px!important}.correction-reason-v683{grid-column:2}.correction-final-v40 .btn{grid-column:1/-1;width:100%;min-width:0}.correction-final-v40 textarea{max-height:72px}.motivation-score-breakdown-v683{grid-template-columns:1fr 1fr}.leaderboard-metrics{grid-template-columns:1fr 1fr!important}
 }
 @media(max-width:430px){.correction-final-v40{grid-template-columns:112px minmax(0,1fr)!important}.correction-final-v40 label{font-size:.78rem}.correction-final-v40 input,.correction-final-v40 textarea{padding:8px!important}}
+
+/* Per-lesson question banks keep the same filter and access scope as their lesson. */
+.lesson-question-banks{margin-top:16px;padding-top:14px;border-top:1px solid var(--border);min-width:0}.lesson-question-banks h4{margin:0 0 10px;color:var(--text)}.lesson-question-banks ul{display:grid;gap:12px;margin:0;padding:0;list-style:none}.lesson-question-banks li{display:grid;gap:8px;min-width:0}.lesson-question-banks .btn{white-space:normal;overflow-wrap:anywhere;min-height:44px;justify-content:flex-start}.lesson-question-banks .written-box{white-space:pre-wrap;overflow-wrap:anywhere;max-height:50dvh;overflow:auto}.lesson-question-banks summary{cursor:pointer;padding-block:8px;font-weight:700}
+
+html.lecture-dialog-open,html.lecture-dialog-open body{overflow:hidden}
+#curriculumLectureModal .curriculum-modal-card{max-height:calc(100dvh - 24px);overflow-y:auto;overscroll-behavior:contain;scroll-padding-block:16px}

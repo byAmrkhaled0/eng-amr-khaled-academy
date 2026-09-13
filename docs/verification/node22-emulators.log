@@ -1,0 +1,126 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+v22.23.2
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> techno-minds-platform@67.8.5 test:review:integration
+> firebase emulators:exec --project demo-technominds --only firestore,storage "node --test --test-concurrency=1 scripts/firebase-rules.emulator.test.js scripts/review.integration.test.js scripts/question-banks.integration.test.js scripts/student-grades.integration.test.js"
+
+⚠  Unable to fetch the CLI MOTD and remote config. This is not a fatal error, but may indicate an issue with your network connection.
+i  emulators: Starting emulators: firestore, storage
+i  emulators: Detected demo project ID "demo-technominds", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+i  firestore: Firestore Emulator logging to firestore-debug.log
+✔  firestore: Firestore Emulator was started in standard edition.
+✔  firestore: Firestore Emulator UI websocket is running on 9150.
+i  Running script: node --test --test-concurrency=1 scripts/firebase-rules.emulator.test.js scripts/review.integration.test.js scripts/question-banks.integration.test.js scripts/student-grades.integration.test.js
+TAP version 13
+# Subtest: only the verified active Admin can read student data
+ok 1 - only the verified active Admin can read student data
+  ---
+  duration_ms: 2030.627466
+  type: 'test'
+  ...
+# [2026-09-13T13:52:35.175Z]  @firebase/firestore: Firestore (12.17.0): GrpcConnection RPC 'Write' stream 0x872fc88f error. Code: 7 Message: 7 PERMISSION_DENIED: 
+# false for 'update' @ L116, false for 'update' @ L209
+# Subtest: exam grading cannot be written directly even by Admin
+ok 2 - exam grading cannot be written directly even by Admin
+  ---
+  duration_ms: 84.511288
+  type: 'test'
+  ...
+# [2026-09-13T13:52:35.286Z]  @firebase/firestore: Firestore (12.17.0): GrpcConnection RPC 'Write' stream 0x872fc892 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+# false for 'create' @ L166, false for 'create' @ L209, false for 'update' @ L166, false for 'update' @ L209
+# [2026-09-13T13:52:35.319Z]  @firebase/firestore: Firestore (12.17.0): GrpcConnection RPC 'Write' stream 0x872fc893 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+# false for 'create' @ L167, false for 'create' @ L209, false for 'update' @ L167, false for 'update' @ L209
+# Subtest: class sessions and private notes are Admin-readable but server-write-only
+ok 3 - class sessions and private notes are Admin-readable but server-write-only
+  ---
+  duration_ms: 168.902891
+  type: 'test'
+  ...
+# Subtest: only the intended public settings document is anonymous-readable
+ok 4 - only the intended public settings document is anonymous-readable
+  ---
+  duration_ms: 34.327509
+  type: 'test'
+  ...
+# Subtest: private curriculum files are readable only by the verified active Admin
+ok 5 - private curriculum files are readable only by the verified active Admin
+  ---
+  duration_ms: 284.482122
+  type: 'test'
+  ...
+# Subtest: lesson-bank uploads require a verified active Admin and PDF metadata; direct student access stays denied
+ok 6 - lesson-bank uploads require a verified active Admin and PDF metadata; direct student access stays denied
+  ---
+  duration_ms: 185.164238
+  type: 'test'
+  ...
+# Subtest: bank save, retry and audience are server-owned; hidden or archived lessons block resource and file access
+ok 7 - bank save, retry and audience are server-owned; hidden or archived lessons block resource and file access
+  ---
+  duration_ms: 750.316103
+  type: 'test'
+  ...
+# Subtest: pagination returns every tied order, includes zero, and excludes other lessons and grades
+ok 8 - pagination returns every tied order, includes zero, and excludes other lessons and grades
+  ---
+  duration_ms: 197.607091
+  type: 'test'
+  ...
+# Subtest: payment: concurrent retry, cancel, new equal payment, changed payload and second device
+ok 9 - payment: concurrent retry, cancel, new equal payment, changed payload and second device
+  ---
+  duration_ms: 3871.385401
+  type: 'test'
+  ...
+# Subtest: offline: prepared scope, replay, two devices, bad QR and revoked session
+ok 10 - offline: prepared scope, replay, two devices, bad QR and revoked session
+  ---
+  duration_ms: 168.673153
+  type: 'test'
+  ...
+# Subtest: shared backup restores old and complete nested snapshots without removing omitted records
+ok 11 - shared backup restores old and complete nested snapshots without removing omitted records
+  ---
+  duration_ms: 1704.41304
+  type: 'test'
+  ...
+# Subtest: report cache invalidates after a corrected grade and never exposes internal notes
+ok 12 - report cache invalidates after a corrected grade and never exposes internal notes
+  ---
+  duration_ms: 139.334109
+  type: 'test'
+  ...
+# Subtest: dashboard pages the complete 1201-student and 610-summary period on Firestore
+ok 13 - dashboard pages the complete 1201-student and 610-summary period on Firestore
+  ---
+  duration_ms: 733.810743
+  type: 'test'
+  ...
+# Subtest: student-scoped grade pages include more than 300 homework records and deduplicate legacy grade copies
+ok 14 - student-scoped grade pages include more than 300 homework records and deduplicate legacy grade copies
+  ---
+  duration_ms: 351.206763
+  type: 'test'
+  ...
+# Subtest: actual homework correction and grade revision reach the student profile with one academic result
+ok 15 - actual homework correction and grade revision reach the student profile with one academic result
+  ---
+  duration_ms: 209.121711
+  type: 'test'
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 15
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 12138.594168
+✔  Script exited successfully (code 0)
+i  emulators: Shutting down emulators.
+i  firestore: Stopping Firestore Emulator
+i  storage: Stopping Storage Emulator
+i  hub: Stopping emulator hub
+i  logging: Stopping Logging Emulator

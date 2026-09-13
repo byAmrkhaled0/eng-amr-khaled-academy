@@ -221,22 +221,23 @@ async function reloadFromCloud(){
 async function hydrateAdminRecords(token){
   if(!window.MFCloud?.loadStaffRecords)return;
   try{
-    const records=await window.MFCloud.loadStaffRecords();
+    const records=await window.MFCloud.loadStaffRecords((adminData.students||[]).map(st=>stCode(st)));
     if(token!==adminRecordsLoadToken||!records)return;
-    const students=(adminData.students||[]).map(student=>({...student,attendance:[],grades:[],homeworks:[],recitations:[]}));
+    const students=(adminData.students||[]).map(student=>({...student,attendance:[],grades:[],homeworks:[],recitations:[],examAttempts:[],gradeRecordsLoaded:true,gradeRecordsError:false}));
     const map=new Map(students.map(student=>[String(student.studentCode||student.code||student.id||'').toUpperCase(),student]));
     const getStudent=code=>map.get(String(code||'').toUpperCase());
     (records.attendance||[]).forEach(row=>{const student=getStudent(row.studentCode||row.studentId);if(student)student.attendance.push(row);});
     (records.grades||[]).forEach(row=>{const student=getStudent(row.studentCode||row.code);if(student)student.grades.push(row);});
     (records.recitations||[]).forEach(row=>{const student=getStudent(row.studentCode);if(student)student.recitations.push(row);});
     (records.homeworks||[]).forEach(row=>{const student=getStudent(row.studentCode);if(student)student.homeworks.push(row);});
+    (records.attempts||[]).forEach(row=>{const student=getStudent(row.studentCode);if(student)student.examAttempts.push(row);});
     students.forEach(student=>{student.attendance.sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));student.grades.sort((a,b)=>String(a.date||a.submittedAt||'').localeCompare(String(b.date||b.submittedAt||'')));});
     adminData.students=students;adminData.examAttempts=records.attempts||[];adminData.grades=records.grades||[];
     saveData(adminData);
     const focused=document.activeElement?.matches?.('input,textarea,select');
     const openEditor=document.querySelector('#examCreatorPanel:not([hidden]),#assignmentFormV6061:not([hidden]),form[data-draft-dirty="true"]');
     if(document.querySelector('.admin-page')&&!focused&&!openEditor&&!document.querySelector('[role="dialog"],.correction-modal-v40'))renderSection();
-  }catch(error){console.warn('admin-records-background-load',error);}
+  }catch(error){(adminData.students||[]).forEach(st=>{st.gradeRecordsLoaded=true;st.gradeRecordsError=true;});console.warn('admin-records-background-load',error);if(currentSection==='students')renderStudents();}
 }
 
 function unauthorized(message='غير مصرح لك بالدخول.'){
@@ -320,7 +321,7 @@ async function tryOfflineStaffWorkspace(){
 function adminSectionName(id){return adminSections.find(([sectionId])=>sectionId===id)?.[2]||'الرئيسية';}
 function adminSectionGroupName(id){return adminSectionGroups.find(([,ids])=>ids.includes(id))?.[0]||'لوحة الإدارة';}
 function adminSectionIcon(id){return adminSections.find(([sectionId])=>sectionId===id)?.[1]||'bar-chart';}
-const adminPrimarySections=['overview','operations','students','attendance','theoryLectures','assignments','exams'];
+const adminPrimarySections=['overview','operations','students','attendance','theoryLectures','questionBanks','assignments','exams'];
 function adminNavButtonHtml(id,label){
   const section=adminSections.find(item=>item[0]===id);if(!section)return '';
   const [,icon,name]=section,description=adminSectionDescriptions[id]||'',searchValue=`${label} ${name} ${description}`;
@@ -489,7 +490,7 @@ function startAdminLiveData(){
   if(!adminStudentsUnsubscribe&&window.MFCloud?.subscribeToStudents){
     adminStudentsUnsubscribe=window.MFCloud.subscribeToStudents(rows=>{
       const previous=new Map((adminData.students||[]).map(student=>[stCode(student),student]));
-      adminData.students=(rows||[]).map(row=>{const old=previous.get(stCode(row))||{};return {...old,...row,attendance:old.attendance||[],grades:old.grades||[],homeworks:old.homeworks||[],recitations:old.recitations||[]};});
+      adminData.students=(rows||[]).map(row=>{const old=previous.get(stCode(row))||{};return {...old,...row,gradeRecordsLoaded:old.gradeRecordsLoaded===true,gradeRecordsError:old.gradeRecordsError===true,attendance:old.attendance||[],grades:old.grades||[],homeworks:old.homeworks||[],recitations:old.recitations||[]};});
       saveData(adminData);
       if((currentSection==='overview'||currentSection==='students'||currentSection==='payments')&&adminCanRefreshLiveSection())renderSection();
     });
@@ -501,7 +502,7 @@ function startAdminLiveData(){
     });
   }
   const activityNotice=(type,row)=>{adminData.adminNotifications=adminData.adminNotifications||[];const id=`${type}:${row.id||row.studentCode||Date.now()}`;if(adminData.adminNotifications.some(item=>item.id===id))return;const title=type==='homework'?'تسليم واجب جديد':type==='exam'?'محاولة امتحان جديدة':'حركة تحفيز جديدة';adminData.adminNotifications.unshift({id,type,title,studentCode:row.studentCode||'',studentName:row.studentName||'',createdAt:new Date().toISOString(),read:false});adminData.adminNotifications=adminData.adminNotifications.slice(0,100);saveData(adminData);aToast(`${title}: ${row.studentName||row.studentCode||'طالب'}`);};
-  if(!adminHomeworkSubmissionsUnsubscribe&&window.MFCloud?.subscribeToHomeworkSubmissions){adminHomeworkSubmissionsUnsubscribe=window.MFCloud.subscribeToHomeworkSubmissions((rows,changes,error)=>{if(error)return console.warn('homework-live',error);adminData.homeworkSubmissions=rows||[];(adminAcademicListenersReady?changes:[]).filter(change=>change.type==='added').forEach(change=>activityNotice('homework',{id:change.doc.id,...change.doc.data()}));saveData(adminData);if(currentSection==='assignments'&&adminCanRefreshLiveSection())renderAssignments();});}
+  if(!adminHomeworkSubmissionsUnsubscribe&&window.MFCloud?.subscribeToHomeworkSubmissions){adminHomeworkSubmissionsUnsubscribe=window.MFCloud.subscribeToHomeworkSubmissions((rows,changes,error)=>{if(error)return console.warn('homework-live',error);adminData.homeworkSubmissions=rows||[];for(const row of rows||[]){const student=(adminData.students||[]).find(st=>stCode(st)===row.studentCode);if(student){student.homeworks=student.homeworks||[];const i=student.homeworks.findIndex(item=>item.id===row.id);if(i<0)student.homeworks.push(row);else student.homeworks[i]=row;}}(adminAcademicListenersReady?changes:[]).filter(change=>change.type==='added').forEach(change=>activityNotice('homework',{id:change.doc.id,...change.doc.data()}));saveData(adminData);if(currentSection==='assignments'&&adminCanRefreshLiveSection())renderAssignments();if(currentSection==='students'&&adminCanRefreshLiveSection())renderStudents();});}
   if(!adminExamAttemptsUnsubscribe&&window.MFCloud?.subscribeToExamAttempts){adminExamAttemptsUnsubscribe=window.MFCloud.subscribeToExamAttempts((rows,changes,error)=>{if(error)return console.warn('exam-live',error);adminData.examAttempts=rows||[];(adminAcademicListenersReady?changes:[]).filter(change=>change.type==='added').forEach(change=>activityNotice('exam',{id:change.doc.id,...change.doc.data()}));saveData(adminData);if(currentSection==='exams'&&adminCanRefreshLiveSection())renderExams();});}
   if(!adminMotivationUnsubscribe&&window.MFCloud?.subscribeToMotivationTransactions){adminMotivationUnsubscribe=window.MFCloud.subscribeToMotivationTransactions((rows,changes,error)=>{if(error)return console.warn('motivation-live',error);adminData.motivationTransactions=rows||[];(adminAcademicListenersReady?changes:[]).filter(change=>change.type==='added').forEach(change=>activityNotice('motivation',{id:change.doc.id,...change.doc.data()}));saveData(adminData);});}
   setTimeout(()=>{adminAcademicListenersReady=true;},0);

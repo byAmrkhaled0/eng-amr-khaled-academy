@@ -74,3 +74,15 @@ test('private curriculum files are readable only by the verified active Admin',a
   await assertFails(getBytes(ref(teacherStorage,'teacher-files/admin-test.pdf')));
   await assertFails(getBytes(ref(anonymousStorage,'teacher-files/admin-test.pdf')));
 });
+
+
+test('lesson-bank uploads require a verified active Admin and PDF metadata; direct student access stays denied',async()=>{
+  const staff=env.authenticatedContext('admin-uid',{admin:true,email_verified:true}).storage();
+  const anonymous=env.unauthenticatedContext().storage();
+  const file='curriculum/test/question_banks/lesson.pdf';
+  await assertSucceeds(uploadBytes(ref(staff,file),Buffer.from('%PDF-1.7\nfixture'),{contentType:'application/pdf'}));
+  await assertFails(uploadBytes(ref(staff,'curriculum/test/question_banks/image.pdf'),Buffer.from('image'),{contentType:'image/png'}));
+  await assertFails(uploadBytes(ref(staff,'curriculum/test/question_banks/not-pdf.html'),Buffer.from('fake'),{contentType:'application/pdf'}));
+  await assertFails(uploadBytes(ref(anonymous,'curriculum/test/question_banks/public.pdf'),Buffer.from('%PDF-'),{contentType:'application/pdf'}));
+  await assertFails(getBytes(ref(anonymous,file)));
+});

@@ -1,0 +1,252 @@
+{
+  "checkedAt": "2026-09-13T06:57:43.090Z",
+  "method": "GET only; 3 parallel requests maximum; scratch server through proxy; single sample, no browser paint or P95 measurement",
+  "results": [
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/",
+      "status": 200,
+      "ms": 9839
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/student.html",
+      "status": 200,
+      "ms": 10067
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/parent.html",
+      "status": 200,
+      "ms": 337
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/index.html",
+      "status": 200,
+      "ms": 10365
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/materials.html",
+      "status": 200,
+      "ms": 291
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/exams.html",
+      "status": 200,
+      "ms": 520
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/theory-lectures.html",
+      "status": 200,
+      "ms": 284
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/questions.html",
+      "status": 200,
+      "ms": 308
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/practical.html",
+      "status": 200,
+      "ms": 280
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/learning-path.html",
+      "status": 200,
+      "ms": 273
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/about.html",
+      "status": 200,
+      "ms": 292
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/reviews.html",
+      "status": 200,
+      "ms": 292
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/privacy.html",
+      "status": 200,
+      "ms": 287
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/terms.html",
+      "status": 200,
+      "ms": 268
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/teacher-login.html",
+      "status": 200,
+      "ms": 289
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/offline.html",
+      "status": 200,
+      "ms": 300
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/404.html",
+      "status": 200,
+      "ms": 312
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/service-worker.js",
+      "status": 200,
+      "ms": 299
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/site.webmanifest",
+      "status": 200,
+      "ms": 292
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/teacher.webmanifest",
+      "status": 200,
+      "ms": 308
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.vercel.app/api/health",
+      "status": 200,
+      "ms": 952,
+      "health": {
+        "status": "ok",
+        "version": "67.8.5",
+        "firestore": true,
+        "services": {
+          "booking": true,
+          "studentPortal": true,
+          "administration": true,
+          "codeRunner": true,
+          "studentResources": true
+        },
+        "configuration": {
+          "codeRunner": "default-provider-configured",
+          "codeRunnerVerification": "configuration-only",
+          "journeyVerification": "not-run",
+          "ipPolicy": "socket-peer-conservative"
+        }
+      }
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/",
+      "status": 200,
+      "ms": 6970
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/student.html",
+      "status": 200,
+      "ms": 6990
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/index.html",
+      "status": 200,
+      "ms": 6995
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/parent.html",
+      "status": 200,
+      "ms": 223
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/exams.html",
+      "status": 200,
+      "ms": 245
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/materials.html",
+      "status": 200,
+      "ms": 265
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/theory-lectures.html",
+      "status": 200,
+      "ms": 231
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/questions.html",
+      "status": 200,
+      "ms": 192
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/practical.html",
+      "status": 200,
+      "ms": 216
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/learning-path.html",
+      "status": 200,
+      "ms": 160
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/about.html",
+      "status": 200,
+      "ms": 180
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/reviews.html",
+      "status": 200,
+      "ms": 140
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/privacy.html",
+      "status": 200,
+      "ms": 172
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/teacher-login.html",
+      "status": 200,
+      "ms": 156
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/terms.html",
+      "status": 200,
+      "ms": 180
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/offline.html",
+      "status": 200,
+      "ms": 164
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/404.html",
+      "status": 200,
+      "ms": 156
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/service-worker.js",
+      "status": 200,
+      "ms": 224
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/site.webmanifest",
+      "status": 200,
+      "ms": 156
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/teacher.webmanifest",
+      "status": 200,
+      "ms": 180
+    },
+    {
+      "url": "https://eng-amr-khaled-academy.web.app/api/health",
+      "status": 200,
+      "ms": 912,
+      "health": {
+        "status": "ok",
+        "version": "67.8.5",
+        "firestore": true,
+        "services": {
+          "booking": true,
+          "studentPortal": true,
+          "administration": true,
+          "codeRunner": true,
+          "studentResources": true
+        },
+        "configuration": {
+          "codeRunner": "default-provider-configured",
+          "codeRunnerVerification": "configuration-only",
+          "journeyVerification": "not-run",
+          "ipPolicy": "socket-peer-conservative"
+        }
+      }
+    }
+  ]
+}

@@ -9,7 +9,7 @@
     "firebase:rules": "firebase deploy --only firestore:rules,firestore:indexes,storage",
     "firebase:functions": "firebase deploy --only functions",
     "firebase:hosting": "npm run build && firebase deploy --only hosting",
-    "test": "node scripts/verify.js && node scripts/payment-domain.test.js && node scripts/curriculum-v61.test.js && node --test scripts/admin-session-v6784.test.js scripts/admin-only-security.test.js scripts/learning-delivery-v633.test.js scripts/academic-workflow-v62.test.js scripts/exam-workflow-v621.test.js scripts/homework-workflow-v622.test.js scripts/platform-workflow-v623.test.js scripts/live-audit-v625.test.js scripts/visibility-workflow-v626.test.js scripts/performance-delivery-v627.test.js scripts/booking-homework-v628.test.js scripts/unified-access-v629.test.js scripts/platform-v63.behavior.test.js scripts/final-regression-v634.test.js scripts/admin-experience-v636.test.js scripts/operations-workspace-v637.test.js scripts/platform-recovery-v638.test.js scripts/student-reliability-v640.test.js scripts/platform-v641.test.js scripts/learning-hub-v670.test.js scripts/mobile-refactor-v671.test.js scripts/assessment-ux-v672.test.js scripts/admin-redesign-v673.test.js scripts/admin-dashboard-v674.test.js scripts/admin-simplified-v675.test.js scripts/mobile-design-v675.test.js scripts/contrast-exam-v676.test.js scripts/lecture-drive-v677.test.js scripts/exam-load-question-bank-v678.test.js scripts/backend-compatibility-v6781.test.js scripts/navigation-buttons-v6781.test.js scripts/resilience-routes-v6782.test.js scripts/exam-correction-motivation-v6783.test.js scripts/review.domain.test.js scripts/review.service-worker.test.js",
+    "test": "node scripts/verify.js && node scripts/payment-domain.test.js && node scripts/curriculum-v61.test.js && node --test scripts/admin-session-v6784.test.js scripts/admin-only-security.test.js scripts/learning-delivery-v633.test.js scripts/academic-workflow-v62.test.js scripts/exam-workflow-v621.test.js scripts/homework-workflow-v622.test.js scripts/platform-workflow-v623.test.js scripts/live-audit-v625.test.js scripts/visibility-workflow-v626.test.js scripts/performance-delivery-v627.test.js scripts/booking-homework-v628.test.js scripts/unified-access-v629.test.js scripts/platform-v63.behavior.test.js scripts/final-regression-v634.test.js scripts/admin-experience-v636.test.js scripts/operations-workspace-v637.test.js scripts/platform-recovery-v638.test.js scripts/student-reliability-v640.test.js scripts/platform-v641.test.js scripts/learning-hub-v670.test.js scripts/mobile-refactor-v671.test.js scripts/assessment-ux-v672.test.js scripts/admin-redesign-v673.test.js scripts/admin-dashboard-v674.test.js scripts/admin-simplified-v675.test.js scripts/mobile-design-v675.test.js scripts/contrast-exam-v676.test.js scripts/lecture-drive-v677.test.js scripts/exam-load-question-bank-v678.test.js scripts/backend-compatibility-v6781.test.js scripts/navigation-buttons-v6781.test.js scripts/resilience-routes-v6782.test.js scripts/exam-correction-motivation-v6783.test.js scripts/review.domain.test.js scripts/review.service-worker.test.js scripts/admin-ui.behavior.test.js scripts/admin-theme.cascade.test.js scripts/student-grades.behavior.test.js",
     "test:v6784": "node --test scripts/admin-session-v6784.test.js",
     "test:v6783": "node --test scripts/exam-correction-motivation-v6783.test.js",
     "test:v6782": "node --test scripts/resilience-routes-v6782.test.js",
@@ -23,7 +23,7 @@
     "deploy:production": "powershell -ExecutionPolicy Bypass -File ./deploy-production.ps1",
     "deploy:hosting": "powershell -ExecutionPolicy Bypass -File ./deploy-hosting-only.ps1",
     "check:site": "powershell -ExecutionPolicy Bypass -File ./check-deployment.ps1",
-    "test:review:integration": "firebase emulators:exec --project demo-technominds --only firestore,storage \"node --test --test-concurrency=1 scripts/firebase-rules.emulator.test.js scripts/review.integration.test.js\""
+    "test:review:integration": "firebase emulators:exec --project demo-technominds --only firestore,storage \"node --test --test-concurrency=1 scripts/firebase-rules.emulator.test.js scripts/review.integration.test.js scripts/question-banks.integration.test.js scripts/student-grades.integration.test.js\""
   },
   "engines": {
     "node": "22.x"
@@ -31,6 +31,9 @@
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.1",
     "firebase": "^12.17.1",
-    "firebase-tools": "^15.26.0"
+    "firebase-tools": "^15.26.0",
+    "jsdom": "^26.1.0",
+    "postcss": "^8.5.6",
+    "specificity": "^1.0.0"
   }
 }

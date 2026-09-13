@@ -1,0 +1,1415 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+v22.23.2
+(node:19) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> techno-minds-platform@67.8.5 test
+> node scripts/verify.js && node scripts/payment-domain.test.js && node scripts/curriculum-v61.test.js && node --test scripts/admin-session-v6784.test.js scripts/admin-only-security.test.js scripts/learning-delivery-v633.test.js scripts/academic-workflow-v62.test.js scripts/exam-workflow-v621.test.js scripts/homework-workflow-v622.test.js scripts/platform-workflow-v623.test.js scripts/live-audit-v625.test.js scripts/visibility-workflow-v626.test.js scripts/performance-delivery-v627.test.js scripts/booking-homework-v628.test.js scripts/unified-access-v629.test.js scripts/platform-v63.behavior.test.js scripts/final-regression-v634.test.js scripts/admin-experience-v636.test.js scripts/operations-workspace-v637.test.js scripts/platform-recovery-v638.test.js scripts/student-reliability-v640.test.js scripts/platform-v641.test.js scripts/learning-hub-v670.test.js scripts/mobile-refactor-v671.test.js scripts/assessment-ux-v672.test.js scripts/admin-redesign-v673.test.js scripts/admin-dashboard-v674.test.js scripts/admin-simplified-v675.test.js scripts/mobile-design-v675.test.js scripts/contrast-exam-v676.test.js scripts/lecture-drive-v677.test.js scripts/exam-load-question-bank-v678.test.js scripts/backend-compatibility-v6781.test.js scripts/navigation-buttons-v6781.test.js scripts/resilience-routes-v6782.test.js scripts/exam-correction-motivation-v6783.test.js scripts/review.domain.test.js scripts/review.service-worker.test.js scripts/admin-ui.behavior.test.js scripts/admin-theme.cascade.test.js scripts/student-grades.behavior.test.js
+
+✓ Required files exist
+✓ JavaScript syntax checks passed
+✓ JSON files are valid
+✓ HTML IDs and local references passed
+✓ Unified V61.1 design is loaded by all 16 HTML pages
+✓ Public, portal, admin and dark-mode design coverage passed
+✓ All 112 inline action handlers are defined
+✓ App Check and reCAPTCHA are fully removed
+✓ Public forms use secure Cloud Functions and collection storage
+✓ Secure callable, exam, backup, and safe-delete checks passed
+✓ Admin performance safeguards passed
+✓ Firestore security and assistant-permission checks passed
+✓ Android and iPhone PWA installation checks passed
+✓ Academic-year, export, error-monitoring, and center-subscription checks passed
+✓ Monthly payment ledger, migration, cashbox, and student history checks passed
+✓ Grade assignments and secure student submission checks passed
+✓ Background booking Push and token lifecycle checks passed
+✓ Resumable Windows, hosting-only, and post-deployment scripts passed
+
+All verification checks passed.
+(node:32) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✓ Monthly payment full/partial/cancellation calculations passed
+(node:192) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✓ Curriculum V61 security, migration and client bindings passed
+(node:200) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:208) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+TAP version 13
+# (node:215) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: scheduled homework remains hidden until its release time
+ok 1 - scheduled homework remains hidden until its release time
+  ---
+  duration_ms: 1.051
+  type: 'test'
+  ...
+# Subtest: groups and learning content match the same normalized academic scope
+ok 2 - groups and learning content match the same normalized academic scope
+  ---
+  duration_ms: 1.380239
+  type: 'test'
+  ...
+# Subtest: student and admin bundles contain the complete transfer and warning workflow
+ok 3 - student and admin bundles contain the complete transfer and warning workflow
+  ---
+  duration_ms: 4.356165
+  type: 'test'
+  ...
+# (node:216) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: the focused admin stylesheet is isolated and loaded last
+ok 4 - the focused admin stylesheet is isolated and loaded last
+  ---
+  duration_ms: 1.217607
+  type: 'test'
+  ...
+# Subtest: dashboard shell adds context without removing commands or routes
+ok 5 - dashboard shell adds context without removing commands or routes
+  ---
+  duration_ms: 5.094411
+  type: 'test'
+  ...
+# Subtest: admin design covers desktop, dark mode and mobile hierarchy
+ok 6 - admin design covers desktop, dark mode and mobile hierarchy
+  ---
+  duration_ms: 0.408856
+  type: 'test'
+  ...
+# Subtest: release metadata is synchronized at 67.8.5
+ok 7 - release metadata is synchronized at 67.8.5
+  ---
+  duration_ms: 1.91378
+  type: 'test'
+  ...
+# (node:217) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: admin navigation keeps every operational service and exposes maintenance safely
+ok 8 - admin navigation keeps every operational service and exposes maintenance safely
+  ---
+  duration_ms: 1.642648
+  type: 'test'
+  ...
+# Subtest: academic workspace context is session-only and drives year term and month
+ok 9 - academic workspace context is session-only and drives year term and month
+  ---
+  duration_ms: 1.864087
+  type: 'test'
+  ...
+# Subtest: content targeting previews exact active audience before save
+ok 10 - content targeting previews exact active audience before save
+  ---
+  duration_ms: 0.585208
+  type: 'test'
+  ...
+# Subtest: curriculum UI does not duplicate operational homework and exam delivery
+ok 11 - curriculum UI does not duplicate operational homework and exam delivery
+  ---
+  duration_ms: 0.867748
+  type: 'test'
+  ...
+# Subtest: student editor waits for cloud success and keeps values on failure
+ok 12 - student editor waits for cloud success and keeps values on failure
+  ---
+  duration_ms: 0.292133
+  type: 'test'
+  ...
+# Subtest: student portal keeps essential tabs without a more menu and shows motivation
+ok 13 - student portal keeps essential tabs without a more menu and shows motivation
+  ---
+  duration_ms: 0.928248
+  type: 'test'
+  ...
+# Subtest: attendance persists one record per class date and reads legacy identities
+ok 14 - attendance persists one record per class date and reads legacy identities
+  ---
+  duration_ms: 1.898979
+  type: 'test'
+  ...
+# Subtest: advanced admin workflows are server-backed, realtime and auditable
+ok 15 - advanced admin workflows are server-backed, realtime and auditable
+  ---
+  duration_ms: 2.740328
+  type: 'test'
+  ...
+# Subtest: student and parent portals refresh in place and expose monthly alerts
+ok 16 - student and parent portals refresh in place and expose monthly alerts
+  ---
+  duration_ms: 1.033814
+  type: 'test'
+  ...
+# Subtest: admin preview asset and cache use the current release
+ok 17 - admin preview asset and cache use the current release
+  ---
+  duration_ms: 0.639429
+  type: 'test'
+  ...
+# (node:223) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: all server-side administrative authorization requires the verified Admin claim and profile
+ok 18 - all server-side administrative authorization requires the verified Admin claim and profile
+  ---
+  duration_ms: 2.181478
+  type: 'test'
+  ...
+# Subtest: Firestore and Storage resolve every legacy staff helper to the single Admin
+ok 19 - Firestore and Storage resolve every legacy staff helper to the single Admin
+  ---
+  duration_ms: 0.405522
+  type: 'test'
+  ...
+# Subtest: the browser verifies claims and observes token revocation without duplicate refreshes
+ok 20 - the browser verifies claims and observes token revocation without duplicate refreshes
+  ---
+  duration_ms: 2.826015
+  type: 'test'
+  ...
+# (node:229) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: admin redesign keeps every existing section and assigns each to one group
+ok 21 - admin redesign keeps every existing section and assigns each to one group
+  ---
+  duration_ms: 1.925898
+  type: 'test'
+  ...
+# Subtest: admin sidebar provides searchable accessible navigation without changing routes
+ok 22 - admin sidebar provides searchable accessible navigation without changing routes
+  ---
+  duration_ms: 1.743477
+  type: 'test'
+  ...
+# Subtest: navy and gold identity covers public pages, administration, dark mode and phones
+ok 23 - navy and gold identity covers public pages, administration, dark mode and phones
+  ---
+  duration_ms: 0.45179
+  type: 'test'
+  ...
+# Subtest: release metadata is synchronized at 67.8.5
+ok 24 - release metadata is synchronized at 67.8.5
+  ---
+  duration_ms: 1.410984
+  type: 'test'
+  ...
+# (node:240) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: staff profile checks reuse the verified Firebase token without a forced refresh
+ok 25 - staff profile checks reuse the verified Firebase token without a forced refresh
+  ---
+  duration_ms: 0.988076
+  type: 'test'
+  ...
+# Subtest: a temporary session refresh failure keeps the current admin workspace open
+ok 26 - a temporary session refresh failure keeps the current admin workspace open
+  ---
+  duration_ms: 0.807488
+  type: 'test'
+  ...
+# Subtest: opening exam details and edit mode remain local UI actions
+ok 27 - opening exam details and edit mode remain local UI actions
+  ---
+  duration_ms: 0.612048
+  type: 'test'
+  ...
+# Subtest: the token observer cannot race the explicit sign-in profile check
+ok 28 - the token observer cannot race the explicit sign-in profile check
+  ---
+  duration_ms: 1.453126
+  type: 'test'
+  ...
+# (node:241) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: simplified navigation keeps the daily tools visible and every other tool accessible
+ok 29 - simplified navigation keeps the daily tools visible and every other tool accessible
+  ---
+  duration_ms: 2.02832
+  type: 'test'
+  ...
+# Subtest: search reveals matching advanced tools without expanding the default menu permanently
+ok 30 - search reveals matching advanced tools without expanding the default menu permanently
+  ---
+  duration_ms: 0.837873
+  type: 'test'
+  ...
+# Subtest: the simpler dashboard reduces decoration while retaining status and shortcuts
+ok 31 - the simpler dashboard reduces decoration while retaining status and shortcuts
+  ---
+  duration_ms: 1.579284
+  type: 'test'
+  ...
+# (node:271) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: full production CSS cascade keeps sidebar labels readable and attendance controls independent at four widths
+ok 32 - full production CSS cascade keeps sidebar labels readable and attendance controls independent at four widths
+  ---
+  duration_ms: 7032.943001
+  type: 'test'
+  ...
+# (node:277) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: all 19 administration sections render through the production script chain
+ok 33 - all 19 administration sections render through the production script chain
+  ---
+  duration_ms: 1275.551609
+  type: 'test'
+  ...
+# Subtest: lesson bank editor inherits its lesson, retains focus, and retries a failed save without uploading twice
+ok 34 - lesson bank editor inherits its lesson, retains focus, and retries a failed save without uploading twice
+  ---
+  duration_ms: 280.327972
+  type: 'test'
+  ...
+# Subtest: each theory card exposes only its matching lesson banks and bank links call their real collection
+ok 35 - each theory card exposes only its matching lesson banks and bank links call their real collection
+  ---
+  duration_ms: 199.376545
+  type: 'test'
+  ...
+# Subtest: lecture file routing, pending completion, retry, and Escape use the actual student module
+ok 36 - lecture file routing, pending completion, retry, and Escape use the actual student module
+  ---
+  duration_ms: 211.346771
+  type: 'test'
+  ...
+# (node:278) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: exam exposes a usable question map with answered current and review states
+ok 37 - exam exposes a usable question map with answered current and review states
+  ---
+  duration_ms: 2.640218
+  type: 'test'
+  ...
+# Subtest: students may skip a question and final submission still opens the first missing answer
+ok 38 - students may skip a question and final submission still opens the first missing answer
+  ---
+  duration_ms: 1.221463
+  type: 'test'
+  ...
+# Subtest: exam reports connectivity and retries draft synchronization after reconnecting
+ok 39 - exam reports connectivity and retries draft synchronization after reconnecting
+  ---
+  duration_ms: 1.517482
+  type: 'test'
+  ...
+# Subtest: long homework uses one-question steps progress and missing-answer navigation
+ok 40 - long homework uses one-question steps progress and missing-answer navigation
+  ---
+  duration_ms: 1.378416
+  type: 'test'
+  ...
+# Subtest: homework drafts have a short retention period and a shared-device clear action
+ok 41 - homework drafts have a short retention period and a shared-device clear action
+  ---
+  duration_ms: 1.899429
+  type: 'test'
+  ...
+# Subtest: release metadata stays synchronized after the assessment UX release
+ok 42 - release metadata stays synchronized after the assessment UX release
+  ---
+  duration_ms: 1.977325
+  type: 'test'
+  ...
+# (node:289) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: portal compatibility follows the API schema instead of the deployment release
+ok 43 - portal compatibility follows the API schema instead of the deployment release
+  ---
+  duration_ms: 1.432526
+  type: 'test'
+  ...
+# Subtest: every secure portal page requests a fresh firebase sync bundle
+ok 44 - every secure portal page requests a fresh firebase sync bundle
+  ---
+  duration_ms: 1.438305
+  type: 'test'
+  ...
+# Subtest: release and service-worker cache versions are synchronized
+ok 45 - release and service-worker cache versions are synchronized
+  ---
+  duration_ms: 0.640241
+  type: 'test'
+  ...
+# (node:290) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: Arabic student names are normalized consistently
+ok 46 - Arabic student names are normalized consistently
+  ---
+  duration_ms: 3.111178
+  type: 'test'
+  ...
+# Subtest: existing code recovery requires a saved phone match
+ok 47 - existing code recovery requires a saved phone match
+  ---
+  duration_ms: 0.463669
+  type: 'test'
+  ...
+# Subtest: booking is deduplicated atomically and returns the existing code
+ok 48 - booking is deduplicated atomically and returns the existing code
+  ---
+  duration_ms: 3.614765
+  type: 'test'
+  ...
+# Subtest: homework correction is server-only and cannot bypass audit rules
+ok 49 - homework correction is server-only and cannot bypass audit rules
+  ---
+  duration_ms: 3.634284
+  type: 'test'
+  ...
+# Subtest: duplicate recovery and homework correction are touch friendly
+ok 50 - duplicate recovery and homework correction are touch friendly
+  ---
+  duration_ms: 0.445912
+  type: 'test'
+  ...
+# (node:302) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: every delivered page loads the final readable theme after the legacy design
+ok 51 - every delivered page loads the final readable theme after the legacy design
+  ---
+  duration_ms: 2.65486
+  type: 'test'
+  ...
+# Subtest: light and dark themes have explicit readable tokens and isolated exam colors
+ok 52 - light and dark themes have explicit readable tokens and isolated exam colors
+  ---
+  duration_ms: 0.345243
+  type: 'test'
+  ...
+# Subtest: teacher encouragement is saved, returned securely and rendered escaped to students
+ok 53 - teacher encouragement is saved, returned securely and rendered escaped to students
+  ---
+  duration_ms: 2.475854
+  type: 'test'
+  ...
+# Subtest: routes and first-load assets keep non-blocking and cache-safe behavior
+ok 54 - routes and first-load assets keep non-blocking and cache-safe behavior
+  ---
+  duration_ms: 1.217557
+  type: 'test'
+  ...
+# (node:305) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: grading dialog has one bounded touch-scroll surface on desktop and mobile
+ok 55 - grading dialog has one bounded touch-scroll surface on desktop and mobile
+  ---
+  duration_ms: 4.757721
+  type: 'test'
+  ...
+# Subtest: automatic and previously reviewed exams stay editable after the exam closes
+ok 56 - automatic and previously reviewed exams stay editable after the exam closes
+  ---
+  duration_ms: 3.361539
+  type: 'test'
+  ...
+# Subtest: assessment changes invalidate ranking and any locked parent monthly report
+ok 57 - assessment changes invalidate ranking and any locked parent monthly report
+  ---
+  duration_ms: 11.028248
+  type: 'test'
+  ...
+# Subtest: leaderboard deduplicates exam sources and exposes exam and homework scores
+ok 58 - leaderboard deduplicates exam sources and exposes exam and homework scores
+  ---
+  duration_ms: 3.581305
+  type: 'test'
+  ...
+# Subtest: monthly parent report keeps one current exam result and the latest corrected score
+ok 59 - monthly parent report keeps one current exam result and the latest corrected score
+  ---
+  duration_ms: 2.565247
+  type: 'test'
+  ...
+# (node:327) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: classroom exam traffic is isolated per student and supports a shared network
+ok 60 - classroom exam traffic is isolated per student and supports a shared network
+  ---
+  duration_ms: 2.492249
+  type: 'test'
+  ...
+# Subtest: exam and homework grades refresh and contribute to monthly motivation
+ok 61 - exam and homework grades refresh and contribute to monthly motivation
+  ---
+  duration_ms: 2.318421
+  type: 'test'
+  ...
+# Subtest: question banks accept written questions or PDFs and remain student-targeted
+ok 62 - question banks accept written questions or PDFs and remain student-targeted
+  ---
+  duration_ms: 3.718464
+  type: 'test'
+  ...
+# Subtest: the official site logo has a real alpha channel and is used by the PWA
+ok 63 - the official site logo has a real alpha channel and is used by the PWA
+  ---
+  duration_ms: 0.566471
+  type: 'test'
+  ...
+# (node:333) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: weighted exam grading is calculated out of the configured question marks
+ok 64 - weighted exam grading is calculated out of the configured question marks
+  ---
+  duration_ms: 2.099236
+  type: 'test'
+  ...
+# Subtest: exam builder supports mcq true-false essay and code questions
+ok 65 - exam builder supports mcq true-false essay and code questions
+  ---
+  duration_ms: 1.137458
+  type: 'test'
+  ...
+# Subtest: student correction privacy and admin attendance filters are present
+ok 66 - student correction privacy and admin attendance filters are present
+  ---
+  duration_ms: 3.621085
+  type: 'test'
+  ...
+# Subtest: homework supports the same four answer modes
+ok 67 - homework supports the same four answer modes
+  ---
+  duration_ms: 1.38158
+  type: 'test'
+  ...
+# Subtest: multiline code questions preserve the full prompt and whitespace
+ok 68 - multiline code questions preserve the full prompt and whitespace
+  ---
+  duration_ms: 2.771573
+  type: 'test'
+  ...
+# (node:334) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: parent report derives required and graded states from assignments plus submissions
+ok 69 - parent report derives required and graded states from assignments plus submissions
+  ---
+  duration_ms: 1.856576
+  type: 'test'
+  ...
+# Subtest: portal navigation never adds a student code and legacy code queries are cleaned
+ok 70 - portal navigation never adds a student code and legacy code queries are cleaned
+  ---
+  duration_ms: 2.659618
+  type: 'test'
+  ...
+# Subtest: service worker excludes every portal page and any query URL from cache writes
+ok 71 - service worker excludes every portal page and any query URL from cache writes
+  ---
+  duration_ms: 0.251934
+  type: 'test'
+  ...
+# Subtest: mobile homework correction binds the tapped button and remains server confirmed
+ok 72 - mobile homework correction binds the tapped button and remains server confirmed
+  ---
+  duration_ms: 1.914802
+  type: 'test'
+  ...
+# Subtest: homework correction updates only the affected card instead of rebuilding the full section
+ok 73 - homework correction updates only the affected card instead of rebuilding the full section
+  ---
+  duration_ms: 0.545559
+  type: 'test'
+  ...
+# Subtest: admin shows only the current homework submissions while preserving historical filtering
+ok 74 - admin shows only the current homework submissions while preserving historical filtering
+  ---
+  duration_ms: 0.914617
+  type: 'test'
+  ...
+# Subtest: admin exam workspace hides student data until one isolated exam is opened
+ok 75 - admin exam workspace hides student data until one isolated exam is opened
+  ---
+  duration_ms: 0.517929
+  type: 'test'
+  ...
+# (node:346) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: lesson homework builder supports multiple weighted question types
+ok 76 - lesson homework builder supports multiple weighted question types
+  ---
+  duration_ms: 1.462511
+  type: 'test'
+  ...
+# Subtest: secure homework submission grades automatic answers and protects manual review
+ok 77 - secure homework submission grades automatic answers and protects manual review
+  ---
+  duration_ms: 1.463702
+  type: 'test'
+  ...
+# Subtest: student sees lesson metadata and an immutable submitted state
+ok 78 - student sees lesson metadata and an immutable submitted state
+  ---
+  duration_ms: 1.880311
+  type: 'test'
+  ...
+# Subtest: Firebase authentication CSP allows official Google API scripts and frames
+ok 79 - Firebase authentication CSP allows official Google API scripts and frames
+  ---
+  duration_ms: 0.350601
+  type: 'test'
+  ...
+# Subtest: the assignments navigation opens an interactive builder without PDF
+ok 80 - the assignments navigation opens an interactive builder without PDF
+  ---
+  duration_ms: 0.706188
+  type: 'test'
+  ...
+# (node:358) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: a graded homework is the source for grades, last grade and homework average
+ok 81 - a graded homework is the source for grades, last grade and homework average
+  ---
+  duration_ms: 1.50906
+  type: 'test'
+  ...
+# Subtest: homework locks reject a second submission and reveal only wrong answers after grading
+ok 82 - homework locks reject a second submission and reveal only wrong answers after grading
+  ---
+  duration_ms: 1.114915
+  type: 'test'
+  ...
+# Subtest: exam correction is server-only and updates the canonical student attempt summary
+ok 83 - exam correction is server-only and updates the canonical student attempt summary
+  ---
+  duration_ms: 2.424808
+  type: 'test'
+  ...
+# Subtest: the portal returns the full bounded assignment history and renders incremental groups
+ok 84 - the portal returns the full bounded assignment history and renders incremental groups
+  ---
+  duration_ms: 2.396347
+  type: 'test'
+  ...
+# (node:367) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: graded homework exposes a model answer only for answers that need correction
+ok 85 - graded homework exposes a model answer only for answers that need correction
+  ---
+  duration_ms: 1.924917
+  type: 'test'
+  ...
+# Subtest: ungraded homework never exposes an answer key
+ok 86 - ungraded homework never exposes an answer key
+  ---
+  duration_ms: 0.188811
+  type: 'test'
+  ...
+# Subtest: student experience includes corrections, lecture progress, filtering and continue flow
+ok 87 - student experience includes corrections, lecture progress, filtering and continue flow
+  ---
+  duration_ms: 2.25726
+  type: 'test'
+  ...
+# Subtest: admin manages theory lectures as one unit with safe lifecycle and analytics
+ok 88 - admin manages theory lectures as one unit with safe lifecycle and analytics
+  ---
+  duration_ms: 5.298805
+  type: 'test'
+  ...
+# Subtest: V67 assets and cache are wired into source and build checks
+ok 89 - V67 assets and cache are wired into source and build checks
+  ---
+  duration_ms: 0.586871
+  type: 'test'
+  ...
+# (node:368) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: exam question stage is the single vertical scroll area on laptop and mobile
+ok 90 - exam question stage is the single vertical scroll area on laptop and mobile
+  ---
+  duration_ms: 1.773543
+  type: 'test'
+  ...
+# Subtest: every exam question change resets the inner stage instead of the locked page
+ok 91 - every exam question change resets the inner stage instead of the locked page
+  ---
+  duration_ms: 1.051801
+  type: 'test'
+  ...
+# Subtest: homework navigation reveals the active question without clipping the form
+ok 92 - homework navigation reveals the active question without clipping the form
+  ---
+  duration_ms: 1.05733
+  type: 'test'
+  ...
+# Subtest: practical and theory lecture forms both accept one Drive link per lecture
+ok 93 - practical and theory lecture forms both accept one Drive link per lecture
+  ---
+  duration_ms: 0.562905
+  type: 'test'
+  ...
+# Subtest: a practical lecture may use a Drive link, a file, or both and old lectures stay editable
+ok 94 - a practical lecture may use a Drive link, a file, or both and old lectures stay editable
+  ---
+  duration_ms: 0.567282
+  type: 'test'
+  ...
+# Subtest: only safe Google Drive links pass from administration to the student response
+ok 95 - only safe Google Drive links pass from administration to the student response
+  ---
+  duration_ms: 1.224047
+  type: 'test'
+  ...
+# Subtest: students receive separate Drive and attachment actions on readable mobile cards
+ok 96 - students receive separate Drive and attachment actions on readable mobile cards
+  ---
+  duration_ms: 2.200155
+  type: 'test'
+  ...
+# Subtest: release metadata and cache invalidate the previous lecture UI
+ok 97 - release metadata and cache invalidate the previous lecture UI
+  ---
+  duration_ms: 1.782756
+  type: 'test'
+  ...
+# (node:381) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: first secondary leaderboard uses the canonical track and keeps legacy backend compatibility
+ok 98 - first secondary leaderboard uses the canonical track and keeps legacy backend compatibility
+  ---
+  duration_ms: 2.190782
+  type: 'test'
+  ...
+# Subtest: student resource and exam pages show a code error instead of a disabled-service error
+ok 99 - student resource and exam pages show a code error instead of a disabled-service error
+  ---
+  duration_ms: 2.422135
+  type: 'test'
+  ...
+# Subtest: public pages expose canonical and social metadata
+ok 100 - public pages expose canonical and social metadata
+  ---
+  duration_ms: 0.960205
+  type: 'test'
+  ...
+# Subtest: booking controls and AI discovery file are accessible
+ok 101 - booking controls and AI discovery file are accessible
+  ---
+  duration_ms: 0.320736
+  type: 'test'
+  ...
+# (node:388) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: the platform has one final mobile-first layer with safe touch targets
+ok 102 - the platform has one final mobile-first layer with safe touch targets
+  ---
+  duration_ms: 2.038535
+  type: 'test'
+  ...
+# Subtest: home, portals and resources keep their content in clearer phone layouts
+ok 103 - home, portals and resources keep their content in clearer phone layouts
+  ---
+  duration_ms: 0.340725
+  type: 'test'
+  ...
+# Subtest: exam and homework controls stay reachable across phone orientations
+ok 104 - exam and homework controls stay reachable across phone orientations
+  ---
+  duration_ms: 0.327797
+  type: 'test'
+  ...
+# Subtest: mobile administration exposes daily work first without removing advanced tools
+ok 105 - mobile administration exposes daily work first without removing advanced tools
+  ---
+  duration_ms: 1.09822
+  type: 'test'
+  ...
+# (node:390) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: phone navigation remains in the DOM and above floating tools
+ok 106 - phone navigation remains in the DOM and above floating tools
+  ---
+  duration_ms: 1.892789
+  type: 'test'
+  ...
+# Subtest: exam dialog adapts to the visual viewport and restores keyboard focus
+ok 107 - exam dialog adapts to the visual viewport and restores keyboard focus
+  ---
+  duration_ms: 1.299579
+  type: 'test'
+  ...
+# Subtest: student portal rerendering is centralized and homework keeps its active tab
+ok 108 - student portal rerendering is centralized and homework keeps its active tab
+  ---
+  duration_ms: 1.281242
+  type: 'test'
+  ...
+# Subtest: release build normalizes immutable asset versions and keeps heavy QR code lazy
+ok 109 - release build normalizes immutable asset versions and keeps heavy QR code lazy
+  ---
+  duration_ms: 0.240197
+  type: 'test'
+  ...
+# Subtest: health status reflects the usable default code runner without claiming a live probe
+ok 110 - health status reflects the usable default code runner without claiming a live probe
+  ---
+  duration_ms: 1.631532
+  type: 'test'
+  ...
+# (node:407) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: all local page, asset and fragment routes resolve
+ok 111 - all local page, asset and fragment routes resolve
+  ---
+  duration_ms: 13.795095
+  type: 'test'
+  ...
+# Subtest: every literal button has an explicit safe type
+ok 112 - every literal button has an explicit safe type
+  ---
+  duration_ms: 6.399788
+  type: 'test'
+  ...
+# Subtest: public forms have submit controls and field validation
+ok 113 - public forms have submit controls and field validation
+  ---
+  duration_ms: 0.610586
+  type: 'test'
+  ...
+# Subtest: Firebase and Vercel expose the same critical API routes
+ok 114 - Firebase and Vercel expose the same critical API routes
+  ---
+  duration_ms: 0.226316
+  type: 'test'
+  ...
+# Subtest: buttons acknowledge immediately and local navigation is prefetched
+ok 115 - buttons acknowledge immediately and local navigation is prefetched
+  ---
+  duration_ms: 1.789566
+  type: 'test'
+  ...
+# (node:408) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: daily operations workspace is server backed and loaded only in admin
+ok 116 - daily operations workspace is server backed and loaded only in admin
+  ---
+  duration_ms: 3.776625
+  type: 'test'
+  ...
+# Subtest: class sessions link attendance and practical records without replacing legacy dates
+ok 117 - class sessions link attendance and practical records without replacing legacy dates
+  ---
+  duration_ms: 1.252319
+  type: 'test'
+  ...
+# Subtest: student profile includes private notes and strict monthly date filtering
+ok 118 - student profile includes private notes and strict monthly date filtering
+  ---
+  duration_ms: 1.477413
+  type: 'test'
+  ...
+# Subtest: student cards and unified profile use exam and homework results without duplicate grade sources
+ok 119 - student cards and unified profile use exam and homework results without duplicate grade sources
+  ---
+  duration_ms: 2.074449
+  type: 'test'
+  ...
+# Subtest: operations center paints local data immediately and reuses a short server cache
+ok 120 - operations center paints local data immediately and reuses a short server cache
+  ---
+  duration_ms: 0.407235
+  type: 'test'
+  ...
+# Subtest: operations queries have matching composite indexes and compact mobile layout
+ok 121 - operations queries have matching composite indexes and compact mobile layout
+  ---
+  duration_ms: 2.073117
+  type: 'test'
+  ...
+# Subtest: opened homework files expose safe edit publish stop and archive controls
+ok 122 - opened homework files expose safe edit publish stop and archive controls
+  ---
+  duration_ms: 1.19977
+  type: 'test'
+  ...
+# (node:419) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: immutable schedule ids keep content visible after a group rename
+ok 123 - immutable schedule ids keep content visible after a group rename
+  ---
+  duration_ms: 2.59408
+  type: 'test'
+  ...
+# Subtest: legacy datetime-local values are interpreted in Egypt time
+ok 124 - legacy datetime-local values are interpreted in Egypt time
+  ---
+  duration_ms: 13.013344
+  type: 'test'
+  ...
+# Subtest: exam, homework and resource saves update one document and lock targeting
+ok 125 - exam, homework and resource saves update one document and lock targeting
+  ---
+  duration_ms: 1.044
+  type: 'test'
+  ...
+# Subtest: student delivery uses targeted queries instead of capped full scans
+ok 126 - student delivery uses targeted queries instead of capped full scans
+  ---
+  duration_ms: 1.262364
+  type: 'test'
+  ...
+# Subtest: admin navigation yields a paint before heavy section rendering and icons are not rewritten
+ok 127 - admin navigation yields a paint before heavy section rendering and icons are not rewritten
+  ---
+  duration_ms: 1.405836
+  type: 'test'
+  ...
+# Subtest: assessment filters isolate an explicitly opened exam and grading updates only affected rows
+ok 128 - assessment filters isolate an explicitly opened exam and grading updates only affected rows
+  ---
+  duration_ms: 1.92667
+  type: 'test'
+  ...
+# Subtest: archive and delete actions acknowledge the tap before waiting for Firebase
+ok 129 - archive and delete actions acknowledge the tap before waiting for Firebase
+  ---
+  duration_ms: 0.763333
+  type: 'test'
+  ...
+# Subtest: refresh, admin curriculum and requested visual fixes are part of the release
+ok 130 - refresh, admin curriculum and requested visual fixes are part of the release
+  ---
+  duration_ms: 1.106873
+  type: 'test'
+  ...
+# (node:426) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: Firebase functions use the recovery entrypoint without dropping existing exports
+ok 131 - Firebase functions use the recovery entrypoint without dropping existing exports
+  ---
+  duration_ms: 1.168094
+  type: 'test'
+  ...
+# Subtest: all backup entrypoints share the same recursive schema
+ok 132 - all backup entrypoints share the same recursive schema
+  ---
+  duration_ms: 3.097077
+  type: 'test'
+  ...
+# Subtest: archive restore is admin-only and limited to exams and homework
+ok 133 - archive restore is admin-only and limited to exams and homework
+  ---
+  duration_ms: 0.23552
+  type: 'test'
+  ...
+# Subtest: legacy exam repair creates a safety backup and leaves structured exams untouched
+ok 134 - legacy exam repair creates a safety backup and leaves structured exams untouched
+  ---
+  duration_ms: 0.198214
+  type: 'test'
+  ...
+# Subtest: admin recovery loads unordered legacy content and exposes safe remove and restore controls
+ok 135 - admin recovery loads unordered legacy content and exposes safe remove and restore controls
+  ---
+  duration_ms: 0.268849
+  type: 'test'
+  ...
+# (node:428) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: first homework submission succeeds and a second submission is rejected
+ok 136 - first homework submission succeeds and a second submission is rejected
+  ---
+  duration_ms: 2.248577
+  type: 'test'
+  ...
+# Subtest: two simultaneous tabs atomically create one immutable attempt
+ok 137 - two simultaneous tabs atomically create one immutable attempt
+  ---
+  duration_ms: 0.324622
+  type: 'test'
+  ...
+# Subtest: a teacher grant opens exactly one additional attempt
+ok 138 - a teacher grant opens exactly one additional attempt
+  ---
+  duration_ms: 0.42461
+  type: 'test'
+  ...
+# Subtest: public homework response waits for grading and then reveals only incorrect model answers
+ok 139 - public homework response waits for grading and then reveals only incorrect model answers
+  ---
+  duration_ms: 0.67416
+  type: 'test'
+  ...
+# Subtest: 8 out of 10 is displayed as 80 percent and unified results deduplicate sources
+ok 140 - 8 out of 10 is displayed as 80 percent and unified results deduplicate sources
+  ---
+  duration_ms: 0.732397
+  type: 'test'
+  ...
+# Subtest: homework compliance uses required assignment ids, not attendance days
+ok 141 - homework compliance uses required assignment ids, not attendance days
+  ---
+  duration_ms: 8.176917
+  type: 'test'
+  ...
+# Subtest: overall result weights are configurable
+ok 142 - overall result weights are configurable
+  ---
+  duration_ms: 0.669644
+  type: 'test'
+  ...
+# Subtest: one-day groups are valid in Africa/Cairo attendance logic
+ok 143 - one-day groups are valid in Africa/Cairo attendance logic
+  ---
+  duration_ms: 7.70764
+  type: 'test'
+  ...
+# Subtest: student UI locks the form and has no resubmission action
+ok 144 - student UI locks the form and has no resubmission action
+  ---
+  duration_ms: 1.928412
+  type: 'test'
+  ...
+# Subtest: server preserves homework grades from student writes and keeps review history
+ok 145 - server preserves homework grades from student writes and keeps review history
+  ---
+  duration_ms: 2.352451
+  type: 'test'
+  ...
+# Subtest: security rules close student data, attendance and operational collections
+ok 146 - security rules close student data, attendance and operational collections
+  ---
+  duration_ms: 0.387956
+  type: 'test'
+  ...
+# Subtest: exam add/edit state resets ids and content updates are versioned
+ok 147 - exam add/edit state resets ids and content updates are versioned
+  ---
+  duration_ms: 2.08218
+  type: 'test'
+  ...
+# Subtest: pagination is ordered, bounded and content deletion is archival
+ok 148 - pagination is ordered, bounded and content deletion is archival
+  ---
+  duration_ms: 2.57322
+  type: 'test'
+  ...
+# Subtest: service worker never caches portal URLs carrying access codes
+ok 149 - service worker never caches portal URLs carrying access codes
+  ---
+  duration_ms: 0.256541
+  type: 'test'
+  ...
+# (node:447) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: teacher schedules are interpreted and displayed in Cairo timezone
+ok 150 - teacher schedules are interpreted and displayed in Cairo timezone
+  ---
+  duration_ms: 1.908673
+  type: 'test'
+  ...
+# Subtest: hidden true-false options never remain required
+ok 151 - hidden true-false options never remain required
+  ---
+  duration_ms: 1.210757
+  type: 'test'
+  ...
+# Subtest: background record hydration preserves open admin editors
+ok 152 - background record hydration preserves open admin editors
+  ---
+  duration_ms: 0.897833
+  type: 'test'
+  ...
+# Subtest: monthly report separates academic level from study commitment and lists missing homework
+ok 153 - monthly report separates academic level from study commitment and lists missing homework
+  ---
+  duration_ms: 13.853451
+  type: 'test'
+  ...
+# Subtest: monthly trend reports improvement decline and insufficient data honestly
+ok 154 - monthly trend reports improvement decline and insufficient data honestly
+  ---
+  duration_ms: 0.490848
+  type: 'test'
+  ...
+# Subtest: two consecutive absences warn the teacher and appear in the parent report without duplicate sessions
+ok 155 - two consecutive absences warn the teacher and appear in the parent report without duplicate sessions
+  ---
+  duration_ms: 2.089521
+  type: 'test'
+  ...
+# Subtest: server owns complete monthly reports and prepares previous month automatically
+ok 156 - server owns complete monthly reports and prepares previous month automatically
+  ---
+  duration_ms: 3.438013
+  type: 'test'
+  ...
+# Subtest: redesign shares a parent report image to the saved parent phone and hides archived exams
+ok 157 - redesign shares a parent report image to the saved parent phone and hides archived exams
+  ---
+  duration_ms: 3.122445
+  type: 'test'
+  ...
+# Subtest: new students only receive homework and exams published after joining
+ok 158 - new students only receive homework and exams published after joining
+  ---
+  duration_ms: 2.098384
+  type: 'test'
+  ...
+# Subtest: mobile exams and homework stay inside the iPhone viewport
+ok 159 - mobile exams and homework stay inside the iPhone viewport
+  ---
+  duration_ms: 2.391029
+  type: 'test'
+  ...
+# Subtest: exam timer uses Cairo time and locks answers after expiry with safe retry
+ok 160 - exam timer uses Cairo time and locks answers after expiry with safe retry
+  ---
+  duration_ms: 1.2736
+  type: 'test'
+  ...
+# Subtest: a newly enrolled student receives currently open class assessments
+ok 161 - a newly enrolled student receives currently open class assessments
+  ---
+  duration_ms: 0.789933
+  type: 'test'
+  ...
+# Subtest: leaderboard keeps the latest active month visible at a month boundary
+ok 162 - leaderboard keeps the latest active month visible at a month boundary
+  ---
+  duration_ms: 1.641166
+  type: 'test'
+  ...
+# Subtest: monthly motivation is configurable, comparative, archived and included in parent reports
+ok 163 - monthly motivation is configurable, comparative, archived and included in parent reports
+  ---
+  duration_ms: 3.484552
+  type: 'test'
+  ...
+# Subtest: live audit fixes health GET contrast and first paint
+ok 164 - live audit fixes health GET contrast and first paint
+  ---
+  duration_ms: 1.150638
+  type: 'test'
+  ...
+# Subtest: finished class exams register missing students as absent in admin and parent reports
+ok 165 - finished class exams register missing students as absent in admin and parent reports
+  ---
+  duration_ms: 1.971316
+  type: 'test'
+  ...
+# Subtest: QR attendance survives offline use and syncs idempotently after reconnect
+ok 166 - QR attendance survives offline use and syncs idempotently after reconnect
+  ---
+  duration_ms: 3.223745
+  type: 'test'
+  ...
+# Subtest: mobile admin navigation remains visible with full-size touch targets
+ok 167 - mobile admin navigation remains visible with full-size touch targets
+  ---
+  duration_ms: 0.237041
+  type: 'test'
+  ...
+# Subtest: teacher login keeps one password reset action
+ok 168 - teacher login keeps one password reset action
+  ---
+  duration_ms: 0.329399
+  type: 'test'
+  ...
+# Subtest: teacher exam and homework builders auto-save and restore local drafts
+ok 169 - teacher exam and homework builders auto-save and restore local drafts
+  ---
+  duration_ms: 0.39091
+  type: 'test'
+  ...
+# Subtest: Drive links are integrated into targeted theoretical lectures and legacy links remain visible
+ok 170 - Drive links are integrated into targeted theoretical lectures and legacy links remain visible
+  ---
+  duration_ms: 2.685395
+  type: 'test'
+  ...
+# (node:453) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: lectures stay directly accessible, targeted, and visible in the student dashboard
+ok 171 - lectures stay directly accessible, targeted, and visible in the student dashboard
+  ---
+  duration_ms: 5.534955
+  type: 'test'
+  ...
+# Subtest: homework and exams are interactive while PDF remains lecture-only
+ok 172 - homework and exams are interactive while PDF remains lecture-only
+  ---
+  duration_ms: 0.985663
+  type: 'test'
+  ...
+# Subtest: admin reports homework completion and QR attendance keeps schedule metadata without blocking other days
+ok 173 - admin reports homework completion and QR attendance keeps schedule metadata without blocking other days
+  ---
+  duration_ms: 1.899189
+  type: 'test'
+  ...
+# Subtest: student code can resolve the parent portal and legacy grade naming stays compatible
+ok 174 - student code can resolve the parent portal and legacy grade naming stays compatible
+  ---
+  duration_ms: 1.844587
+  type: 'test'
+  ...
+# Subtest: pending booking code opens the student portal while learning actions stay locked
+ok 175 - pending booking code opens the student portal while learning actions stay locked
+  ---
+  duration_ms: 4.478907
+  type: 'test'
+  ...
+# (node:454) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: release, theme bootstrap and transparent logo stay synchronized
+ok 176 - release, theme bootstrap and transparent logo stay synchronized
+  ---
+  duration_ms: 3.877365
+  type: 'test'
+  ...
+# Subtest: Vercel uses bounded direct callables before its slower proxy fallback
+ok 177 - Vercel uses bounded direct callables before its slower proxy fallback
+  ---
+  duration_ms: 0.493393
+  type: 'test'
+  ...
+# Subtest: exam entry functions scale without reserved instances and remain retry-safe
+ok 178 - exam entry functions scale without reserved instances and remain retry-safe
+  ---
+  duration_ms: 2.11587
+  type: 'test'
+  ...
+# Subtest: Firebase and Vercel route maps resolve to exported functions
+ok 179 - Firebase and Vercel route maps resolve to exported functions
+  ---
+  duration_ms: 3.980608
+  type: 'test'
+  ...
+# Subtest: mobile exam and homework content retain a real scroll surface
+ok 180 - mobile exam and homework content retain a real scroll surface
+  ---
+  duration_ms: 0.515455
+  type: 'test'
+  ...
+# Subtest: exam and homework grades remain connected to monthly motivation
+ok 181 - exam and homework grades remain connected to monthly motivation
+  ---
+  duration_ms: 0.483458
+  type: 'test'
+  ...
+# (node:466) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: old restore keeps omitted collections; incomplete or foreign payload is rejected before mutation
+ok 182 - old restore keeps omitted collections; incomplete or foreign payload is rejected before mutation
+  ---
+  duration_ms: 1.663278
+  type: 'test'
+  ...
+# Subtest: nested legacy progress events are planned without changing document IDs
+ok 183 - nested legacy progress events are planned without changing document IDs
+  ---
+  duration_ms: 0.229811
+  type: 'test'
+  ...
+# Subtest: ledger totals include 1201 students and 610 summaries without depending on the UI page
+ok 184 - ledger totals include 1201 students and 610 summaries without depending on the UI page
+  ---
+  duration_ms: 11.28549
+  type: 'test'
+  ...
+# Subtest: latest exam attempt is one exam; pending score is not zero and manual notes stay private
+ok 185 - latest exam attempt is one exam; pending score is not zero and manual notes stay private
+  ---
+  duration_ms: 1.055607
+  type: 'test'
+  ...
+# Subtest: different maximum marks are normalized before averaging; zero remains a real grade
+ok 186 - different maximum marks are normalized before averaging; zero remains a real grade
+  ---
+  duration_ms: 0.348186
+  type: 'test'
+  ...
+# Subtest: new join, excused absence, cancellation and transfer use actual session membership
+ok 187 - new join, excused absence, cancellation and transfer use actual session membership
+  ---
+  duration_ms: 7.548083
+  type: 'test'
+  ...
+# Subtest: empty month, unrecorded session and lecture opening cannot manufacture achievement
+ok 188 - empty month, unrecorded session and lecture opening cannot manufacture achievement
+  ---
+  duration_ms: 0.47153
+  type: 'test'
+  ...
+# Subtest: Cairo month handles UTC midnight boundary in summer and winter
+ok 189 - Cairo month handles UTC midnight boundary in summer and winter
+  ---
+  duration_ms: 0.281878
+  type: 'test'
+  ...
+# Subtest: untrusted forwarded header cannot choose rate-limit identity
+ok 190 - untrusted forwarded header cannot choose rate-limit identity
+  ---
+  duration_ms: 0.615623
+  type: 'test'
+  ...
+# Subtest: cancelled-only calendar does not count a retained attendance record as entitlement
+ok 191 - cancelled-only calendar does not count a retained attendance record as entitlement
+  ---
+  duration_ms: 0.719388
+  type: 'test'
+  ...
+# (node:476) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# (node:489) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# (node:527) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: versioned cached assets avoid network; API responses do not enter asset cache
+ok 192 - versioned cached assets avoid network; API responses do not enter asset cache
+  ---
+  duration_ms: 5.421487
+  type: 'test'
+  ...
+# Subtest: CSS hotfix build changes the stylesheet URL and precaches that exact URL without changing backend version
+ok 193 - CSS hotfix build changes the stylesheet URL and precaches that exact URL without changing backend version
+  ---
+  duration_ms: 156.89626
+  type: 'test'
+  ...
+# Subtest: waiting service-worker update cannot auto-activate over an open workflow
+ok 194 - waiting service-worker update cannot auto-activate over an open workflow
+  ---
+  duration_ms: 1.880581
+  type: 'test'
+  ...
+# (node:487) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: homework enters student grade average once, latest retake wins and pending is not a zero
+ok 195 - homework enters student grade average once, latest retake wins and pending is not a zero
+  ---
+  duration_ms: 451.000224
+  type: 'test'
+  ...
+# Subtest: same result policy ignores pending automatic marks and uses latest homework attempt in weighted averages
+ok 196 - same result policy ignores pending automatic marks and uses latest homework attempt in weighted averages
+  ---
+  duration_ms: 1.13829
+  type: 'test'
+  ...
+# Subtest: a correction updates the card only after a server acknowledgment and failure keeps its prior grade
+ok 197 - a correction updates the card only after a server acknowledgment and failure keeps its prior grade
+  ---
+  duration_ms: 229.687642
+  type: 'test'
+  ...
+# (node:488) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: service worker has one valid release cache and offline assessment shells
+ok 198 - service worker has one valid release cache and offline assessment shells
+  ---
+  duration_ms: 0.747189
+  type: 'test'
+  ...
+# Subtest: homework drafts survive refresh and clear only after confirmed submission
+ok 199 - homework drafts survive refresh and clear only after confirmed submission
+  ---
+  duration_ms: 1.15236
+  type: 'test'
+  ...
+# Subtest: exam progress is server timed, resumable, idempotent and auto-submits once
+ok 200 - exam progress is server timed, resumable, idempotent and auto-submits once
+  ---
+  duration_ms: 3.154011
+  type: 'test'
+  ...
+# Subtest: homework grade is separate from submission in monthly motivation and parent report is complete
+ok 201 - homework grade is separate from submission in monthly motivation and parent report is complete
+  ---
+  duration_ms: 1.882284
+  type: 'test'
+  ...
+# Subtest: theory lectures are independently uploaded, targeted and displayed
+ok 202 - theory lectures are independently uploaded, targeted and displayed
+  ---
+  duration_ms: 2.902568
+  type: 'test'
+  ...
+# (node:492) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: new and existing students use one code for both portals
+ok 203 - new and existing students use one code for both portals
+  ---
+  duration_ms: 3.482889
+  type: 'test'
+  ...
+# Subtest: legacy codes migrate only through authenticated server functions
+ok 204 - legacy codes migrate only through authenticated server functions
+  ---
+  duration_ms: 5.772263
+  type: 'test'
+  ...
+# Subtest: rules and admin UI enforce and present the unified code
+ok 205 - rules and admin UI enforce and present the unified code
+  ---
+  duration_ms: 1.188474
+  type: 'test'
+  ...
+# Subtest: all static routes and Vercel API rewrites point to existing targets
+ok 206 - all static routes and Vercel API rewrites point to existing targets
+  ---
+  duration_ms: 0.521665
+  type: 'test'
+  ...
+# (node:511) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: the platform exposes only the four requested academic tracks
+ok 207 - the platform exposes only the four requested academic tracks
+  ---
+  duration_ms: 3.104298
+  type: 'test'
+  ...
+# Subtest: legacy grade spellings resolve to the new tracks
+ok 208 - legacy grade spellings resolve to the new tracks
+  ---
+  duration_ms: 0.325373
+  type: 'test'
+  ...
+# Subtest: exam and homework targeting use the same normalized scope
+ok 209 - exam and homework targeting use the same normalized scope
+  ---
+  duration_ms: 2.299634
+  type: 'test'
+  ...
+# Subtest: mobile and admin entry pages keep responsive viewport and navigation coverage
+ok 210 - mobile and admin entry pages keep responsive viewport and navigation coverage
+  ---
+  duration_ms: 1.600305
+  type: 'test'
+  ...
+# Subtest: admin exam and homework forms prevent a grade/group targeting conflict
+ok 211 - admin exam and homework forms prevent a grade/group targeting conflict
+  ---
+  duration_ms: 1.209205
+  type: 'test'
+  ...
+1..211
+# tests 211
+# suites 0
+# pass 211
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7554.212223
+(node:535) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> techno-minds-platform@67.8.5 build
+> node scripts/build.js
+
+Vercel build ready: static files copied to dist/ (v67.8.5)
+(node:548) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:556) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> techno-minds-platform@67.8.5 verify:dist
+> node scripts/verify-dist.js
+
+✓ dist verified (16 HTML pages, release v67.8.5, secure assessment workflow, no backend/.env)
+(node:569) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)

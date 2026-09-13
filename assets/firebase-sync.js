@@ -285,7 +285,7 @@
         name:s.studentName||s.name||'',studentName:s.studentName||s.name||'',
         studentPhone:digits(s.studentPhone),parentPhone:digits(s.parentPhone),grade:canonicalGrade(s.grade),month:s.month||'',group:s.group||'',
         academicYear:s.academicYear||'',term:s.term||'',paid:s.paid===true,paymentDate:s.paymentDate||'',paymentAmount:Number(s.paymentAmount||0),paymentCourse:s.paymentCourse||'',notes:s.notes||'',active:s.active!==false,
-        attendance:Array.isArray(s.attendance)?s.attendance:[],grades:Array.isArray(s.grades)?s.grades:[],
+        attendance:Array.isArray(s.attendance)?s.attendance:[],grades:Array.isArray(s.grades)?s.grades:[],gradeRecordsLoaded:false,
         homeworks:Array.isArray(s.homeworks)?s.homeworks:[],recitations:Array.isArray(s.recitations)?s.recitations:[]
       };
     }
@@ -358,12 +358,14 @@
       };
     }
 
-    async function upload(file,folder,fixedName='',skipDownloadUrl=false){
+    async function upload(file,folder,fixedName='',skipDownloadUrl=false,onProgress=null){
       if(!file)throw new Error('No file selected');
       const safeName=String(fixedName||`${Date.now()}-${file.name}`).replace(/[\\/#?\[\]]/g,'-');
       const path=`${folder||'public/uploads'}/${safeName}`;
       const ref=storage.ref(path);
-      await ref.put(file,{contentType:file.type||'application/octet-stream'});
+      const task=ref.put(file,{contentType:file.type||'application/octet-stream'});
+      const unsubscribe=typeof onProgress==='function'?task.on('state_changed',snapshot=>onProgress({transferred:snapshot.bytesTransferred,total:snapshot.totalBytes,percent:snapshot.totalBytes?Math.round(snapshot.bytesTransferred*100/snapshot.totalBytes):0})):null;
+      try{await task;}finally{unsubscribe?.();}
       return {url:skipDownloadUrl?'':await ref.getDownloadURL(),path,fileName:file.name,size:file.size,contentType:file.type};
     }
 
@@ -496,12 +498,18 @@
       return {students:normalized,bookings,materials,questions,exams,reviews,groups,assignments,examAttempts:[],grades:[],settings};
     }
 
-    async function loadStaffRecordCollections(){
-      const [attempts,grades,attendance,recitations,homeworks,studentTransferRequests]=await Promise.all([
-        getDocs('exam_attempts',300,'submittedAt').catch(()=>getDocs('exam_attempts',300)),getDocs('grades',300,'date').catch(()=>getDocs('grades',300)),getDocs('attendance',300,'date').catch(()=>getDocs('attendance',300)),
-        getDocs('recitations',300,'date').catch(()=>getDocs('recitations',300)),getDocs('homework_submissions',300,'submittedAt').catch(()=>getDocs('homework_submissions',300)),
+    async function loadStaffRecordCollections(studentCodes=[]){
+      const [academic,attendance,recitations,studentTransferRequests]=await Promise.all([
+        window.TMGradeRecords.load(studentCodes,async({collection,field,codes,cursor,pageSize})=>{
+          let query=db.collection(collection).where(field,'in',codes).orderBy(firebase.firestore.FieldPath.documentId()).limit(pageSize);
+          if(cursor)query=query.startAfter(cursor);
+          const snap=await query.get();
+          return {rows:snap.docs.map(doc=>({...doc.data(),id:doc.id})),nextCursor:snap.size===pageSize?snap.docs.at(-1).id:null};
+        }),
+        getDocs('attendance',300,'date').catch(()=>getDocs('attendance',300)),getDocs('recitations',300,'date').catch(()=>getDocs('recitations',300)),
         getDocs('student_transfer_requests',100,'createdAt').catch(()=>getDocs('student_transfer_requests',100))
       ]);
+      const {attempts,grades,homeworks}=academic;
       attendance.forEach(item=>seedFingerprint('attendance',cleanDocId(item.id),item));
       grades.forEach(item=>seedFingerprint('grades',cleanDocId(item.id),item));
       recitations.forEach(item=>seedFingerprint('recitations',cleanDocId(item.id),item));
@@ -515,11 +523,13 @@
       records.grades.forEach(row=>{const st=ensure(row.studentCode||row.code);if(st)st.grades.push(row);});
       records.recitations.forEach(row=>{const st=ensure(row.studentCode);if(st)st.recitations.push(row);});
       records.homeworks.forEach(row=>{const st=ensure(row.studentCode);if(st)st.homeworks.push(row);});
+      records.attempts.forEach(row=>{const st=ensure(row.studentCode);if(st){st.examAttempts=st.examAttempts||[];st.examAttempts.push(row);}});
+      normalized.forEach(st=>{st.gradeRecordsLoaded=true;st.gradeRecordsError=false;});
       normalized.forEach(st=>{st.attendance.sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));st.grades.sort((a,b)=>String(a.date||a.submittedAt||'').localeCompare(String(b.date||b.submittedAt||'')));});
       return {...core,students:normalized,examAttempts:records.attempts,grades:records.grades,studentTransferRequests:records.studentTransferRequests||[]};
     }
 
-    async function loadStaffCollections(options={}){const core=await loadStaffCoreCollections();if(options.fast===true)return core;return mergeStaffRecords(core,await loadStaffRecordCollections());}
+    async function loadStaffCollections(options={}){const core=await loadStaffCoreCollections();if(options.fast===true)return core;return mergeStaffRecords(core,await loadStaffRecordCollections((core.students||[]).map(st=>st.studentCode)));}
 
     async function loadFromCollections(options={}){const profile=await getCurrentStaffProfile().catch(()=>null);return profile?.allowed?loadStaffCollections(options):loadPublicCollections();}
 
@@ -666,7 +676,7 @@
         }
         return data;
       },
-      loadStaffRecords:async()=>{const profile=await getCurrentStaffProfile();if(!profile?.allowed)throw new Error('Not authorized');return loadStaffRecordCollections();},
+      loadStaffRecords:async codes=>{const profile=await getCurrentStaffProfile();if(!profile?.allowed)throw new Error('Not authorized');return loadStaffRecordCollections(codes||[]);},
       saveSiteData:async(payload,options={})=>syncPayloadToCollections(payload,options),
       saveSettings:async settings=>{const profile=await getCurrentStaffProfile();if(!profile?.allowed||profile.role!=='admin')throw new Error('Not authorized');await platformSettingsDoc.set({...settings,schemaVersion:55,updatedAt:serverTime()},{merge:true});seedFingerprint('settings','platform',settings);},
       saveStudent:async student=>{const ops=[];pushStudentOps(ops,student);await commitOperations(ops);},
@@ -799,7 +809,7 @@
       getHomeworkAdminWorkspace:payload=>{if(!calls.getHomeworkAdminWorkspace)throw new Error('Homework workspace service unavailable');return calls.getHomeworkAdminWorkspace(payload||{});},
       getAdminCollectionPage:payload=>{if(!calls.getAdminCollectionPage)throw new Error('Admin pagination service unavailable');return calls.getAdminCollectionPage(payload||{});},
       migratePlatformV63:apply=>{if(!calls.migratePlatformV63)throw new Error('V63 migration service unavailable');return calls.migratePlatformV63({apply:apply===true,confirmation:apply===true?'MIGRATE-PLATFORM-V63':''});},
-      uploadAttachment:(file,folder)=>upload(file,folder||'teacher-uploads'),logActivity,
+      uploadAttachment:(file,folder,options={})=>upload(file,folder||'teacher-uploads',options.fileName||'',options.private===true,options.onProgress),logActivity,
       reportClientError:payload=>calls.reportClientError?calls.reportClientError(payload):Promise.resolve(null),
       deleteDocument:async(collection,id)=>{
         if(!collection||!id)return;

@@ -1278,8 +1278,8 @@ async function targetedLearningDocs(collection, student, limit = 750) {
   const grades = academicGradeQueryValues(student.grade);
   const ref = db.collection(collection);
   const [targetedSnap, legacySnap] = await Promise.all([
-    keys.length ? ref.where('audienceKeys', 'array-contains-any', keys).limit(limit).get().catch(() => null) : Promise.resolve(null),
-    grades.length ? ref.where('grade', 'in', grades).limit(limit).get().catch(() => null) : Promise.resolve(null)
+    keys.length ? ref.where('audienceKeys', 'array-contains-any', keys).limit(limit).get() : Promise.resolve(null),
+    grades.length ? ref.where('grade', 'in', grades).limit(limit).get() : Promise.resolve(null)
   ]);
   const rows = new Map();
   for (const snap of [targetedSnap, legacySnap]) {
@@ -2096,6 +2096,9 @@ function studentResourcePayload(doc, kind, progress = {}) {
     scheduleId: text(data.scheduleId || data.groupId, 100),
     unit: text(data.unit, 120),
     lecture: text(data.lecture, 120),
+    lectureId: text(data.lectureId, 120),
+    lectureSource: data.lectureId ? text(data.lectureSource || 'lectures', 40) : '',
+    lectureTitle: text(data.lectureTitle, 220),
     lectureNumber: Math.max(0, Number(data.lectureNumber || data.order || 0)),
     order: Math.max(0, Number(data.order || data.lectureNumber || 0)),
     lectureCategory: text(['theory', 'practical'].includes(rawLectureCategory) ? rawLectureCategory : 'general', 20),
@@ -2137,8 +2140,9 @@ exports.getStudentResources = onCall(CALLABLE_OPTIONS, async request => {
   const progress = new Map((progressSnap?.docs || []).map(doc => [doc.id, doc.data() || {}]));
   const visible = doc => {
     const data = doc.data() || {},status=String(data.status||'').trim().toLowerCase();
-    return data.active !== false && data.published !== false && !['مسودة','مخفي','draft','hidden'].includes(status);
+    return data.archived !== true && data.active !== false && data.published !== false && !['مسودة','مخفي','draft','hidden'].includes(status) && contentAvailableAfterStudentJoined(data, found.data);
   };
+  const banks = await visibleQuestionBanks(questionBankDocs, found.data, materialDocs);
   return {
     ...apiMetadata(),
     student: {
@@ -2150,7 +2154,7 @@ exports.getStudentResources = onCall(CALLABLE_OPTIONS, async request => {
     },
     materials: materialDocs.filter(visible).filter(doc => learningTargetMatchesStudent(doc.data() || {}, found.data)).map(doc => studentResourcePayload(doc, 'material', progress.get(doc.id))),
     questions: [
-      ...questionBankDocs.filter(doc => contentIsOpen(doc.data() || {}) && learningTargetMatchesStudent(doc.data() || {}, found.data)).map(doc => studentResourcePayload(doc, 'question')),
+      ...banks.map(doc => studentResourcePayload(doc, 'question')),
       ...questionDocs.filter(visible).filter(doc => learningTargetMatchesStudent(doc.data() || {}, found.data)).map(doc => studentResourcePayload(doc, 'question'))
     ],
     assignments: assignments.map(row => publicAssignmentPayload(row, row.id)),
@@ -2352,7 +2356,7 @@ exports.reviewHomeworkSubmission = onCall(CALLABLE_OPTIONS, async request => {
     if (!answers.length) throw new HttpsError('failed-precondition', 'لا توجد إجابات قابلة للتصحيح.');
     const maxScore = answers.reduce((sum, answer) => sum + Number(answer.mark || 1), 0);
     const score = answers.reduce((sum, answer) => sum + Number(answer.awardedMark || 0), 0);
-    const oldGrade = Number.isFinite(Number(submission.score)) ? Number(submission.score) : null;
+    const oldGrade = submission.score !== null && submission.score !== undefined && submission.score !== '' && Number.isFinite(Number(submission.score)) ? Number(submission.score) : null;
     const oldMaxScore = Number.isFinite(Number(submission.maxScore)) ? Number(submission.maxScore) : null;
     const reviewType=submission.reviewedAt||submission.needsManualReview===false?'revision':'manual';
     const studentCode=normalizeCode(submission.studentCode),submittedAt=reportIso(submission.submittedAt||submission.createdAt||new Date());
@@ -4471,6 +4475,8 @@ function normalizedCurriculumPayload(raw, staff, id) {
     grade: text(canonicalAcademicLabel(data.grade), 80), academicYear: text(data.academicYear, 30), term: text(data.term, 40),
     group: text(data.group, 100), groupId: text(data.scheduleId || data.groupId, 120), scheduleId: text(data.scheduleId || data.groupId, 120),
     unitId: text(data.unitId, 120), lectureId: text(data.lectureId, 120),
+    lectureSource: data.lectureId ? (data.lectureSource === 'materials' ? 'materials' : 'lectures') : '',
+    lectureTitle: text(data.lectureTitle, 220),
     lectureNumber: Math.max(0, Math.min(36, Number(data.lectureNumber || data.order || 0))),
     order: Math.max(0, Math.min(10000, Number(data.order || data.lectureNumber || 0))),
     title: text(data.title, 220), description: text(data.description, 4000),
@@ -4524,7 +4530,32 @@ exports.upsertCurriculumEntity = onCall(CALLABLE_OPTIONS, async request => {
   const id = curriculumId(request.data?.id || crypto.randomUUID());
   const ref = db.collection(collection).doc(id);
   const existing = await ref.get();
-  const payload = normalizedCurriculumPayload(request.data?.data, staff, id);
+  let raw = request.data?.data || {};
+  if (collection === 'question_banks') {
+    raw = { ...(existing.exists ? existing.data() : {}), ...raw };
+    if (raw.lectureId) {
+      const source = raw.lectureSource === 'materials' ? 'materials' : 'lectures';
+      const lessonSnap = await db.collection(source).doc(curriculumId(raw.lectureId)).get();
+      const lesson = lessonSnap.exists ? lessonSnap.data() : null;
+      if (!lesson || lesson.archived === true) throw new HttpsError('not-found', 'الدرس غير موجود أو مؤرشف.');
+      if (source === 'materials' && !['theory','class-link','theory-lecture'].some(kind => [lesson.lectureCategory,lesson.materialType,lesson.resourceType].includes(kind))) throw new HttpsError('invalid-argument', 'اختر محاضرة نظري.');
+      // The parent lesson owns the audience; a bank cannot widen its visibility.
+      raw = { ...raw, lectureSource: source, lectureTitle: lesson.title || '',
+        grade: lesson.grade, academicYear: lesson.academicYear || '', term: lesson.term || '',
+        group: lesson.group || '', groupId: lesson.scheduleId || lesson.groupId || '', scheduleId: lesson.scheduleId || lesson.groupId || '' };
+    } else { raw.lectureSource = ''; raw.lectureTitle = ''; }
+    if (!String(raw.content || '').trim() && !raw.filePath) throw new HttpsError('invalid-argument', 'اكتب أسئلة أو ارفع ملف PDF.');
+    if (raw.filePath && raw.filePath !== existing.data()?.filePath) {
+      if (!/^curriculum\/[^/]+\/question_banks\/[^/]+\.pdf$/i.test(raw.filePath)) throw new HttpsError('invalid-argument', 'مسار ملف بنك الأسئلة غير صالح.');
+      const pdfFile = admin.storage().bucket().file(raw.filePath);
+      const [metadata] = await pdfFile.getMetadata();
+      if (metadata.contentType !== 'application/pdf' || Number(metadata.size) <= 0 || Number(metadata.size) > 15 * 1024 * 1024) throw new HttpsError('invalid-argument', 'اختر PDF صحيحًا حتى 15MB.');
+      const [signature] = await pdfFile.download({ start: 0, end: 4, validation: false });
+      if (signature.toString('ascii') !== '%PDF-') throw new HttpsError('invalid-argument', 'محتوى الملف ليس PDF صحيحًا.');
+      raw.contentType = 'application/pdf';
+    }
+  }
+  const payload = normalizedCurriculumPayload(raw, staff, id);
   await ref.set({
     ...payload,
     createdAt: existing.exists ? (existing.data().createdAt || FieldValue.serverTimestamp()) : FieldValue.serverTimestamp(),
@@ -4541,15 +4572,21 @@ exports.listCurriculumAdmin = onCall(CALLABLE_OPTIONS, async request => {
   if (TEACHER_ONLY_COLLECTIONS.has(collection) && staff.role !== 'admin') throw new HttpsError('permission-denied', 'ملفات الإدارة خاصة بحساب الإدارة فقط.');
   const pageSize = Math.max(10, Math.min(50, Number(request.data?.pageSize || 20)));
   const requestedGrade = text(request.data?.grade, 80);
-  let query = db.collection(collection).orderBy('order', request.data?.direction === 'desc' ? 'desc' : 'asc');
+  const direction = request.data?.direction === 'desc' ? 'desc' : 'asc';
+  let query = db.collection(collection).orderBy('order', direction).orderBy(admin.firestore.FieldPath.documentId(), direction);
+  if (requestedGrade && requestedGrade !== 'all') query = query.where('grade', 'in', academicGradeQueryValues(requestedGrade));
   if (request.data?.term) query = query.where('term', '==', text(request.data.term, 40));
   if (request.data?.unitId) query = query.where('unitId', '==', text(request.data.unitId, 120));
-  const cursor = Number(request.data?.cursor);
-  if (Number.isFinite(cursor)) query = query.startAfter(cursor);
-  const snap = await query.limit(requestedGrade ? 250 : pageSize + 1).get();
-  const matching = requestedGrade ? snap.docs.filter(doc => sameAcademicValue(doc.data().grade, requestedGrade)) : snap.docs;
-  const docs = matching.slice(0, pageSize);
-  return { rows: docs.map(doc => ({ id: doc.id, ...doc.data(), grade: canonicalAcademicLabel(doc.data().grade) })), hasMore: matching.length > pageSize || (requestedGrade && snap.size === 250), nextCursor: docs.length ? Number(docs[docs.length - 1].data().order || 0) : null };
+  if (request.data?.lectureId) query = query.where('lectureId', '==', curriculumId(request.data.lectureId));
+  const cursor = request.data?.cursor;
+  if (cursor && typeof cursor === 'object') {
+    if (!Number.isFinite(cursor.order) || typeof cursor.id !== 'string' || !cursor.id || cursor.id.includes('/')) throw new HttpsError('invalid-argument', 'مؤشر الصفحة غير صالح.');
+    query = query.startAfter(cursor.order, cursor.id);
+  } else if (cursor !== null && cursor !== undefined && cursor !== '' && Number.isFinite(Number(cursor))) {
+    query = query.startAfter(Number(cursor)); // Compatibility with older clients.
+  }
+  const snap = await query.limit(pageSize + 1).get(), docs = snap.docs.slice(0, pageSize), last = docs.at(-1);
+  return { rows: docs.map(doc => ({ ...doc.data(), id: doc.id, grade: canonicalAcademicLabel(doc.data().grade) })), hasMore: snap.size > pageSize, nextCursor: snap.size > pageSize && last ? { order: Number(last.data().order || 0), id: last.id } : null };
 });
 
 exports.deleteCurriculumEntity = onCall(CALLABLE_OPTIONS, async request => {
@@ -4594,7 +4631,7 @@ exports.createMonthlyExamPlan = onCall(CALLABLE_OPTIONS, async request => {
 });
 
 function contentIsOpen(data, now = Timestamp.now()) {
-  if (data.active === false || data.published !== true || data.status !== 'published') return false;
+  if (data.archived === true || data.active === false || data.published !== true || data.status !== 'published') return false;
   // Migrated legacy records must be reviewed explicitly before students can see
   // them. This keeps old uploads available to staff without publishing them by
   // accident during a migration.
@@ -4602,6 +4639,31 @@ function contentIsOpen(data, now = Timestamp.now()) {
   if (data.openAt && data.openAt.toMillis && data.openAt.toMillis() > now.toMillis()) return false;
   if (data.closeAt && data.closeAt.toMillis && data.closeAt.toMillis() <= now.toMillis()) return false;
   return true;
+}
+
+function bankLessonVisible(lesson, source, student) {
+  if (!lesson || !learningTargetMatchesStudent(lesson, student) || !contentAvailableAfterStudentJoined(lesson, student)) return false;
+  if (source !== 'materials') return contentIsOpen(lesson);
+  const status = String(lesson.status || '').toLowerCase();
+  return lesson.archived !== true && lesson.active !== false && lesson.published !== false && !['مسودة','مخفي','draft','hidden'].includes(status);
+}
+
+async function visibleQuestionBanks(documents, student, materialDocs = []) {
+  const candidates = documents.filter(doc => contentIsOpen(doc.data() || {}) && learningTargetMatchesStudent(doc.data() || {}, student));
+  const parents = new Map(materialDocs.map(doc => [`materials/${doc.id}`, doc.data()]));
+  const missing = new Map();
+  const keyOf = row => `${row.lectureSource === 'materials' ? 'materials' : 'lectures'}/${curriculumId(row.lectureId)}`;
+  for (const doc of candidates) {
+    const row = doc.data();
+    if (row.lectureId) { const key = keyOf(row); if (!parents.has(key)) missing.set(key, db.doc(key)); }
+  }
+  if (missing.size) {
+    for (const snap of await db.getAll(...missing.values())) parents.set(snap.ref.path, snap.exists ? snap.data() : null);
+  }
+  return candidates.filter(doc => {
+    const row = doc.data();
+    return !row.lectureId || bankLessonVisible(parents.get(keyOf(row)), row.lectureSource || 'lectures', student);
+  });
 }
 
 function publicLecture(data, id, progress = {}) {
@@ -4651,17 +4713,18 @@ exports.getLectureContent = onCall(CALLABLE_OPTIONS, async request => {
   if (!learningTargetMatchesStudent(lecture, student)) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الطالب.');
   const queryVisible = async collection => {
     const snap = await db.collection(collection).where('lectureId', '==', lectureId).orderBy('order', 'asc').limit(50).get();
-    return snap.docs.filter(doc => contentIsOpen(doc.data()) && learningTargetMatchesStudent(doc.data(), student)).map(doc => {
+    return snap.docs.filter(doc => contentIsOpen(doc.data()) && learningTargetMatchesStudent(doc.data(), student) && (collection !== 'question_banks' || doc.data().lectureSource !== 'materials')).map(doc => {
       const data = doc.data();
-      const safe = { id: doc.id, title: text(data.title, 220), description: text(data.description, 4000), questionType: text(data.questionType, 60), points: Number(data.points || 0), filePath: text(data.filePath, 500) };
+      const safe = { id: doc.id, sourceCollection: collection, title: text(data.title, 220), description: text(data.description, 4000), questionType: text(data.questionType, 60), points: Number(data.points || 0), filePath: text(data.filePath, 500) };
+      if (collection === 'question_banks') safe.content = text(data.content, 50000);
       if (Array.isArray(data.choices)) safe.choices = data.choices.slice(0, 10).map(choice => text(choice, 700));
       return safe;
     });
   };
-  const [materials, assignments, questions, exams] = await Promise.all([
-    queryVisible('lecture_materials'), queryVisible('assignments_v2'), queryVisible('bank_questions'), queryVisible('monthly_exams')
+  const [materials, assignments, questions, exams, banks] = await Promise.all([
+    queryVisible('lecture_materials'), queryVisible('assignments_v2'), queryVisible('bank_questions'), queryVisible('monthly_exams'), queryVisible('question_banks')
   ]);
-  return { lecture: publicLecture(lecture, lectureId), materials, assignments, questions, exams };
+  return { lecture: publicLecture(lecture, lectureId), materials, assignments, questions: [...banks,...questions], exams };
 });
 
 exports.recordLectureProgress = onCall(CALLABLE_OPTIONS, async request => {
@@ -4713,6 +4776,7 @@ exports.getCurriculumFileUrl = onCall(CALLABLE_OPTIONS, async request => {
   const [found, snap] = await Promise.all([getStudentPortalByCode(code), db.collection(collection).doc(id).get()]);
   requireApprovedStudent(found.data);
   if (!snap.exists || !contentIsOpen(snap.data()) || !learningTargetMatchesStudent(snap.data(), found.data)) throw new HttpsError('permission-denied', 'الملف غير متاح لهذا الطالب.');
+  if (collection === 'question_banks' && !(await visibleQuestionBanks([snap], found.data)).length) throw new HttpsError('permission-denied', 'الدرس المرتبط بالملف غير متاح لهذا الطالب.');
   const path = text(snap.data().filePath, 500);
   if (!path) throw new HttpsError('not-found', 'لا يوجد ملف مرتبط.');
   const [url] = await admin.storage().bucket().file(path).getSignedUrl({ action: 'read', expires: Date.now() + 10 * 60 * 1000 });

@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('node:crypto');
 const root = path.resolve(__dirname, '..');
 const dist = path.join(root, 'dist');
 const { version: releaseVersion } = require(path.join(root, 'package.json'));
@@ -20,7 +21,17 @@ for (const name of htmlFiles) {
   const cssIndex = source.search(/assets\/[^"']+\.css/);
   if (themeIndex < 0 || (cssIndex >= 0 && themeIndex > cssIndex)) failures.push(`${name} does not load theme-init before CSS`);
   const localAssets = [...source.matchAll(/(?:src|href)=["'](\/?assets\/[^"'?#]+\.(?:css|js))(?:\?v=([^"']+))?["']/g)];
-  for (const [,asset,version] of localAssets) if (version !== releaseVersion) failures.push(`${name} has stale or missing asset version: ${asset}`);
+  for (const [,asset,version] of localAssets) {
+    const params = new URLSearchParams(`v=${version || ''}`);
+    if (params.get('v') !== releaseVersion) failures.push(`${name} has stale or missing asset version: ${asset}`);
+    if (/\.(css|js)$/.test(asset)) {
+      const cssPath = path.join(dist, asset.replace(/^\//, ''));
+      if (fs.existsSync(cssPath)) {
+        const digest = crypto.createHash('sha256').update(fs.readFileSync(cssPath)).digest('hex').slice(0, 12);
+        if (params.get('rev') !== digest) failures.push(`${name} has stale asset content hash: ${asset}`);
+      }
+    }
+  }
   for (const match of source.matchAll(/(?:src|href)=["']([^"'#?]+)(?:\?[^"']*)?["']/g)) {
     const ref = match[1];
     if (/^(?:https?:|mailto:|tel:|data:|javascript:)/i.test(ref)) continue;

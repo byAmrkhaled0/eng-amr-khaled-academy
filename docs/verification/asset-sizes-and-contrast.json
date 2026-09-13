@@ -1,0 +1,110 @@
+{
+  "method": "CSS cascade + theoretical opaque color contrast; not browser paint/geometry",
+  "baseCommit": "3eb73c66941e68df448fba91a7144d1366a5435c",
+  "contrast": {
+    "lightSidebarBefore": {
+      "text": "#213247",
+      "background": "#213b4f",
+      "ratio": 1.1186561782623858
+    },
+    "lightSidebarAfter": {
+      "text": "#b8c6d5",
+      "darkest": "#07182e",
+      "lightest": "#0c2d50",
+      "minimumRatio": 8.01455187084788
+    }
+  },
+  "sizes": [
+    {
+      "file": "assets/app.js",
+      "beforeBytes": 226362,
+      "afterBytes": 227868,
+      "beforeGzip": 61615,
+      "afterGzip": 62013
+    },
+    {
+      "file": "assets/admin.js",
+      "beforeBytes": 177976,
+      "afterBytes": 178829,
+      "beforeGzip": 46610,
+      "afterGzip": 46782
+    },
+    {
+      "file": "assets/curriculum-admin.js",
+      "beforeBytes": 27647,
+      "afterBytes": 33031,
+      "beforeGzip": 7511,
+      "afterGzip": 9125
+    },
+    {
+      "file": "assets/curriculum-student.js",
+      "beforeBytes": 7741,
+      "afterBytes": 9732,
+      "beforeGzip": 2628,
+      "afterGzip": 3223
+    },
+    {
+      "file": "assets/firebase-sync.js",
+      "beforeBytes": 66771,
+      "afterBytes": 67761,
+      "beforeGzip": 15699,
+      "afterGzip": 16034
+    },
+    {
+      "file": "assets/v55.css",
+      "beforeBytes": 28502,
+      "afterBytes": 28884,
+      "beforeGzip": 6310,
+      "afterGzip": 6450
+    },
+    {
+      "file": "assets/v56.css",
+      "beforeBytes": 37481,
+      "afterBytes": 37703,
+      "beforeGzip": 8145,
+      "afterGzip": 8196
+    },
+    {
+      "file": "assets/v65-redesign.css",
+      "beforeBytes": 54299,
+      "afterBytes": 53154,
+      "beforeGzip": 11449,
+      "afterGzip": 11347
+    },
+    {
+      "file": "assets/v67-learning-hub.css",
+      "beforeBytes": 61371,
+      "afterBytes": 62291,
+      "beforeGzip": 12558,
+      "afterGzip": 12790
+    },
+    {
+      "file": "assets/v674-admin.css",
+      "beforeBytes": 42055,
+      "afterBytes": 43914,
+      "beforeGzip": 8341,
+      "afterGzip": 8631
+    },
+    {
+      "file": "assets/v56-fixes.js",
+      "beforeBytes": 17048,
+      "afterBytes": 17554,
+      "beforeGzip": 5165,
+      "afterGzip": 5380
+    },
+    {
+      "file": "assets/portal-results.js",
+      "beforeBytes": 0,
+      "afterBytes": 7726,
+      "beforeGzip": 0,
+      "afterGzip": 2470
+    },
+    {
+      "file": "assets/student-grade-records.js",
+      "beforeBytes": 0,
+      "afterBytes": 1561,
+      "beforeGzip": 0,
+      "afterGzip": 798
+    }
+  ]
+}
