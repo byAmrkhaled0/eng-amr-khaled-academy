@@ -20,6 +20,7 @@ const {
   academicAudienceKeysForItem
 } = require('./lib/academic-targeting');
 const { studentCanOpenPortal, studentIsApproved } = require('./lib/student-access');
+const { reusableLearningContentIsVisible } = require('./lib/content-visibility');
 const {
   homeworkLockId,
   submissionIdForAttempt,
@@ -1324,7 +1325,7 @@ async function materialsForStudent(student = {}) {
   ]);
   const progress = new Map((progressSnap?.docs || []).map(doc => [doc.id, doc.data() || {}]));
   return docs
-    .filter(doc => { const row = doc.data() || {},status=String(row.status||'').trim().toLowerCase(); return row.active !== false && row.published !== false && !['مسودة','مخفي','draft','hidden'].includes(status) && learningTargetMatchesStudent(row, student); })
+    .filter(doc => reusableLearningContentIsVisible(doc.data() || {}) && learningTargetMatchesStudent(doc.data() || {}, student))
     .map(doc => studentResourcePayload(doc, 'material', progress.get(doc.id)))
     .sort((a, b) => Number(a.order || 0) - Number(b.order || 0) || String(a.title || '').localeCompare(String(b.title || ''), 'ar', { numeric:true }))
     .slice(0, 120);
@@ -2138,10 +2139,11 @@ exports.getStudentResources = onCall(CALLABLE_OPTIONS, async request => {
     db.collection('student_progress').doc(studentCode).collection('lectures').limit(500).get().catch(() => null)
   ]);
   const progress = new Map((progressSnap?.docs || []).map(doc => [doc.id, doc.data() || {}]));
-  const visible = doc => {
-    const data = doc.data() || {},status=String(data.status||'').trim().toLowerCase();
-    return data.archived !== true && data.active !== false && data.published !== false && !['مسودة','مخفي','draft','hidden'].includes(status) && contentAvailableAfterStudentJoined(data, found.data);
-  };
+  // Lectures, files and lesson questions are reusable course content. Their
+  // visibility follows publication + academic targeting, not the student's
+  // enrolment date. The from-joining rule remains below for exams and inside
+  // assignmentsForStudent, where historic work must stay hidden.
+  const visible = doc => reusableLearningContentIsVisible(doc.data() || {});
   const banks = await visibleQuestionBanks(questionBankDocs, found.data, materialDocs);
   return {
     ...apiMetadata(),
@@ -4642,10 +4644,9 @@ function contentIsOpen(data, now = Timestamp.now()) {
 }
 
 function bankLessonVisible(lesson, source, student) {
-  if (!lesson || !learningTargetMatchesStudent(lesson, student) || !contentAvailableAfterStudentJoined(lesson, student)) return false;
+  if (!lesson || !learningTargetMatchesStudent(lesson, student)) return false;
   if (source !== 'materials') return contentIsOpen(lesson);
-  const status = String(lesson.status || '').toLowerCase();
-  return lesson.archived !== true && lesson.active !== false && lesson.published !== false && !['مسودة','مخفي','draft','hidden'].includes(status);
+  return reusableLearningContentIsVisible(lesson);
 }
 
 async function visibleQuestionBanks(documents, student, materialDocs = []) {
