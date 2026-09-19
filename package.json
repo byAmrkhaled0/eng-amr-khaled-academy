@@ -1,6 +1,6 @@
 {
   "name": "techno-minds-platform",
-  "version": "67.8.6",
+  "version": "67.8.8",
   "private": true,
   "scripts": {
     "dev": "node local-server.js",

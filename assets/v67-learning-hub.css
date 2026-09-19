@@ -221,7 +221,7 @@ html[data-theme="dark"] .lecture-kind-badge{border-color:#4c6280!important;backg
 html.theme-switching *,html.theme-switching *::before,html.theme-switching *::after{transition:none!important}
 .site-header .logo .logo-mark,.topbar .logo .logo-mark,.mobile-brand .logo-mark{background-color:transparent!important;background-image:url("technominds-logo.webp")!important;background-position:center!important;background-repeat:no-repeat!important;background-size:contain!important;box-shadow:none!important}
 
-/* V67.8.6 — one touch-safe scroll surface for exam grading and re-grading. */
+/* V67.8.8 — one touch-safe scroll surface for exam grading and re-grading. */
 body.correction-open{overflow:hidden!important;overscroll-behavior:none!important}
 .correction-modal-v40{overflow:hidden!important;overscroll-behavior:none!important;padding:max(10px,env(safe-area-inset-top,0px)) max(10px,env(safe-area-inset-right,0px)) max(10px,env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px))!important}
 .correction-card-v40{display:grid!important;grid-template-rows:auto minmax(0,1fr) auto!important;width:min(980px,100%)!important;height:min(900px,calc(100dvh - 20px))!important;min-height:0!important;max-height:calc(100dvh - 20px)!important;overflow:hidden!important;overscroll-behavior:none;border-radius:24px!important}

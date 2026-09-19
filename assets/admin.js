@@ -470,7 +470,7 @@ function renderAdmin(){
   syncAdminChrome();
   hydrateIcons();
   if(navigator.onLine!==false&&!window.__adminOfflineMode){startBookingNotifications();startAdminLiveData();}
-  setTimeout(()=>{mergeOfflineAttendanceQueue().then(()=>renderOfflineAttendanceStatus());if(navigator.onLine!==false)syncOfflineAttendanceNow(true);},0);
+  setTimeout(()=>{mergeOfflineAttendanceQueue().then(()=>renderOfflineAttendanceStatus()).catch(()=>renderOfflineAttendanceStatus());if(navigator.onLine!==false)syncOfflineAttendanceNow(true);},0);
   if(navigator.onLine!==false&&!window.__adminQrOfflinePrepared){
     window.__adminQrOfflinePrepared=true;
     setTimeout(()=>window.MFAssets?.loadQrScanner?.().catch(()=>{window.__adminQrOfflinePrepared=false;}),2000);

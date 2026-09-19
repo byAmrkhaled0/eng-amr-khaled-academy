@@ -20,7 +20,13 @@
   }
   const read=request=>new Promise((resolve,reject)=>{request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
   const completed=tx=>new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('تعذر حفظ الحضور محليًا'));});
-  async function all(store){const db=await open();return read(db.transaction(store).objectStore(store).getAll());}
+  async function all(store,retry=true){
+    try{const db=await open();return await read(db.transaction(store).objectStore(store).getAll());}
+    catch(error){
+      if(retry&&/AbortError|InvalidStateError/i.test(`${error?.name||''} ${error?.message||''}`)){openPromise=null;return all(store,false);}
+      throw error;
+    }
+  }
   const getRoster=()=>all(ROSTER),getQueue=()=>all(QUEUE),getPreparations=()=>all(META);
   async function cachePreparation(preparation){
     if(!preparation?.preparationId||!preparation.ownerUid||!preparation.sessionId||!Array.isArray(preparation.roster))throw new Error('التجهيز يحتاج إقرارًا من الخادم');

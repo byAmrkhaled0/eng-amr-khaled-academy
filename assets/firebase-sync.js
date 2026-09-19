@@ -2,7 +2,7 @@
   'use strict';
 
   const cfg=window.MF_FIREBASE_CONFIG||{};
-  const FRONTEND_VERSION='67.8.6';
+  const FRONTEND_VERSION='67.8.8';
   const API_SCHEMA_VERSION='portal-v64.0.0';
   if(!cfg.enabled||typeof firebase==='undefined'){
     window.MFCloud={ready:false,error:'Firebase غير مفعل'};
@@ -381,7 +381,9 @@
       const profile=userDoc.exists?userDoc.data():{};
       const role=profile.role||'';
       const allowed=userDoc.exists&&role==='admin'&&profile.active!==false&&token.claims.admin===true&&token.claims.email_verified===true;
-      return {uid:user.uid,email:user.email,role,allowed,...profile};
+      // Keep the verified Auth result authoritative. A legacy `allowed` field
+      // in Firestore must never override the claim/profile checks above.
+      return {...profile,uid:user.uid,email:user.email,role,allowed};
     }
 
     function pushStudentOps(ops,student,includeRecords=false){

@@ -572,7 +572,9 @@ exports.createPaymentTransaction = onCall(CALLABLE_OPTIONS, async request => {
   const month = text(body.month || student.month, 40);
   const course = text(body.course || student.grade, 100);
   const settingsSnap = await db.collection('settings').doc('platform').get().catch(() => null);
-  const configuredPrice = money(settingsSnap?.data()?.coursePrices?.[course]);
+  const savedPrices = settingsSnap?.data()?.coursePrices || {};
+  const configuredPriceKey = Object.keys(savedPrices).find(key => sameAcademicValue(key, course));
+  const configuredPrice = money(savedPrices[configuredPriceKey]);
   const expectedAmount = configuredPrice || money(body.expectedAmount);
   if (!validPaymentAcademicYear(academicYear) || !PAYMENT_MONTH_NAMES.includes(month) || !course || expectedAmount <= 0) throw new HttpsError('failed-precondition', 'حدد الشهر والعام الدراسي وسعر الكورس أولًا.');
   const paidOn = validPaymentDate(body.paymentDate);
@@ -1905,7 +1907,14 @@ exports.getStudentAdminProfile = onCall(CALLABLE_OPTIONS, async request => {
   const found = await getStudentPortalByCode(studentCode), [records, notesSnap, attempts] = await Promise.all([studentRecords(studentCode, found.data), db.collection('student_notes').where('studentCode','==',studentCode).orderBy('createdAt','desc').limit(80).get().catch(()=>null), attemptSummaries(studentCode)]);
   const periodKey=academicYear&&month?leaderboardPeriod(academicYear,month).monthKey:'';
   const filterPeriod = rows => (rows||[]).filter(row=>{if(academicYear&&row.academicYear&&String(row.academicYear)!==academicYear)return false;if(month&&row.month&&String(row.month)!==month)return false;const recordMonth=leaderboardRecordDate(row).slice(0,7);return !periodKey||!recordMonth||recordMonth===periodKey;});
-  const student=portalResponse(found.data,attempts,records);
+  // This callable is Admin-only. Keep the public portal projection safe, then
+  // restore the contact/edit fields that the Admin student file is expected to show.
+  const student={
+    ...portalResponse(found.data,attempts,records),
+    studentPhone:digits(found.data.studentPhone),
+    parentPhone:digits(found.data.parentPhone),
+    notes:text(found.data.notes,3000)
+  };
   return { student, period:{academicYear,month}, attendance:filterPeriod(records.attendance).slice(-80).reverse(), grades:filterPeriod(records.grades).slice(-80).reverse(), results:filterPeriod(student.results).slice(0,120), examAttempts:filterPeriod(attempts).slice(0,120), homeworks:filterPeriod(records.homeworks).slice(-80).reverse(), recitations:filterPeriod(records.recitations).slice(-80).reverse(), monthlyPayments:filterPeriod(records.monthlyPayments).slice(-36).reverse(), motivationSummaries:filterPeriod(records.motivationSummaries).slice(0,36), motivationTransactions:filterPeriod(records.motivationTransactions).slice(0,80), privateNotes:notesSnap?notesSnap.docs.map(doc=>({id:doc.id,...doc.data()})):[] };
 });
 
