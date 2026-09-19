@@ -88,12 +88,12 @@ test('refresh, admin curriculum and requested visual fixes are part of the relea
   const worker = read('service-worker.js');
   const login = read('teacher-login.html');
   const css = read('assets/v61-design.css');
-  assert.match(app, /MF_ASSET_VERSION = '67\.8\.6'/);
+  assert.match(app, /MF_ASSET_VERSION = '67\.8\.8'/);
   assert.match(app, /loadStudentForPortal\(code,\{force:true\}\)/);
-  assert.match(worker, /technominds-v67-8-6-admin-session/);
+  assert.match(worker, /technominds-v67-8-8-admin-session/);
   const assetFetch = worker.slice(worker.indexOf('if(url.pathname.startsWith("/assets/")'));
   assert.doesNotMatch(assetFetch, /ignoreSearch:true/);
-  assert.match(login, /assets\/curriculum-admin\.js\?v=67\.8\.6/);
+  assert.match(login, /assets\/curriculum-admin\.js\?v=67\.8\.8/);
   assert.doesNotMatch(login, /استخدم البريد الموجود في قائمة Firebase Authentication/);
   assert.match(css, /\.homework-question-card[\s\S]{0,500}var\(--surface-2\)/);
   const indexes = JSON.parse(read('firestore.indexes.json')).indexes;
