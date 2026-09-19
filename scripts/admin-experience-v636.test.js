@@ -28,6 +28,17 @@ test('academic workspace context is session-only and drives year term and month'
   assert.match(payments,/adminWorkspaceContext\?\.\(\)\.academicYear/);
 });
 
+test('payment confirmation is immediate, idempotent and does not wait for a second full dashboard read',()=>{
+  const payments=read('assets/v60-payments.js'),backend=read('functions/index.js'),login=read('teacher-login.html');
+  assert.match(payments,/requestId:newRequestId\(\)/);
+  assert.match(payments,/applyPaymentResult\(row,result,payload\.paymentDate\)/);
+  assert.match(payments,/scheduleDashboardRefresh\(\)/);
+  assert.doesNotMatch(payments,/createPaymentTransaction\(payload\)[\s\S]{0,500}await loadDashboard\(\{force:true\}\)/);
+  assert.match(backend,/requestFingerprint/);
+  assert.match(backend,/invalidateStudentReportInTransaction\(tx, studentCode, summary\.academicYear, summary\.month, 'payment-updated'\)/);
+  assert.match(login,/v60-payments\.js\?v=67\.8\.5/);
+});
+
 test('content targeting previews exact active audience before save',()=>{
   const workflow=read('assets/v60-admin-workflow.js');
   assert.match(workflow,/data-target-preview/);

@@ -106,14 +106,15 @@ function calculateMonthlyReport(input={}){
   if(opened)warnings.push('فتح المحاضرة أو تقدم المشغّل لا يثبت إكمالها أو فهمها.');
   const activityCount=recorded.length+submittedHw.length+rows.length+recitations.length+opened;
   const payment=input.payment;
-  return {schemaVersion:2,policyVersion:'monthly-v2-latest-attempt',monthKey,student:{studentCode:String(student.studentCode||student.code||student.id||''),name:student.studentName||student.name||'',grade:student.grade||'',group:student.group||'',academicYear:student.academicYear||''},
+  const motivationRow=input.motivationSummary,motivation=motivationRow?{totalPoints:Math.trunc(Number(motivationRow.totalPoints||0)),transactionCount:Math.max(0,Number(motivationRow.transactionCount||0)),lastReason:String(motivationRow.lastReason||'')}:null;
+  return {schemaVersion:3,policyVersion:'monthly-v2-latest-attempt',monthKey,student:{studentCode:String(student.studentCode||student.code||student.id||''),name:student.studentName||student.name||'',grade:student.grade||'',group:student.group||'',academicYear:student.academicYear||''},
     overallScore,level:levelLabel(overallScore),academicScore,academicLevel:levelLabel(academicScore),commitmentScore,commitmentLevel:commitmentLabel(commitmentScore),activityCount,sufficientData:scored.length>=2,
     comparisonBasis:[gradeAvg!==null,homeworkGradeAvg!==null,attendancePct!==null,homeworkCompletionPct!==null,onTimePct!==null].join(','),
     attendance:{total:attendance.length,required:entitlementKnown?sessions.length:null,entitlementKnown,present,late,absent,excused,unrecorded,percentage:attendancePct,rows:attendance,consecutiveAbsenceWarning:consecutiveAbsenceWarning(attendance)},
     results:{count:rows.length,gradedCount:scored.length,average:gradeAvg,rows,requiredExams:required,availableExams:available,startedExams:started,submittedExams:submitted,attendedExams:submitted,missedExams:missed,pendingReview:awaiting,retakePolicy:'أحدث محاولة؛ إن كانت تنتظر التصحيح تُستبعد من المتوسط حتى اعتمادها.'},
     homework:{required:assignments.length,submitted:submittedHw.length,missing:missingHw.length,late:lateHw.length,completionPercentage:homeworkCompletionPct,averageGrade:homeworkGradeAvg,onTimePercentage:onTimePct,rows:homeworkRows},
     practical:{count:recitations.length,completed:completedPractical,percentage:null,rows:recitations},study:{lecturesOpened:opened,lecturesCompleted:verified,lectureCompletionPercentage:null,rows:progress},
-    payment:payment?{status:payment.status,expectedAmount:payment.expectedAmount,paidAmount:payment.paidAmount,remainingAmount:payment.remainingAmount}:null,
+    payment:payment?{status:payment.status,expectedAmount:payment.expectedAmount,paidAmount:payment.paidAmount,remainingAmount:payment.remainingAmount}:null,motivation,
     strengths,concerns,recommendations,warnings,teacherNotes:String(input.teacherNotes||'')};
 }
 function attachTrend(current,previous){

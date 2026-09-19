@@ -43,6 +43,15 @@ test('monthly report separates academic level from study commitment and lists mi
   assert.match(report.concerns.join(' '),/واجب مستحق لم يُسلّم/);
 });
 
+test('monthly report exposes exact payment and monthly motivation without malformed exam markup',()=>{
+  const report=calculateMonthlyReport({monthKey:'2026-09',student:{studentCode:'ST-123456',name:'طالب'},payment:{status:'partial',expectedAmount:500,paidAmount:300,remainingAmount:200},motivationSummary:{totalPoints:8,transactionCount:2,lastReason:'حل الواجب'}});
+  assert.equal(report.schemaVersion,3);assert.equal(report.payment.remainingAmount,200);assert.equal(report.motivation.totalPoints,8);assert.equal(report.motivation.lastReason,'حل الواجب');
+  const app=read('assets/app.js'),backend=read('functions/index.js');
+  assert.match(app,/add\('دفع الشهر'/);assert.match(app,/add\('التحفيز الشهري'/);assert.match(app,/navigator\.canShare/);
+  assert.doesNotMatch(app,/class="badge \$\{esc\(monthlyResultStatus\(row\)\)\}<\/span>/);
+  assert.match(backend,/REPORT_STUDENT_SOURCES=\[[^\]]*'motivation_monthly'/);
+});
+
 test('monthly trend reports improvement decline and insufficient data honestly',()=>{
   const comparable={sufficientData:true,policyVersion:'v2',comparisonBasis:'exams',student:{grade:'test'}};
   assert.equal(attachTrend({...comparable,overallScore:80},{...comparable,overallScore:70}).trend.status,'improved');
@@ -143,7 +152,7 @@ test('monthly motivation is configurable, comparative, archived and included in 
   assert.match(backend,/enrichLeaderboardRows/);
   assert.match(backend,/exports\.freezeMonthlyLeaderboard/);
   assert.match(backend,/leaderboard_archives/);
-  assert.match(backend,/motivation,previousMonth/);
+  assert.match(backend,/motivationSummary:\(source\.motivation\|\|\[\]\)/);
   assert.match(app,/parent-motivation-summary/);
   assert.match(app,/مركزك في المسار/);
   assert.match(admin,/motivationConfigForm/);

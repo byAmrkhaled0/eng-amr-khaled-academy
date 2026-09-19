@@ -60,10 +60,21 @@
     const box=document.getElementById('paymentRows');if(box)box.innerHTML=state.error?`<p role="alert">${safe(state.error)}</p><button type="button" class="btn" onclick="refreshPaymentDashboard()">إعادة المحاولة</button>`:state.rows.map(paymentCard).join('')+(state.loading?'<p role="status">جارٍ تحميل المدفوعات…</p>':state.nextCursor?'<button type="button" class="btn ghost" onclick="loadMorePayments()">المزيد من الطلاب</button>':state.rows.length?'':'<p>لا توجد نتائج مطابقة.</p>');
     const note=document.querySelector('.payment-filter-note');if(note)note.textContent=state.generatedAt?`الإجماليات لكل النتائج المطابقة، والقائمة على صفحات. آخر تحديث ${new Date(state.generatedAt).toLocaleTimeString('ar-EG')}؛ قد يتأخر تحديث جهاز آخر حتى 15 ثانية.`:'جارٍ تحميل ملخص الفترة من الخادم؛ لم تُحدد حالة الدفع بعد.';
   }
-  async function loadDashboard({append=false,force=false}={}){
+  function applyPaymentResult(row,result,paymentDate){
+    if(!row||!result)return;
+    const before={expected:number(row.expected),paid:number(row.paid),remaining:number(row.remaining),status:row.status};
+    row.expected=number(result.expectedAmount??row.expected);row.paid=number(result.paidAmount??row.paid);row.remaining=number(result.remainingAmount??Math.max(0,row.expected-row.paid));row.status=result.status||statusOf(row.expected,row.paid);
+    row.summary={...(row.summary||{}),studentCode:row.student.studentCode,course:row.summary?.course||row.student.grade,month:row.month,academicYear:row.academicYear,expectedAmount:row.expected,paidAmount:row.paid,remainingAmount:row.remaining,status:row.status,lastPaymentDate:paymentDate||row.summary?.lastPaymentDate||''};
+    const summaryIndex=state.summaries.findIndex(item=>item&&item.studentCode===row.student.studentCode&&item.month===row.month&&item.academicYear===row.academicYear&&adminSameAcademic(item.course,row.summary.course));if(summaryIndex>=0)state.summaries[summaryIndex]=row.summary;else state.summaries.push(row.summary);
+    if(state.totals){state.totals.expected=number(state.totals.expected)+row.expected-before.expected;state.totals.collected=number(state.totals.collected)+row.paid-before.paid;state.totals.remaining=number(state.totals.remaining)+row.remaining-before.remaining;if(before.status!==row.status){state.totals[before.status]=Math.max(0,Number(state.totals[before.status]||0)-1);state.totals[row.status]=Number(state.totals[row.status]||0)+1;}if(paymentDate===cairoDate())state.totals.today=number(state.totals.today)+row.paid-before.paid;}
+    const courseName=row.summary.course,courseKey=Object.keys(state.courses).find(name=>adminSameAcademic(name,courseName))||courseName,courseTotals=state.courses[courseKey];if(courseTotals){courseTotals.expected=number(courseTotals.expected)+row.expected-before.expected;courseTotals.paid=number(courseTotals.paid)+row.paid-before.paid;}
+    state.generatedAt=new Date().toISOString();
+  }
+  function scheduleDashboardRefresh(){clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>loadDashboard({background:true}),15000);}
+  async function loadDashboard({append=false,force=false,background=false}={}){
     if(append&&state.loading)return;
     const generation=++state.generation;state.loading=true;state.error='';
-    if(!append){state.rows=[];state.totals=null;state.courses={};state.summaries=[];}updateDashboard();
+    if(!append&&!background){state.rows=[];state.totals=null;state.courses={};state.summaries=[];}updateDashboard();
     try{const result=await window.MFCloud.getPaymentDashboard({...filters(),cursor:append?state.nextCursor:null,force});if(generation!==state.generation)return;
       state.rows=append?[...state.rows,...result.rows]:result.rows;state.summaries=state.rows.map(row=>row.summary).filter(Boolean);state.totals=result.totals;state.courses=result.courses;state.nextCursor=result.nextCursor;state.generatedAt=result.generatedAt;
     }catch(error){if(generation===state.generation)state.error=adminActionErrorMessage(error,'تعذر تحميل المدفوعات؛ الحالة غير معروفة.');}
@@ -89,7 +100,7 @@
     const key=JSON.stringify([code,month,academicYear,course||row.student.grade]);
     const payload=state.intents.get(key)||{studentCode:code,month,academicYear,course:course||row.student.grade,expectedAmount:row.expected,amount:row.remaining,paymentDate:cairoDate(),paymentMethod:'cash',notes:'تم الدفع من كارت الطالب',requestId:newRequestId()};
     state.intents.set(key,payload);state.pending.add(code);updateDashboard();
-    try{const result=await window.MFCloud.createPaymentTransaction(payload);if(result?.transactionStatus!=='active')throw new Error('لم يؤكد الخادم دفعة نشطة');state.intents.delete(key);aToast(result.duplicate?'تم تأكيد الدفعة المسجلة سابقًا':'تم تأكيد الدفعة');await loadDashboard({force:true});}
+    try{const result=await window.MFCloud.createPaymentTransaction(payload);if(result?.transactionStatus!=='active')throw new Error('لم يؤكد الخادم دفعة نشطة');state.intents.delete(key);applyPaymentResult(row,result,payload.paymentDate);state.pending.delete(code);updateDashboard();scheduleDashboardRefresh();aToast(result.duplicate?'تم تأكيد الدفعة المسجلة سابقًا':'تم تأكيد الدفعة');}
     catch(error){if(!/unavailable|deadline|network|internal|timeout/i.test(`${error.code} ${error.message}`))state.intents.delete(key);aToast(adminActionErrorMessage(error,'تعذر تأكيد الدفع؛ إعادة المحاولة تحتفظ بمعرّف العملية.'));}
     finally{state.pending.delete(code);updateDashboard();}
   };
@@ -111,14 +122,14 @@
     data.amount=number(data.amount);data.expectedAmount=number(data.expectedAmount);data.month=form.elements.month.value;const fingerprint=JSON.stringify(data);if(form.dataset.fingerprint!==fingerprint){form.dataset.requestId=newRequestId();form.dataset.fingerprint=fingerprint;}data.requestId=form.dataset.requestId;
     if(data.amount<=0)return aToast('اكتب مبلغًا صحيحًا أكبر من صفر');if(state.pending.has(transactionId||code))return;
     state.pending.add(transactionId||code);button.disabled=true;button.classList.add('is-loading');if(stateBox){stateBox.className='form-state loading';stateBox.textContent='جارٍ حفظ العملية بأمان…';}
-    try{if(transactionId)await window.MFCloud.editPaymentTransaction({...data,transactionId});else {const result=await window.MFCloud.createPaymentTransaction(data);if(result?.transactionStatus!=='active')throw new Error('لم يؤكد الخادم دفعة نشطة');}delete form.dataset.requestId;delete form.dataset.fingerprint;if(stateBox){stateBox.className='form-state success';stateBox.textContent='تم حفظ العملية بنجاح.';}aToast(transactionId?'تم تعديل الدفعة':'تم تسجيل الدفعة الشهرية');button.disabled=false;closeMonthlyPaymentForm();await loadDashboard({force:true});}
+    try{let result;if(transactionId)result=await window.MFCloud.editPaymentTransaction({...data,transactionId});else {result=await window.MFCloud.createPaymentTransaction(data);if(result?.transactionStatus!=='active')throw new Error('لم يؤكد الخادم دفعة نشطة');}delete form.dataset.requestId;delete form.dataset.fingerprint;const row=state.rows.find(item=>item.student.studentCode===code&&item.month===data.month&&item.academicYear===data.academicYear&&adminSameAcademic(item.summary?.course||item.student.grade,data.course));applyPaymentResult(row,result,data.paymentDate);if(stateBox){stateBox.className='form-state success';stateBox.textContent='تم حفظ العملية بنجاح.';}aToast(transactionId?'تم تعديل الدفعة':'تم تسجيل الدفعة الشهرية');button.disabled=false;closeMonthlyPaymentForm();updateDashboard();scheduleDashboardRefresh();}
     catch(error){const message=adminActionErrorMessage(error,'تعذر حفظ عملية الدفع.');if(stateBox){stateBox.className='form-state error';stateBox.textContent=message;}aToast(message);}
     finally{state.pending.delete(transactionId||code);button.disabled=false;button.classList.remove('is-loading');updateDashboard();}
   }
 
   window.cancelMonthlyPayment=async function(id){
     if(state.pending.has(id))return;const reason=prompt('سبب إلغاء الدفعة (سيظهر في سجل العمليات):','خطأ في التسجيل');if(reason===null)return;
-    state.pending.add(id);try{await window.MFCloud.cancelPaymentTransaction(id,reason);aToast('تم إلغاء الدفعة مع الاحتفاظ بها في السجل');await loadDashboard({force:true});}catch(error){aToast(adminActionErrorMessage(error,'تعذر إلغاء الدفعة.'));}finally{state.pending.delete(id);updateDashboard();}
+    state.pending.add(id);try{const transaction=state.transactions.find(item=>String(item.id)===String(id)),result=await window.MFCloud.cancelPaymentTransaction(id,reason),row=transaction&&state.rows.find(item=>item.student.studentCode===transaction.studentCode&&item.month===transaction.month&&item.academicYear===transaction.academicYear&&adminSameAcademic(item.summary?.course||item.student.grade,transaction.course));if(transaction)transaction.status='cancelled';applyPaymentResult(row,result,transaction?.paymentDate);aToast('تم إلغاء الدفعة مع الاحتفاظ بها في السجل');scheduleDashboardRefresh();}catch(error){aToast(adminActionErrorMessage(error,'تعذر إلغاء الدفعة.'));}finally{state.pending.delete(id);updateDashboard();}
   };
 
   async function exportRows(){const all=[],selected=filters();let cursor=null;do{const result=await window.MFCloud.getPaymentDashboard({...selected,cursor});all.push(...result.rows);cursor=result.nextCursor;}while(cursor);return all.map(row=>[row.student.studentCode,row.student.name,row.student.grade,row.student.group||'',row.month,row.academicYear,row.expected,row.paid,row.remaining,statusLabel(row.status),row.summary?.lastPaymentDate||'']);}

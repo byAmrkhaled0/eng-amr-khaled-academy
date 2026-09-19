@@ -451,8 +451,22 @@ exports.notifyStaffOnBookingCreated = onDocumentCreated({ document: 'bookings/{b
 });
 
 function validPaymentDate(value) {
-  const normalized = normalizeDigits(value);
-  return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : cairoDateKey(new Date());
+  const normalized = normalizeDigits(value).trim();
+  if (!normalized) return cairoDateKey(new Date());
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return '';
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  return date.getUTCFullYear() === Number(match[1]) && date.getUTCMonth() === Number(match[2]) - 1 && date.getUTCDate() === Number(match[3]) ? normalized : '';
+}
+
+function validPaymentMethod(value) {
+  const method = text(value || 'cash', 40);
+  return ['cash', 'transfer', 'wallet', 'card', 'legacy', 'other'].includes(method) ? method : '';
+}
+
+function validPaymentAcademicYear(value) {
+  const match = text(value, 30).match(/^(20\d{2})\/(20\d{2})$/);
+  return match && Number(match[2]) === Number(match[1]) + 1;
 }
 
 function paymentPeriodId(studentCode, academicYear, month, course) {
@@ -468,6 +482,23 @@ function paymentAudit(staff, action, meta) {
     actorRole: staff.role || '',
     createdAt: FieldValue.serverTimestamp()
   };
+}
+
+function invalidateStudentReportInTransaction(tx, studentCode, academicYear, month, reason) {
+  const normalized = normalizeCode(studentCode);
+  if (!normalized) return;
+  try {
+    const monthKey = leaderboardPeriod(academicYear, month).monthKey;
+    tx.set(db.collection('monthly_reports').doc(cleanDocId(`${normalized}_${monthKey}`)), {
+      studentCode: normalized,
+      monthKey,
+      invalidatedAt: FieldValue.serverTimestamp(),
+      invalidationReason: text(reason, 80),
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+  } catch (_) {
+    // Legacy rows with unknown periods remain covered by collection triggers.
+  }
 }
 
 function paymentLegacyMirrorWrites(tx, student, summary, paymentDate) {
@@ -492,6 +523,8 @@ function paymentLegacyMirrorWrites(tx, student, summary, paymentDate) {
   }, { merge: true });
   const parentCode = studentCode;
   if (parentCode) tx.set(db.collection('parent_portal').doc(cleanDocId(parentCode)), { ...legacy, studentCode, parentCode }, { merge: true });
+  // Do not let a parent receive the previous payment while a trigger is pending.
+  invalidateStudentReportInTransaction(tx, studentCode, summary.academicYear, summary.month, 'payment-updated');
 }
 
 const { buildPaymentDashboard } = require('./lib/payment-dashboard');
@@ -541,12 +574,14 @@ exports.createPaymentTransaction = onCall(CALLABLE_OPTIONS, async request => {
   const settingsSnap = await db.collection('settings').doc('platform').get().catch(() => null);
   const configuredPrice = money(settingsSnap?.data()?.coursePrices?.[course]);
   const expectedAmount = configuredPrice || money(body.expectedAmount);
-  if (!academicYear || !month || !course || expectedAmount <= 0) throw new HttpsError('failed-precondition', 'حدد الشهر والعام الدراسي وسعر الكورس أولًا.');
+  if (!validPaymentAcademicYear(academicYear) || !PAYMENT_MONTH_NAMES.includes(month) || !course || expectedAmount <= 0) throw new HttpsError('failed-precondition', 'حدد الشهر والعام الدراسي وسعر الكورس أولًا.');
   const paidOn = validPaymentDate(body.paymentDate);
+  const paymentMethod = validPaymentMethod(body.paymentMethod);
+  if (!paidOn || !paymentMethod) throw new HttpsError('invalid-argument', 'تاريخ الدفع أو طريقة الدفع غير صالحين.');
   const periodId = paymentPeriodId(studentCode, academicYear, month, course);
   const summaryRef = db.collection('monthly_payments').doc(periodId);
   const transactionRef = db.collection('payment_transactions').doc(hash(`${staff.uid}|${requestId}`).slice(0, 48));
-  const requestFingerprint=hash(JSON.stringify({studentCode,academicYear,month,course,amount,paidOn,paymentMethod:text(body.paymentMethod||'cash',40),notes:text(body.notes,1000),expectedAmount:money(body.expectedAmount)}));
+  const requestFingerprint=hash(JSON.stringify({studentCode,academicYear,month,course,amount,paidOn,paymentMethod,notes:text(body.notes,1000),expectedAmount:money(body.expectedAmount)}));
   let result;
 
   await db.runTransaction(async tx => {
@@ -571,7 +606,7 @@ exports.createPaymentTransaction = onCall(CALLABLE_OPTIONS, async request => {
       expectedAmount: periodExpected,
       amount,
       paymentDate: paidOn,
-      paymentMethod: text(body.paymentMethod || 'cash', 40),
+      paymentMethod,
       notes: text(body.notes, 1000),
       status: 'active',
       periodId,
@@ -630,11 +665,13 @@ exports.editPaymentTransaction = onCall(CALLABLE_OPTIONS, async request => {
     const totals = paymentTotals(current, newAmount - money(original.amount), current.expectedAmount);
     if (totals.paidAmount > totals.expectedAmount) throw new HttpsError('failed-precondition', 'القيمة الجديدة أكبر من إجمالي المطلوب لهذا الشهر.');
     const paidOn = validPaymentDate(request.data?.paymentDate || original.paymentDate);
+    const paymentMethod = validPaymentMethod(request.data?.paymentMethod || original.paymentMethod);
+    if (!paidOn || !paymentMethod) throw new HttpsError('invalid-argument', 'تاريخ الدفع أو طريقة الدفع غير صالحين.');
     const summary = { ...current, ...totals, lastPaymentDate: paidOn, updatedAt: FieldValue.serverTimestamp() };
     tx.set(transactionRef, {
       amount: newAmount,
       paymentDate: paidOn,
-      paymentMethod: text(request.data?.paymentMethod || original.paymentMethod, 40),
+      paymentMethod,
       notes: text(request.data?.notes ?? original.notes, 1000),
       editedByUid: staff.uid,
       editedByEmail: staff.email || '',
@@ -676,7 +713,7 @@ exports.cancelPaymentTransaction = onCall(CALLABLE_OPTIONS, async request => {
       updatedAt: FieldValue.serverTimestamp()
     }, { merge: true });
     tx.set(summaryRef, summary, { merge: true });
-    paymentLegacyMirrorWrites(tx, studentSnap.data(), summary, validPaymentDate(original.paymentDate));
+    paymentLegacyMirrorWrites(tx, studentSnap.data(), summary, validPaymentDate(original.paymentDate) || cairoDateKey(new Date()));
     tx.set(db.collection('activityLog').doc(), paymentAudit(staff, 'تم إلغاء دفعة شهرية', { transactionId, amount: money(original.amount), reason: text(request.data?.reason, 500) }));
     result = { id: transactionId, cancelled: true, expectedAmount: summary.expectedAmount, paidAmount: summary.paidAmount, remainingAmount: summary.remainingAmount, status: summary.status };
   });
@@ -739,6 +776,7 @@ exports.addStudentMotivationPoints = onCall(CALLABLE_OPTIONS, async request => {
       lastReason: reason, lastPoints: points, createdAt: current.createdAt || FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
     };
     tx.create(transactionRef, transaction);tx.set(summaryRef, summary, { merge: true });
+    invalidateStudentReportInTransaction(tx, studentCode, academicYear, month, 'motivation-updated');
     tx.create(db.collection('activityLog').doc(), { action: points > 0 ? 'إضافة نقاط تحفيز' : 'خصم نقاط تحفيز', actorUid: staff.uid, actorEmail: staff.email || '', actorRole: 'admin', metadata: { studentCode, academicYear, month, points, reason, totalAfter: totalPoints }, createdAt: FieldValue.serverTimestamp() });
     result = { duplicate: false, transaction: { ...publicMotivationTransaction(transactionRef.id, transaction), createdAt: new Date().toISOString() }, totalPoints };
   });
@@ -787,6 +825,7 @@ exports.reverseStudentMotivationTransaction = onCall(CALLABLE_OPTIONS, async req
     tx.create(reversalRef, reversal);
     tx.set(originalRef, { reversed: true, reversedAt: FieldValue.serverTimestamp(), reversedByUid: staff.uid, reversedByTransactionId: reversalRef.id, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.set(summaryRef, { totalPoints, transactionCount: Number(current.transactionCount || 0) + 1, lastReason: reason, lastPoints: points, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    invalidateStudentReportInTransaction(tx, original.studentCode, original.academicYear, original.month, 'motivation-updated');
     tx.create(db.collection('activityLog').doc(), { action: 'عكس حركة تحفيز', actorUid: staff.uid, actorEmail: staff.email || '', actorRole: 'admin', metadata: { transactionId, reversalId: reversalRef.id, studentCode: original.studentCode, points, totalAfter: totalPoints }, createdAt: FieldValue.serverTimestamp() });
     result = { duplicate: false, transactionId: reversalRef.id, totalPoints };
   });
@@ -1869,7 +1908,7 @@ exports.getStudentAdminProfile = onCall(CALLABLE_OPTIONS, async request => {
   return { student, period:{academicYear,month}, attendance:filterPeriod(records.attendance).slice(-80).reverse(), grades:filterPeriod(records.grades).slice(-80).reverse(), results:filterPeriod(student.results).slice(0,120), examAttempts:filterPeriod(attempts).slice(0,120), homeworks:filterPeriod(records.homeworks).slice(-80).reverse(), recitations:filterPeriod(records.recitations).slice(-80).reverse(), monthlyPayments:filterPeriod(records.monthlyPayments).slice(-36).reverse(), motivationSummaries:filterPeriod(records.motivationSummaries).slice(0,36), motivationTransactions:filterPeriod(records.motivationTransactions).slice(0,80), privateNotes:notesSnap?notesSnap.docs.map(doc=>({id:doc.id,...doc.data()})):[] };
 });
 
-const REPORT_STUDENT_SOURCES=['attendance','grades','homework_submissions','exam_attempts','exam_sessions','recitations','monthly_payments','student_transfer_requests','students'];
+const REPORT_STUDENT_SOURCES=['attendance','grades','homework_submissions','exam_attempts','exam_sessions','recitations','monthly_payments','motivation_monthly','student_transfer_requests','students'];
 for(const collection of REPORT_STUDENT_SOURCES){
   exports[`invalidateReport_${collection}`]=onDocumentWritten({document:`${collection}/{id}`,region:'europe-west1'},async event=>{
     const codes=new Set([event.data?.before.data(),event.data?.after.data()].filter(Boolean).map(row=>normalizeCode(row.studentCode||row.code||(collection==='students'?event.params.id:''))).filter(Boolean));
@@ -1926,8 +1965,8 @@ async function loadStudentMonthlyReportSource(student,options={}) {
   const progressRef=db.collection('student_progress').doc(studentCode);
   const transfers=await reportRowsByStudent('student_transfer_requests',studentCode);
   const historicalTarget=row=>{const date=cairoDateKey(row.publishAt||row.openAt||row.createdAt);const membership=membershipAt(student,transfers,date);return membership&&learningTargetMatchesStudent(row,{...student,...membership,groupId:membership.scheduleId});};
-  const [attendance,grades,homeworks,recitations,payments,attempts,legacyAttempts,progressEvents,progressLectures,assignmentsResult,examsResult]=await Promise.all([
-    reportRowsByStudent('attendance',studentCode,['studentCode','studentId','code']),reportRowsByStudent('grades',studentCode),reportRowsByStudent('homework_submissions',studentCode),reportRowsByStudent('recitations',studentCode),reportRowsByStudent('monthly_payments',studentCode),reportRowsByStudent('exam_attempts',studentCode),db.collection('student_attempts').doc(cleanDocId(studentCode)).collection('attempts').get(),progressRef.collection('monthly_events').get(),progressRef.collection('lectures').get(),options.sharedAssignments?Promise.resolve(options.sharedAssignments):fetchAllCollectionDocuments('assignments'),options.sharedExams?Promise.resolve(options.sharedExams):fetchAllCollectionDocuments('exams')
+  const [attendance,grades,homeworks,recitations,payments,motivation,attempts,legacyAttempts,progressEvents,progressLectures,assignmentsResult,examsResult]=await Promise.all([
+    reportRowsByStudent('attendance',studentCode,['studentCode','studentId','code']),reportRowsByStudent('grades',studentCode),reportRowsByStudent('homework_submissions',studentCode),reportRowsByStudent('recitations',studentCode),reportRowsByStudent('monthly_payments',studentCode),reportRowsByStudent('motivation_monthly',studentCode),reportRowsByStudent('exam_attempts',studentCode),db.collection('student_attempts').doc(cleanDocId(studentCode)).collection('attempts').get(),progressRef.collection('monthly_events').get(),progressRef.collection('lectures').get(),options.sharedAssignments?Promise.resolve(options.sharedAssignments):fetchAllCollectionDocuments('assignments'),options.sharedExams?Promise.resolve(options.sharedExams):fetchAllCollectionDocuments('exams')
   ]);
   const sessions=await reportRowsByStudent('class_sessions',String(student.scheduleId||student.groupId||''),['scheduleId']);
   for(const id of new Set(transfers.map(t=>t.currentScheduleId).filter(id=>id&&id!==student.scheduleId)))sessions.push(...await reportRowsByStudent('class_sessions',id,['scheduleId']));
@@ -1940,11 +1979,12 @@ async function loadStudentMonthlyReportSource(student,options={}) {
   // Older records predate monthly events. They remain usable when their latest
   // activity belongs to the requested month, while all new activity is exact.
   progressLectures?.docs?.forEach(doc=>{if(!monthlyProgress.some(row=>String(row.lectureId)===doc.id))monthlyProgress.push({id:doc.id,lectureId:doc.id,...doc.data()});});
-  return {sessions,transfers,attendance,grades,homeworks,recitations,payments,examAttempts:[...examRows.values()],progress:monthlyProgress,assignments,exams};
+  return {sessions,transfers,attendance,grades,homeworks,recitations,payments,motivation,examAttempts:[...examRows.values()],progress:monthlyProgress,assignments,exams};
 }
 
 function monthlyReportInput(student,source,monthKey) {
   const inMonth=(rows,fields=[])=>rows.filter(row=>reportMonthForRow(row,fields)===monthKey);
+  const period=periodFromMonthKey(monthKey);
   const assignments=inMonth(source.assignments,['publishAt']),exams=inMonth(source.exams,['openAt','createdAt']);
   const examIds=new Set(exams.map(row=>String(row.id))),knownExamIds=new Set(source.exams.map(row=>String(row.id)));
   const belongsToExamMonth=row=>examIds.has(String(row.examId))||(!knownExamIds.has(String(row.examId))&&reportMonthForRow(row,['submittedAt','date'])===monthKey);
@@ -1960,6 +2000,7 @@ function monthlyReportInput(student,source,monthKey) {
     recitations:reportPublicRows(inMonth(source.recitations,['date']),'practical'),
     lectureProgress:reportPublicRows(inMonth(source.progress,['lastOpenedAt','completedAt']),'progress'),
     payment:payments.length?(()=>{const expectedAmount=payments.reduce((sum,row)=>sum+money(row.expectedAmount),0),paidAmount=payments.reduce((sum,row)=>sum+money(row.paidAmount),0);return {expectedAmount,paidAmount,remainingAmount:Math.max(0,expectedAmount-paidAmount),status:paymentStatus(expectedAmount,paidAmount)};})():null,
+    motivationSummary:(source.motivation||[]).find(row=>String(row.academicYear||'')===period.academicYear&&String(row.month||'')===period.monthName)||null,
     teacherNotes:student.parentNotesByMonth?.[monthKey]||''
   };
 }
@@ -1977,7 +2018,7 @@ async function buildStudentMonthlyReport(student,monthKey,options={}) {
   const stateRef=db.collection('monthly_report_state').doc(studentCode),contentRef=db.doc('_system/report_content');
   const [existing,stateSnap,contentSnap]=await Promise.all([ref.get(),stateRef.get(),contentRef.get()]);
   const sourceRevision=Number(stateSnap.data()?.version||0),contentRevision=Number(contentSnap.data()?.version||0),cached=existing.data();
-  if(cached?.report?.schemaVersion===2&&!cached.invalidatedAt&&cached.sourceRevision===sourceRevision&&cached.contentRevision===contentRevision&&Date.now()-firestoreMillis(cached.generatedAt)<60000&&options.force!==true)return cached.report;
+  if(cached?.report?.schemaVersion===3&&!cached.invalidatedAt&&cached.sourceRevision===sourceRevision&&cached.contentRevision===contentRevision&&Date.now()-firestoreMillis(cached.generatedAt)<60000&&options.force!==true)return cached.report;
   const source=await loadStudentMonthlyReportSource(student,options),previousKey=reportPreviousMonthKey(monthKey);
   const current=calculateMonthlyReport(monthlyReportInput(student,source,monthKey)),previous=calculateMonthlyReport(monthlyReportInput(student,source,previousKey));
   const availableMonths=reportAvailableMonths(source,monthKey);
@@ -1985,8 +2026,7 @@ async function buildStudentMonthlyReport(student,monthKey,options={}) {
     const item=calculateMonthlyReport(monthlyReportInput(student,source,key));
     return {monthKey:key,overallScore:item.overallScore,academicScore:item.academicScore,commitmentScore:item.commitmentScore,attendancePercentage:item.attendance.percentage,homeworkPercentage:item.homework.completionPercentage};
   });
-  const motivation=null; // A parent report never rebuilds the all-student leaderboard.
-  const report={...attachTrend(current,previous),motivation,previousMonth:{monthKey:previousKey,overallScore:previous.overallScore,academicScore:previous.academicScore,commitmentScore:previous.commitmentScore},availableMonths,history,generatedAt:new Date().toISOString(),timeZone:'Africa/Cairo'};
+  const report={...attachTrend(current,previous),previousMonth:{monthKey:previousKey,overallScore:previous.overallScore,academicScore:previous.academicScore,commitmentScore:previous.commitmentScore},availableMonths,history,generatedAt:new Date().toISOString(),timeZone:'Africa/Cairo'};
   await db.runTransaction(async tx=>{
     const [currentState,currentContent]=await Promise.all([tx.get(stateRef),tx.get(contentRef)]);
     if(Number(currentState.data()?.version||0)!==sourceRevision||Number(currentContent.data()?.version||0)!==contentRevision)throw new HttpsError('aborted','تغيرت بيانات الطالب أثناء تجهيز التقرير؛ أعد المحاولة.');
@@ -4047,7 +4087,7 @@ exports.migrateLegacyPayments = onCall({ region: 'europe-west1', timeoutSeconds:
     const expectedAmount = money(coursePrices[course]) || amount;
     const month = text(legacy.paymentMonth || student.paymentMonth || student.month || PAYMENT_MONTH_NAMES[new Date().getMonth()], 40);
     const academicYear = text(legacy.paymentAcademicYear || student.paymentAcademicYear || student.academicYear || `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`, 30);
-    const paymentDate = validPaymentDate(legacy.paymentDate || student.paymentDate);
+    const paymentDate = validPaymentDate(legacy.paymentDate || student.paymentDate) || cairoDateKey(new Date());
     const migratedAmount = amount || expectedAmount;
     if (migratedAmount <= 0) return null;
     return { student, studentCode, amount: migratedAmount, expectedAmount: expectedAmount || migratedAmount, course, month, academicYear, paymentDate };
