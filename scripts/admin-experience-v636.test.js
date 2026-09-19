@@ -36,7 +36,7 @@ test('payment confirmation is immediate, idempotent and does not wait for a seco
   assert.doesNotMatch(payments,/createPaymentTransaction\(payload\)[\s\S]{0,500}await loadDashboard\(\{force:true\}\)/);
   assert.match(backend,/requestFingerprint/);
   assert.match(backend,/invalidateStudentReportInTransaction\(tx, studentCode, summary\.academicYear, summary\.month, 'payment-updated'\)/);
-  assert.match(login,/v60-payments\.js\?v=67\.8\.6/);
+  assert.match(login,/v60-payments\.js\?v=67\.8\.8/);
 });
 
 test('payment cards explain zero prices and never leave the primary action silently disabled',()=>{
@@ -145,6 +145,6 @@ test('student and parent portals refresh in place and expose monthly alerts',()=
 
 test('admin preview asset and cache use the current release',()=>{
   assert.match(read('teacher-login.html'),/v63-admin-experience\.js\?v=64\.0\.0/);
-  assert.match(read('service-worker.js'),/technominds-v67-8-6-admin-session/);
-  assert.equal(require(path.join(root,'package.json')).version,'67.8.6');
+  assert.match(read('service-worker.js'),/technominds-v67-8-8-admin-session/);
+  assert.equal(require(path.join(root,'package.json')).version,'67.8.8');
 });

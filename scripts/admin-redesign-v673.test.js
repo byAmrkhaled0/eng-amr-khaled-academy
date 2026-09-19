@@ -61,14 +61,14 @@ test('navy and gold identity covers public pages, administration, dark mode and 
   assert.match(css, /\.admin-mobile-bottom button\.active/);
 });
 
-test('release metadata is synchronized at 67.8.6', () => {
+test('release metadata is synchronized at 67.8.8', () => {
   const frontend = require(path.join(root, 'package.json'));
   const backend = require(path.join(root, 'functions/package.json'));
   const worker = read('service-worker.js');
 
-  assert.equal(frontend.version, '67.8.6');
+  assert.equal(frontend.version, '67.8.8');
   assert.equal(backend.version, frontend.version);
-  assert.match(read('assets/app.js'), /MF_ASSET_VERSION = '67\.8\.6'/);
-  assert.match(worker, /technominds-v67-8-6-admin-session/);
-  assert.match(worker, /ASSET_VERSION = "67\.8\.6"/);
+  assert.match(read('assets/app.js'), /MF_ASSET_VERSION = '67\.8\.8'/);
+  assert.match(worker, /technominds-v67-8-8-admin-session/);
+  assert.match(worker, /ASSET_VERSION = "67\.8\.8"/);
 });
