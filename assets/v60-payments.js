@@ -48,8 +48,16 @@
 
   function paymentCard(row){
     const code=stCode(row.student),pending=state.pending.has(code),rowCourse=row.summary?.course||row.student.grade||'-';
-    const buttonLabel=pending?'جارٍ الحفظ…':row.remaining<=0?'تم الدفع':'تم الدفع';
-    return `<article data-payment-key="${safe(row.key)}" class="monthly-payment-card quick-payment-card ${pending?'is-saving':''}"><div class="monthly-payment-main"><span class="student-avatar">${safe(String(row.student.name||'ط').charAt(0))}</span><div><b>${safe(row.student.name)}</b><small>${safe(code)} · ${safe(rowCourse)}</small><span>السعر <strong>${safe(money(row.expected))}</strong>${row.paid>0?` · المحصل <strong>${safe(money(row.paid))}</strong>`:''}</span></div><span class="badge ${statusClass(row.status)}">${statusLabel(row.status)}</span></div><button class="btn primary quick-paid-button" type="button" ${pending||row.remaining<=0||row.expected<=0?'disabled':''} onclick="markStudentPaid('${safe(code)}','${safe(row.month)}','${safe(row.academicYear)}','${safe(rowCourse)}')">${buttonLabel}</button><div class="payment-history-actions"><button class="small-btn" type="button" onclick="openMonthlyPaymentForm('${safe(code)}','${safe(row.month)}','${safe(row.academicYear)}','','${safe(rowCourse)}')" ${pending||row.remaining<=0?'disabled':''}>دفع جزئي</button><button class="small-btn" type="button" onclick="togglePaymentHistory(this)">سجل الدفعات</button></div><div class="payment-history-shell" hidden></div>${row.expected<=0?'<small class="payment-price-warning">أضف سعر الصف أولًا</small>':''}</article>`;
+    const missingPrice=number(row.expected)<=0,alreadyPaid=!missingPrice&&number(row.remaining)<=0;
+    const buttonLabel=pending?'جارٍ الحفظ…':missingPrice?'حدد السعر أولًا':alreadyPaid?'تم الدفع':'تم الدفع';
+    return `<article data-payment-key="${safe(row.key)}" class="monthly-payment-card quick-payment-card ${pending?'is-saving':''}"><div class="monthly-payment-main"><span class="student-avatar">${safe(String(row.student.name||'ط').charAt(0))}</span><div><b>${safe(row.student.name)}</b><small>${safe(code)} · ${safe(rowCourse)}</small><span>السعر <strong>${safe(money(row.expected))}</strong>${row.paid>0?` · المحصل <strong>${safe(money(row.paid))}</strong>`:''}</span></div><span class="badge ${statusClass(row.status)}">${statusLabel(row.status)}</span></div><button class="btn primary quick-paid-button" type="button" ${pending||alreadyPaid?'disabled':''} onclick="markStudentPaid('${safe(code)}','${safe(row.month)}','${safe(row.academicYear)}','${safe(rowCourse)}')">${buttonLabel}</button><div class="payment-history-actions"><button class="small-btn" type="button" onclick="openMonthlyPaymentForm('${safe(code)}','${safe(row.month)}','${safe(row.academicYear)}','','${safe(rowCourse)}')" ${pending||alreadyPaid||missingPrice?'disabled':''}>دفع جزئي</button><button class="small-btn" type="button" onclick="togglePaymentHistory(this)">سجل الدفعات</button></div><div class="payment-history-shell" hidden></div>${missingPrice?'<small class="payment-price-warning">اضغط الزر لتحديد سعر هذا الصف</small>':''}</article>`;
+  }
+
+  function focusCoursePrice(course){
+    const editor=document.querySelector('.course-price-editor');if(editor)editor.open=true;
+    const input=[...document.querySelectorAll('[data-course-price]')].find(item=>adminSameAcademic(item.dataset.coursePrice,course));
+    (input||editor)?.scrollIntoView?.({behavior:'smooth',block:'center'});input?.focus();
+    aToast(input?'حدد سعر الصف ثم اضغط حفظ الأسعار':'أضف سعر هذا الكورس من إعدادات الأسعار أولًا');
   }
 
   function updateDashboard(){
@@ -96,7 +104,8 @@
   window.markStudentPaid=async function(code,month=currentMonth(),academicYear=schoolYear(),course=''){
     const row=state.rows.find(r=>r.student.studentCode===code&&r.month===month&&r.academicYear===academicYear&&(!course||(r.summary?.course||r.student.grade)===course));
     if(!row||state.loading)return aToast('انتظر تأكيد تحميل ملخص الفترة.');if(state.pending.has(code))return;
-    if(row.expected<=0||row.remaining<=0)return;
+    if(number(row.expected)<=0)return focusCoursePrice(course||row.student.grade);
+    if(number(row.remaining)<=0)return aToast('الدفعة مسجلة بالكامل بالفعل');
     const key=JSON.stringify([code,month,academicYear,course||row.student.grade]);
     const payload=state.intents.get(key)||{studentCode:code,month,academicYear,course:course||row.student.grade,expectedAmount:row.expected,amount:row.remaining,paymentDate:cairoDate(),paymentMethod:'cash',notes:'تم الدفع من كارت الطالب',requestId:newRequestId()};
     state.intents.set(key,payload);state.pending.add(code);updateDashboard();
@@ -138,7 +147,7 @@
 
   window.runLegacyPaymentMigration=async function(){if(typeof currentStaff!=='undefined'&&currentStaff?.role!=='admin')return aToast('ترحيل البيانات القديمة متاح للمدير فقط');if(!confirm('سيتم إنشاء نسخة احتياطية سحابية أولًا ثم نسخ paid/paymentAmount إلى السجل الشهري دون حذف البيانات القديمة. متابعة؟'))return;const button=document.getElementById('legacyPaymentMigrationButton');if(button)button.disabled=true;try{const result=await window.MFCloud.migrateLegacyPayments();aToast(`تم ترحيل ${result.migrated||0} سجل، وتخطي ${result.skipped||0} مكرر`);}catch(error){aToast(adminActionErrorMessage(error,'تعذر ترحيل المدفوعات القديمة.'));}finally{if(button)button.disabled=false;}};
 
-  window.saveCoursePrices=async function(){const button=document.getElementById('saveCoursePricesButton');if(button?.disabled)return;const previous={...(adminData.settings?.coursePrices||{})},next={};document.querySelectorAll('[data-course-price]').forEach(input=>{next[input.dataset.coursePrice]=number(input.value);});adminData.settings={...(adminData.settings||{}),coursePrices:next};try{button.disabled=true;await window.MFCloud.saveSettings(adminData.settings);saveData(adminData);aToast('تم حفظ أسعار الكورسات');updateDashboard();}catch(error){adminData.settings={...(adminData.settings||{}),coursePrices:previous};aToast(adminActionErrorMessage(error,'تعذر حفظ الأسعار.'));}finally{button.disabled=false;}};
+  window.saveCoursePrices=async function(){const button=document.getElementById('saveCoursePricesButton');if(button?.disabled)return;const previous={...(adminData.settings?.coursePrices||{})},next={};document.querySelectorAll('[data-course-price]').forEach(input=>{next[input.dataset.coursePrice]=number(input.value);});adminData.settings={...(adminData.settings||{}),coursePrices:next};try{button.disabled=true;button.classList.add('is-loading');await window.MFCloud.saveSettings(adminData.settings);saveData(adminData);aToast('تم حفظ الأسعار وجارٍ تحديث كروت الدفع');await loadDashboard({force:true,background:true});}catch(error){adminData.settings={...(adminData.settings||{}),coursePrices:previous};aToast(adminActionErrorMessage(error,'تعذر حفظ الأسعار.'));}finally{button.disabled=false;button.classList.remove('is-loading');}};
 
   function academicYears(){return [...new Set([schoolYear(),...(adminData.students||[]).map(row=>row.academicYear).filter(Boolean),...state.summaries.map(row=>row.academicYear).filter(Boolean)])];}
   const renderPaymentsV606=function(){

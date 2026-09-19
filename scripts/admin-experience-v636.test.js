@@ -39,6 +39,22 @@ test('payment confirmation is immediate, idempotent and does not wait for a seco
   assert.match(login,/v60-payments\.js\?v=67\.8\.5/);
 });
 
+test('payment cards explain zero prices and never leave the primary action silently disabled',()=>{
+  const payments=read('assets/v60-payments.js');
+  assert.match(payments,/missingPrice\?'حدد السعر أولًا'/);
+  assert.match(payments,/if\(number\(row\.expected\)<=0\)return focusCoursePrice/);
+  assert.match(payments,/editor\.open=true/);
+  assert.match(payments,/await loadDashboard\(\{force:true,background:true\}\)/);
+});
+
+test('student file opens synchronously before cloud history so popup blockers do not swallow it',()=>{
+  const admin=read('assets/admin.js'),start=admin.indexOf('window.printStudentReport=async function'),end=admin.indexOf('window.sendParentMonthlyReport',start),source=admin.slice(start,end);
+  assert.ok(source.indexOf("window.open('','_blank')")>=0);
+  assert.ok(source.indexOf("window.open('','_blank')")<source.indexOf('await window.MFCloud'));
+  assert.match(source,/جارٍ تجهيز ملف الطالب/);
+  assert.match(source,/w\.opener=null/);
+});
+
 test('content targeting previews exact active audience before save',()=>{
   const workflow=read('assets/v60-admin-workflow.js');
   assert.match(workflow,/data-target-preview/);

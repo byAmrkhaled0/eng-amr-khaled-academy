@@ -25,6 +25,46 @@ test('all 19 administration sections render through the production script chain'
   assert.deepEqual(ui.errors.map(error=>error.message),[]);
  }finally{ui.close();}
 });
+test('zero-price payment action immediately opens and focuses the matching price field',async()=>{
+ const ui=await createAdminDOM();
+ try{
+  const student=ui.run('adminData.students[0]'),month=ui.run('MONTHS[8]'),year='2026/2027';
+  ui.run(`adminData.settings.coursePrices={[GRADES[0]]:0};window.adminWorkspaceContext=()=>({month:MONTHS[8],academicYear:'2026/2027'});`);
+  Object.assign(ui.window.MFCloud,{getPaymentDashboard:async()=>({rows:[{key:'payment-test',student,summary:null,month,academicYear:year,expected:0,paid:0,remaining:0,status:'unpaid'}],totals:{expected:0,collected:0,remaining:0,today:0,paid:0,partial:0,unpaid:1},courses:{},nextCursor:null,generatedAt:new Date().toISOString()})});
+  ui.window.renderPayments();await tick(20);
+  const button=ui.document.querySelector('.quick-paid-button');assert(button);assert.equal(button.disabled,false);assert.match(button.textContent,/حدد السعر/);
+  ui.run(button.getAttribute('onclick'));
+  const editor=ui.document.querySelector('.course-price-editor'),input=editor.querySelector('[data-course-price]');
+  assert.equal(editor.open,true);assert.equal(ui.document.activeElement,input);assert.match(ui.document.querySelector('#toast').textContent,/حدد سعر الصف/);
+ }finally{ui.close();}
+});
+test('paid button shows feedback immediately and blocks a duplicate request while the network is pending',async()=>{
+ const ui=await createAdminDOM();
+ try{
+  const student=ui.run('adminData.students[0]'),month=ui.run('MONTHS[8]'),year='2026/2027';let calls=0,resolvePayment;
+  ui.run(`adminData.settings.coursePrices={[GRADES[0]]:300};window.adminWorkspaceContext=()=>({month:MONTHS[8],academicYear:'2026/2027'});`);
+  Object.assign(ui.window.MFCloud,{
+   getPaymentDashboard:async()=>({rows:[{key:'payment-test',student,summary:null,month,academicYear:year,expected:300,paid:0,remaining:300,status:'unpaid'}],totals:{expected:300,collected:0,remaining:300,today:0,paid:0,partial:0,unpaid:1},courses:{},nextCursor:null,generatedAt:new Date().toISOString()}),
+   createPaymentTransaction:async()=>{calls++;return new Promise(resolve=>{resolvePayment=resolve;});}
+  });
+  ui.window.renderPayments();await tick(20);const button=ui.document.querySelector('.quick-paid-button'),handler=button.getAttribute('onclick'),started=Date.now();
+  const pending=ui.run(handler);ui.run(handler);await tick();
+  assert.equal(calls,1);assert.equal(ui.document.querySelector('.quick-paid-button').disabled,true);assert.match(ui.document.querySelector('.quick-paid-button').textContent,/جارٍ الحفظ/);assert.ok(Date.now()-started<1000);
+  resolvePayment({transactionStatus:'active',expectedAmount:300,paidAmount:300,remainingAmount:0,status:'paid'});await pending;
+  assert.equal(ui.document.querySelector('.quick-paid-button').disabled,true);assert.match(ui.document.querySelector('.quick-paid-button').textContent,/تم الدفع/);
+ }finally{ui.close();}
+});
+test('student file shows a loading window before payment history resolves',async()=>{
+ const ui=await createAdminDOM();
+ try{
+  const writes=[];let opened=false,resolveHistory;
+  ui.window.open=()=>{opened=true;return {opener:{},closed:false,document:{open(){},write(value){writes.push(value);},close(){}}};};
+  ui.window.MFCloud.getStudentPaymentHistory=async()=>{assert.equal(opened,true);return new Promise(resolve=>{resolveHistory=resolve;});};
+  const pending=ui.window.printStudentReport('DEMO1');await tick();
+  assert.match(writes[0],/جارٍ تجهيز ملف الطالب/);resolveHistory({summaries:[],transactions:[]});await pending;
+  assert.equal(writes.length,2);assert.match(writes[1],/student-app-dashboard/);
+ }finally{ui.close();}
+});
 test('lesson bank editor inherits its lesson, retains focus, and retries a failed save without uploading twice',async()=>{
  const ui=await createAdminDOM();
  try{
