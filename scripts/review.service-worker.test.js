@@ -24,7 +24,7 @@ test('CSS hotfix build changes the stylesheet URL and precaches that exact URL w
   fs.mkdirSync(path.join(root,'functions/lib'),{recursive:true});
   fs.copyFileSync('functions/lib/portal-results.js',path.join(root,'functions/lib/portal-results.js'));
   fs.copyFileSync('service-worker.js',path.join(root,'service-worker.js'));
-  fs.writeFileSync(path.join(root,'package.json'),JSON.stringify({version:'67.8.5'}));
+  fs.writeFileSync(path.join(root,'package.json'),JSON.stringify({version:'67.8.6'}));
   fs.writeFileSync(path.join(root,'index.html'),'<head><link href="assets/v55.css?v=old" rel="stylesheet"><script src="assets/app.js?v=old"></script></head>');
   fs.writeFileSync(path.join(root,'assets/app.js'),'// unchanged script');
   fs.writeFileSync(path.join(root,'assets/v55.css'),'.attendance-control-card{display:flex}');
@@ -32,7 +32,7 @@ test('CSS hotfix build changes the stylesheet URL and precaches that exact URL w
   const beforeHtml=build(),before=beforeHtml.match(/href="([^"]+)"/)[1];
   fs.writeFileSync(path.join(root,'assets/v55.css'),'.attendance-control-card{display:grid}');
   const afterHtml=build(),after=afterHtml.match(/href="([^"]+)"/)[1];
-  assert.notEqual(before,after);assert.equal(new URL(after,'https://demo.test').searchParams.get('v'),'67.8.5');
+  assert.notEqual(before,after);assert.equal(new URL(after,'https://demo.test').searchParams.get('v'),'67.8.6');
   assert.equal(afterHtml.match(/src="(assets\/app.js[^"]+)"/)[1],beforeHtml.match(/src="(assets\/app.js[^"]+)"/)[1]);
   const listeners={},added=[];let installed;
   const worker=fs.readFileSync(path.join(root,'dist/service-worker.js'),'utf8');

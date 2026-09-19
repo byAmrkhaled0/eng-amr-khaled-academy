@@ -16,9 +16,9 @@ const functionBody = name => {
 };
 
 test('release, theme bootstrap and transparent logo stay synchronized', () => {
-  assert.equal(require(path.join(root, 'package.json')).version, '67.8.5');
-  assert.equal(require(path.join(root, 'functions/package.json')).version, '67.8.5');
-  assert.match(read('service-worker.js'), /technominds-v67-8-5-admin-session/);
+  assert.equal(require(path.join(root, 'package.json')).version, '67.8.6');
+  assert.equal(require(path.join(root, 'functions/package.json')).version, '67.8.6');
+  assert.match(read('service-worker.js'), /technominds-v67-8-6-admin-session/);
 
   for (const name of fs.readdirSync(root).filter(file => file.endsWith('.html'))) {
     const html = read(name);
@@ -101,6 +101,14 @@ test('Firebase and Vercel route maps resolve to exported functions', () => {
     assert.equal(vercelRoutes.get(route), vercelFunction, `Vercel route mismatch: ${route}`);
     assert.match(functionsSource, new RegExp(`exports\\.${firebaseFunction}\\s*=`));
     assert.match(functionsSource, new RegExp(`exports\\.${vercelFunction}\\s*=`));
+  }
+});
+
+test('hosting CSP permits Firebase SDK diagnostics without widening the policy', () => {
+  for (const file of ['firebase.json', 'vercel.json']) {
+    const config = read(file);
+    assert.match(config, /connect-src 'self' https:\/\/www\.gstatic\.com https:\/\/apis\.google\.com/);
+    assert.match(config, /object-src 'none'/);
   }
 });
 

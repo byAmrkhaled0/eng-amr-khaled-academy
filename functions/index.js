@@ -590,7 +590,8 @@ exports.createPaymentTransaction = onCall(CALLABLE_OPTIONS, async request => {
       const existing = existingTransaction.data();
       if(existing.requestFingerprint!==requestFingerprint)throw new HttpsError('already-exists','معرّف الطلب مستخدم لبيانات أخرى. راجع السجل وابدأ عملية جديدة.');
       if(existing.status!=='active')throw new HttpsError('failed-precondition','العملية السابقة ملغاة؛ ابدأ دفعة جديدة بمعرّف جديد.');
-      result = { id: existingTransaction.id, duplicate: true, transactionStatus:'active', periodId: existing.periodId, studentCode: existing.studentCode, amount: money(existing.amount), status: existing.status };
+      const summary=summarySnap.exists?summarySnap.data():{},duplicateExpected=money(summary.expectedAmount||existing.expectedAmount),duplicatePaid=money(summary.paidAmount||existing.amount),duplicateRemaining=Math.max(0,money(summary.remainingAmount??duplicateExpected-duplicatePaid));
+      result = { id: existingTransaction.id, duplicate: true, transactionStatus:'active', periodId: existing.periodId, studentCode: existing.studentCode, amount: money(existing.amount), expectedAmount:duplicateExpected, paidAmount:duplicatePaid, remainingAmount:duplicateRemaining, status:['paid','partial','unpaid'].includes(summary.status)?summary.status:paymentStatus(duplicateExpected,duplicatePaid) };
       return;
     }
     const current = summarySnap.exists ? summarySnap.data() : {};
@@ -2040,7 +2041,7 @@ exports.getStudentMonthlyReportAdmin = onCall({ ...CALLABLE_OPTIONS, timeoutSeco
   const studentCode=normalizeCode(request.data?.studentCode),monthKey=text(request.data?.monthKey,7);
   if(!validLegacyOrStrongCode(studentCode))throw new HttpsError('invalid-argument','كود الطالب غير صالح.');
   const found=await getStudentPortalByCode(studentCode);
-  return buildStudentMonthlyReport(found.data,monthKey);
+  return buildStudentMonthlyReport(found.data,monthKey,{force:request.data?.force===true});
 });
 
 exports.getParentMonthlyReport = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds:60, memory:'512MiB' }, async request => {

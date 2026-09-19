@@ -52,8 +52,8 @@ test('admin manages theory lectures as one unit with safe lifecycle and analytic
 });
 
 test('V67 assets and cache are wired into source and build checks',()=>{
-  assert.equal(require(path.join(root,'package.json')).version,'67.8.5');
-  assert.match(read('teacher-login.html'),/v60-admin-workflow\.js\?v=67\.8\.5/);
-  assert.match(read('service-worker.js'),/technominds-v67-8-5-admin-session/);
-  for(const page of ['teacher-login.html','student.html','parent.html','theory-lectures.html'])assert.match(read(page),/v67-learning-hub\.css\?v=67\.8\.5/);
+  assert.equal(require(path.join(root,'package.json')).version,'67.8.6');
+  assert.match(read('teacher-login.html'),/v60-admin-workflow\.js\?v=67\.8\.6/);
+  assert.match(read('service-worker.js'),/technominds-v67-8-6-admin-session/);
+  for(const page of ['teacher-login.html','student.html','parent.html','theory-lectures.html'])assert.match(read(page),/v67-learning-hub\.css\?v=67\.8\.6/);
 });

@@ -14,7 +14,7 @@ var HOMEWORK_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 var PENDING_BOOKING_REQUEST_KEY = 'mf_pending_booking_request_v1';
 var cloudSaveTimer = null;
 var staffCacheTimer = null;
-var MF_ASSET_VERSION = '67.8.5';
+var MF_ASSET_VERSION = '67.8.6';
 var mfLazyScriptPromises = Object.create(null);
 var publicScheduleUnsubscribe = null;
 
@@ -909,7 +909,7 @@ function parentMonthlyReportHTML(report){
   return `<div class="parent-monthly-report-v40 parent-monthly-report-server" id="parentMonthlyReport">
     <label class="parent-month-filter-v637"><span>عرض تقرير شهر</span><select onchange="renderParentMonth(this.value)">${monthOptions}</select></label>
     <div class="parent-report-cover-v40"><div class="parent-report-cover-content-v40"><div class="parent-report-main-v40"><span class="kicker">تقرير ولي الأمر الشهري</span><h2>${esc(st.name||'-')}</h2><p>${esc(reportMonthLabel(report.monthKey))} · ${esc(st.academicYear||'-')} · ${esc(st.grade||'-')} · ${esc(st.group||'-')}</p><small>آخر تحديث: ${esc(formatPortalDate(report.generatedAt))} — Africa/Cairo</small></div><div class="parent-report-qr-v40"><b>QR الطالب</b>${makeQR(st.studentCode||'')}<small>${esc(st.studentCode||'')}</small></div></div></div>
-    <div class="parent-actions-v38 no-print"><button class="btn primary" type="button" onclick="printParentReport()">طباعة / حفظ PDF</button><button class="btn ghost" type="button" onclick="copyParentReport('${esc(st.studentCode||'')}')">نسخ التقرير</button>${st.parentPhone?`<button class="btn whatsapp-report-btn" type="button" onclick="openParentWhatsApp('${esc(st.studentCode||'')}')">صورة التقرير + واتساب</button>`:''}</div>
+    <div class="parent-actions-v38 no-print"><button class="btn primary" type="button" onclick="printParentReport()">طباعة / حفظ PDF</button><button class="btn ghost" type="button" onclick="copyParentReport('${esc(st.studentCode||'')}')">نسخ التقرير</button>${st.parentPhone?`<button class="btn whatsapp-report-btn" type="button" onclick="openParentWhatsApp('${esc(st.studentCode||'')}',this)">صورة التقرير + واتساب</button>`:''}</div>
     <div class="metric-grid parent-report-metrics-v40"><div class="metric main-metric-v40"><b>${score(report.overallScore)}</b><small>${esc(report.level||'المستوى العام')}</small></div><div class="metric"><b>${score(report.academicScore)}</b><small>المستوى الأكاديمي</small></div><div class="metric"><b>${score(report.commitmentScore)}</b><small>الالتزام والمذاكرة</small></div><div class="metric"><b>${score(attendance.percentage)}</b><small>الحضور</small></div><div class="metric"><b>${score(homework.completionPercentage)}</b><small>تسليم الواجبات</small></div><div class="metric"><b>${score(results.average)}</b><small>متوسط الدرجات</small></div></div>
     <div class="parent-status-card-v40 ${trendTone}"><div><span>التقدم مقارنة بالشهر السابق</span><h3>${esc(trend.label||'بيانات غير كافية')}</h3></div><p>${report.sufficientData?`حالة المذاكرة داخل المنصة: ${esc(report.commitmentLevel||'-')}.`:'لا توجد أنشطة كافية لإصدار حكم دقيق على انتظام المذاكرة.'}</p></div>
     ${report.motivation?`<section class="parent-motivation-summary"><div><span class="kicker">التحفيز الشهري</span><h3>${report.motivation.score===null||report.motivation.score===undefined?`${esc(report.motivation.totalPoints??0)} نقطة`:`${esc(report.motivation.level||'التقييم')} · ${esc(report.motivation.score)}%`}</h3>${report.motivation.rank?`<p>المركز ${esc(report.motivation.rank)}${report.motivation.totalStudents?` من ${esc(report.motivation.totalStudents)} في المسار`:''}${report.motivation.groupRank?` · المركز ${esc(report.motivation.groupRank)} في المجموعة`:''}</p>`:`<p>${esc(report.motivation.transactionCount??0)} حركة تحفيز${report.motivation.lastReason?` · آخر سبب: ${esc(report.motivation.lastReason)}`:''}</p>`}</div>${report.motivation.gradePct===null||report.motivation.gradePct===undefined?'':`<div class="motivation-score-breakdown-v683"><span>درجات الامتحانات <b>${esc(report.motivation.gradePct??0)}%</b></span><span>تسليم الواجبات <b>${esc(report.motivation.homeworkPct??0)}%</b></span><span>درجات الواجبات <b>${esc(report.motivation.homeworkGradePct??0)}%</b></span><span>الحضور <b>${esc(report.motivation.attendancePct??0)}%</b></span></div>`}${(report.motivation.achievements||[]).length?`<div class="motivation-achievements">${report.motivation.achievements.map(item=>`<span class="badge good">${esc(item)}</span>`).join('')}</div>`:''}${report.motivation.nextAction?`<p><b>الخطوة المقترحة:</b> ${esc(report.motivation.nextAction)}</p>`:''}${(report.motivation.penaltyReasons||[]).length?`<div class="motivation-penalties">${report.motivation.penaltyReasons.map(item=>`<span class="badge danger">${esc(item.label)}</span>`).join('')}</div>`:''}</section>`:''}
@@ -933,6 +933,7 @@ async function loadParentMonthlyReport(monthKey){
   const report=await window.MFCloud.getParentMonthlyReport(lastParentStudent.studentCode,monthKey);
   if(generation!==parentReportLoadGeneration)return null;
   if(report.monthKey!==monthKey)throw new Error('فترة التقرير غير مطابقة للطلب');
+  if(report?.student?.studentCode!==lastParentStudent.studentCode)throw new Error('التقرير لا يخص الطالب المحدد');
   lastParentMonthlyReport=report;lastParentReportMonth=report.monthKey;
   const box=document.getElementById('parentResult');if(box)box.innerHTML=parentMonthlyReportHTML(report);hydrateIcons();return report;
 }
@@ -1027,11 +1028,14 @@ window.deliverParentMonthlyReport=async function(report,parentPhone,notify=toast
   notify('تم تنزيل صورة التقرير وفتح رقم ولي الأمر. أرفق الصورة التي تم تنزيلها ثم أرسل الرسالة.');return true;
 };
 
-window.openParentWhatsApp = async function(code){
+let parentReportSharePending=false;
+window.openParentWhatsApp = async function(code,button){
+  if(parentReportSharePending)return toast('جاري تجهيز الصورة بالفعل');
   const st=(lastParentStudent&&lastParentStudent.studentCode===code)?lastParentStudent:(window.MF_FIREBASE_CONFIG?.useSecureFunctions===false?findStudentByCode(code):null);
   if(!st)return toast('لم يتم العثور على الطالب');
   if(!lastParentMonthlyReport||lastParentMonthlyReport?.student?.studentCode!==code)return toast('انتظر تحميل التقرير الشهري أولًا');
-  try{await window.deliverParentMonthlyReport(lastParentMonthlyReport,st.parentPhone,toast);}catch(error){toast(error?.message||'تعذر تجهيز صورة التقرير');}
+  parentReportSharePending=true;if(button){button.disabled=true;button.classList.add('is-loading');}
+  try{await window.deliverParentMonthlyReport(lastParentMonthlyReport,st.parentPhone,toast);}catch(error){toast(error?.message||'تعذر تجهيز صورة التقرير');}finally{parentReportSharePending=false;if(button){button.disabled=false;button.classList.remove('is-loading');}}
 };
 
 window.printParentReport = function(){

@@ -16,6 +16,7 @@ test.before(async()=>{
 });
 test('payment: concurrent retry, cancel, new equal payment, changed payload and second device',async()=>{
  const requestId='payment-1';const [a,b]=await Promise.all([call('createPaymentTransaction',{...payment,requestId}),call('createPaymentTransaction',{...payment,requestId})]);assert.equal(a.id,b.id);
+ assert.equal(b.transactionStatus,'active');assert.equal(b.expectedAmount,100);assert.equal(b.paidAmount,100);assert.equal(b.remainingAmount,0);assert.equal(b.status,'paid');
  await assert.rejects(call('createPaymentTransaction',{...payment,requestId,amount:99}),/معرّف الطلب/);
  await call('cancelPaymentTransaction',{transactionId:a.id,reason:'test'});
  await assert.rejects(call('createPaymentTransaction',{...payment,requestId}),/ملغاة/);

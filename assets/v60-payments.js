@@ -78,6 +78,16 @@
     const courseName=row.summary.course,courseKey=Object.keys(state.courses).find(name=>adminSameAcademic(name,courseName))||courseName,courseTotals=state.courses[courseKey];if(courseTotals){courseTotals.expected=number(courseTotals.expected)+row.expected-before.expected;courseTotals.paid=number(courseTotals.paid)+row.paid-before.paid;}
     state.generatedAt=new Date().toISOString();
   }
+  function applySavedCoursePrices(){
+    for(const row of state.rows){
+      if(row.summary)continue;
+      const beforeExpected=number(row.expected),beforeRemaining=number(row.remaining),expected=coursePrice(row.student);
+      row.expected=expected;row.remaining=Math.max(0,expected-number(row.paid));row.status=statusOf(row.expected,row.paid);
+      if(state.totals){state.totals.expected=number(state.totals.expected)+expected-beforeExpected;state.totals.remaining=number(state.totals.remaining)+row.remaining-beforeRemaining;}
+      const courseName=row.student.grade,courseKey=Object.keys(state.courses).find(name=>adminSameAcademic(name,courseName))||courseName;if(state.courses[courseKey])state.courses[courseKey].expected=number(state.courses[courseKey].expected)+expected-beforeExpected;
+    }
+    state.generatedAt=new Date().toISOString();updateDashboard();
+  }
   function scheduleDashboardRefresh(){clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>loadDashboard({background:true}),15000);}
   async function loadDashboard({append=false,force=false,background=false}={}){
     if(append&&state.loading)return;
@@ -147,7 +157,7 @@
 
   window.runLegacyPaymentMigration=async function(){if(typeof currentStaff!=='undefined'&&currentStaff?.role!=='admin')return aToast('ترحيل البيانات القديمة متاح للمدير فقط');if(!confirm('سيتم إنشاء نسخة احتياطية سحابية أولًا ثم نسخ paid/paymentAmount إلى السجل الشهري دون حذف البيانات القديمة. متابعة؟'))return;const button=document.getElementById('legacyPaymentMigrationButton');if(button)button.disabled=true;try{const result=await window.MFCloud.migrateLegacyPayments();aToast(`تم ترحيل ${result.migrated||0} سجل، وتخطي ${result.skipped||0} مكرر`);}catch(error){aToast(adminActionErrorMessage(error,'تعذر ترحيل المدفوعات القديمة.'));}finally{if(button)button.disabled=false;}};
 
-  window.saveCoursePrices=async function(){const button=document.getElementById('saveCoursePricesButton');if(button?.disabled)return;const previous={...(adminData.settings?.coursePrices||{})},next={};document.querySelectorAll('[data-course-price]').forEach(input=>{next[input.dataset.coursePrice]=number(input.value);});adminData.settings={...(adminData.settings||{}),coursePrices:next};try{button.disabled=true;button.classList.add('is-loading');await window.MFCloud.saveSettings(adminData.settings);saveData(adminData);aToast('تم حفظ الأسعار وجارٍ تحديث كروت الدفع');await loadDashboard({force:true,background:true});}catch(error){adminData.settings={...(adminData.settings||{}),coursePrices:previous};aToast(adminActionErrorMessage(error,'تعذر حفظ الأسعار.'));}finally{button.disabled=false;button.classList.remove('is-loading');}};
+  window.saveCoursePrices=async function(){const button=document.getElementById('saveCoursePricesButton');if(button?.disabled)return;const previous={...(adminData.settings?.coursePrices||{})},next={};document.querySelectorAll('[data-course-price]').forEach(input=>{next[input.dataset.coursePrice]=number(input.value);});adminData.settings={...(adminData.settings||{}),coursePrices:next};try{button.disabled=true;button.classList.add('is-loading');await window.MFCloud.saveSettings(adminData.settings);saveData(adminData);applySavedCoursePrices();aToast('تم حفظ الأسعار وتحديث كروت الدفع');scheduleDashboardRefresh();}catch(error){adminData.settings={...(adminData.settings||{}),coursePrices:previous};aToast(adminActionErrorMessage(error,'تعذر حفظ الأسعار.'));}finally{button.disabled=false;button.classList.remove('is-loading');}};
 
   function academicYears(){return [...new Set([schoolYear(),...(adminData.students||[]).map(row=>row.academicYear).filter(Boolean),...state.summaries.map(row=>row.academicYear).filter(Boolean)])];}
   const renderPaymentsV606=function(){
@@ -159,9 +169,15 @@
   // V53/V55 contain compatibility renderers used by older deployments and
   // attach them during DOMContentLoaded. Re-install the V60.6 ledger after
   // those hooks so timing can never restore the destructive paid/unpaid UI.
+  const v606PaymentHandlers={
+    refreshPaymentRows:window.refreshPaymentRows,
+    refreshPaymentDashboard:window.refreshPaymentDashboard,
+    saveCoursePrices:window.saveCoursePrices,
+    exportCenterSubscriptionsCSV:window.exportCenterSubscriptionsCSV,
+    setPaid:(code,value)=>value?window.markStudentPaid(code):aToast('إلغاء الدفع متاح للمدير من سجل العمليات')
+  };
   const installV606PaymentHandlers=()=>{
-    window.renderPayments=renderPaymentsV606;
-    window.setPaid=(code,value)=>value?window.markStudentPaid(code):aToast('إلغاء الدفع متاح للمدير من سجل العمليات');
+    Object.assign(window,v606PaymentHandlers,{renderPayments:renderPaymentsV606});
   };
   installV606PaymentHandlers();
   document.addEventListener('DOMContentLoaded',()=>{installV606PaymentHandlers();setTimeout(installV606PaymentHandlers,0);});

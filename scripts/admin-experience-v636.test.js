@@ -36,15 +36,23 @@ test('payment confirmation is immediate, idempotent and does not wait for a seco
   assert.doesNotMatch(payments,/createPaymentTransaction\(payload\)[\s\S]{0,500}await loadDashboard\(\{force:true\}\)/);
   assert.match(backend,/requestFingerprint/);
   assert.match(backend,/invalidateStudentReportInTransaction\(tx, studentCode, summary\.academicYear, summary\.month, 'payment-updated'\)/);
-  assert.match(login,/v60-payments\.js\?v=67\.8\.5/);
+  assert.match(login,/v60-payments\.js\?v=67\.8\.6/);
 });
 
 test('payment cards explain zero prices and never leave the primary action silently disabled',()=>{
-  const payments=read('assets/v60-payments.js');
+  const payments=read('assets/v60-payments.js'),backend=read('functions/index.js');
   assert.match(payments,/missingPrice\?'حدد السعر أولًا'/);
   assert.match(payments,/if\(number\(row\.expected\)<=0\)return focusCoursePrice/);
   assert.match(payments,/editor\.open=true/);
-  assert.match(payments,/await loadDashboard\(\{force:true,background:true\}\)/);
+  assert.match(payments,/applySavedCoursePrices\(\)/);
+  assert.doesNotMatch(payments,/saveSettings\(adminData\.settings\)[\s\S]{0,300}await loadDashboard/);
+  for(const field of ['expectedAmount:duplicateExpected','paidAmount:duplicatePaid','remainingAmount:duplicateRemaining'])assert.match(backend,new RegExp(field));
+});
+
+test('V60.6 restores every payment handler after the V55 compatibility hook',()=>{
+  const payments=read('assets/v60-payments.js');
+  assert.match(payments,/const v606PaymentHandlers=\{[\s\S]*refreshPaymentRows:window\.refreshPaymentRows,[\s\S]*refreshPaymentDashboard:window\.refreshPaymentDashboard,[\s\S]*saveCoursePrices:window\.saveCoursePrices,[\s\S]*exportCenterSubscriptionsCSV:window\.exportCenterSubscriptionsCSV/);
+  assert.match(payments,/Object\.assign\(window,v606PaymentHandlers,\{renderPayments:renderPaymentsV606\}\)/);
 });
 
 test('student file opens synchronously before cloud history so popup blockers do not swallow it',()=>{
@@ -53,6 +61,14 @@ test('student file opens synchronously before cloud history so popup blockers do
   assert.ok(source.indexOf("window.open('','_blank')")<source.indexOf('await window.MFCloud'));
   assert.match(source,/جارٍ تجهيز ملف الطالب/);
   assert.match(source,/w\.opener=null/);
+});
+
+test('parent report delivery is fresh, student-bound and protected from duplicate clicks',()=>{
+  const admin=read('assets/admin.js'),backend=read('functions/index.js');
+  assert.match(admin,/getStudentMonthlyReportAdmin\(\{studentCode:stCode\(st\),monthKey:adminReportMonthKey\(\),force:true\}\)/);
+  assert.match(admin,/parentReportDeliveryPending\.has\(code\)/);
+  assert.match(admin,/report\?\.student\?\.studentCode!==code/);
+  assert.match(backend,/buildStudentMonthlyReport\(found\.data,monthKey,\{force:request\.data\?\.force===true\}\)/);
 });
 
 test('content targeting previews exact active audience before save',()=>{
@@ -129,6 +145,6 @@ test('student and parent portals refresh in place and expose monthly alerts',()=
 
 test('admin preview asset and cache use the current release',()=>{
   assert.match(read('teacher-login.html'),/v63-admin-experience\.js\?v=64\.0\.0/);
-  assert.match(read('service-worker.js'),/technominds-v67-8-5-admin-session/);
-  assert.equal(require(path.join(root,'package.json')).version,'67.8.5');
+  assert.match(read('service-worker.js'),/technominds-v67-8-6-admin-session/);
+  assert.equal(require(path.join(root,'package.json')).version,'67.8.6');
 });

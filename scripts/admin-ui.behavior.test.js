@@ -54,6 +54,32 @@ test('paid button shows feedback immediately and blocks a duplicate request whil
   assert.equal(ui.document.querySelector('.quick-paid-button').disabled,true);assert.match(ui.document.querySelector('.quick-paid-button').textContent,/تم الدفع/);
  }finally{ui.close();}
 });
+test('saving a course price updates the payment card without a second immediate dashboard read',async()=>{
+ const ui=await createAdminDOM();
+ try{
+  const student=ui.run('adminData.students[0]'),month=ui.run('MONTHS[8]'),year='2026/2027';let dashboardCalls=0,saveCalls=0,resolveSave;
+  ui.run(`adminData.settings.coursePrices={[GRADES[0]]:0};window.adminWorkspaceContext=()=>({month:MONTHS[8],academicYear:'2026/2027'});`);
+  Object.assign(ui.window.MFCloud,{
+   getPaymentDashboard:async()=>{dashboardCalls++;return {rows:[{key:'payment-price-test',student,summary:null,month,academicYear:year,expected:0,paid:0,remaining:0,status:'unpaid'}],totals:{expected:0,collected:0,remaining:0,today:0,paid:0,partial:0,unpaid:1},courses:{[student.grade]:{expected:0,paid:0,students:1}},nextCursor:null,generatedAt:new Date().toISOString()};},
+   saveSettings:async()=>{saveCalls++;return new Promise(resolve=>{resolveSave=resolve;});}
+  });
+  ui.window.renderPayments();await tick(20);const input=ui.document.querySelector(`[data-course-price="${student.grade}"]`),button=ui.document.querySelector('#saveCoursePricesButton');input.value='300';
+  const pending=ui.window.saveCoursePrices();ui.window.saveCoursePrices();await tick();assert.equal(saveCalls,1);assert.equal(button.disabled,true);
+  resolveSave({ok:true});await pending;assert.equal(dashboardCalls,1);assert.equal(button.disabled,false);assert.equal(ui.document.querySelector('.quick-paid-button').disabled,false);assert.match(ui.document.querySelector('.quick-paid-button').textContent,/تم الدفع/);
+ }finally{ui.close();}
+});
+test('parent report button requests fresh matching data once and restores its state',async()=>{
+ const ui=await createAdminDOM();
+ try{
+  ui.run(`adminData.students[0].parentPhone='01000000000';`);const button=ui.document.createElement('button');let reportCalls=0,deliveries=0,resolveReport,payload;
+  ui.window.MFCloud.getStudentMonthlyReportAdmin=async input=>{reportCalls++;payload=input;return new Promise(resolve=>{resolveReport=resolve;});};
+  ui.window.deliverParentMonthlyReport=async()=>{deliveries++;return true;};
+  const first=ui.window.sendParentMonthlyReport('DEMO1',button);ui.window.sendParentMonthlyReport('DEMO1',button);await tick();
+  assert.equal(reportCalls,1);assert.equal(button.disabled,true);assert.equal(payload.force,true);
+  resolveReport({student:{studentCode:'DEMO1'},monthKey:'2026-09'});await first;
+  assert.equal(deliveries,1);assert.equal(button.disabled,false);assert.equal(button.classList.contains('is-loading'),false);
+ }finally{ui.close();}
+});
 test('student file shows a loading window before payment history resolves',async()=>{
  const ui=await createAdminDOM();
  try{
