@@ -4,7 +4,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
-const {calculateMonthlyReport}=require('../functions/lib/monthly-report');
+const {calculateMonthlyReport,rowMatchesMonth}=require('../functions/lib/monthly-report');
 
 const root=path.join(__dirname,'..');
 const read=file=>fs.readFileSync(path.join(root,file),'utf8');
@@ -36,6 +36,29 @@ test('monthly title requires sufficient data and overall policy redistributes mi
   assert.equal(report.monthlyTitle,'متفوق الشهر');
 });
 
+test('an activity matches every relevant date instead of only its first valid date',()=>{
+  const attempt={startedAt:'2026-08-31T18:00:00.000Z',submittedAt:'2026-09-01T09:00:00.000Z'};
+  assert.equal(rowMatchesMonth(attempt,['startedAt','submittedAt','reviewedAt'],'2026-08'),true);
+  assert.equal(rowMatchesMonth(attempt,['startedAt','submittedAt','reviewedAt'],'2026-09'),true);
+  assert.equal(rowMatchesMonth(attempt,['startedAt','submittedAt','reviewedAt'],'2026-10'),false);
+  const backend=read('functions/index.js');
+  assert.match(backend,/rows\.filter\(row=>rowMatchesMonth\(row,fields,monthKey\)/);
+});
+
+test('attendance and an ungraded homework cannot award a strong academic title',()=>{
+  const report=calculateMonthlyReport({
+    monthKey:'2026-09',now:new Date('2026-09-25T12:00:00Z'),student:{studentCode:'ST-123456',scheduleId:'g1'},sessionsComplete:true,
+    sessions:[{id:'s1',scheduleId:'g1',date:'2026-09-01'},{id:'s2',scheduleId:'g1',date:'2026-09-08'}],
+    attendance:[{id:'a1',classSessionId:'s1',scheduleId:'g1',date:'2026-09-01',status:'present'},{id:'a2',classSessionId:'s2',scheduleId:'g1',date:'2026-09-08',status:'present'}],
+    assignments:[{id:'hw1',title:'واجب سبتمبر',dueDate:'2026-09-20',totalScore:15}],
+    homeworks:[{id:'sub1',assignmentId:'hw1',submittedAt:'2026-09-10',score:null,maxScore:15,status:'pending_review',needsManualReview:true}]
+  });
+  assert.equal(report.academicScore,null);
+  assert.equal(report.academicEvidenceSufficient,false);
+  assert.equal(report.monthlyTitle,'نجم الحضور');
+  assert.doesNotMatch(report.monthlyTitle,/^(متفوق الشهر|مبرمج الشهر|المهندس البارع)$/);
+});
+
 test('backend unions legacy attendance identities and activity dates with bounded queries',()=>{
   const backend=read('functions/index.js');
   assert.match(backend,/legacyFields\.map\(field=>db\.collection\(collection\)\.where\(field,'==',studentCode\)\.get\(\)\)/);
@@ -51,4 +74,28 @@ test('unified profile shows motivation transactions and delegates tab navigation
   assert.match(ui,/تم عكس الحركة/);
   assert.match(ui,/event\.target\.closest\('\[data-profile-view\]'\)/);
   assert.match(ui,/rankScopeLabel/);
+});
+
+test('parent report uses the backend monthly object across HTML text message and PNG',()=>{
+  const app=read('assets/app.js');
+  const parent=read('parent.html');
+  assert.match(app,/اللقب الشهري: \$\{parentReportTitleIcon\(title\)\} \$\{title\}/);
+  assert.match(app,/parent-report-header-v70[\s\S]*report\.monthlyTitle/);
+  assert.match(app,/ترتيب المسار: \$\{parentReportRankText\(motivation\)\}/);
+  assert.match(app,/ترتيب المجموعة: \$\{parentReportRankText\(motivation,'group'\)\}/);
+  assert.doesNotMatch(app,/ترتيب المنصة:/);
+  assert.match(app,/canvas\.width=width;canvas\.height=height/);
+  assert.match(app,/width=1080,height=1350/);
+  assert.match(app,/\(results\.rows\|\|\[\]\)\.slice\(0,3\)/);
+  assert.match(app,/trend\.previousScore/);
+  assert.match(app,/نقطة مئوية عن الشهر السابق/);
+  assert.match(parent,/family=Cairo/);
+});
+
+test('client overall has no legacy weighted fallback',()=>{
+  const app=read('assets/app.js');
+  assert.doesNotMatch(app,/attendancePct\s*\*\s*\.3/);
+  assert.doesNotMatch(app,/examGradeAvg\s*\*\s*\.4/);
+  assert.match(app,/monthlyOverall===null\|\|monthlyOverall===undefined\|\|monthlyOverall===''\?null/);
+  assert.match(app,/لن نعرض أرقامًا تقديرية قبل وصول بيانات الشهر من المصدر الموحّد/);
 });

@@ -103,11 +103,28 @@ test('student file button opens the unified server profile instead of the legacy
   assert.equal(profileCalls,1);assert.equal(popupCalls,0);assert(ui.document.querySelector('#unifiedStudentProfile'));assert.match(ui.document.querySelector('#unifiedProfileBody').textContent,/ملف الطالب الموحد/);
  }finally{ui.close();}
 });
-test('WhatsApp parent summary includes ranking commitment exam grades and absence dates',async()=>{
+test('WhatsApp parent summary includes monthly title and exact ranking scopes',async()=>{
  const ui=await createAdminDOM();
  try{
-  const message=ui.window.parentReportWhatsAppIntro({monthKey:'2026-09',student:{studentCode:'DEMO1',name:'طالب تجريبي',grade:'الأول الثانوي',group:'أ'},level:'جيد جدًا',overallScore:82,commitmentLevel:'منتظم',commitmentScore:88,attendance:{present:3,total:4,absent:1,rows:[{date:'2026-09-12',status:'absent'}]},results:{rows:[{activityName:'امتحان سبتمبر',score:18,maxScore:20,percentage:90}],submittedExams:1,requiredExams:1,average:90},homework:{submitted:2,required:2},motivation:{rank:2,totalStudents:18,groupRank:1,totalPoints:6},trend:{label:'ارتفع التقييم'},payment:null});
-  assert.match(message,/ترتيب المنصة: المركز 2 من 18 في المسار — المركز 1 من - في المجموعة/);assert.match(message,/الالتزام: منتظم \(88%\)/);assert.match(message,/أيام الغياب:.*سبتمبر/);assert.match(message,/امتحان سبتمبر: 18 من 20/);
+  const message=ui.window.parentReportWhatsAppIntro({monthKey:'2026-09',monthlyTitle:'متفوق الشهر',student:{studentCode:'DEMO1',name:'طالب تجريبي',grade:'الأول الثانوي',group:'أ'},level:'جيد جدًا',overallScore:82,trend:{status:'improved',delta:6,previousScore:76},attendance:{present:3,total:4,absent:1,late:0,percentage:75,rows:[{date:'2026-09-12',status:'absent'}]},results:{rows:[{activityName:'امتحان سبتمبر',score:18,maxScore:20,percentage:90}],submittedExams:1,requiredExams:1,average:90},homework:{submitted:2,required:2,averageGrade:88},study:{lecturesAvailable:2,lecturesOpened:2,lecturesCompleted:1},motivation:{rank:2,totalStudents:18,groupRank:1,groupTotalStudents:6,totalPoints:6,transactionCount:1},payment:null});
+  assert.match(message,/اللقب الشهري: .*متفوق الشهر/);assert.match(message,/ترتيب المسار: 2 \/ 18/);assert.match(message,/ترتيب المجموعة: 1 \/ 6/);assert.match(message,/امتحان سبتمبر: 18 من 20/);assert.doesNotMatch(message,/ترتيب المنصة/);
+  assert.match(message,/تحسن 6 نقطة مئوية عن الشهر السابق — من 76% إلى 82%/);
+ }finally{ui.close();}
+});
+test('compact parent HTML renders only backend monthly values and caps long activity lists',async()=>{
+ const ui=await createAdminDOM();
+ try{
+  const report={monthKey:'2026-09',monthlyTitle:'متفوق الشهر',student:{studentCode:'DEMO1',name:'طالب تجريبي',grade:'أساسيات برمجة',group:'أ'},overallScore:91,trend:{status:'improved',delta:6,previousScore:85},attendance:{present:5,total:6,required:6,absent:1,late:0,excused:0,percentage:83},results:{average:90,submittedExams:4,requiredExams:4,rows:[1,2,3,4].map(index=>({activityName:`امتحان ${index}`,score:9,maxScore:10,percentage:90,status:'graded',date:'2026-09-10'}))},homework:{submitted:1,required:1,missing:0,graded:1,averageGrade:93,rows:[]},study:{lecturesAvailable:4,lecturesOpened:3,lecturesCompleted:2,lectureCompletionPercentage:50},motivation:{rank:18,totalStudents:28,groupRank:5,groupTotalStudents:13,totalPoints:7,transactionCount:2,lastReason:'التزام'},payment:{status:'paid'},strengths:['نتائج ممتازة'],concerns:[]};
+  const html=ui.run(`parentMonthlyReportHTML(${JSON.stringify(report)})`);
+  assert.match(html,/متفوق الشهر/);assert.match(html,/91%/);assert.match(html,/83%/);assert.match(html,/18 \/ 28/);assert.match(html,/5 \/ 13/);assert.match(html,/↑ تحسن 6 نقطة/);assert.match(html,/\+ 1 امتحانات أخرى/);assert.doesNotMatch(html,/ترتيب المنصة/);
+ }finally{ui.close();}
+});
+test('calcStudent never invents an overall when the backend monthly report is absent',async()=>{
+ const ui=await createAdminDOM();
+ try{
+  assert.equal(ui.run(`calcStudent({attendance:[{date:'2026-09-01',status:'present'}],grades:[{id:'g1',score:10,maxScore:10}],homeworks:[],recitations:[]}).final`),null);
+  assert.equal(ui.run(`calcStudent({monthlyReport:{overallScore:null,level:'بيانات غير كافية'},attendance:[],grades:[],homeworks:[],recitations:[]}).final`),null);
+  assert.equal(ui.run(`calcStudent({monthlyReport:{overallScore:87,level:'جيد جدًا'},attendance:[],grades:[],homeworks:[],recitations:[]}).final`),87);
  }finally{ui.close();}
 });
 test('lesson bank editor inherits its lesson, retains focus, and retries a failed save without uploading twice',async()=>{

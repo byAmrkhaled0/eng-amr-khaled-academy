@@ -176,7 +176,7 @@ function newStudentCode(){return uniqueAccessCode('ST','studentCode');}
 function newParentCode(){return uniqueAccessCode('PR','parentCode');}
 function isWeakAccessCode(code){return !/^\d{8}$/.test(String(code||''));}
 function adminWhatsAppPhone(v){const d=phoneDigits(v); if(!d) return ''; if(d.startsWith('20')) return d; if(d.startsWith('0')) return '2'+d; return d;}
-function monthlyReportTextForStudent(st){const s=normalizeStudent(st); if(typeof parentReportText==='function') return parentReportText(s); const c=calcStudentAdmin(s); return `تقرير متابعة شهر ${s.month||''}\n\nالطالب: ${s.name}\nالكود: ${s.studentCode}\nالمسار: ${s.grade||'-'}\nالمجموعة: ${s.group||'-'}\n\nالمستوى العام: ${c.final||0}%\nنسبة الحضور: ${c.attendancePct||0}%\nمتوسط الدرجات: ${c.avg||0}%\nحالة الدفع: ${s.paid?'تم الدفع':'لم يتم الدفع'}\n\nملاحظات المدرس:\n${s.notes||'لا توجد ملاحظات حالية.'}`;}
+function monthlyReportTextForStudent(st){const s=normalizeStudent(st);if(s.monthlyReport&&typeof parentMonthlyReportText==='function')return parentMonthlyReportText({...s.monthlyReport,student:s.monthlyReport.student||s});return `تقرير الطالب الشهري غير متاح حاليًا. افتح ملف الطالب واختر الشهر لتحميل التقرير الموحّد قبل النسخ أو الإرسال.`;}
 function adminReportMonthKey(){const context=adminWorkspaceContext(),index=MONTHS.indexOf(context.month),start=Number(String(context.academicYear||'').match(/^\d{4}/)?.[0]);if(index<0||!start)return typeof cairoMonthKey==='function'?cairoMonthKey():new Date().toISOString().slice(0,7);const year=index>=6?start:start+1;return `${year}-${String(index+1).padStart(2,'0')}`;}
 async function loadAccurateMonthlyReport(st){if(!window.MFCloud?.getStudentMonthlyReportAdmin)throw new Error('Monthly report service unavailable');return window.MFCloud.getStudentMonthlyReportAdmin({studentCode:stCode(st),monthKey:adminReportMonthKey(),includeRanking:true});}
 function issuedCodesText(student){const s=normalizeStudent(student);return `اسم الطالب: ${s.name}\nالكود الموحّد للطالب وولي الأمر: ${s.studentCode}`;}
@@ -202,7 +202,7 @@ function bindAdminAcademicTarget(formId){
   const refresh=()=>{[...group.options].forEach((option,index)=>{const visible=index===0||grade.value==='كل المسارات'||!option.dataset.grade||adminSameAcademic(option.dataset.grade,grade.value);option.hidden=!visible;option.disabled=!visible;});if(group.selectedOptions[0]?.disabled)group.value='';};
   grade.addEventListener('change',refresh);refresh();
 }
-function calcStudentAdmin(st){const c=typeof calcStudent==='function'?calcStudent(st):{attendancePct:0,avg:0,final:0,level:'-'}; return c;}
+function calcStudentAdmin(st){const c=typeof calcStudent==='function'?calcStudent(st):{attendancePct:null,avg:null,final:null,level:'بيانات الشهر غير متاحة'}; return c;}
 function badgeStatus(v){return v===true||v==='present'||v==='حاضر'||v==='تم الدفع'?'good':v===false||v==='absent'||v==='غائب'||v==='لم يدفع'?'danger':'warn';}
 function content(html){const el=document.getElementById('adminContent'); if(el) el.innerHTML=`<section class="admin-section active">${html}</section>`; hydrateIcons();}
 function selectedGrade(){return document.getElementById('attendanceGrade')?.value || 'all';}
