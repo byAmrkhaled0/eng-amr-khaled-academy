@@ -14,7 +14,7 @@ var HOMEWORK_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 var PENDING_BOOKING_REQUEST_KEY = 'mf_pending_booking_request_v1';
 var cloudSaveTimer = null;
 var staffCacheTimer = null;
-var MF_ASSET_VERSION = '67.8.8';
+var MF_ASSET_VERSION = '67.8.9';
 var mfLazyScriptPromises = Object.create(null);
 var publicScheduleUnsubscribe = null;
 
@@ -998,22 +998,33 @@ window.copyParentReport = async function(code){
 };
 
 function parentReportWhatsAppIntro(report){
-  const st=report?.student||{},attendance=report?.attendance||{},results=report?.results||{},homework=report?.homework||{},pay=report?.payment,portal=`${location.origin}/parent.html`;
+  const st=report?.student||{},attendance=report?.attendance||{},results=report?.results||{},homework=report?.homework||{},pay=report?.payment,motivation=report?.motivation||{},portal=`${location.origin}/parent.html`;
   const paymentLabel=pay?(pay.status==='paid'?'تم الدفع بالكامل':pay.status==='partial'?`دفع جزئي، المتبقي ${formatPortalMoney(pay.remainingAmount)}`:'لم يتم الدفع'):'غير مسجل';
-  return `السلام عليكم ورحمة الله وبركاته،\nمع حضرتك م. عمرو خالد من Techno Minds.\n\n📊 التقرير الشهري للطالب/ة: ${st.name||'-'}\n📅 الشهر: ${reportMonthLabel(report.monthKey)}\n🎓 المسار: ${st.grade||'-'}${st.group?` — ${st.group}`:''}\n\nالملخص\n• المستوى العام: ${report.level||'بيانات غير كافية'}${report.overallScore===null||report.overallScore===undefined?'':` (${report.overallScore}%)`}\n• الحضور: ${attendance.present||0} من ${attendance.total||0}، والغياب: ${attendance.absent||0}\n• الامتحانات المسلّمة: ${results.submittedExams||0}${results.average===null||results.average===undefined?'':`، ومتوسط الدرجات: ${results.average}%`}\n• الواجبات المسلّمة: ${homework.submitted||0} من ${homework.required||0}\n• التحفيز الشهري: ${report.motivation?`${report.motivation.totalPoints??0} نقطة`:'لا توجد حركة مسجلة'}\n• حالة الدفع: ${paymentLabel}\n• التقدم: ${report.trend?.label||'لا توجد بيانات كافية للمقارنة'}\n\nمرفق صورة التقرير التفصيلية المحدثة لنفس الطالب والشهر.\n\n🔗 متابعة التقرير من صفحة ولي الأمر:\n${portal}\n🔑 كود الطالب الموحّد: ${st.studentCode||'-'}\n\nمع تحيات م. عمرو خالد\nTechno Minds`;
+  const absentDates=(attendance.rows||[]).filter(row=>row.status==='absent').map(row=>formatPortalDate(row.date)).filter(Boolean),rank=motivation.rank?`المركز ${motivation.rank}${motivation.totalStudents?` من ${motivation.totalStudents} في المسار`:''}${motivation.groupRank?` — المركز ${motivation.groupRank} في المجموعة`:''}`:'لم يدخل الترتيب خلال هذا الشهر';
+  const examLines=(results.rows||[]).slice(0,8).map(row=>`• ${row.activityName||row.examTitle||'امتحان'}: ${monthlyResultStatus(row)}`),moreExams=Math.max(0,(results.rows||[]).length-examLines.length);
+  return `السلام عليكم ورحمة الله وبركاته،\nمع حضرتك م. عمرو خالد من Techno Minds.\n\n📊 التقرير الشهري للطالب/ة: ${st.name||'-'}\n📅 الشهر: ${reportMonthLabel(report.monthKey)}\n🎓 المسار: ${st.grade||'-'}${st.group?` — ${st.group}`:''}\n\nملخص الحالة\n• المستوى العام: ${report.level||'بيانات غير كافية'}${report.overallScore===null||report.overallScore===undefined?'':` (${report.overallScore}%)`}\n• الالتزام: ${report.commitmentLevel||'بيانات غير كافية'}${report.commitmentScore===null||report.commitmentScore===undefined?'':` (${report.commitmentScore}%)`}\n• ترتيب المنصة: ${rank}\n• الحضور: ${attendance.present||0} من ${attendance.total||0}، والغياب: ${attendance.absent||0}\n• أيام الغياب: ${absentDates.length?absentDates.join('، '):'لا يوجد غياب مسجل'}\n• الواجبات المسلّمة: ${homework.submitted||0} من ${homework.required||0}\n• التحفيز الشهري: ${report.motivation?`${motivation.totalPoints??0} نقطة`:'لا توجد حركة مسجلة'}\n• حالة الدفع: ${paymentLabel}\n• التقدم: ${report.trend?.label||'لا توجد بيانات كافية للمقارنة'}\n\nالامتحانات والدرجات\n${examLines.length?examLines.join('\n'):'• لا توجد امتحانات مسجلة في هذا الشهر.'}${moreExams?`\n• بالإضافة إلى ${moreExams} امتحان آخر ظاهر في التقرير التفصيلي.`:''}\n\nمرفق صورة التقرير التفصيلية المحدثة لنفس الطالب والشهر.\n\n🔗 متابعة التقرير من صفحة ولي الأمر:\n${portal}\n🔑 كود الطالب الموحّد: ${st.studentCode||'-'}\n\nمع تحيات م. عمرو خالد\nTechno Minds`;
 }
 window.parentReportWhatsAppIntro=parentReportWhatsAppIntro;
 
+let parentReportLogoPromise=null;
+function loadParentReportLogo(){
+  if(parentReportLogoPromise)return parentReportLogoPromise;
+  parentReportLogoPromise=new Promise(resolve=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>resolve(null);image.src=new URL('assets/technominds-logo.png',location.href).href;});
+  return parentReportLogoPromise;
+}
+
 async function parentReportImageBlob(report){
-  await document.fonts?.ready;
-  const canvas=document.createElement('canvas'),width=1080,margin=54,ctx=canvas.getContext('2d'),student=report?.student||{},attendance=report?.attendance||{},results=report?.results||{},homework=report?.homework||{},pay=report?.payment;
+  const [,logo]=await Promise.all([document.fonts?.ready,loadParentReportLogo()]);
+  const canvas=document.createElement('canvas'),width=1080,margin=54,ctx=canvas.getContext('2d'),student=report?.student||{},attendance=report?.attendance||{},results=report?.results||{},homework=report?.homework||{},pay=report?.payment,motivation=report?.motivation||{};
   if(!ctx)throw new Error('المتصفح لا يدعم إنشاء صورة التقرير');
   const score=value=>value===null||value===undefined?'غير متاح':`${Math.round(Number(value)*10)/10}%`;
   const paymentLabel=pay?(pay.status==='paid'?'تم الدفع بالكامل':pay.status==='partial'?`دفع جزئي — المتبقي ${formatPortalMoney(pay.remainingAmount)}`:'لم يتم الدفع'):'غير مسجل';
   const status=row=>monthlyResultStatus(row);
+  const absentDates=(attendance.rows||[]).filter(row=>row.status==='absent').map(row=>formatPortalDate(row.date)).filter(Boolean),rank=motivation.rank?`المركز ${motivation.rank}${motivation.totalStudents?` من ${motivation.totalStudents} في المسار`:''}${motivation.groupRank?` · ${motivation.groupRank} في المجموعة`:''}`:'لم يدخل الترتيب خلال هذا الشهر';
   const sections=[
-    {title:'الحضور والمتابعة',accent:'#13b8d4',lines:[`الحضور: ${attendance.present||0} من ${attendance.total||0} · الغياب: ${attendance.absent||0} · التأخير: ${attendance.late||0}`,`الحصص المستحقة: ${attendance.required??'غير مؤكد'} · نسبة الحضور: ${score(attendance.percentage)}`,`فتح المحاضرات: ${report.study?.lecturesOpened||0} · إكمال موثق: ${report.study?.lecturesCompleted||0}`]},
-    {title:'الامتحانات والدرجات',accent:'#1666d8',lines:[`تم تسليم ${results.submittedExams||0} من ${results.requiredExams||0} · متوسط المصحح: ${score(results.average)}`,...(results.rows||[]).slice(0,5).map(row=>`${row.activityName||row.examTitle||'امتحان'}: ${status(row)}`)]},
+    {title:'الحالة والمستوى',accent:'#46cff4',lines:[`المستوى العام: ${report.level||'بيانات غير كافية'} · التقييم: ${score(report.overallScore)}`,`الالتزام: ${report.commitmentLevel||'بيانات غير كافية'} · ${score(report.commitmentScore)}`,`ترتيب المنصة: ${rank}`,`التقدم: ${report.trend?.label||'لا توجد بيانات كافية للمقارنة'}`]},
+    {title:'الحضور والمتابعة',accent:'#13b8d4',lines:[`الحضور: ${attendance.present||0} من ${attendance.total||0} · الغياب: ${attendance.absent||0} · التأخير: ${attendance.late||0}`,`أيام الغياب: ${absentDates.length?absentDates.join('، '):'لا يوجد غياب مسجل'}`,`الحصص المستحقة: ${attendance.required??'غير مؤكد'} · نسبة الحضور: ${score(attendance.percentage)}`,`فتح المحاضرات: ${report.study?.lecturesOpened||0} · إكمال موثق: ${report.study?.lecturesCompleted||0}`]},
+    {title:'الامتحانات والدرجات',accent:'#1666d8',lines:[`تم تسليم ${results.submittedExams||0} من ${results.requiredExams||0} · متوسط المصحح: ${score(results.average)}`,...(results.rows||[]).slice(0,8).map(row=>`${row.activityName||row.examTitle||'امتحان'}: ${status(row)}`)]},
     {title:'الواجبات',accent:'#8b5cf6',lines:[`تم تسليم ${homework.submitted||0} من ${homework.required||0} · ناقص: ${homework.missing||0} · متأخر: ${homework.late||0}`,...(homework.rows||[]).slice(0,4).map(row=>`${row.assignment?.title||'واجب'}: ${row.status==='missing'?'لم يسلّم':row.status==='available'?'متاح':row.submission?.score===null||row.submission?.score===undefined?'قيد التصحيح':`${row.submission.score} من ${row.submission.maxScore||row.assignment?.totalScore||100}`}`)]},
     {title:'التحفيز والدفع',accent:'#d6a63d',lines:[`التحفيز الشهري: ${report.motivation?`${report.motivation.totalPoints??0} نقطة · ${report.motivation.transactionCount??0} حركة`:'لا توجد حركة مسجلة'}`,`حالة الدفع: ${paymentLabel}`]},
     {title:'نقاط القوة',accent:'#16a765',lines:(report.strengths||[]).length?(report.strengths||[]).map(item=>`✓ ${item}`):['لا توجد بيانات كافية لاستخراج نقاط قوة مؤكدة.']},
@@ -1027,8 +1038,9 @@ async function parentReportImageBlob(report){
   if(height>12000)throw new Error('التقرير طويل للصورة؛ استخدم طباعة / حفظ PDF للاحتفاظ بكل البيانات.');
   canvas.width=width;canvas.height=height;ctx.direction='rtl';ctx.textAlign='right';ctx.textBaseline='alphabetic';ctx.fillStyle='#f3f7fc';ctx.fillRect(0,0,width,height);
   const header=ctx.createLinearGradient(0,0,width,250);header.addColorStop(0,'#123b67');header.addColorStop(1,'#071525');ctx.fillStyle=header;ctx.fillRect(0,0,width,250);ctx.fillStyle='#46cff4';ctx.fillRect(0,240,width,10);
+  if(logo){const logoHeight=150,logoWidth=Math.round((logo.naturalWidth||logo.width)/(logo.naturalHeight||logo.height)*logoHeight);ctx.drawImage(logo,margin,42,logoWidth,logoHeight);}
   ctx.font='900 39px Cairo, Arial, sans-serif';ctx.fillStyle='#46cff4';ctx.fillText('TECHNO MINDS',width-margin,62);ctx.font='900 42px Cairo, Arial, sans-serif';ctx.fillStyle='#fff';ctx.fillText('تقرير ولي الأمر الشهري',width-margin,120);ctx.font='800 31px Cairo, Arial, sans-serif';ctx.fillStyle='#f4d78f';ctx.fillText(student.name||'-',width-margin,170);ctx.font='23px Cairo, Arial, sans-serif';ctx.fillStyle='#d7e4f3';ctx.fillText(`${reportMonthLabel(report.monthKey)} · ${student.grade||'-'} · ${student.group||'-'} · كود ${student.studentCode||'-'}`,width-margin,214);
-  const metrics=[['المستوى العام',score(report.overallScore)],['الحضور',score(attendance.percentage)],['الامتحانات',score(results.average)],['الواجبات',score(homework.completionPercentage)]],gap=14,tileWidth=(width-2*margin-gap*3)/4;
+  const metrics=[['المستوى العام',score(report.overallScore)],['الترتيب',motivation.rank?`${motivation.rank} / ${motivation.totalStudents||'-'}`:'غير متاح'],['الالتزام',report.commitmentLevel||'غير متاح'],['الحضور',score(attendance.percentage)]],gap=14,tileWidth=(width-2*margin-gap*3)/4;
   let y=282;metrics.forEach(([label,value],index)=>{const x=width-margin-(index+1)*tileWidth-index*gap;roundRect(x,y,tileWidth,126,20);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='#dfe8f3';ctx.lineWidth=2;ctx.stroke();ctx.font='800 21px Cairo, Arial, sans-serif';ctx.fillStyle='#6b7d93';ctx.fillText(label,x+tileWidth-18,y+37);ctx.font='900 32px Cairo, Arial, sans-serif';ctx.fillStyle='#102943';ctx.fillText(value,x+tileWidth-18,y+88);});
   y=438;for(const section of prepared){const cardHeight=64+section.wrapped.length*42;roundRect(margin,y,width-2*margin,cardHeight,22);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='#e1e9f3';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle=section.accent;roundRect(width-margin-12,y+18,7,cardHeight-36,4);ctx.fill();ctx.font='900 27px Cairo, Arial, sans-serif';ctx.fillStyle='#102943';ctx.fillText(section.title,width-margin-32,y+42);let lineY=y+84;ctx.font='25px Cairo, Arial, sans-serif';ctx.fillStyle='#354a65';for(const line of section.wrapped){ctx.fillText(line,width-margin-32,lineY);lineY+=42;}y+=cardHeight+18;}
   ctx.fillStyle='#071525';ctx.fillRect(0,height-74,width,74);ctx.font='800 23px Cairo, Arial, sans-serif';ctx.fillStyle='#f4d78f';ctx.fillText(`آخر تحديث: ${formatPortalDate(report.generatedAt)} · مع تحيات م. عمرو خالد`,width-margin,height-28);
