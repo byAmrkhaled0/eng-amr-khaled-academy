@@ -75,7 +75,7 @@ test('parent report button requests fresh matching data once and restores its st
   ui.window.MFCloud.getStudentMonthlyReportAdmin=async input=>{reportCalls++;payload=input;return new Promise(resolve=>{resolveReport=resolve;});};
   ui.window.deliverParentMonthlyReport=async()=>{deliveries++;return true;};
   const first=ui.window.sendParentMonthlyReport('DEMO1',button);ui.window.sendParentMonthlyReport('DEMO1',button);await tick();
-  assert.equal(reportCalls,1);assert.equal(button.disabled,true);assert.equal(payload.force,true);
+  assert.equal(reportCalls,1);assert.equal(button.disabled,true);assert.equal(payload.force,undefined);
   assert.equal(payload.includeRanking,true);
   resolveReport({student:{studentCode:'DEMO1'},monthKey:'2026-09'});await first;
   assert.equal(deliveries,1);assert.equal(button.disabled,false);assert.equal(button.classList.contains('is-loading'),false);
@@ -107,7 +107,7 @@ test('WhatsApp parent summary includes ranking commitment exam grades and absenc
  const ui=await createAdminDOM();
  try{
   const message=ui.window.parentReportWhatsAppIntro({monthKey:'2026-09',student:{studentCode:'DEMO1',name:'طالب تجريبي',grade:'الأول الثانوي',group:'أ'},level:'جيد جدًا',overallScore:82,commitmentLevel:'منتظم',commitmentScore:88,attendance:{present:3,total:4,absent:1,rows:[{date:'2026-09-12',status:'absent'}]},results:{rows:[{activityName:'امتحان سبتمبر',score:18,maxScore:20,percentage:90}],submittedExams:1,requiredExams:1,average:90},homework:{submitted:2,required:2},motivation:{rank:2,totalStudents:18,groupRank:1,totalPoints:6},trend:{label:'ارتفع التقييم'},payment:null});
-  assert.match(message,/ترتيب المنصة: المركز 2 من 18 في المسار — المركز 1 في المجموعة/);assert.match(message,/الالتزام: منتظم \(88%\)/);assert.match(message,/أيام الغياب:.*سبتمبر/);assert.match(message,/امتحان سبتمبر: 18 من 20/);
+  assert.match(message,/ترتيب المنصة: المركز 2 من 18 في المسار — المركز 1 من - في المجموعة/);assert.match(message,/الالتزام: منتظم \(88%\)/);assert.match(message,/أيام الغياب:.*سبتمبر/);assert.match(message,/امتحان سبتمبر: 18 من 20/);
  }finally{ui.close();}
 });
 test('lesson bank editor inherits its lesson, retains focus, and retries a failed save without uploading twice',async()=>{

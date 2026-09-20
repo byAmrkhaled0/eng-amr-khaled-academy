@@ -59,3 +59,8 @@ test('cancelled-only calendar does not count a retained attendance record as ent
  const report=calculateMonthlyReport({...base,sessionsComplete:true,sessions:[{id:'c',date:'2026-09-20',scheduleId:'b',cancelled:true}],attendance:[{classSessionId:'c',date:'2026-09-20',status:'present'}]});
  assert.equal(report.attendance.required,0);assert.equal(report.attendance.total,0);assert.equal(report.attendance.percentage,null);
 });
+test('missing required homework and unopened lectures remain visible without submissions',()=>{
+ const report=calculateMonthlyReport({...base,assignments:[{id:'hw-1',title:'واجب سبتمبر',publishAt:'2026-09-05',dueDate:'2026-09-10',totalScore:1}],homeworkSubmissions:[],lectureMaterials:[{id:'lesson-1',title:'المحاضرة الأولى',createdAt:'2026-09-03'}],lectureProgress:[],grades:[{id:'exam-1',activityName:'امتحان سبتمبر',score:13,maxScore:15,date:'2026-09-10'}]});
+ assert.equal(report.homework.required,1);assert.equal(report.homework.submitted,0);assert.equal(report.homework.missing,1);assert.equal(report.homework.rows[0].submission,null);
+ assert.equal(report.study.lecturesAvailable,1);assert.equal(report.study.lecturesOpened,0);assert.match(report.summaryNote,/الواجبات/);
+});
