@@ -35,8 +35,10 @@ test('payment confirmation is immediate, idempotent and does not wait for a seco
   assert.match(payments,/scheduleDashboardRefresh\(\)/);
   assert.doesNotMatch(payments,/createPaymentTransaction\(payload\)[\s\S]{0,500}await loadDashboard\(\{force:true\}\)/);
   assert.match(backend,/requestFingerprint/);
+  assert.match(payments,/adminSameAcademic\(r\.summary\?\.course\|\|r\.student\.grade,course\)/);
+  assert.match(backend,/sameAcademicValue\(requestedCourse, student\.grade\)/);
   assert.match(backend,/invalidateStudentReportInTransaction\(tx, studentCode, summary\.academicYear, summary\.month, 'payment-updated'\)/);
-  assert.match(login,/v60-payments\.js\?v=67\.8\.8/);
+  assert.match(login,/v60-payments\.js\?v=67\.8\.9/);
 });
 
 test('payment cards explain zero prices and never leave the primary action silently disabled',()=>{
@@ -64,11 +66,12 @@ test('student file opens synchronously before cloud history so popup blockers do
 });
 
 test('parent report delivery is fresh, student-bound and protected from duplicate clicks',()=>{
-  const admin=read('assets/admin.js'),backend=read('functions/index.js');
-  assert.match(admin,/getStudentMonthlyReportAdmin\(\{studentCode:stCode\(st\),monthKey:adminReportMonthKey\(\),force:true\}\)/);
+  const admin=read('assets/admin.js'),backend=read('functions/index.js'),studentList=read('assets/v56-fixes.js');
+  assert.match(admin,/getStudentMonthlyReportAdmin\(\{studentCode:stCode\(st\),monthKey:adminReportMonthKey\(\),force:true,includeRanking:true\}\)/);
   assert.match(admin,/parentReportDeliveryPending\.has\(code\)/);
   assert.match(admin,/report\?\.student\?\.studentCode!==code/);
-  assert.match(backend,/buildStudentMonthlyReport\(found\.data,monthKey,\{force:request\.data\?\.force===true\}\)/);
+  assert.match(backend,/studentReportRanking\(found\.data,monthKey\)/);
+  assert.match(studentList,/onclick="editStudent\('\$\{safe\(student\.studentCode\)\}'\)">الملف/);
 });
 
 test('content targeting previews exact active audience before save',()=>{
@@ -145,6 +148,6 @@ test('student and parent portals refresh in place and expose monthly alerts',()=
 
 test('admin preview asset and cache use the current release',()=>{
   assert.match(read('teacher-login.html'),/v63-admin-experience\.js\?v=64\.0\.0/);
-  assert.match(read('service-worker.js'),/technominds-v67-8-8-admin-session/);
-  assert.equal(require(path.join(root,'package.json')).version,'67.8.8');
+  assert.match(read('service-worker.js'),/technominds-v67-8-9-admin-session/);
+  assert.equal(require(path.join(root,'package.json')).version,'67.8.9');
 });

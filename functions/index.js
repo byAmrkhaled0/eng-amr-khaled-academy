@@ -570,7 +570,8 @@ exports.createPaymentTransaction = onCall(CALLABLE_OPTIONS, async request => {
   const student = studentSnap.data();
   const academicYear = text(body.academicYear || student.academicYear, 30);
   const month = text(body.month || student.month, 40);
-  const course = text(body.course || student.grade, 100);
+  const requestedCourse = text(body.course || student.grade, 100);
+  const course = sameAcademicValue(requestedCourse, student.grade) ? text(canonicalAcademicLabel(student.grade),100) : text(canonicalAcademicLabel(requestedCourse),100);
   const settingsSnap = await db.collection('settings').doc('platform').get().catch(() => null);
   const savedPrices = settingsSnap?.data()?.coursePrices || {};
   const configuredPriceKey = Object.keys(savedPrices).find(key => sameAcademicValue(key, course));
@@ -1904,18 +1905,24 @@ exports.getStudentAdminProfile = onCall(CALLABLE_OPTIONS, async request => {
   await rateLimit('admin-student-profile', staff.uid, 180, 60 * 1000);
   const studentCode = normalizeCode(request.data?.studentCode), academicYear = text(request.data?.academicYear,30), month = text(request.data?.month,40);
   if (!validLegacyOrStrongCode(studentCode)) throw new HttpsError('invalid-argument','كود الطالب غير صالح.');
-  const found = await getStudentPortalByCode(studentCode), [records, notesSnap, attempts] = await Promise.all([studentRecords(studentCode, found.data), db.collection('student_notes').where('studentCode','==',studentCode).orderBy('createdAt','desc').limit(80).get().catch(()=>null), attemptSummaries(studentCode)]);
-  const periodKey=academicYear&&month?leaderboardPeriod(academicYear,month).monthKey:'';
-  const filterPeriod = rows => (rows||[]).filter(row=>{if(academicYear&&row.academicYear&&String(row.academicYear)!==academicYear)return false;if(month&&row.month&&String(row.month)!==month)return false;const recordMonth=leaderboardRecordDate(row).slice(0,7);return !periodKey||!recordMonth||recordMonth===periodKey;});
+  const found = await getStudentPortalByCode(studentCode),periodKey=academicYear&&month?leaderboardPeriod(academicYear,month).monthKey:cairoDateKey().slice(0,7);
+  const [source,notesSnap]=await Promise.all([loadStudentMonthlyReportSource(found.data,{monthKeys:[periodKey]}),db.collection('student_notes').where('studentCode','==',studentCode).orderBy('createdAt','desc').limit(80).get().catch(()=>null)]);
   // This callable is Admin-only. Keep the public portal projection safe, then
   // restore the contact/edit fields that the Admin student file is expected to show.
   const student={
-    ...portalResponse(found.data,attempts,records),
+    studentCode,
+    name:text(found.data.studentName||found.data.name,100),
+    studentName:text(found.data.studentName||found.data.name,100),
+    grade:text(canonicalAcademicLabel(found.data.grade),80),
+    group:text(found.data.group,100),
+    academicYear:text(found.data.academicYear,30),
+    term:text(found.data.term,40),
     studentPhone:digits(found.data.studentPhone),
     parentPhone:digits(found.data.parentPhone),
     notes:text(found.data.notes,3000)
   };
-  return { student, period:{academicYear,month}, attendance:filterPeriod(records.attendance).slice(-80).reverse(), grades:filterPeriod(records.grades).slice(-80).reverse(), results:filterPeriod(student.results).slice(0,120), examAttempts:filterPeriod(attempts).slice(0,120), homeworks:filterPeriod(records.homeworks).slice(-80).reverse(), recitations:filterPeriod(records.recitations).slice(-80).reverse(), monthlyPayments:filterPeriod(records.monthlyPayments).slice(-36).reverse(), motivationSummaries:filterPeriod(records.motivationSummaries).slice(0,36), motivationTransactions:filterPeriod(records.motivationTransactions).slice(0,80), privateNotes:notesSnap?notesSnap.docs.map(doc=>({id:doc.id,...doc.data()})):[] };
+  const grades=reportPublicRows(source.grades,'result'),examAttempts=reportPublicRows(source.examAttempts,'result'),results=[...grades,...examAttempts].sort((a,b)=>firestoreMillis(b.submittedAt||b.date)-firestoreMillis(a.submittedAt||a.date));
+  return { student, period:{academicYear,month,monthKey:periodKey}, attendance:reportPublicRows(source.attendance,'attendance').reverse(), grades, results, examAttempts, homeworks:reportPublicRows(source.homeworks,'homework').reverse(), recitations:reportPublicRows(source.recitations,'practical').reverse(), monthlyPayments:source.payments, motivationSummaries:source.motivation, motivationTransactions:[], privateNotes:notesSnap?notesSnap.docs.map(doc=>({id:doc.id,...doc.data()})):[] };
 });
 
 const REPORT_STUDENT_SOURCES=['attendance','grades','homework_submissions','exam_attempts','exam_sessions','recitations','monthly_payments','motivation_monthly','student_transfer_requests','students'];
@@ -1957,6 +1964,37 @@ async function reportRowsByStudent(collection,studentCode,fields=['studentCode']
   return [...rows.values()];
 }
 
+function reportMonthBounds(monthKeys=[]) {
+  const keys=[...new Set(monthKeys.filter(key=>/^\d{4}-(0[1-9]|1[0-2])$/.test(String(key))))].sort();
+  if(!keys.length)return null;
+  const [startYear,startMonth]=keys[0].split('-').map(Number),[endYear,endMonth]=keys.at(-1).split('-').map(Number);
+  const start=new Date(Date.UTC(startYear,startMonth-1,1)),end=new Date(Date.UTC(endYear,endMonth,1));
+  return {startKey:keys[0]+'-01',endKey:`${end.getUTCFullYear()}-${String(end.getUTCMonth()+1).padStart(2,'0')}-01`,startTimestamp:admin.firestore.Timestamp.fromDate(start),endTimestamp:admin.firestore.Timestamp.fromDate(end)};
+}
+
+async function reportRowsForPeriod(collection,studentCode,{studentFields=['studentCode'],dateField,dateType='timestamp',monthKeys=[]}={}) {
+  const bounds=reportMonthBounds(monthKeys);
+  if(!bounds)return reportRowsByStudent(collection,studentCode,studentFields);
+  const ranges=dateType==='string'?[[bounds.startKey,bounds.endKey]]:[[bounds.startTimestamp,bounds.endTimestamp],[bounds.startKey,bounds.endKey]];
+  const snapshots=await Promise.all(studentFields.flatMap(field=>ranges.map(([start,end])=>db.collection(collection).where(field,'==',studentCode).where(dateField,'>=',start).where(dateField,'<',end).get().catch(()=>null))));
+  const rows=new Map();snapshots.filter(Boolean).forEach(snap=>snap.docs.forEach(doc=>rows.set(doc.id,{id:doc.id,...doc.data()})));
+  return [...rows.values()];
+}
+
+async function reportContentForPeriod(collection,dateField,monthKeys=[]) {
+  const bounds=reportMonthBounds(monthKeys);if(!bounds)return fetchAllCollectionDocuments(collection);
+  const snapshots=await Promise.all([[bounds.startTimestamp,bounds.endTimestamp],[bounds.startKey,bounds.endKey]].map(([start,end])=>db.collection(collection).where(dateField,'>=',start).where(dateField,'<',end).get().catch(()=>null)));
+  const rows=new Map();snapshots.filter(Boolean).forEach(snap=>snap.docs.forEach(doc=>rows.set(doc.id,{id:doc.id,...doc.data()})));
+  return [...rows.values()];
+}
+
+async function reportAcademicRowsForPeriods(collection,studentCode,monthKeys=[]) {
+  const periods=monthKeys.map(periodFromMonthKey);
+  const snapshots=await Promise.all(periods.map(period=>db.collection(collection).where('studentCode','==',studentCode).where('academicYear','==',period.academicYear).where('month','==',period.monthName).get().catch(()=>null)));
+  const rows=new Map();snapshots.filter(Boolean).forEach(snap=>snap.docs.forEach(doc=>rows.set(doc.id,{id:doc.id,...doc.data()})));
+  return [...rows.values()];
+}
+
 function reportPublicRows(rows,kind) {
   return (rows||[]).map(row=>{
     if(kind==='attendance')return {id:text(row.id,120),sessionId:text(row.sessionId,120),classSessionId:text(row.classSessionId,120),sessionKey:text(row.sessionKey,160),scheduleId:text(row.scheduleId,120),date:text(row.date,10),time:text(row.time,20),status:text(row.status,30),method:text(row.method,30),group:text(row.group,100)};
@@ -1973,14 +2011,15 @@ function reportPublicRows(rows,kind) {
 async function loadStudentMonthlyReportSource(student,options={}) {
   const studentCode=normalizeCode(student.studentCode||student.code||student.id);
   const progressRef=db.collection('student_progress').doc(studentCode);
+  const monthKeys=Array.isArray(options.monthKeys)?options.monthKeys:[];
   const transfers=await reportRowsByStudent('student_transfer_requests',studentCode);
   const historicalTarget=row=>{const date=cairoDateKey(row.publishAt||row.openAt||row.createdAt);const membership=membershipAt(student,transfers,date);return membership&&learningTargetMatchesStudent(row,{...student,...membership,groupId:membership.scheduleId});};
   const [attendance,grades,homeworks,recitations,payments,motivation,attempts,legacyAttempts,progressEvents,progressLectures,assignmentsResult,examsResult]=await Promise.all([
-    reportRowsByStudent('attendance',studentCode,['studentCode','studentId','code']),reportRowsByStudent('grades',studentCode),reportRowsByStudent('homework_submissions',studentCode),reportRowsByStudent('recitations',studentCode),reportRowsByStudent('monthly_payments',studentCode),reportRowsByStudent('motivation_monthly',studentCode),reportRowsByStudent('exam_attempts',studentCode),db.collection('student_attempts').doc(cleanDocId(studentCode)).collection('attempts').get(),progressRef.collection('monthly_events').get(),progressRef.collection('lectures').get(),options.sharedAssignments?Promise.resolve(options.sharedAssignments):fetchAllCollectionDocuments('assignments'),options.sharedExams?Promise.resolve(options.sharedExams):fetchAllCollectionDocuments('exams')
+    reportRowsForPeriod('attendance',studentCode,{studentFields:['studentCode','studentId','code'],dateField:'date',dateType:'string',monthKeys}),reportRowsForPeriod('grades',studentCode,{dateField:'date',monthKeys}),reportRowsForPeriod('homework_submissions',studentCode,{dateField:'submittedAt',monthKeys}),reportRowsForPeriod('recitations',studentCode,{dateField:'date',dateType:'string',monthKeys}),monthKeys.length?reportAcademicRowsForPeriods('monthly_payments',studentCode,monthKeys):reportRowsByStudent('monthly_payments',studentCode),monthKeys.length?reportAcademicRowsForPeriods('motivation_monthly',studentCode,monthKeys):reportRowsByStudent('motivation_monthly',studentCode),reportRowsForPeriod('exam_attempts',studentCode,{dateField:'submittedAt',monthKeys}),db.collection('student_attempts').doc(cleanDocId(studentCode)).collection('attempts').get(),progressRef.collection('monthly_events').get(),progressRef.collection('lectures').get(),options.sharedAssignments?Promise.resolve(options.sharedAssignments):reportContentForPeriod('assignments','publishAt',monthKeys),options.sharedExams?Promise.resolve(options.sharedExams):reportContentForPeriod('exams','openAt',monthKeys)
   ]);
-  const sessions=await reportRowsByStudent('class_sessions',String(student.scheduleId||student.groupId||''),['scheduleId']);
-  for(const id of new Set(transfers.map(t=>t.currentScheduleId).filter(id=>id&&id!==student.scheduleId)))sessions.push(...await reportRowsByStudent('class_sessions',id,['scheduleId']));
-  const started=await reportRowsByStudent('exam_sessions',studentCode);
+  const scheduleId=String(student.scheduleId||student.groupId||''),sessions=await reportRowsForPeriod('class_sessions',scheduleId,{studentFields:['scheduleId'],dateField:'date',dateType:'string',monthKeys});
+  for(const id of new Set(transfers.map(t=>t.currentScheduleId).filter(id=>id&&id!==student.scheduleId)))sessions.push(...await reportRowsForPeriod('class_sessions',id,{studentFields:['scheduleId'],dateField:'date',dateType:'string',monthKeys}));
+  const started=await reportRowsForPeriod('exam_sessions',studentCode,{dateField:'startedAt',monthKeys});
   const examRows=new Map([...started.map(row=>({...row,status:row.status==='submitted'?row.status:'started',examId:row.examId})),...attempts].map(row=>[String(row.id),row]));
   legacyAttempts?.docs?.forEach(doc=>examRows.set(doc.id,{id:doc.id,...doc.data()}));
   const assignments=(Array.isArray(assignmentsResult)?assignmentsResult:assignmentsResult?.docs||[]).map(doc=>typeof doc.data==='function'?{id:doc.id,...doc.data()}:doc).filter(row=>row.published!==false&&row.status!=='مسودة'&&historicalTarget(row)&&contentAvailableAfterStudentJoined(row,student));
@@ -2029,7 +2068,7 @@ async function buildStudentMonthlyReport(student,monthKey,options={}) {
   const [existing,stateSnap,contentSnap]=await Promise.all([ref.get(),stateRef.get(),contentRef.get()]);
   const sourceRevision=Number(stateSnap.data()?.version||0),contentRevision=Number(contentSnap.data()?.version||0),cached=existing.data();
   if(cached?.report?.schemaVersion===3&&!cached.invalidatedAt&&cached.sourceRevision===sourceRevision&&cached.contentRevision===contentRevision&&Date.now()-firestoreMillis(cached.generatedAt)<60000&&options.force!==true)return cached.report;
-  const source=await loadStudentMonthlyReportSource(student,options),previousKey=reportPreviousMonthKey(monthKey);
+  const previousKey=reportPreviousMonthKey(monthKey),source=await loadStudentMonthlyReportSource(student,{...options,monthKeys:[previousKey,monthKey]});
   const current=calculateMonthlyReport(monthlyReportInput(student,source,monthKey)),previous=calculateMonthlyReport(monthlyReportInput(student,source,previousKey));
   const availableMonths=reportAvailableMonths(source,monthKey);
   const history=availableMonths.slice(0,6).reverse().map(key=>{
@@ -2050,7 +2089,10 @@ exports.getStudentMonthlyReportAdmin = onCall({ ...CALLABLE_OPTIONS, timeoutSeco
   const studentCode=normalizeCode(request.data?.studentCode),monthKey=text(request.data?.monthKey,7);
   if(!validLegacyOrStrongCode(studentCode))throw new HttpsError('invalid-argument','كود الطالب غير صالح.');
   const found=await getStudentPortalByCode(studentCode);
-  return buildStudentMonthlyReport(found.data,monthKey,{force:request.data?.force===true});
+  const report=await buildStudentMonthlyReport(found.data,monthKey,{force:request.data?.force===true});
+  if(request.data?.includeRanking!==true)return report;
+  const ranking=await studentReportRanking(found.data,monthKey).catch(()=>null);
+  return ranking?{...report,motivation:{...(report.motivation||{}),...ranking}}:report;
 });
 
 exports.getParentMonthlyReport = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds:60, memory:'512MiB' }, async request => {
@@ -2750,6 +2792,14 @@ function enrichLeaderboardRows(rows,previousRows=[]){
     const nextRankGap=index>0?Math.max(0,Number(rows[index-1].score||0)-Number(row.score||0)+1):0;
     return {...row,rank,groupRank,previousRank:previous?.rank||null,rankDelta,scoreDelta,previousScore:previous?Number(previous.score||0):null,nextRankGap,achievements};
   });
+}
+
+async function studentReportRanking(student,monthKey){
+  const studentCode=normalizeCode(student.studentCode||student.code||student.id),grade=canonicalLeaderboardGrade(student.grade),period=periodFromMonthKey(monthKey),currentRows=await leaderboardRowsForPeriod(period.academicYear,period.monthName);
+  const sameGrade=row=>canonicalLeaderboardGrade(row.grade)===grade,rows=enrichLeaderboardRows(currentRows.filter(sameGrade)),index=rows.findIndex(row=>row.studentCode===studentCode);
+  if(index<0)return {rank:null,groupRank:null,totalStudents:rows.length,score:null,level:'بيانات غير كافية',periodMonth:period.monthName,periodMonthKey:period.monthKey};
+  const row=rows[index];
+  return {...row,name:undefined,studentCode:undefined,rank:index+1,totalStudents:rows.length,periodMonth:period.monthName,periodMonthKey:period.monthKey};
 }
 
 async function leaderboardRowsForGradeWithFallback(grade){

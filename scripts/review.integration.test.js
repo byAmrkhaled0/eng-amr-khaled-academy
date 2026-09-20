@@ -68,6 +68,7 @@ test('report cache invalidates after a corrected grade and never exposes interna
  const before=await db.doc('grades/review-grade').get();await db.doc('grades/review-grade').update({score:9});const after=await db.doc('grades/review-grade').get();
  await functions.invalidateReport_grades.run({data:{before,after},params:{id:'review-grade'}});
  const second=await call('getStudentMonthlyReportAdmin',{studentCode:code,monthKey:'2026-09'});assert.equal(second.results.average,90);
+ const ranked=await call('getStudentMonthlyReportAdmin',{studentCode:code,monthKey:'2026-09',includeRanking:true});assert.equal(ranked.motivation.rank,1);assert.equal(ranked.motivation.totalStudents,1);assert.equal(ranked.motivation.level,'يحتاج متابعة');
 });
 
 test('dashboard pages the complete 1201-student and 610-summary period on Firestore',async()=>{

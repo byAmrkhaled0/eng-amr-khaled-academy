@@ -79,6 +79,8 @@ test('two consecutive absences warn the teacher and appear in the parent report 
 test('server owns complete monthly reports and prepares previous month automatically',()=>{
   const backend=read('functions/index.js'),sync=read('assets/firebase-sync.js'),app=read('assets/app.js');
   assert.match(backend,/exports\.getStudentMonthlyReportAdmin = onCall/);
+  assert.match(backend,/reportRowsForPeriod\('attendance'[\s\S]{0,180}dateField:'date'/);
+  assert.match(backend,/loadStudentMonthlyReportSource\(found\.data,\{monthKeys:\[periodKey\]\}\)/);
   assert.match(backend,/exports\.getParentMonthlyReport = onCall/);
   assert.match(backend,/exports\.prepareMonthlyParentReports = onSchedule/);
   assert.match(backend,/schedule:'15 8 1 \* \*'/);
@@ -98,6 +100,7 @@ test('redesign shares a parent report image to the saved parent phone and hides 
   assert.match(backend,/exam\.archived!==true&&exam\.active!==false&&exam\.published!==false/);
   assert.match(backend,/exports\.updateStudentSafely = onCall/);assert.match(backend,/const history=availableMonths\.slice\(0,6\)/);
   assert.match(app,/درجة آخر امتحان/);assert.match(app,/درجة آخر واجب/);assert.match(app,/parent-progress-chart-v65/);
+  assert.match(app,/technominds-logo\.png/);assert.match(app,/ترتيب المنصة/);assert.match(app,/أيام الغياب/);assert.match(app,/الالتزام:/);
   assert.match(teacher,/v65-enhancements\.js/);assert.match(css,/v65-quick-create/);assert.match(css,/v65-template-tools/);
   assert.ok(indexes.fieldOverrides.some(item=>item.collectionGroup==='public_cache'&&item.ttl===true));
 });
@@ -192,7 +195,7 @@ test('QR attendance survives offline use and syncs idempotently after reconnect'
   assert.match(sync,/syncOfflineAttendance:callable\('syncOfflineAttendance'\)/);
   assert.match(worker,/technominds-attendance-sync/);assert.match(worker,/\/teacher-login\.html/);assert.match(worker,/cache\.put\(request,response\.clone\(\)\)/);
   const appShell=worker.slice(0,worker.indexOf('];')+2);
-  assert.doesNotMatch(appShell,/html5-qrcode/);assert.match(worker,/v67-8-8-admin-session/);
+  assert.doesNotMatch(appShell,/html5-qrcode/);assert.match(worker,/v67-8-9-admin-session/);
   assert.match(admin,/qrScanBusy/);assert.match(admin,/offlineQrManualForm/);assert.match(admin,/state\?\.roster/);
   assert.match(app,/assets\/vendor\/html5-qrcode-2\.3\.8\.min\.js/);
   assert.match(page,/assets\/offline-attendance\.js/);

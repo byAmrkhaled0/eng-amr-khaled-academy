@@ -76,6 +76,7 @@ test('parent report button requests fresh matching data once and restores its st
   ui.window.deliverParentMonthlyReport=async()=>{deliveries++;return true;};
   const first=ui.window.sendParentMonthlyReport('DEMO1',button);ui.window.sendParentMonthlyReport('DEMO1',button);await tick();
   assert.equal(reportCalls,1);assert.equal(button.disabled,true);assert.equal(payload.force,true);
+  assert.equal(payload.includeRanking,true);
   resolveReport({student:{studentCode:'DEMO1'},monthKey:'2026-09'});await first;
   assert.equal(deliveries,1);assert.equal(button.disabled,false);assert.equal(button.classList.contains('is-loading'),false);
  }finally{ui.close();}
@@ -89,6 +90,24 @@ test('student file shows a loading window before payment history resolves',async
   const pending=ui.window.printStudentReport('DEMO1');await tick();
   assert.match(writes[0],/جارٍ تجهيز ملف الطالب/);resolveHistory({summaries:[],transactions:[]});await pending;
   assert.equal(writes.length,2);assert.match(writes[1],/student-app-dashboard/);
+ }finally{ui.close();}
+});
+test('student file button opens the unified server profile instead of the legacy print window',async()=>{
+ const ui=await createAdminDOM();
+ try{
+  let profileCalls=0,popupCalls=0;
+  ui.window.open=()=>{popupCalls++;return null;};
+  ui.window.MFCloud.getStudentAdminProfile=async input=>{profileCalls++;return {student:{studentCode:input.studentCode,name:'طالب تجريبي',grade:'الصف الأول الثانوي',group:'أ'},attendance:[],homeworks:[],results:[],monthlyPayments:[],motivationSummaries:[],motivationTransactions:[],privateNotes:[]};};
+  ui.window.renderStudents();await tick();
+  const fileButton=[...ui.document.querySelectorAll('button')].find(button=>button.textContent.trim()==='الملف');assert(fileButton);ui.run(fileButton.getAttribute('onclick'));await tick();
+  assert.equal(profileCalls,1);assert.equal(popupCalls,0);assert(ui.document.querySelector('#unifiedStudentProfile'));assert.match(ui.document.querySelector('#unifiedProfileBody').textContent,/ملف الطالب الموحد/);
+ }finally{ui.close();}
+});
+test('WhatsApp parent summary includes ranking commitment exam grades and absence dates',async()=>{
+ const ui=await createAdminDOM();
+ try{
+  const message=ui.window.parentReportWhatsAppIntro({monthKey:'2026-09',student:{studentCode:'DEMO1',name:'طالب تجريبي',grade:'الأول الثانوي',group:'أ'},level:'جيد جدًا',overallScore:82,commitmentLevel:'منتظم',commitmentScore:88,attendance:{present:3,total:4,absent:1,rows:[{date:'2026-09-12',status:'absent'}]},results:{rows:[{activityName:'امتحان سبتمبر',score:18,maxScore:20,percentage:90}],submittedExams:1,requiredExams:1,average:90},homework:{submitted:2,required:2},motivation:{rank:2,totalStudents:18,groupRank:1,totalPoints:6},trend:{label:'ارتفع التقييم'},payment:null});
+  assert.match(message,/ترتيب المنصة: المركز 2 من 18 في المسار — المركز 1 في المجموعة/);assert.match(message,/الالتزام: منتظم \(88%\)/);assert.match(message,/أيام الغياب:.*سبتمبر/);assert.match(message,/امتحان سبتمبر: 18 من 20/);
  }finally{ui.close();}
 });
 test('lesson bank editor inherits its lesson, retains focus, and retries a failed save without uploading twice',async()=>{
