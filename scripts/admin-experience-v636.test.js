@@ -132,6 +132,8 @@ test('advanced admin workflows are server-backed, realtime and auditable',()=>{
   assert.match(sync,/subscribeToHomeworkSubmissions/);
   assert.match(sync,/subscribeToExamAttempts/);
   assert.match(admin,/adminNotifications/);
+  assert.match(admin,/section==='assignments'/);
+  assert.match(admin,/stopAdminSectionLiveData/);
   assert.match(experience,/بحث في جميع الطلاب/);
   assert.match(experience,/studentMonthlyReportV637/);
   assert.match(experience,/loadMoreStudentsV637/);

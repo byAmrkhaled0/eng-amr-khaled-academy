@@ -25,7 +25,8 @@ test('legacy codes migrate only through authenticated server functions', () => {
   const sync = read('assets/firebase-sync.js');
   assert.match(backend, /exports\.unifyStudentAccessCodes = onCall/);
   assert.match(backend, /exports\.unifyLegacyStudentAccess = onSchedule/);
-  assert.match(backend, /schedule: 'every 6 hours'/);
+  assert.match(backend, /schedule: '0 4 \* \* 0'/);
+  assert.match(backend, /legacyStudentAccessMigrationEnabled!==true/);
   assert.match(backend, /accessCodeVersion: 2/);
   assert.match(sync, /unifyStudentAccessCodes:callable\('unifyStudentAccessCodes'\)/);
   assert.match(sync, /migrateStudentCodeSafely:callable\('migrateStudentCodeSafely'\)/);
