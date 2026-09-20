@@ -46,7 +46,10 @@
     };
     base.dataset.profilePanel='summary';base.classList.add('profile-panel-v688');
     base.insertAdjacentHTML('beforebegin',`<nav class="profile-tabs-v688" aria-label="أقسام ملف الطالب"><button type="button" class="active" data-profile-view="summary">الملخص</button><button type="button" data-profile-view="info">البيانات</button><button type="button" data-profile-view="attendance">الحضور</button><button type="button" data-profile-view="results">الامتحانات والدرجات</button><button type="button" data-profile-view="homework">الواجبات</button><button type="button" data-profile-view="lectures">المحاضرات</button><button type="button" data-profile-view="payments">الدفع</button><button type="button" data-profile-view="motivation">التحفيز</button></nav>${Object.entries(panels).map(([id,html])=>`<section class="profile-panel-v688" data-profile-panel="${id}" hidden>${html}</section>`).join('')}`);
-    body.querySelectorAll('[data-profile-view]').forEach(button=>button.onclick=()=>{body.querySelectorAll('[data-profile-view]').forEach(item=>item.classList.toggle('active',item===button));body.querySelectorAll('[data-profile-panel]').forEach(panel=>panel.hidden=panel.dataset.profilePanel!==button.dataset.profileView);});
+    const switchProfileView=(view)=>{const target=String(view||'summary');body.querySelectorAll('[data-profile-view]').forEach(item=>{const active=item.dataset.profileView===target;item.classList.toggle('active',active);item.setAttribute('aria-selected',active?'true':'false');});body.querySelectorAll('[data-profile-panel]').forEach(panel=>{panel.hidden=panel.dataset.profilePanel!==target;});};
+    const tabs=body.querySelector('.profile-tabs-v688');
+    if(tabs&&!tabs.dataset.bound){tabs.dataset.bound='1';tabs.addEventListener('click',event=>{const button=event.target.closest('[data-profile-view]');if(!button||!tabs.contains(button))return;event.preventDefault();switchProfileView(button.dataset.profileView);});}
+    switchProfileView('summary');
   }
   window.editStudentBasics=function(code){document.getElementById('unifiedStudentProfile')?.remove();legacyEditStudent?.(code);};
   document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{window.editStudent=openUnifiedStudentProfile;},20));
