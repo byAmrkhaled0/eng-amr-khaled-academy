@@ -11,7 +11,7 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 test('portal compatibility follows the API schema instead of the deployment release', () => {
   const sync = read('assets/firebase-sync.js');
 
-  assert.match(sync, /const FRONTEND_VERSION='67\.8\.9'/);
+  assert.match(sync, /const FRONTEND_VERSION='67\.8\.10'/);
   assert.match(sync, /const API_SCHEMA_VERSION='portal-v64\.0\.0'/);
   assert.match(sync, /if\(!result\|\|result\.apiSchemaVersion!==API_SCHEMA_VERSION\)/);
   assert.doesNotMatch(sync, /result\.backendVersion!==FRONTEND_VERSION/);
@@ -36,7 +36,7 @@ test('every secure portal page requests a fresh firebase sync bundle', () => {
   ];
 
   for (const page of pages) {
-    assert.match(read(page), /assets\/firebase-sync\.js\?v=67\.8\.9/, `${page} must bypass the stale sync bundle`);
+    assert.match(read(page), /assets\/firebase-sync\.js\?v=67\.8\.10/, `${page} must bypass the stale sync bundle`);
   }
 });
 
@@ -45,8 +45,8 @@ test('release and service-worker cache versions are synchronized', () => {
   const backend = require(path.join(root, 'functions/package.json'));
   const worker = read('service-worker.js');
 
-  assert.equal(frontend.version, '67.8.9');
+  assert.equal(frontend.version, '67.8.10');
   assert.equal(backend.version, frontend.version);
-  assert.match(worker, /technominds-v67-8-9-admin-session/);
-  assert.match(worker, /ASSET_VERSION = "67\.8\.9"/);
+  assert.match(worker, /technominds-v67-8-10-admin-session/);
+  assert.match(worker, /ASSET_VERSION = "67\.8\.10"/);
 });

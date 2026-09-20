@@ -63,11 +63,17 @@ test('shared backup restores old and complete nested snapshots without removing 
 });
 test('report cache invalidates after a corrected grade and never exposes internal notes',async()=>{
  await db.doc(`students/${code}`).set({notes:'INTERNAL SECRET'},{merge:true});
+ await db.doc('class_sessions/review-september-session').set({scheduleId:'review-group',group:'تجريبية',date:'2026-09-10',status:'closed'});
+ await db.doc('attendance/review-september-attendance').set({studentCode:code,classSessionId:'review-september-session',scheduleId:'review-group',date:'2026-09-10',status:'present'});
+ await db.doc('exams/review-september-exam').set({title:'امتحان في الدنيا منه',grade:course,published:true,required:true,openAt:'2026-09-08T08:00:00Z',closeAt:'2026-09-09T08:00:00Z',totalScore:15});
+ await db.doc('exam_attempts/review-september-attempt').set({studentCode:code,examId:'review-september-exam',score:13,maxScore:15,status:'corrected',submittedAt:'2026-09-08T09:00:00Z'});
+ await db.doc('assignments/review-september-homework').set({title:'واجب سبتمبر',grade:course,published:true,publishAt:'2026-09-05T08:00:00Z',dueDate:'2026-09-10',totalScore:1});
  await db.doc('grades/review-grade').set({studentCode:code,examId:'manual',score:5,maxScore:10,date:'2026-09-12',status:'corrected'});
- const first=await call('getStudentMonthlyReportAdmin',{studentCode:code,monthKey:'2026-09'});assert.equal(first.teacherNotes,'');assert.equal(first.results.average,50);assert.equal(first.payment.status,'partial');assert.equal(first.payment.paidAmount,60);
+ const first=await call('getStudentMonthlyReportAdmin',{studentCode:code,monthKey:'2026-09'});assert.equal(first.teacherNotes,'');assert.equal(first.results.average,68);assert.equal(first.payment.status,'partial');assert.equal(first.payment.paidAmount,60);assert.equal(first.attendance.percentage,100);assert.equal(first.homework.required,1);assert.equal(first.homework.submitted,0);assert.equal(first.results.rows.find(row=>row.examId==='review-september-exam').score,13);
  const before=await db.doc('grades/review-grade').get();await db.doc('grades/review-grade').update({score:9});const after=await db.doc('grades/review-grade').get();
  await functions.invalidateReport_grades.run({data:{before,after},params:{id:'review-grade'}});
- const second=await call('getStudentMonthlyReportAdmin',{studentCode:code,monthKey:'2026-09'});assert.equal(second.results.average,90);
+ const second=await call('getStudentMonthlyReportAdmin',{studentCode:code,monthKey:'2026-09'});assert.equal(second.results.average,88);
+ const profile=await call('getStudentAdminProfile',{studentCode:code,academicYear,month});assert.equal(profile.monthlyReport.attendance.percentage,second.attendance.percentage);assert.equal(profile.monthlyReport.results.average,second.results.average);assert.equal(profile.monthlyReport.homework.required,second.homework.required);assert.equal(profile.monthlyReport.results.rows.find(row=>row.examId==='review-september-exam').score,13);
  const ranked=await call('getStudentMonthlyReportAdmin',{studentCode:code,monthKey:'2026-09',includeRanking:true});assert.equal(ranked.motivation.rank,1);assert.equal(ranked.motivation.totalStudents,1);assert.equal(ranked.motivation.level,'يحتاج متابعة');
 });
 
