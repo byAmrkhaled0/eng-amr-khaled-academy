@@ -1913,7 +1913,14 @@ exports.getStudentAdminProfile = onCall(CALLABLE_OPTIONS, async request => {
   const studentCode = normalizeCode(request.data?.studentCode), academicYear = text(request.data?.academicYear,30), month = text(request.data?.month,40);
   if (!validLegacyOrStrongCode(studentCode)) throw new HttpsError('invalid-argument','كود الطالب غير صالح.');
   const found = await getStudentPortalByCode(studentCode),periodKey=academicYear&&month?leaderboardPeriod(academicYear,month).monthKey:cairoDateKey().slice(0,7);
-  const [source,notesSnap,ranking]=await Promise.all([loadStudentMonthlyReportSource(found.data,{monthKeys:[periodKey]}),db.collection('student_notes').where('studentCode','==',studentCode).orderBy('createdAt','desc').limit(80).get().catch(()=>null),studentReportRanking(found.data,periodKey).catch(()=>null)]);
+  const motivationPeriod=periodFromMonthKey(periodKey);
+  const motivationPeriodKey=motivationPeriodId(studentCode,motivationPeriod.academicYear,motivationPeriod.monthName);
+  const [source,notesSnap,ranking,motivationTransactionsSnap]=await Promise.all([
+    loadStudentMonthlyReportSource(found.data,{monthKeys:[periodKey]}),
+    db.collection('student_notes').where('studentCode','==',studentCode).orderBy('createdAt','desc').limit(80).get().catch(()=>null),
+    studentReportRanking(found.data,periodKey).catch(()=>null),
+    db.collection('motivation_transactions').where('periodId','==',motivationPeriodKey).limit(80).get().catch(()=>null)
+  ]);
   // This callable is Admin-only. Keep the public portal projection safe, then
   // restore the contact/edit fields that the Admin student file is expected to show.
   const student={
@@ -1930,7 +1937,8 @@ exports.getStudentAdminProfile = onCall(CALLABLE_OPTIONS, async request => {
   };
   const monthlyReport=calculateMonthlyReport(monthlyReportInput(found.data,source,periodKey));
   if(ranking)monthlyReport.motivation={...(monthlyReport.motivation||{}),...ranking};
-  return { student, period:{academicYear,month,monthKey:periodKey}, monthlyReport, attendance:monthlyReport.attendance.rows, grades:monthlyReport.results.rows, results:monthlyReport.results.rows, examAttempts:monthlyReport.results.rows, homeworks:monthlyReport.homework.rows, lectures:monthlyReport.study.rows, recitations:monthlyReport.practical.rows, monthlyPayments:source.payments, motivationSummaries:source.motivation, motivationTransactions:[], privateNotes:notesSnap?notesSnap.docs.map(doc=>({id:doc.id,...doc.data()})):[] };
+  const motivationTransactions=motivationTransactionsSnap?motivationTransactionsSnap.docs.map(doc=>publicMotivationTransaction(doc.id,doc.data())).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt))):[];
+  return { student, period:{academicYear,month,monthKey:periodKey}, monthlyReport, attendance:monthlyReport.attendance.rows, grades:monthlyReport.results.rows, results:monthlyReport.results.rows, examAttempts:monthlyReport.results.rows, homeworks:monthlyReport.homework.rows, lectures:monthlyReport.study.rows, recitations:monthlyReport.practical.rows, monthlyPayments:source.payments, motivationSummaries:source.motivation, motivationTransactions, privateNotes:notesSnap?notesSnap.docs.map(doc=>({id:doc.id,...doc.data()})):[] };
 });
 
 const REPORT_STUDENT_SOURCES=['attendance','grades','homework_submissions','exam_attempts','exam_sessions','recitations','monthly_payments','motivation_monthly','student_transfer_requests','students'];
