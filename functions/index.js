@@ -2180,6 +2180,8 @@ exports.getParentMonthlyReport = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds:60
 });
 
 exports.prepareMonthlyParentReports = onSchedule({schedule:'15 8 1 * *',timeZone:'Africa/Cairo',region:'europe-west1',timeoutSeconds:540,memory:'512MiB'},async()=>{
+  const settings=await db.collection('settings').doc('platform').get().catch(()=>null);
+  if(settings?.data()?.monthlyReportPreGenerationEnabled!==true)return {ok:true,skipped:true,reason:'on-demand-reports-enabled'};
   const monthKey=reportPreviousMonthKey(cairoDateKey(new Date()).slice(0,7));
   const [studentsResult,assignmentsResult,examsResult]=await Promise.all([fetchAllCollectionDocuments('students',query=>query.where('active','==',true)),fetchAllCollectionDocuments('assignments'),fetchAllCollectionDocuments('exams')]);
   const students=studentsResult.docs.map(doc=>({id:doc.id,...doc.data()})),sharedAssignments=assignmentsResult.docs,sharedExams=examsResult.docs;
@@ -3123,7 +3125,9 @@ exports.unifyStudentAccessCodes = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 
   return { ok: true, ...result };
 });
 
-exports.unifyLegacyStudentAccess = onSchedule({ schedule: 'every 6 hours', region: 'europe-west1', timeZone: 'Africa/Cairo', timeoutSeconds: 120, memory: '256MiB' }, async () => {
+exports.unifyLegacyStudentAccess = onSchedule({ schedule: '0 4 * * 0', region: 'europe-west1', timeZone: 'Africa/Cairo', timeoutSeconds: 120, memory: '256MiB' }, async () => {
+  const settings=await db.collection('settings').doc('platform').get().catch(()=>null);
+  if(settings?.data()?.legacyStudentAccessMigrationEnabled!==true)return {ok:true,skipped:true,reason:'migration-disabled'};
   const stateRef = db.collection('_system').doc('unified_student_access');
   const stateSnap = await stateRef.get();
   const cursor = text(stateSnap.exists ? stateSnap.data().cursor : '', 200);
@@ -3757,7 +3761,7 @@ async function finalizeExamAbsenceRecords(){
 }
 
 exports.finalizeExamAbsencesAdmin = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds:120, memory:'512MiB' },async request=>{const staff=await requireStaff(request,['admin']);const result=await finalizeExamAbsenceRecords();await serverActivity(staff,'تحديث غياب الامتحانات',result);return result;});
-exports.finalizeExamAbsences = onSchedule({schedule:'every 60 minutes',timeZone:'Africa/Cairo',region:'europe-west1',timeoutSeconds:300,memory:'512MiB'},finalizeExamAbsenceRecords);
+exports.finalizeExamAbsences = onSchedule({schedule:'30 23 * * *',timeZone:'Africa/Cairo',region:'europe-west1',timeoutSeconds:300,memory:'512MiB'},finalizeExamAbsenceRecords);
 
 exports.startExam = onCall(EXAM_ENTRY_OPTIONS, async request => {
   const studentCode = normalizeCode(request.data && request.data.studentCode);
@@ -4156,14 +4160,14 @@ async function pruneBackups(retentionDays = 14) {
   await Promise.all(files.filter(file => new Date(file.metadata.timeCreated || 0).getTime() < cutoff).map(file => file.delete().catch(() => null)));
 }
 
-exports.scheduledPlatformBackup = onSchedule({ schedule: '30 2 * * *', timeZone: 'Africa/Cairo', region: 'europe-west1', timeoutSeconds: 540, memory: '512MiB' }, async () => {
+exports.scheduledPlatformBackup = onSchedule({ schedule: '30 2 * * 0', timeZone: 'Africa/Cairo', region: 'europe-west1', timeoutSeconds: 540, memory: '512MiB' }, async () => {
   const settings = await db.collection('settings').doc('platform').get().catch(() => null);
   const retentionDays = settings?.exists ? Number(settings.data().backupRetentionDays || 14) : 14;
   await createPlatformBackup('scheduled');
   await pruneBackups(retentionDays);
 });
 
-exports.cleanupArchivedStorage = onSchedule({ schedule: '20 3 * * *', timeZone: 'Africa/Cairo', region: 'europe-west1', timeoutSeconds: 300, memory: '512MiB' }, async () => {
+exports.cleanupArchivedStorage = onSchedule({ schedule: '20 3 * * 0', timeZone: 'Africa/Cairo', region: 'europe-west1', timeoutSeconds: 300, memory: '512MiB' }, async () => {
   const now = Timestamp.now();
   const candidates = [];
   for (const collection of VERSIONED_CONTENT_COLLECTIONS) {
@@ -4485,15 +4489,25 @@ async function platformHealthPayload() {
   };
 }
 
-exports.getPlatformHealth = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 15 }, platformHealthPayload);
+let platformHealthCache=null;
+let platformHealthCacheExpiresAt=0;
+async function cachedPlatformHealthPayload(){
+  const now=Date.now();
+  if(platformHealthCache&&now<platformHealthCacheExpiresAt)return platformHealthCache;
+  platformHealthCache=await platformHealthPayload();
+  platformHealthCacheExpiresAt=now+5*60*1000;
+  return platformHealthCache;
+}
+
+exports.getPlatformHealth = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 15 }, cachedPlatformHealthPayload);
 
 // Browser/Vercel health endpoint. Callable functions require a Firebase POST
 // envelope, so a dedicated HTTP function is used for ordinary GET monitoring.
 exports.getPlatformHealthHttp = onRequest({ region:'europe-west1', timeoutSeconds:15, memory:'256MiB', invoker:'public' }, async (request,response) => {
-  response.set('Cache-Control','no-store');
+  response.set('Cache-Control','public, max-age=300, s-maxage=300');
   response.set('Content-Type','application/json; charset=utf-8');
   if(!['GET','HEAD'].includes(request.method))return response.status(405).json({status:'error',message:'Method Not Allowed'});
-  try{return response.status(200).json(await platformHealthPayload());}
+  try{return response.status(200).json(await cachedPlatformHealthPayload());}
   catch(error){console.error('platform-health-http',error);return response.status(503).json({status:'error',firestore:false});}
 });
 
@@ -4509,7 +4523,7 @@ exports.submitCodeExecution = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 30, 
   // The practical lab is public. Abuse is limited per visitor IP while code is
   // still executed in Judge0 without network access and with strict resources.
   const visitorIdentity = requestIp(request) || text(request.data?.visitorId, 80) || 'anonymous';
-  await rateLimitPublic('code-run-public', visitorIdentity, request, 12, 35, 60 * 1000);
+  await rateLimitPublic('code-run-public', visitorIdentity, request, 6, 20, 60 * 1000);
 
   const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
   if (config.apiKey) headers[config.apiKeyHeader] = config.apiKey;

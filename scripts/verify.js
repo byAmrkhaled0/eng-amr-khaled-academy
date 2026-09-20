@@ -138,7 +138,8 @@ for (const name of mfCloudUses) {
   const implemented = firebaseSyncSource.includes(`${name}:`) || firebaseSyncSource.includes(`function ${name}(`) || firebaseSyncSource.includes(`,${name},`) || firebaseSyncSource.includes(`{${name},`);
   if (!implemented) fail(`MFCloud UI method/property is missing: ${name}`);
 }
-if (!functionsSource.includes('exports.scheduledPlatformBackup = onSchedule')) fail('Scheduled daily backup export is missing');
+if (!functionsSource.includes('exports.scheduledPlatformBackup = onSchedule')) fail('Scheduled backup export is missing');
+if (!functionsSource.includes("schedule: '30 2 * * 0'")) fail('Scheduled backup must run weekly');
 if (!functionsSource.includes('exports.notifyStaffOnBookingCreated = onDocumentCreated')) fail('Asynchronous booking notification trigger is missing');
 if (!read('practical.html').includes('id="codeEditor"') || !read('assets/practical.js').includes("publicCallable('submitCodeExecution'") || !read('assets/practical.js').includes("'/api/code'") || read('practical.html').includes('codeStudentCode') || read('practical.html').includes('firebase-functions-compat.js') || !functionsSource.includes("rateLimitPublic('code-run-public'")) fail('Public practical code editor is incomplete or still loads the full Firebase bundle');
 if (!read('firebase.json').includes('/api/code/submitCodeExecution') || !read('vercel.json').includes('/api/code/submitCodeExecution') || !read('firebase.json').includes('/api/code/getCodeExecutionResult') || !read('vercel.json').includes('/api/code/getCodeExecutionResult')) fail('Same-origin code runner rewrites are missing from Firebase or Vercel');

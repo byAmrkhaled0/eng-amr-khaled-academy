@@ -76,7 +76,7 @@ test('two consecutive absences warn the teacher and appear in the parent report 
   assert.match(app,/يحتاج متابعة/);
 });
 
-test('server owns complete monthly reports and prepares previous month automatically',()=>{
+test('server owns complete monthly reports and keeps bulk preparation opt-in',()=>{
   const backend=read('functions/index.js'),sync=read('assets/firebase-sync.js'),app=read('assets/app.js');
   assert.match(backend,/exports\.getStudentMonthlyReportAdmin = onCall/);
   assert.match(backend,/reportRowsForPeriod\('attendance'[\s\S]{0,180}dateField:'date'/);
@@ -84,6 +84,7 @@ test('server owns complete monthly reports and prepares previous month automatic
   assert.match(backend,/exports\.getParentMonthlyReport = onCall/);
   assert.match(backend,/exports\.prepareMonthlyParentReports = onSchedule/);
   assert.match(backend,/schedule:'15 8 1 \* \*'/);
+  assert.match(backend,/monthlyReportPreGenerationEnabled!==true/);
   assert.doesNotMatch(backend,/sendPreparedMonthlyReports|WHATSAPP_ACCESS_TOKEN|graph\.facebook\.com/);
   assert.match(sync,/getParentMonthlyReport:callable\('getParentMonthlyReport'\)/);
   assert.match(app,/function parentMonthlyReportText/);
@@ -183,6 +184,7 @@ test('finished class exams register missing students as absent in admin and pare
   assert.match(report.concerns.join(' '),/امتحان مستحق دون تسليم/);
   const backend=read('functions/index.js'),app=read('assets/app.js'),operations=read('assets/v64-admin-operations.js'),sync=read('assets/firebase-sync.js');
   assert.match(backend,/exports\.finalizeExamAbsences = onSchedule/);assert.match(backend,/exam_absences/);assert.match(backend,/expectedStudentCount/);
+  assert.match(backend,/schedule:'30 23 \* \* \*'/);
   assert.match(app,/غائب عن الامتحان/);assert.match(operations,/refreshExamAbsences/);assert.match(sync,/finalizeExamAbsencesAdmin/);
 });
 

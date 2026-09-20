@@ -391,6 +391,7 @@ window.goAdminSection=function(id){
   if(currentSection==='payments'&&id!=='payments')window.stopMonthlyPaymentListeners?.();
   if(id==='attendance'&&currentSection!=='attendance')attendanceDate=isoDateAdmin();
   currentSection=id;
+  if(navigator.onLine!==false&&!window.__adminOfflineMode)startAdminLiveData(id);
   syncAdminChrome();
   setAdminDrawer(false);
   window.scrollTo({top:0,behavior:'smooth'});
@@ -481,14 +482,23 @@ window.enableBookingNotifications=async function(){if(!('Notification' in window
 function startBookingNotifications(){if(bookingNotificationUnsubscribe||!window.MFCloud?.subscribeToBookings)return;bookingNotificationUnsubscribe=window.MFCloud.subscribeToBookings((rows,changes)=>{adminData.bookings=rows.filter(row=>{const code=String(row.code||row.id||'');return !bookingActionPending.has(code)&&!acceptedBookingCodes.has(code);});saveData(adminData);updateAdminBookingBadge();if(bookingListenerReady){changes.filter(change=>change.type==='added').forEach(change=>{const b=change.doc.data();const code=String(b.code||change.doc.id||'');if(bookingActionPending.has(code)||acceptedBookingCodes.has(code))return;aToast(`حجز جديد: ${b.name||b.studentName||'طالب جديد'}`);if('Notification' in window&&Notification.permission==='granted'&&localStorage.getItem('mf-booking-notifications')==='1'){const n=new Notification('حجز طالب جديد',{body:`${b.name||b.studentName||''} · ${b.grade||''} · ${b.group||''}`,icon:'assets/technominds-logo.png',tag:`booking-${code}`});n.onclick=()=>{window.focus();goAdminSection('bookings');};}});}bookingListenerReady=true;if(currentSection==='bookings'&&!bookingActionPending.size)renderBookings();});}
 
 function adminCanRefreshLiveSection(){const active=document.activeElement;return !(active instanceof HTMLElement&&active.closest('form,.admin-action-modal,.issued-codes-modal'));}
-function startAdminLiveData(){
-  if(!adminGroupsUnsubscribe&&window.MFCloud?.subscribeToGroups){
+function stopAdminSectionLiveData(section){
+  if(section!=='studentRequests'&&adminTransferRequestsUnsubscribe){adminTransferRequestsUnsubscribe();adminTransferRequestsUnsubscribe=null;}
+  if(section!=='assignments'&&adminHomeworkSubmissionsUnsubscribe){adminHomeworkSubmissionsUnsubscribe();adminHomeworkSubmissionsUnsubscribe=null;}
+  if(section!=='exams'&&adminExamAttemptsUnsubscribe){adminExamAttemptsUnsubscribe();adminExamAttemptsUnsubscribe=null;}
+  if(section!=='motivation'&&adminMotivationUnsubscribe){adminMotivationUnsubscribe();adminMotivationUnsubscribe=null;}
+}
+function startAdminLiveData(section=currentSection){
+  stopAdminSectionLiveData(section);
+  const needsGroups=['schedules','attendance','assignments','exams','materials','theoryLectures','curriculum'].includes(section);
+  const needsStudents=['overview','operations','students','motivation','attendance','warnings','payments'].includes(section);
+  if(needsGroups&&!adminGroupsUnsubscribe&&window.MFCloud?.subscribeToGroups){
     adminGroupsUnsubscribe=window.MFCloud.subscribeToGroups(rows=>{
       adminData.groups=Array.isArray(rows)?rows:[];saveData(adminData);
       if(currentSection==='schedules'&&adminCanRefreshLiveSection())renderSchedules();
     });
   }
-  if(!adminStudentsUnsubscribe&&window.MFCloud?.subscribeToStudents){
+  if(needsStudents&&!adminStudentsUnsubscribe&&window.MFCloud?.subscribeToStudents){
     adminStudentsUnsubscribe=window.MFCloud.subscribeToStudents(rows=>{
       const previous=new Map((adminData.students||[]).map(student=>[stCode(student),student]));
       adminData.students=(rows||[]).map(row=>{const old=previous.get(stCode(row))||{};return {...old,...row,gradeRecordsLoaded:old.gradeRecordsLoaded===true,gradeRecordsError:old.gradeRecordsError===true,attendance:old.attendance||[],grades:old.grades||[],homeworks:old.homeworks||[],recitations:old.recitations||[]};});
@@ -496,16 +506,16 @@ function startAdminLiveData(){
       if((currentSection==='overview'||currentSection==='students'||currentSection==='payments')&&adminCanRefreshLiveSection())renderSection();
     });
   }
-  if(!adminTransferRequestsUnsubscribe&&window.MFCloud?.subscribeToStudentTransferRequests){
+  if(section==='studentRequests'&&!adminTransferRequestsUnsubscribe&&window.MFCloud?.subscribeToStudentTransferRequests){
     adminTransferRequestsUnsubscribe=window.MFCloud.subscribeToStudentTransferRequests(rows=>{
       adminData.studentTransferRequests=Array.isArray(rows)?rows:[];saveData(adminData);
       if(currentSection==='studentRequests'&&adminCanRefreshLiveSection())renderStudentRequests();
     });
   }
   const activityNotice=(type,row)=>{adminData.adminNotifications=adminData.adminNotifications||[];const id=`${type}:${row.id||row.studentCode||Date.now()}`;if(adminData.adminNotifications.some(item=>item.id===id))return;const title=type==='homework'?'تسليم واجب جديد':type==='exam'?'محاولة امتحان جديدة':'حركة تحفيز جديدة';adminData.adminNotifications.unshift({id,type,title,studentCode:row.studentCode||'',studentName:row.studentName||'',createdAt:new Date().toISOString(),read:false});adminData.adminNotifications=adminData.adminNotifications.slice(0,100);saveData(adminData);aToast(`${title}: ${row.studentName||row.studentCode||'طالب'}`);};
-  if(!adminHomeworkSubmissionsUnsubscribe&&window.MFCloud?.subscribeToHomeworkSubmissions){adminHomeworkSubmissionsUnsubscribe=window.MFCloud.subscribeToHomeworkSubmissions((rows,changes,error)=>{if(error)return console.warn('homework-live',error);adminData.homeworkSubmissions=rows||[];for(const row of rows||[]){const student=(adminData.students||[]).find(st=>stCode(st)===row.studentCode);if(student){student.homeworks=student.homeworks||[];const i=student.homeworks.findIndex(item=>item.id===row.id);if(i<0)student.homeworks.push(row);else student.homeworks[i]=row;}}(adminAcademicListenersReady?changes:[]).filter(change=>change.type==='added').forEach(change=>activityNotice('homework',{id:change.doc.id,...change.doc.data()}));saveData(adminData);if(currentSection==='assignments'&&adminCanRefreshLiveSection())renderAssignments();if(currentSection==='students'&&adminCanRefreshLiveSection())renderStudents();});}
-  if(!adminExamAttemptsUnsubscribe&&window.MFCloud?.subscribeToExamAttempts){adminExamAttemptsUnsubscribe=window.MFCloud.subscribeToExamAttempts((rows,changes,error)=>{if(error)return console.warn('exam-live',error);adminData.examAttempts=rows||[];(adminAcademicListenersReady?changes:[]).filter(change=>change.type==='added').forEach(change=>activityNotice('exam',{id:change.doc.id,...change.doc.data()}));saveData(adminData);if(currentSection==='exams'&&adminCanRefreshLiveSection())renderExams();});}
-  if(!adminMotivationUnsubscribe&&window.MFCloud?.subscribeToMotivationTransactions){adminMotivationUnsubscribe=window.MFCloud.subscribeToMotivationTransactions((rows,changes,error)=>{if(error)return console.warn('motivation-live',error);adminData.motivationTransactions=rows||[];(adminAcademicListenersReady?changes:[]).filter(change=>change.type==='added').forEach(change=>activityNotice('motivation',{id:change.doc.id,...change.doc.data()}));saveData(adminData);});}
+  if(section==='assignments'&&!adminHomeworkSubmissionsUnsubscribe&&window.MFCloud?.subscribeToHomeworkSubmissions){adminHomeworkSubmissionsUnsubscribe=window.MFCloud.subscribeToHomeworkSubmissions((rows,changes,error)=>{if(error)return console.warn('homework-live',error);adminData.homeworkSubmissions=rows||[];for(const row of rows||[]){const student=(adminData.students||[]).find(st=>stCode(st)===row.studentCode);if(student){student.homeworks=student.homeworks||[];const i=student.homeworks.findIndex(item=>item.id===row.id);if(i<0)student.homeworks.push(row);else student.homeworks[i]=row;}}(adminAcademicListenersReady?changes:[]).filter(change=>change.type==='added').forEach(change=>activityNotice('homework',{id:change.doc.id,...change.doc.data()}));saveData(adminData);if(currentSection==='assignments'&&adminCanRefreshLiveSection())renderAssignments();});}
+  if(section==='exams'&&!adminExamAttemptsUnsubscribe&&window.MFCloud?.subscribeToExamAttempts){adminExamAttemptsUnsubscribe=window.MFCloud.subscribeToExamAttempts((rows,changes,error)=>{if(error)return console.warn('exam-live',error);adminData.examAttempts=rows||[];(adminAcademicListenersReady?changes:[]).filter(change=>change.type==='added').forEach(change=>activityNotice('exam',{id:change.doc.id,...change.doc.data()}));saveData(adminData);if(currentSection==='exams'&&adminCanRefreshLiveSection())renderExams();});}
+  if(section==='motivation'&&!adminMotivationUnsubscribe&&window.MFCloud?.subscribeToMotivationTransactions){adminMotivationUnsubscribe=window.MFCloud.subscribeToMotivationTransactions((rows,changes,error)=>{if(error)return console.warn('motivation-live',error);adminData.motivationTransactions=rows||[];(adminAcademicListenersReady?changes:[]).filter(change=>change.type==='added').forEach(change=>activityNotice('motivation',{id:change.doc.id,...change.doc.data()}));saveData(adminData);});}
   setTimeout(()=>{adminAcademicListenersReady=true;},0);
 }
 
