@@ -33,7 +33,7 @@ const {
   configurableOverallAverage
 } = require('./lib/portal-results');
 const { configuredScheduleDays, cairoWeekdayForDate } = require('./lib/attendance-domain');
-const { calculateMonthlyReport, attachTrend, membershipAt } = require('./lib/monthly-report');
+const { calculateMonthlyReport, attachTrend, membershipAt, rowMatchesMonth } = require('./lib/monthly-report');
 const {
   studentNameKey,
   recordNameKey,
@@ -2098,7 +2098,7 @@ async function loadStudentMonthlyReportSource(student,options={}) {
 }
 
 function monthlyReportInput(student,source,monthKey) {
-  const inMonth=(rows,fields=[])=>rows.filter(row=>reportMonthForRow(row,fields)===monthKey);
+  const inMonth=(rows,fields=[])=>rows.filter(row=>rowMatchesMonth(row,fields,monthKey)||(fields.every(field=>!row[field])&&reportMonthForRow(row,fields)===monthKey));
   const period=periodFromMonthKey(monthKey);
   const monthlyHomeworks=inMonth(source.homeworks,['submittedAt']);
   const requiredAssignments=inMonth(source.assignments,['publishAt']),activityAssignmentIds=new Set(monthlyHomeworks.map(row=>String(row.assignmentId)).filter(Boolean));
@@ -2128,8 +2128,12 @@ function monthlyReportInput(student,source,monthKey) {
 
 function reportAvailableMonths(source,currentMonthKey) {
   const keys=new Set([currentMonthKey,reportPreviousMonthKey(currentMonthKey)]);
-  const groups=[[source.attendance,['date']],[source.grades,['date']],[source.examAttempts,['submittedAt']],[source.homeworks,['submittedAt']],[source.assignments,['publishAt']],[source.recitations,['date']],[source.progress,['lastOpenedAt','completedAt']],[source.payments,[]]];
-  groups.forEach(([rows,fields])=>rows.forEach(row=>{const key=reportMonthForRow(row,fields);if(/^\d{4}-\d{2}$/.test(key))keys.add(key);}));
+  const groups=[[source.attendance,['date']],[source.grades,['date','submittedAt','reviewedAt']],[source.examAttempts,['startedAt','submittedAt','reviewedAt','date']],[source.homeworks,['submittedAt']],[source.assignments,['publishAt']],[source.recitations,['date']],[source.progress,['lastOpenedAt','completedAt']],[source.payments,[]]];
+  groups.forEach(([rows,fields])=>rows.forEach(row=>{
+    const activityKeys=fields.map(field=>cairoDateKey(row[field]).slice(0,7)).filter(key=>/^\d{4}-\d{2}$/.test(key));
+    if(activityKeys.length)activityKeys.forEach(key=>keys.add(key));
+    else {const key=reportMonthForRow(row,fields);if(/^\d{4}-\d{2}$/.test(key))keys.add(key);}
+  }));
   return [...keys].filter(Boolean).sort().reverse().slice(0,36);
 }
 
@@ -2139,7 +2143,7 @@ async function buildStudentMonthlyReport(student,monthKey,options={}) {
   const stateRef=db.collection('monthly_report_state').doc(studentCode),contentRef=db.doc('_system/report_content');
   const [existing,stateSnap,contentSnap]=await Promise.all([ref.get(),stateRef.get(),contentRef.get()]);
   const sourceRevision=Number(stateSnap.data()?.version||0),contentRevision=Number(contentSnap.data()?.version||0),cached=existing.data();
-  if(cached?.report?.schemaVersion===4&&!cached.invalidatedAt&&cached.sourceRevision===sourceRevision&&cached.contentRevision===contentRevision&&options.force!==true)return cached.report;
+  if(cached?.report?.schemaVersion===5&&!cached.invalidatedAt&&cached.sourceRevision===sourceRevision&&cached.contentRevision===contentRevision&&options.force!==true)return cached.report;
   const previousKey=reportPreviousMonthKey(monthKey),source=await loadStudentMonthlyReportSource(student,{...options,monthKeys:[previousKey,monthKey]});
   const current=calculateMonthlyReport(monthlyReportInput(student,source,monthKey)),previous=calculateMonthlyReport(monthlyReportInput(student,source,previousKey));
   const availableMonths=reportAvailableMonths(source,monthKey);

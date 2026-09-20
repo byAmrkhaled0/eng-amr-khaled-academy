@@ -15,6 +15,13 @@ function dateKey(value){
   const date=value?.toDate?value.toDate():new Date(value);if(!Number.isFinite(date.getTime()))return '';
   const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date).map(x=>[x.type,x.value]));return `${p.year}-${p.month}-${p.day}`;
 }
+function rowMatchesMonth(row={},fields=[],monthKey=''){
+  if(!/^\d{4}-\d{2}$/.test(String(monthKey)))return false;
+  const explicit=[...new Set(fields.filter(Boolean))].map(field=>dateKey(row[field])).filter(Boolean);
+  if(explicit.length)return explicit.some(key=>key.slice(0,7)===monthKey);
+  const fallback=dateKey(row.date||row.submittedAt||row.completedAt||row.lastOpenedAt||row.createdAt||row.updatedAt);
+  return fallback.slice(0,7)===monthKey;
+}
 function membershipAt(student,transfers,date){
   const joined=dateKey(student.acceptedAt||student.activatedAt||student.enrolledAt||student.createdAt);
   if(joined&&date<joined)return null;
@@ -72,7 +79,7 @@ function calculateMonthlyReport(input={}){
     const percentage=isSubmitted?scorePercent(row):null;
     const status=isSubmitted?(percentage===null?'pending_review':'graded'):isMissed?'absent':isStarted?'started':open?'available':'upcoming';
     if(status==='pending_review')awaiting++;
-    rows.push({...row,examId:id,activityName:exam.title||row?.activityName||'امتحان',date:exam.openAt||row?.date||'',maxScore:row?.maxScore||exam.totalScore||null,score:percentage===null?null:asNumber(row.score),percentage,status,attemptNumber:row?.attemptNumber||null,absent:isMissed});
+    rows.push({...row,examId:id,activityName:exam.title||row?.activityName||'امتحان',date:row?.reviewedAt||row?.submittedAt||row?.startedAt||row?.date||exam.openAt||'',maxScore:row?.maxScore||exam.totalScore||null,score:percentage===null?null:asNumber(row.score),percentage,status,attemptNumber:row?.attemptNumber||null,absent:isMissed});
     attempts.delete(id);
   }
   // Retain standalone/manual grades and legacy exams without inventing an entitlement.
@@ -115,10 +122,13 @@ function calculateMonthlyReport(input={}){
   const activityCount=recorded.length+submittedHw.length+rows.length+recitations.length+opened;
   const payment=input.payment;
   const summaryNote=attendancePct!==null&&attendancePct<70?'يحتاج الطالب إلى تحسين انتظام الحضور، لأن الغياب يؤثر على تقدمه.':missingHw.length&&gradeAvg!==null&&gradeAvg>=75?'نتائج الطالب في الامتحانات جيدة، لكنه يحتاج إلى انتظام أكبر في تسليم الواجبات.':missingHw.length?'يحتاج الطالب إلى استكمال الواجبات الناقصة والانتظام في التسليم.':materials.length&&opened<materials.length?'يحتاج إلى متابعة المحاضرات بصورة أكثر انتظامًا.':overallScore!==null&&overallScore>=75?'الطالب ملتزم ويحقق مستوى جيدًا ومستقرًا هذا الشهر.':'يحتاج الطالب إلى متابعة المؤشرات الأضعف المسجلة هذا الشهر.';
-  const sufficientData=scored.length>=2||(attendancePct!==null&&requiredHw.length>0);
-  const monthlyTitle=!sufficientData?'بيانات الشهر غير مكتملة':overallScore>=90?'متفوق الشهر':gradeAvg>=90?'مبرمج الشهر':attendancePct>=95?'نجم الحضور':homeworkCompletionPct===100&&homeworkGradeAvg>=80?'بطل الواجبات':overallScore>=80?'المهندس البارع':overallScore>=70?'نجم الالتزام':'نجم التطور';
-  return {schemaVersion:4,policyVersion:'monthly-v3-activity-date',monthKey,student:{studentCode:String(student.studentCode||student.code||student.id||''),name:student.studentName||student.name||'',grade:student.grade||'',group:student.group||'',academicYear:student.academicYear||''},
-    overallScore,baseOverallScore,motivationBonus,level:levelLabel(overallScore),monthlyTitle,academicScore,academicLevel:levelLabel(academicScore),commitmentScore,commitmentLevel:commitmentLabel(commitmentScore),activityCount,sufficientData,
+  const gradedHomeworkCount=submittedHw.filter(row=>row.submission.percentage!==null).length;
+  const academicEvidenceCount=scored.length+gradedHomeworkCount;
+  const academicEvidenceSufficient=scored.length>=2||(scored.length>=1&&gradedHomeworkCount>=1);
+  const sufficientData=academicEvidenceSufficient||(attendancePct!==null&&requiredHw.length>0);
+  const monthlyTitle=academicEvidenceSufficient&&overallScore>=90?'متفوق الشهر':academicEvidenceSufficient&&gradeAvg>=90?'مبرمج الشهر':attendancePct>=95&&attendance.length>=2?'نجم الحضور':homeworkCompletionPct===100&&homeworkGradeAvg>=80?'بطل الواجبات':academicEvidenceSufficient&&overallScore>=80?'المهندس البارع':activityCount&&overallScore!==null&&overallScore>=70?'نجم الالتزام':activityCount?'نجم التطور':'بيانات الشهر غير مكتملة';
+  return {schemaVersion:5,policyVersion:'monthly-v4-all-activity-dates',monthKey,student:{studentCode:String(student.studentCode||student.code||student.id||''),name:student.studentName||student.name||'',grade:student.grade||'',group:student.group||'',academicYear:student.academicYear||''},
+    overallScore,baseOverallScore,motivationBonus,level:levelLabel(overallScore),monthlyTitle,academicScore,academicLevel:levelLabel(academicScore),academicEvidenceCount,academicEvidenceSufficient,commitmentScore,commitmentLevel:commitmentLabel(commitmentScore),activityCount,sufficientData,
     comparisonBasis:[gradeAvg!==null,homeworkGradeAvg!==null,attendancePct!==null,homeworkCompletionPct!==null,onTimePct!==null].join(','),
     attendance:{total:attendance.length,required:entitlementKnown?sessions.length:null,entitlementKnown,present,late,absent,excused,unrecorded,percentage:attendancePct,rows:attendance,consecutiveAbsenceWarning:consecutiveAbsenceWarning(attendance)},
     results:{count:rows.length,gradedCount:scored.length,average:gradeAvg,rows,requiredExams:required,availableExams:available,startedExams:started,submittedExams:submitted,attendedExams:submitted,missedExams:missed,pendingReview:awaiting,retakePolicy:'أحدث محاولة؛ إن كانت تنتظر التصحيح تُستبعد من المتوسط حتى اعتمادها.'},
@@ -133,4 +143,4 @@ function attachTrend(current,previous){
   const delta=current.overallScore-previous.overallScore,status=delta>=5?'improved':delta<=-5?'declined':'stable';
   return {...current,trend:{status,delta,previousScore:previous.overallScore,label:status==='stable'?'النتائج مستقرة في حدود 4 نقاط':`${delta>0?'ارتفع':'انخفض'} التقييم ${Math.abs(delta)} نقطة مئوية عن الشهر السابق`}};
 }
-module.exports={calculateMonthlyReport,attachTrend,levelLabel,commitmentLabel,normalizedAttendanceRows,consecutiveAbsenceWarning,dateKey,membershipAt,entitledSessions,scorePercent};
+module.exports={calculateMonthlyReport,attachTrend,levelLabel,commitmentLabel,normalizedAttendanceRows,consecutiveAbsenceWarning,dateKey,rowMatchesMonth,membershipAt,entitledSessions,scorePercent};

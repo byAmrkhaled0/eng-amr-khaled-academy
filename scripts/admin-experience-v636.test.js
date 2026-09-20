@@ -142,7 +142,7 @@ test('student and parent portals refresh in place and expose monthly alerts',()=
   assert.match(app,/studentPortalAutoRefreshBound/);
   assert.match(app,/parentPortalAutoRefreshBound/);
   assert.match(app,/portal-action-alert deadline/);
-  assert.match(app,/parent-month-filter-v637/);
+  assert.match(app,/parent-report-toolbar-v70/);
   assert.match(app,/renderParentMonth/);
 });
 

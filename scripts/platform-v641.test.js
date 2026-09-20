@@ -45,9 +45,9 @@ test('monthly report separates academic level from study commitment and lists mi
 
 test('monthly report exposes exact payment and monthly motivation without malformed exam markup',()=>{
   const report=calculateMonthlyReport({monthKey:'2026-09',student:{studentCode:'ST-123456',name:'طالب'},payment:{status:'partial',expectedAmount:500,paidAmount:300,remainingAmount:200},motivationSummary:{totalPoints:8,transactionCount:2,lastReason:'حل الواجب'}});
-  assert.equal(report.schemaVersion,4);assert.equal(report.payment.remainingAmount,200);assert.equal(report.motivation.totalPoints,8);assert.equal(report.motivation.lastReason,'حل الواجب');
+  assert.equal(report.schemaVersion,5);assert.equal(report.payment.remainingAmount,200);assert.equal(report.motivation.totalPoints,8);assert.equal(report.motivation.lastReason,'حل الواجب');
   const app=read('assets/app.js'),backend=read('functions/index.js');
-  assert.match(app,/add\('دفع الشهر'/);assert.match(app,/add\('التحفيز الشهري'/);assert.match(app,/navigator\.canShare/);
+  assert.match(app,/function parentReportPaymentLabel/);assert.match(app,/motivation\.transactionCount/);assert.match(app,/navigator\.canShare/);
   assert.doesNotMatch(app,/class="badge \$\{esc\(monthlyResultStatus\(row\)\)\}<\/span>/);
   assert.match(backend,/REPORT_STUDENT_SOURCES=\[[^\]]*'motivation_monthly'/);
 });
@@ -72,8 +72,8 @@ test('two consecutive absences warn the teacher and appear in the parent report 
   assert.match(report.concerns.join(' '),/حصتين متتاليتين/);
   const admin=read('assets/admin.js'),app=read('assets/app.js');
   assert.match(admin,/حصتين متتاليتين/);
-  assert.match(app,/تحذير غياب متتالٍ/);
-  assert.match(app,/consecutiveAbsenceWarning/);
+  assert.match(app,/report\.concerns\?\.\[0\]/);
+  assert.match(app,/يحتاج متابعة/);
 });
 
 test('server owns complete monthly reports and prepares previous month automatically',()=>{
@@ -87,20 +87,20 @@ test('server owns complete monthly reports and prepares previous month automatic
   assert.doesNotMatch(backend,/sendPreparedMonthlyReports|WHATSAPP_ACCESS_TOKEN|graph\.facebook\.com/);
   assert.match(sync,/getParentMonthlyReport:callable\('getParentMonthlyReport'\)/);
   assert.match(app,/function parentMonthlyReportText/);
-  assert.match(app,/التقدم مقارنة بالشهر السابق/);
-  assert.match(app,/الالتزام والمذاكرة/);
+  assert.match(app,/parent-report-kpis-v70/);
+  assert.match(app,/ملخص المتابعة/);
 });
 
 test('redesign shares a parent report image to the saved parent phone and hides archived exams',()=>{
   const app=read('assets/app.js'),admin=read('assets/admin.js'),backend=read('functions/index.js'),teacher=read('teacher-login.html'),css=read('assets/v65-redesign.css'),indexes=JSON.parse(read('firestore.indexes.json'));
-  assert.match(app,/function parentReportImageBlob/);assert.match(app,/parentReportWhatsAppIntro/);assert.match(app,/كود الطالب الموحّد/);assert.match(app,/parent\.html/);
+  assert.match(app,/function parentReportImageBlob/);assert.match(app,/parentReportWhatsAppIntro/);assert.match(app,/كود الطالب:/);assert.match(app,/parent\.html/);
   assert.match(app,/report\?\.student\?\.studentCode!==lastParentStudent\.studentCode/);
   assert.match(app,/parentReportSharePending=true/);assert.match(app,/openParentWhatsApp\('\$\{esc\(st\.studentCode\|\|''\)\}',this\)/);
   assert.match(admin,/deliverParentMonthlyReport\(report,phone/);assert.match(admin,/s\.parentPhone/);
   assert.match(backend,/exam\.archived!==true&&exam\.active!==false&&exam\.published!==false/);
   assert.match(backend,/exports\.updateStudentSafely = onCall/);assert.match(backend,/const history=availableMonths\.slice\(0,6\)/);
-  assert.match(app,/درجة آخر امتحان/);assert.match(app,/درجة آخر واجب/);assert.match(app,/parent-progress-chart-v65/);
-  assert.match(app,/technominds-logo\.png/);assert.match(app,/ترتيب المنصة/);assert.match(app,/أيام الغياب/);assert.match(app,/الالتزام:/);
+  assert.match(app,/درجة آخر امتحان/);assert.match(app,/درجة آخر واجب/);assert.match(app,/parent-report-sheet-v70/);
+  assert.match(app,/technominds-logo\.png/);assert.match(app,/ترتيب المسار/);assert.match(app,/ترتيب المجموعة/);assert.match(app,/monthlyTitle/);assert.doesNotMatch(app,/ترتيب المنصة:/);
   assert.match(teacher,/v65-enhancements\.js/);assert.match(css,/v65-quick-create/);assert.match(css,/v65-template-tools/);
   assert.ok(indexes.fieldOverrides.some(item=>item.collectionGroup==='public_cache'&&item.ttl===true));
 });
@@ -158,7 +158,7 @@ test('monthly motivation is configurable, comparative, archived and included in 
   assert.match(backend,/exports\.freezeMonthlyLeaderboard/);
   assert.match(backend,/leaderboard_archives/);
   assert.match(backend,/motivationSummary:\(source\.motivation\|\|\[\]\)/);
-  assert.match(app,/parent-motivation-summary/);
+  assert.match(app,/parent-report-facts-v70/);
   assert.match(app,/مركزك في المسار/);
   assert.match(admin,/motivationConfigForm/);
   assert.match(sync,/saveMotivationSettingsAdmin/);

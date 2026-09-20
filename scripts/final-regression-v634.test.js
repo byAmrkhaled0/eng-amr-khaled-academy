@@ -10,13 +10,14 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
 test('parent report derives required and graded states from assignments plus submissions', () => {
   const app = read('assets/app.js');
-  assert.match(app, /const assignmentRows=monthAssignments\.map/);
-  assert.match(app, /assignment\.submissionClosed\?'متأخر':'مطلوب الآن'/);
-  assert.match(app, /submission\.needsManualReview\|\|submission\.score===null\?'قيد التصحيح':'تم التصحيح'/);
-  assert.match(app, /الدرجة:.*row\.score/s);
+  assert.match(app, /const st=report\?\.student\|\|\{\},attendance=report\?\.attendance/);
+  assert.match(app, /homeworkRows=\(homework\.rows\|\|\[\]\)\.slice\(0,3\)/);
+  assert.match(app, /function parentHomeworkStatus/);
+  assert.match(app, /row\.submission\?\.score===null\|\|row\.submission\?\.score===undefined\?'قيد التصحيح'/);
   assert.match(app, /يستطيع الطالب تسليم الواجب من بوابة الطالب/);
-  const parentReport = app.slice(app.indexOf('function parentReportHTML'), app.indexOf('async function showParentReportByCode'));
+  const parentReport = app.slice(app.indexOf('function parentMonthlyReportHTML'), app.indexOf('async function loadParentMonthlyReport'));
   assert.doesNotMatch(parentReport, /assignment-answer-form/);
+  assert.doesNotMatch(parentReport, /monthAssignments|studentReportRows/);
 });
 
 test('portal navigation never adds a student code and legacy code queries are cleaned', () => {

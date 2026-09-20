@@ -42,9 +42,10 @@ test('homework grade is separate from submission in monthly motivation and paren
   assert.match(backend,/homeworkGradePct/);
   assert.match(backend,/homeworkPct\*config\.weights\.homeworkCompletion\+homeworkGradePct\*config\.weights\.homeworkGrade/);
   assert.match(backend,/where\('submittedAt','>=',periodStart\)/);
-  assert.match(app,/أهلًا بحضرتك، مع حضرتك م\. عمرو خالد/);
-  assert.match(app,/كل درجات الشهر وآخر الامتحانات/);
-  assert.match(app,/التحفيز الشهري/);
+  assert.match(app,/Techno Minds · تقرير ولي الأمر الشهري/);
+  assert.match(app,/الأداء الأكاديمي/);
+  assert.match(app,/التحفيز/);
+  assert.match(app,/monthlyTitle/);
 });
 
 test('theory lectures are independently uploaded, targeted and displayed',()=>{
