@@ -65,8 +65,9 @@ function calculateMonthlyReport(input={}){
   for(const [id,exam] of exams){
     const row=attempts.get(id),isStarted=Boolean(row),isSubmitted=Boolean(row&&!['started','in_progress'].includes(row.status)&&row.status!=='absent');
     const open=!exam.openAt||Date.parse(exam.openAt)<=new Date(now).getTime(),finished=exam.finished===true||(exam.closeAt&&Date.parse(exam.closeAt)<=new Date(now).getTime());
-    if(exam.required!==false)required++;if(open&&!finished)available++;if(isStarted)started++;if(isSubmitted)submitted++;
-    const isMissed=finished&&exam.required!==false&&!isSubmitted;
+    const isRequired=exam.required!==false&&exam.activityOnly!==true;
+    if(isRequired)required++;if(open&&!finished)available++;if(isStarted)started++;if(isSubmitted)submitted++;
+    const isMissed=finished&&isRequired&&!isSubmitted;
     if(isMissed)missed++;
     const percentage=isSubmitted?scorePercent(row):null;
     const status=isSubmitted?(percentage===null?'pending_review':'graded'):isMissed?'absent':isStarted?'started':open?'available':'upcoming';
@@ -83,19 +84,24 @@ function calculateMonthlyReport(input={}){
     const submission=raw?{...raw,score:percentage===null?null:asNumber(raw.score),percentage}:null;
     const due=assignment.dueDate?scheduledTimeMillis(assignment.dueDate.length===10?`${assignment.dueDate}T23:59:59`:assignment.dueDate):null;
     const late=Boolean(submission&&due&&Date.parse(submission.submittedAt)>due);
-    return {assignment,submission,late,status:submission?'submitted':assignment.submissionClosed||due&&due<new Date(now).getTime()?'missing':'available'};
+    const required=assignment.activityOnly!==true;
+    return {assignment,submission,required,late,status:submission?'submitted':required&&(assignment.submissionClosed||due&&due<new Date(now).getTime())?'missing':'available'};
   });
-  const submittedHw=homeworkRows.filter(row=>row.submission),missingHw=homeworkRows.filter(row=>row.status==='missing'),lateHw=submittedHw.filter(row=>row.late);
+  const requiredHw=homeworkRows.filter(row=>row.required),submittedHw=homeworkRows.filter(row=>row.submission),submittedRequiredHw=requiredHw.filter(row=>row.submission),missingHw=homeworkRows.filter(row=>row.status==='missing'),lateHw=submittedHw.filter(row=>row.late);
   const homeworkGradeAvg=average(submittedHw.map(row=>row.submission.percentage));
-  const dueHw=homeworkRows.filter(row=>row.status==='missing'||row.submission),homeworkCompletionPct=dueHw.length?clamp(submittedHw.length/dueHw.length*100):null;
+  const dueHw=requiredHw.filter(row=>row.status==='missing'||row.submission),homeworkCompletionPct=dueHw.length?clamp(submittedRequiredHw.length/dueHw.length*100):null;
   const timed=submittedHw.filter(row=>row.assignment.dueDate),onTimePct=timed.length?clamp((timed.length-lateHw.length)/timed.length*100):null;
   const progress=input.lectureProgress||[],materials=input.lectureMaterials||[],progressByLecture=new Map(progress.map(row=>[String(row.lectureId||row.id||''),row])),materialIds=new Set(materials.map(row=>String(row.id||'')));
   const lectureRows=[...materials.map(material=>{const progressRow=progressByLecture.get(String(material.id))||null;return {material,progress:progressRow,viewed:Boolean(progressRow&&(progressRow.viewed===true||Number(progressRow.percent)>0)),completed:Boolean(progressRow&&(progressRow.completionVerified===true||progressRow.completionEvidence==='assessment'))};}),...progress.filter(row=>!materialIds.has(String(row.lectureId||row.id||''))).map(progressRow=>({material:null,progress:progressRow,viewed:progressRow.viewed===true||Number(progressRow.percent)>0,completed:progressRow.completionVerified===true||progressRow.completionEvidence==='assessment'}))];
   const opened=lectureRows.filter(row=>row.viewed).length,verified=lectureRows.filter(row=>row.completed).length;
   const recitations=input.recitations||[],completedPractical=recitations.filter(row=>row.approved===true||row.completed===true).length;
+  const lectureCompletionPct=lectureRows.length?clamp(verified/lectureRows.length*100):null;
   const academicScore=weighted([{value:gradeAvg,weight:70},{value:homeworkGradeAvg,weight:30}]);
-  const commitmentScore=weighted([{value:attendancePct,weight:60},{value:homeworkCompletionPct,weight:30},{value:onTimePct,weight:10}]);
-  const overallScore=weighted([{value:academicScore,weight:60},{value:commitmentScore,weight:40}]);
+  const commitmentScore=weighted([{value:attendancePct,weight:50},{value:homeworkCompletionPct,weight:30},{value:onTimePct,weight:10},{value:lectureCompletionPct,weight:10}]);
+  const motivationRow=input.motivationSummary,motivation=motivationRow?{totalPoints:Math.trunc(Number(motivationRow.totalPoints||0)),transactionCount:Math.max(0,Number(motivationRow.transactionCount||0)),lastReason:String(motivationRow.lastReason||'')}:null;
+  const baseOverallScore=weighted([{value:academicScore,weight:60},{value:commitmentScore,weight:40}]);
+  const motivationBonus=baseOverallScore===null||!motivation?0:Math.max(-3,Math.min(3,Math.trunc(motivation.totalPoints/10)));
+  const overallScore=baseOverallScore===null?null:clamp(baseOverallScore+motivationBonus);
   const strengths=[],concerns=[],recommendations=[];
   const absenceWarning=consecutiveAbsenceWarning(attendance);if(absenceWarning?.active){concerns.push(absenceWarning.message);recommendations.push('تواصل مع المعلم لتحديد سبب الغياب وخطة تعويض الحصص.');}
   if(gradeAvg!==null&&gradeAvg>=75)strengths.push('نتائج أكاديمية جيدة في الاختبارات المصححة');
@@ -108,15 +114,16 @@ function calculateMonthlyReport(input={}){
   if(opened)warnings.push('فتح المحاضرة أو تقدم المشغّل لا يثبت إكمالها أو فهمها.');
   const activityCount=recorded.length+submittedHw.length+rows.length+recitations.length+opened;
   const payment=input.payment;
-  const motivationRow=input.motivationSummary,motivation=motivationRow?{totalPoints:Math.trunc(Number(motivationRow.totalPoints||0)),transactionCount:Math.max(0,Number(motivationRow.transactionCount||0)),lastReason:String(motivationRow.lastReason||'')}:null;
   const summaryNote=attendancePct!==null&&attendancePct<70?'يحتاج الطالب إلى تحسين انتظام الحضور، لأن الغياب يؤثر على تقدمه.':missingHw.length&&gradeAvg!==null&&gradeAvg>=75?'نتائج الطالب في الامتحانات جيدة، لكنه يحتاج إلى انتظام أكبر في تسليم الواجبات.':missingHw.length?'يحتاج الطالب إلى استكمال الواجبات الناقصة والانتظام في التسليم.':materials.length&&opened<materials.length?'يحتاج إلى متابعة المحاضرات بصورة أكثر انتظامًا.':overallScore!==null&&overallScore>=75?'الطالب ملتزم ويحقق مستوى جيدًا ومستقرًا هذا الشهر.':'يحتاج الطالب إلى متابعة المؤشرات الأضعف المسجلة هذا الشهر.';
-  return {schemaVersion:3,policyVersion:'monthly-v2-latest-attempt',monthKey,student:{studentCode:String(student.studentCode||student.code||student.id||''),name:student.studentName||student.name||'',grade:student.grade||'',group:student.group||'',academicYear:student.academicYear||''},
-    overallScore,level:levelLabel(overallScore),academicScore,academicLevel:levelLabel(academicScore),commitmentScore,commitmentLevel:commitmentLabel(commitmentScore),activityCount,sufficientData:scored.length>=2,
+  const sufficientData=scored.length>=2||(attendancePct!==null&&requiredHw.length>0);
+  const monthlyTitle=!sufficientData?'بيانات الشهر غير مكتملة':overallScore>=90?'متفوق الشهر':gradeAvg>=90?'مبرمج الشهر':attendancePct>=95?'نجم الحضور':homeworkCompletionPct===100&&homeworkGradeAvg>=80?'بطل الواجبات':overallScore>=80?'المهندس البارع':overallScore>=70?'نجم الالتزام':'نجم التطور';
+  return {schemaVersion:4,policyVersion:'monthly-v3-activity-date',monthKey,student:{studentCode:String(student.studentCode||student.code||student.id||''),name:student.studentName||student.name||'',grade:student.grade||'',group:student.group||'',academicYear:student.academicYear||''},
+    overallScore,baseOverallScore,motivationBonus,level:levelLabel(overallScore),monthlyTitle,academicScore,academicLevel:levelLabel(academicScore),commitmentScore,commitmentLevel:commitmentLabel(commitmentScore),activityCount,sufficientData,
     comparisonBasis:[gradeAvg!==null,homeworkGradeAvg!==null,attendancePct!==null,homeworkCompletionPct!==null,onTimePct!==null].join(','),
     attendance:{total:attendance.length,required:entitlementKnown?sessions.length:null,entitlementKnown,present,late,absent,excused,unrecorded,percentage:attendancePct,rows:attendance,consecutiveAbsenceWarning:consecutiveAbsenceWarning(attendance)},
     results:{count:rows.length,gradedCount:scored.length,average:gradeAvg,rows,requiredExams:required,availableExams:available,startedExams:started,submittedExams:submitted,attendedExams:submitted,missedExams:missed,pendingReview:awaiting,retakePolicy:'أحدث محاولة؛ إن كانت تنتظر التصحيح تُستبعد من المتوسط حتى اعتمادها.'},
-    homework:{required:assignments.length,submitted:submittedHw.length,missing:missingHw.length,late:lateHw.length,completionPercentage:homeworkCompletionPct,averageGrade:homeworkGradeAvg,onTimePercentage:onTimePct,rows:homeworkRows},
-    practical:{count:recitations.length,completed:completedPractical,percentage:null,rows:recitations},study:{lecturesAvailable:lectureRows.length,lecturesOpened:opened,lecturesCompleted:verified,lectureCompletionPercentage:lectureRows.length?clamp(verified/lectureRows.length*100):null,rows:lectureRows},
+    homework:{required:requiredHw.length,submitted:submittedHw.length,submittedRequired:submittedRequiredHw.length,missing:missingHw.length,available:requiredHw.filter(row=>row.status==='available').length,graded:submittedHw.filter(row=>row.submission.percentage!==null).length,late:lateHw.length,completionPercentage:homeworkCompletionPct,scorePercentage:homeworkGradeAvg,averageGrade:homeworkGradeAvg,onTimePercentage:onTimePct,rows:homeworkRows},
+    practical:{count:recitations.length,completed:completedPractical,percentage:null,rows:recitations},study:{lecturesAvailable:lectureRows.length,lecturesOpened:opened,lecturesCompleted:verified,lectureCompletionPercentage:lectureCompletionPct,rows:lectureRows},
     payment:payment?{status:payment.status,expectedAmount:payment.expectedAmount,paidAmount:payment.paidAmount,remainingAmount:payment.remainingAmount}:null,motivation,
     strengths,concerns,recommendations,warnings,summaryNote,teacherNotes:String(input.teacherNotes||'')};
 }
