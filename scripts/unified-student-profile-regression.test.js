@@ -100,10 +100,23 @@ test('homework grades use real submissions and review activity dates',()=>{
 test('backend unions legacy attendance identities and activity dates with bounded queries',()=>{
   const backend=read('functions/index.js');
   assert.match(backend,/legacyFields\.map\(field=>db\.collection\(collection\)\.where\(field,'==',studentCode\)\.get\(\)\)/);
+  assert.match(backend,/const rows=await reportRowsByStudent\(collection,studentCode,studentFields\)/);
+  assert.match(backend,/monthKeys\.some\(monthKey=>rowMatchesMonth\(row,dateFields,monthKey\)\)/);
+  assert.doesNotMatch(backend,/dateFields\.map\(dateField=>reportRowsForPeriod/);
   assert.match(backend,/dateFields:\['date','submittedAt','reviewedAt','updatedAt'\]/);
   assert.match(backend,/dateFields:\['startedAt','submittedAt','reviewedAt','updatedAt'\]/);
   assert.match(backend,/reportReferencedDocuments\('assignments'/);
   assert.match(backend,/motivation_monthly','motivation_transactions'/);
+  assert.match(backend,/historicalScheduleIds=\[\.\.\.new Set\(\[scheduleId,[\s\S]*\]\.map\(String\)\.filter\(Boolean\)\)\]/);
+});
+
+test('student profile does not wait for a cold full-platform leaderboard rebuild',()=>{
+  const backend=read('functions/index.js'),start=backend.indexOf('exports.getStudentAdminProfile ='),end=backend.indexOf('\nexports.',start+1),source=backend.slice(start,end);
+  assert.match(source,/availableStudentReportRanking\(found\.data,periodKey\)/);
+  assert.doesNotMatch(source,/studentReportRanking\(found\.data,periodKey\)/);
+  assert.match(source,/profileResults=normalizeUnifiedResults/);
+  assert.match(source,/homeworks:monthlyReport\.homework\.rows/);
+  assert.match(backend,/legacy\/orphan submission visible/);
 });
 
 test('unified profile shows motivation transactions and delegates tab navigation',()=>{
