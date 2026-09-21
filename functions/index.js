@@ -2011,8 +2011,13 @@ async function reportRowsForPeriod(collection,studentCode,{studentFields=['stude
 }
 
 async function reportRowsForAnyPeriodField(collection,studentCode,{studentFields=['studentCode'],dateFields=[],dateType='timestamp',monthKeys=[]}={}) {
-  const groups=await Promise.all(dateFields.map(dateField=>reportRowsForPeriod(collection,studentCode,{studentFields,dateField,dateType,monthKeys})));
-  const rows=new Map();groups.flat().forEach(row=>rows.set(row.id,row));return [...rows.values()];
+  // A multi-date activity (start, submit, review, update) must match when any
+  // field belongs to the requested month. Fetch the student's own bounded
+  // history once, then filter it locally. This avoids one composite index and
+  // two timestamp/string queries per date field without scanning the collection.
+  const rows=await reportRowsByStudent(collection,studentCode,studentFields);
+  if(!monthKeys.length)return rows;
+  return rows.filter(row=>monthKeys.some(monthKey=>rowMatchesMonth(row,dateFields,monthKey)));
 }
 
 async function reportContentForPeriod(collection,dateField,monthKeys=[]) {
@@ -2037,8 +2042,11 @@ async function reportSubcollectionForPeriod(ref,dateField,monthKeys=[]) {
 }
 
 async function reportSubcollectionForAnyPeriodField(ref,dateFields,monthKeys=[]) {
-  const groups=await Promise.all(dateFields.map(field=>reportSubcollectionForPeriod(ref,field,monthKeys)));
-  const rows=new Map();groups.flat().forEach(row=>rows.set(row.id,row));return [...rows.values()];
+  // This subcollection already belongs to one student, so a single bounded
+  // read is cheaper and does not require an index for every activity date.
+  const snap=await ref.get(),rows=snap.docs.map(doc=>({id:doc.id,...doc.data()}));
+  if(!monthKeys.length)return rows;
+  return rows.filter(row=>monthKeys.some(monthKey=>rowMatchesMonth(row,dateFields,monthKey)));
 }
 
 async function reportReferencedDocuments(collection,ids,knownRows=[]) {

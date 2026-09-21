@@ -100,6 +100,9 @@ test('homework grades use real submissions and review activity dates',()=>{
 test('backend unions legacy attendance identities and activity dates with bounded queries',()=>{
   const backend=read('functions/index.js');
   assert.match(backend,/legacyFields\.map\(field=>db\.collection\(collection\)\.where\(field,'==',studentCode\)\.get\(\)\)/);
+  assert.match(backend,/const rows=await reportRowsByStudent\(collection,studentCode,studentFields\)/);
+  assert.match(backend,/monthKeys\.some\(monthKey=>rowMatchesMonth\(row,dateFields,monthKey\)\)/);
+  assert.doesNotMatch(backend,/dateFields\.map\(dateField=>reportRowsForPeriod/);
   assert.match(backend,/dateFields:\['date','submittedAt','reviewedAt','updatedAt'\]/);
   assert.match(backend,/dateFields:\['startedAt','submittedAt','reviewedAt','updatedAt'\]/);
   assert.match(backend,/reportReferencedDocuments\('assignments'/);
