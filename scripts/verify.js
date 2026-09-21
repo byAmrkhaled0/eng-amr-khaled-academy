@@ -191,6 +191,12 @@ if (!appSourceCode.includes('formatTime12') || !adminSourceCode.includes('format
 if (!failures.some(x => x.includes('admin loading') || x.includes('staff browser cache') || x.includes('student rendering'))) ok('Admin performance safeguards passed');
 
 const rules = read('firestore.rules');
+for (const configFile of ['vercel.json','firebase.json']) {
+  const hostingConfig=read(configFile);
+  for (const header of ['Strict-Transport-Security','Cross-Origin-Opener-Policy','X-Permitted-Cross-Domain-Policies','Content-Security-Policy','X-Content-Type-Options','Referrer-Policy','Permissions-Policy']) {
+    if (!hostingConfig.includes(header)) fail(`${configFile} is missing security header ${header}`);
+  }
+}
 if (!rules.includes('match /exam_sessions/{id}') || !rules.includes('allow read, write: if false;')) fail('Exam session rules are not closed');
 if (!rules.includes('match /bookings/{bookingCode}') || !rules.includes('allow create: if false;')) fail('Public booking direct creation is not closed');
 if (!rules.includes('match /reviews/{reviewId}') || !rules.includes('allow create: if false;')) fail('Public review direct creation is not closed');

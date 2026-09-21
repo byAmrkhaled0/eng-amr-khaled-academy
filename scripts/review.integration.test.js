@@ -63,7 +63,6 @@ test('shared backup restores old and complete nested snapshots without removing 
 });
 test('report cache invalidates after a corrected grade and never exposes internal notes',async()=>{
  await db.doc(`students/${code}`).set({notes:'INTERNAL SECRET'},{merge:true});
- await db.doc('groups/review-group').set({days:''},{merge:true});
  await db.doc('class_sessions/review-september-session').set({scheduleId:'review-group',group:'تجريبية',date:'2026-09-10',status:'closed'});
  await db.doc('attendance/review-september-attendance').set({studentCode:code,classSessionId:'review-september-session',scheduleId:'review-group',date:'2026-09-10',status:'present'});
  await db.doc('exams/review-september-exam').set({title:'امتحان في الدنيا منه',grade:course,published:true,required:true,openAt:'2026-09-08T08:00:00Z',closeAt:'2026-09-09T08:00:00Z',totalScore:15});
