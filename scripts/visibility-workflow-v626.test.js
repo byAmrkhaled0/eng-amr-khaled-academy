@@ -14,10 +14,10 @@ const {
   learningTargetMatchesStudent
 } = require('../functions/lib/academic-targeting');
 
-test('the platform exposes only the four requested academic tracks', () => {
-  const expected = ['أولى ثانوي بكالوريا', 'تانية ثانوي بكالوريا', 'أساسيات برمجة', 'مبتدئين برمجة'];
+test('the platform exposes only the three requested academic tracks', () => {
+  const expected = ['أولى ثانوي بكالوريا', 'تانية ثانوي بكالوريا', 'أساسيات برمجة'];
   assert.deepEqual(ACADEMIC_GRADES, expected);
-  assert.match(read('assets/app.js'), /var GRADES = \['أولى ثانوي بكالوريا','تانية ثانوي بكالوريا','أساسيات برمجة','مبتدئين برمجة'\]/);
+  assert.match(read('assets/app.js'), /var GRADES = \['أولى ثانوي بكالوريا','تانية ثانوي بكالوريا','أساسيات برمجة'\]/);
   const leaderboard = read('index.html').match(/<select id="leaderboardGrade">([\s\S]*?)<\/select>/)?.[1] || '';
   for (const grade of expected) assert.match(leaderboard, new RegExp(`<option>${grade}<\\/option>`));
   for (const removed of ['تانية ثانوي عام', 'أساسيات Python', 'تطبيقات ومراجعة']) assert.doesNotMatch(leaderboard, new RegExp(removed));
@@ -30,6 +30,7 @@ test('legacy grade spellings resolve to the new tracks', () => {
   assert.equal(canonicalAcademicLabel('ثانية ثانوي عام'), 'تانية ثانوي بكالوريا');
   assert.equal(canonicalAcademicLabel('أساسيات Python'), 'أساسيات برمجة');
   assert.equal(canonicalAcademicLabel('تطبيقات ومراجعة'), 'أساسيات برمجة');
+  assert.equal(canonicalAcademicLabel('مبتدئين برمجة'), 'أساسيات برمجة');
   assert.equal(sameAcademicValue('تانيه ثانوي', 'تانية ثانوي بكالوريا'), true);
 });
 

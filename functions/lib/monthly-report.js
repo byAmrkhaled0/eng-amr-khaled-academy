@@ -65,7 +65,11 @@ function calculateMonthlyReport(input={}){
   const present=count('present'),late=count('late'),absent=count('absent'),excused=count('excused'),unrecorded=count('unrecorded');
   const entitlementKnown=input.sessionsComplete===true;
   const denominator=attendance.length-excused;
-  const attendancePct=entitlementKnown&&!unrecorded&&denominator>0?clamp((present+late)/denominator*100):null;
+  // Scheduled days are the denominator. An unrecorded scheduled day stays
+  // visibly "unrecorded" (not a fabricated absence). Once at least one real
+  // attendance row exists it counts in the denominator; an entirely
+  // unrecorded month remains insufficient instead of inventing a 0% result.
+  const attendancePct=denominator>0&&recorded.length>0?clamp((present+late)/denominator*100):null;
   const attempts=newestBy([...(input.grades||[]),...(input.examAttempts||[])],row=>String(row.examId||row.id||''));
   const exams=new Map((input.exams||[]).filter(e=>e.cancelled!==true&&e.status!=='cancelled').map(e=>[String(e.id||e.examId),e]));
   const rows=[];let required=0,available=0,started=0,submitted=0,missed=0,awaiting=0;
@@ -127,7 +131,7 @@ function calculateMonthlyReport(input={}){
   const academicEvidenceSufficient=scored.length>=2||(scored.length>=1&&gradedHomeworkCount>=1);
   const sufficientData=academicEvidenceSufficient||(attendancePct!==null&&requiredHw.length>0);
   const monthlyTitle=academicEvidenceSufficient&&overallScore>=90?'متفوق الشهر':academicEvidenceSufficient&&gradeAvg>=90?'مبرمج الشهر':attendancePct>=95&&attendance.length>=2?'نجم الحضور':homeworkCompletionPct===100&&homeworkGradeAvg>=80?'بطل الواجبات':academicEvidenceSufficient&&overallScore>=80?'المهندس البارع':activityCount&&overallScore!==null&&overallScore>=70?'نجم الالتزام':activityCount?'نجم التطور':'بيانات الشهر غير مكتملة';
-  return {schemaVersion:5,policyVersion:'monthly-v4-all-activity-dates',monthKey,student:{studentCode:String(student.studentCode||student.code||student.id||''),name:student.studentName||student.name||'',grade:student.grade||'',group:student.group||'',academicYear:student.academicYear||''},
+  return {schemaVersion:6,policyVersion:'monthly-v5-scheduled-group-days',monthKey,student:{studentCode:String(student.studentCode||student.code||student.id||''),name:student.studentName||student.name||'',grade:student.grade||'',group:student.group||'',academicYear:student.academicYear||''},
     overallScore,baseOverallScore,motivationBonus,level:levelLabel(overallScore),monthlyTitle,academicScore,academicLevel:levelLabel(academicScore),academicEvidenceCount,academicEvidenceSufficient,commitmentScore,commitmentLevel:commitmentLabel(commitmentScore),activityCount,sufficientData,
     comparisonBasis:[gradeAvg!==null,homeworkGradeAvg!==null,attendancePct!==null,homeworkCompletionPct!==null,onTimePct!==null].join(','),
     attendance:{total:attendance.length,required:entitlementKnown?sessions.length:null,entitlementKnown,present,late,absent,excused,unrecorded,percentage:attendancePct,rows:attendance,consecutiveAbsenceWarning:consecutiveAbsenceWarning(attendance)},

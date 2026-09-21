@@ -9,8 +9,7 @@ function normalizeDigits(value) {
 const ACADEMIC_GRADES = Object.freeze([
   'أولى ثانوي بكالوريا',
   'تانية ثانوي بكالوريا',
-  'أساسيات برمجة',
-  'مبتدئين برمجة'
+  'أساسيات برمجة'
 ]);
 
 function baseAcademicValue(value) {
@@ -48,9 +47,10 @@ const GRADE_ALIASES = new Map([
   ['اساسيات بايثون', 'اساسيات برمجة'],
   ['تطبيقات ومراجعة', 'اساسيات برمجة'],
   ['تطبيقات و مراجعة', 'اساسيات برمجة'],
-  ['مبتدئين برمجة', 'مبتدئين برمجة'],
-  ['مبتدئين برمجه', 'مبتدئين برمجة'],
-  ['مبتدئين', 'مبتدئين برمجة']
+  // Preserve old students/content without exposing a fourth public track.
+  ['مبتدئين برمجة', 'اساسيات برمجة'],
+  ['مبتدئين برمجه', 'اساسيات برمجة'],
+  ['مبتدئين', 'اساسيات برمجة']
 ]);
 
 const CANONICAL_LABELS = new Map(ACADEMIC_GRADES.map(label => [baseAcademicValue(label), label]));
