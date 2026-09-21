@@ -1917,7 +1917,7 @@ exports.getStudentAdminProfile = onCall(CALLABLE_OPTIONS, async request => {
   const [source,notesSnap,ranking,motivationTransactionsSnap]=await Promise.all([
     loadStudentMonthlyReportSource(found.data,{monthKeys:[periodKey]}),
     db.collection('student_notes').where('studentCode','==',studentCode).orderBy('createdAt','desc').limit(80).get().catch(()=>null),
-    studentReportRanking(found.data,periodKey).catch(()=>null),
+    availableStudentReportRanking(found.data,periodKey).catch(()=>null),
     db.collection('motivation_transactions').where('periodId','==',motivationPeriodKey).limit(80).get().catch(()=>null)
   ]);
   // This callable is Admin-only. Keep the public portal projection safe, then
@@ -1936,8 +1936,12 @@ exports.getStudentAdminProfile = onCall(CALLABLE_OPTIONS, async request => {
   };
   const monthlyReport=calculateMonthlyReport(monthlyReportInput(found.data,source,periodKey));
   if(ranking)monthlyReport.motivation={...(monthlyReport.motivation||{}),...ranking};
+  const profileResults=normalizeUnifiedResults({
+    grades:monthlyReport.results.rows,
+    homeworks:monthlyReport.homework.rows.filter(row=>row.submission).map(row=>({...row.submission,assignmentId:row.assignment.id,homeworkTitle:row.assignment.title,maxScore:row.submission.maxScore||row.assignment.totalScore}))
+  });
   const motivationTransactions=motivationTransactionsSnap?motivationTransactionsSnap.docs.map(doc=>publicMotivationTransaction(doc.id,doc.data())).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt))):[];
-  return { student, period:{academicYear,month,monthKey:periodKey}, monthlyReport, attendance:monthlyReport.attendance.rows, grades:monthlyReport.results.rows, results:monthlyReport.results.rows, examAttempts:monthlyReport.results.rows, homeworks:monthlyReport.homework.rows, lectures:monthlyReport.study.rows, recitations:monthlyReport.practical.rows, monthlyPayments:source.payments, motivationSummaries:source.motivation, motivationTransactions, privateNotes:notesSnap?notesSnap.docs.map(doc=>({id:doc.id,...doc.data()})):[] };
+  return { student, period:{academicYear,month,monthKey:periodKey}, monthlyReport, attendance:monthlyReport.attendance.rows, grades:profileResults, results:profileResults, examAttempts:monthlyReport.results.rows, homeworks:monthlyReport.homework.rows, lectures:monthlyReport.study.rows, recitations:monthlyReport.practical.rows, monthlyPayments:source.payments, motivationSummaries:source.motivation, motivationTransactions, privateNotes:notesSnap?notesSnap.docs.map(doc=>({id:doc.id,...doc.data()})):[] };
 });
 
 const REPORT_STUDENT_SOURCES=['attendance','grades','homework_submissions','exam_attempts','exam_sessions','recitations','monthly_payments','motivation_monthly','motivation_transactions','student_transfer_requests','students'];
@@ -2011,8 +2015,13 @@ async function reportRowsForPeriod(collection,studentCode,{studentFields=['stude
 }
 
 async function reportRowsForAnyPeriodField(collection,studentCode,{studentFields=['studentCode'],dateFields=[],dateType='timestamp',monthKeys=[]}={}) {
-  const groups=await Promise.all(dateFields.map(dateField=>reportRowsForPeriod(collection,studentCode,{studentFields,dateField,dateType,monthKeys})));
-  const rows=new Map();groups.flat().forEach(row=>rows.set(row.id,row));return [...rows.values()];
+  // A multi-date activity (start, submit, review, update) must match when any
+  // field belongs to the requested month. Fetch the student's own bounded
+  // history once, then filter it locally. This avoids one composite index and
+  // two timestamp/string queries per date field without scanning the collection.
+  const rows=await reportRowsByStudent(collection,studentCode,studentFields);
+  if(!monthKeys.length)return rows;
+  return rows.filter(row=>monthKeys.some(monthKey=>rowMatchesMonth(row,dateFields,monthKey)));
 }
 
 async function reportContentForPeriod(collection,dateField,monthKeys=[]) {
@@ -2037,8 +2046,11 @@ async function reportSubcollectionForPeriod(ref,dateField,monthKeys=[]) {
 }
 
 async function reportSubcollectionForAnyPeriodField(ref,dateFields,monthKeys=[]) {
-  const groups=await Promise.all(dateFields.map(field=>reportSubcollectionForPeriod(ref,field,monthKeys)));
-  const rows=new Map();groups.flat().forEach(row=>rows.set(row.id,row));return [...rows.values()];
+  // This subcollection already belongs to one student, so a single bounded
+  // read is cheaper and does not require an index for every activity date.
+  const snap=await ref.get(),rows=snap.docs.map(doc=>({id:doc.id,...doc.data()}));
+  if(!monthKeys.length)return rows;
+  return rows.filter(row=>monthKeys.some(monthKey=>rowMatchesMonth(row,dateFields,monthKey)));
 }
 
 async function reportReferencedDocuments(collection,ids,knownRows=[]) {
@@ -2073,7 +2085,7 @@ async function loadStudentMonthlyReportSource(student,options={}) {
   const [attendance,grades,homeworks,recitations,payments,motivation,attempts,legacyAttempts,progressEvents,progressLectures,assignmentsResult,examsResult,materialsResult]=await Promise.all([
     reportRowsForPeriod('attendance',studentCode,{studentFields:['studentCode','studentId','code'],dateField:'date',dateType:'string',monthKeys}),reportRowsForAnyPeriodField('grades',studentCode,{studentFields:['studentCode','studentId','code'],dateFields:['date','submittedAt','reviewedAt','updatedAt'],monthKeys}),reportRowsForAnyPeriodField('homework_submissions',studentCode,{studentFields:['studentCode','studentId','code'],dateFields:['submittedAt','reviewedAt','gradedAt','updatedAt'],monthKeys}),reportRowsForPeriod('recitations',studentCode,{dateField:'date',dateType:'string',monthKeys}),monthKeys.length?reportAcademicRowsForPeriods('monthly_payments',studentCode,monthKeys):reportRowsByStudent('monthly_payments',studentCode),monthKeys.length?reportAcademicRowsForPeriods('motivation_monthly',studentCode,monthKeys):reportRowsByStudent('motivation_monthly',studentCode),reportRowsForAnyPeriodField('exam_attempts',studentCode,{studentFields:['studentCode','studentId','code'],dateFields:['startedAt','submittedAt','reviewedAt','updatedAt'],monthKeys}),reportSubcollectionForAnyPeriodField(db.collection('student_attempts').doc(cleanDocId(studentCode)).collection('attempts'),['startedAt','submittedAt','reviewedAt'],monthKeys),reportSubcollectionForAnyPeriodField(progressRef.collection('monthly_events'),['lastOpenedAt','completedAt'],monthKeys),reportSubcollectionForAnyPeriodField(progressRef.collection('lectures'),['lastOpenedAt','completedAt'],monthKeys),options.sharedAssignments?Promise.resolve(options.sharedAssignments):reportContentForPeriod('assignments','publishAt',monthKeys),options.sharedExams?Promise.resolve(options.sharedExams):reportContentForPeriod('exams','openAt',monthKeys),reportContentForPeriod('materials','createdAt',monthKeys)
   ]);
-  const scheduleId=String(student.scheduleId||student.groupId||''),historicalScheduleIds=[...new Set([scheduleId,...transfers.flatMap(t=>[t.currentScheduleId,t.previousScheduleId,t.oldScheduleId,t.newScheduleId]).map(String).filter(Boolean)])];
+  const scheduleId=String(student.scheduleId||student.groupId||''),historicalScheduleIds=[...new Set([scheduleId,...transfers.flatMap(t=>[t.currentScheduleId,t.previousScheduleId,t.oldScheduleId,t.newScheduleId])].map(String).filter(Boolean))];
   const sessionGroups=await Promise.all(historicalScheduleIds.map(id=>reportRowsForPeriod('class_sessions',id,{studentFields:['scheduleId'],dateField:'date',dateType:'string',monthKeys})));
   const sessions=sessionGroups.flat(),groupSnapshots=historicalScheduleIds.length?await db.getAll(...historicalScheduleIds.map(id=>db.collection('groups').doc(cleanDocId(id)))):[];
   const groupRows=groupSnapshots.filter(snap=>snap.exists).map(snap=>({id:snap.id,...snap.data()}));
@@ -2124,6 +2136,10 @@ function monthlyReportInput(student,source,monthKey) {
   const monthlyHomeworks=inMonth(source.homeworks,['submittedAt','reviewedAt','gradedAt','updatedAt']);
   const requiredAssignments=inMonth(source.assignments,['publishAt']),activityAssignmentIds=new Set(monthlyHomeworks.map(row=>String(row.assignmentId)).filter(Boolean));
   const assignments=[...requiredAssignments,...source.assignments.filter(row=>activityAssignmentIds.has(String(row.id))&&!requiredAssignments.some(item=>String(item.id)===String(row.id))).map(row=>({...row,activityOnly:true}))];
+  const assignmentIds=new Set(assignments.map(row=>String(row.id)));
+  // Keep a legacy/orphan submission visible even if its old assignment record
+  // was removed. It is activity only, so it never inflates the required count.
+  monthlyHomeworks.forEach(row=>{const id=String(row.assignmentId||'');if(id&&!assignmentIds.has(id)){assignments.push({id,title:row.homeworkTitle||row.title||'واجب سابق',totalScore:Number(row.maxScore||row.totalScore||100),activityOnly:true});assignmentIds.add(id);}});
   const monthlyAttempts=inMonth(source.examAttempts,['startedAt','submittedAt','reviewedAt','date']);
   const monthlyGrades=inMonth(source.grades,['reviewedAt','submittedAt','date']);
   const requiredExams=inMonth(source.exams,['openAt','createdAt']),activityExamIds=new Set([...monthlyAttempts,...monthlyGrades].map(row=>String(row.examId)).filter(Boolean));
@@ -2895,12 +2911,28 @@ function enrichLeaderboardRows(rows,previousRows=[]){
   });
 }
 
-async function studentReportRanking(student,monthKey){
-  const studentCode=normalizeCode(student.studentCode||student.code||student.id),grade=canonicalLeaderboardGrade(student.grade),period=periodFromMonthKey(monthKey),currentRows=await leaderboardRowsForPeriod(period.academicYear,period.monthName);
+function studentRankingFromRows(student,monthKey,currentRows){
+  const studentCode=normalizeCode(student.studentCode||student.code||student.id),grade=canonicalLeaderboardGrade(student.grade),period=periodFromMonthKey(monthKey);
   const sameGrade=row=>canonicalLeaderboardGrade(row.grade)===grade,rows=enrichLeaderboardRows(currentRows.filter(sameGrade)),index=rows.findIndex(row=>row.studentCode===studentCode);
   if(index<0)return {rank:null,groupRank:null,totalStudents:rows.length,score:null,level:'بيانات غير كافية',rankScope:'grade',rankScopeLabel:'المسار',groupRankScope:'group',groupRankScopeLabel:'المجموعة',periodMonth:period.monthName,periodMonthKey:period.monthKey};
   const row=rows[index];
   return {...row,name:undefined,studentCode:undefined,rank:index+1,totalStudents:rows.length,rankScope:'grade',rankScopeLabel:'المسار',groupRankScope:'group',groupRankScopeLabel:'المجموعة',periodMonth:period.monthName,periodMonthKey:period.monthKey};
+}
+
+async function availableStudentReportRanking(student,monthKey){
+  const period=periodFromMonthKey(monthKey),current=leaderboardPeriod(),cached=leaderboardCacheByPeriod.get(period.monthKey);
+  if(cached&&cached.expiresAt>Date.now())return studentRankingFromRows(student,monthKey,cached.rows);
+  // Do not make the 30-second profile request rebuild the whole live leaderboard.
+  if(period.monthKey===current.monthKey)return null;
+  const archived=await db.collection('leaderboard_archives').where('monthKey','==',period.monthKey).limit(ACADEMIC_GRADES.length).get();
+  if(archived.empty)return null;
+  const rows=archived.docs.flatMap(doc=>Array.isArray(doc.data()?.rows)?doc.data().rows:[]);
+  return studentRankingFromRows(student,monthKey,rows);
+}
+
+async function studentReportRanking(student,monthKey){
+  const period=periodFromMonthKey(monthKey),currentRows=await leaderboardRowsForPeriod(period.academicYear,period.monthName);
+  return studentRankingFromRows(student,monthKey,currentRows);
 }
 
 async function leaderboardRowsForGradeWithFallback(grade){
