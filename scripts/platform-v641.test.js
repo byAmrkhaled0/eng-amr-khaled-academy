@@ -45,7 +45,7 @@ test('monthly report separates academic level from study commitment and lists mi
 
 test('monthly report exposes exact payment and monthly motivation without malformed exam markup',()=>{
   const report=calculateMonthlyReport({monthKey:'2026-09',student:{studentCode:'ST-123456',name:'طالب'},payment:{status:'partial',expectedAmount:500,paidAmount:300,remainingAmount:200},motivationSummary:{totalPoints:8,transactionCount:2,lastReason:'حل الواجب'}});
-  assert.equal(report.schemaVersion,5);assert.equal(report.payment.remainingAmount,200);assert.equal(report.motivation.totalPoints,8);assert.equal(report.motivation.lastReason,'حل الواجب');
+  assert.equal(report.schemaVersion,6);assert.equal(report.payment.remainingAmount,200);assert.equal(report.motivation.totalPoints,8);assert.equal(report.motivation.lastReason,'حل الواجب');
   const app=read('assets/app.js'),backend=read('functions/index.js');
   assert.match(app,/function parentReportPaymentLabel/);assert.match(app,/motivation\.transactionCount/);assert.match(app,/navigator\.canShare/);
   assert.doesNotMatch(app,/class="badge \$\{esc\(monthlyResultStatus\(row\)\)\}<\/span>/);

@@ -7,7 +7,7 @@
   ];
   let active='lectures',rows=[],cursor=null,hasMore=false,editing=null;
 
-  const gradeOptions='<option value="">اختر الصف</option><option>أولى ثانوي بكالوريا</option><option>تانية ثانوي بكالوريا</option><option>أساسيات برمجة</option><option>مبتدئين برمجة</option>';
+  const gradeOptions='<option value="">اختر الصف</option><option>أولى ثانوي بكالوريا</option><option>تانية ثانوي بكالوريا</option><option>أساسيات برمجة</option>';
   const termOptions='<option value="">اختر الترم</option><option>الترم الأول</option><option>الترم الثاني</option>';
   const groupsForGrade=grade=>(typeof adminData!=='undefined'&&Array.isArray(adminData.groups)?adminData.groups:[]).filter(group=>group.active!==false&&(!grade||typeof window.adminSameAcademic!=='function'||window.adminSameAcademic(group.grade,grade)));
   const groupOptions=(grade,selected='')=>`<option value="">كل المجموعات</option>${groupsForGrade(grade).map(group=>`<option value="${safe(group.name||group.group||'')}" data-schedule-id="${safe(group.id||group.scheduleId||'')}" ${String(group.name||group.group||'')===String(selected)?'selected':''}>${safe(group.name||group.group||'')}</option>`).join('')}`;

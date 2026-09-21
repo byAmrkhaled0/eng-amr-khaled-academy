@@ -59,11 +59,49 @@ test('attendance and an ungraded homework cannot award a strong academic title',
   assert.doesNotMatch(report.monthlyTitle,/^(متفوق الشهر|مبرمج الشهر|المهندس البارع)$/);
 });
 
+test('scheduled group days remain in the monthly attendance denominator',()=>{
+  const report=calculateMonthlyReport({
+    monthKey:'2026-09',now:new Date('2026-09-21T12:00:00Z'),student:{studentCode:'ST-123456',scheduleId:'g1'},sessionsComplete:true,
+    sessions:[
+      {id:'g1-01',scheduleId:'g1',date:'2026-09-01'},
+      {id:'g1-04',scheduleId:'g1',date:'2026-09-04'},
+      {id:'g1-08',scheduleId:'g1',date:'2026-09-08'},
+      {id:'g1-11',scheduleId:'g1',date:'2026-09-11'}
+    ],
+    attendance:[
+      {id:'a1',classSessionId:'g1-01',scheduleId:'g1',date:'2026-09-01',status:'present'},
+      {id:'a2',classSessionId:'g1-04',scheduleId:'g1',date:'2026-09-04',status:'absent'},
+      {id:'a3',classSessionId:'g1-08',scheduleId:'g1',date:'2026-09-08',status:'late'}
+    ]
+  });
+  assert.equal(report.attendance.required,4);
+  assert.equal(report.attendance.present,1);
+  assert.equal(report.attendance.absent,1);
+  assert.equal(report.attendance.late,1);
+  assert.equal(report.attendance.unrecorded,1);
+  assert.equal(report.attendance.percentage,50);
+});
+
+test('homework grades use real submissions and review activity dates',()=>{
+  const report=calculateMonthlyReport({
+    monthKey:'2026-09',student:{studentCode:'ST-123456'},
+    assignments:[{id:'hw1',title:'واجب المنصة',totalScore:15,dueDate:'2026-09-20'}],
+    homeworks:[{id:'sub1',assignmentId:'hw1',submittedAt:'2026-09-10',reviewedAt:'2026-09-12',score:14,maxScore:15,status:'تم تصحيح الواجب',approved:true}]
+  });
+  assert.equal(report.homework.required,1);
+  assert.equal(report.homework.submitted,1);
+  assert.equal(report.homework.graded,1);
+  assert.equal(report.homework.averageGrade,93);
+  const backend=read('functions/index.js');
+  assert.match(backend,/dateFields:\['submittedAt','reviewedAt','gradedAt','updatedAt'\]/);
+  assert.match(backend,/generatedFromGroupSchedule:true/);
+});
+
 test('backend unions legacy attendance identities and activity dates with bounded queries',()=>{
   const backend=read('functions/index.js');
   assert.match(backend,/legacyFields\.map\(field=>db\.collection\(collection\)\.where\(field,'==',studentCode\)\.get\(\)\)/);
-  assert.match(backend,/dateFields:\['date','reviewedAt'\]/);
-  assert.match(backend,/dateFields:\['submittedAt','reviewedAt'\]/);
+  assert.match(backend,/dateFields:\['date','submittedAt','reviewedAt','updatedAt'\]/);
+  assert.match(backend,/dateFields:\['startedAt','submittedAt','reviewedAt','updatedAt'\]/);
   assert.match(backend,/reportReferencedDocuments\('assignments'/);
   assert.match(backend,/motivation_monthly','motivation_transactions'/);
 });
