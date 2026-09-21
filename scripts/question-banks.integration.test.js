@@ -36,8 +36,8 @@ test('bank save, retry and audience are server-owned; hidden or archived lessons
  await assert.rejects(call('getStudentResources',{...portal,portalSessionToken:'expired'.padEnd(48,'0')},null),/دخول|جلسة/);
  await db.doc('students/'+code).update({createdAt:'2026-09-13',contentAccessMode:'from_joining'});
  await db.doc('materials/'+lessonId).update({createdAt:'2026-09-01'});
- const newStudent=await call('getStudentResources',portal,null);
- assert(newStudent.materials.some(item=>item.id===lessonId));assert(newStudent.questions.some(item=>item.id==='test-bank'));
+ const newStudent=await call('getStudentResources',portal,null);assert(!newStudent.materials.some(item=>item.id===lessonId));assert(!newStudent.questions.some(item=>item.id==='test-bank'));
+ await assert.rejects(call('getCurriculumFileUrl',{...portal,collection:'question_banks',id:'test-bank'},null),/الدرس المرتبط/);
  await db.doc('students/'+code).update({contentAccessMode:'full',scheduleId:'other-group',group:'أخرى'});
  const otherGroup=await call('getStudentResources',portal,null);assert(!otherGroup.questions.some(item=>item.id==='test-bank'));
  await assert.rejects(call('getCurriculumFileUrl',{...portal,collection:'question_banks',id:'test-bank'},null),/متاح/);

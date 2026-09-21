@@ -795,14 +795,13 @@ function parentHomeworkStatus(row){
   return row.status==='missing'?'لم يسلّم':row.status==='available'?'متاح':row.submission?.score===null||row.submission?.score===undefined?'قيد التصحيح':`${row.submission.score} من ${row.submission.maxScore||row.assignment?.totalScore||100}`;
 }
 function parentMonthlyReportText(report){
-  const st=report.student||{},a=report.attendance||{},r=report.results||{},h=report.homework||{},study=report.study||{},pay=report.payment,motivation=report.motivation||{},lines=[];
+  const st=report.student||{},a=report.attendance||{},r=report.results||{},h=report.homework||{},pay=report.payment,motivation=report.motivation||{},lines=[];
   const title=report.monthlyTitle||'بيانات الشهر غير مكتملة',score=value=>value===null||value===undefined?'غير محسوب':`${value}%`,trend=parentReportTrend(report);
   lines.push('Techno Minds — تقرير ولي الأمر الشهري',`الطالب: ${st.name||'-'} — ${st.studentCode||'-'}`,`اللقب الشهري: ${parentReportTitleIcon(title)} ${title}`,`الشهر: ${reportMonthLabel(report.monthKey)} — المسار: ${st.grade||'-'} — المجموعة: ${st.group||'-'}`,'',
     `المستوى العام: ${score(report.overallScore)} — متوسط الدرجات: ${score(r.average)}`,`التقدم: ${trend.detail}`,`الحضور: ${score(a.percentage)} — حاضر ${a.present||0} · غائب ${a.absent||0} · متأخر ${a.late||0} · بعذر ${a.excused||0}`,
     `الواجبات: ${h.submitted||0} من ${h.required||0} — متوسط المصحح: ${score(h.averageGrade)}`,
     `ترتيب المسار: ${parentReportRankText(motivation)} — ترتيب المجموعة: ${parentReportRankText(motivation,'group')}`,
     `التحفيز: ${motivation.totalPoints??0} نقطة · ${motivation.transactionCount??0} حركة${motivation.lastReason?` · آخر سبب: ${motivation.lastReason}`:''}`,
-    `المحاضرات: متاح ${study.lecturesAvailable||0} · فُتح ${study.lecturesOpened||0} · مكتمل ${study.lecturesCompleted||0} · التقدم ${score(study.lectureCompletionPercentage)}`,
     `الدفع: ${parentReportPaymentLabel(pay)}`,'','الأداء الأكاديمي',
     `الامتحانات: سلّم ${r.submittedExams||0} من ${r.requiredExams||0} · قيد التصحيح ${r.pendingReview||0} · غياب ${r.missedExams||0}`,
     ...(r.rows||[]).slice(0,3).map(row=>`• ${row.activityName||row.examTitle||'امتحان'}: ${monthlyResultStatus(row)}`));
@@ -815,7 +814,7 @@ function parentMonthlyReportText(report){
 window.parentMonthlyReportText=parentMonthlyReportText;
 
 function parentMonthlyReportHTML(report){
-  const st=report?.student||{},attendance=report?.attendance||{},results=report?.results||{},homework=report?.homework||{},study=report?.study||{},pay=report?.payment,motivation=report?.motivation||{};
+  const st=report?.student||{},attendance=report?.attendance||{},results=report?.results||{},homework=report?.homework||{},pay=report?.payment,motivation=report?.motivation||{};
   const score=value=>value===null||value===undefined?'—':`${esc(value)}%`,monthOptions=(report.availableMonths||[report.monthKey]).map(key=>`<option value="${esc(key)}" ${key===report.monthKey?'selected':''}>${esc(reportMonthLabel(key))}</option>`).join('');
   const title=report.monthlyTitle||'بيانات الشهر غير مكتملة',examRows=(results.rows||[]).slice(0,3),homeworkRows=(homework.rows||[]).slice(0,3),moreExams=Math.max(0,(results.rows||[]).length-examRows.length),moreHomework=Math.max(0,(homework.rows||[]).length-homeworkRows.length);
   const attendanceRequired=attendance.required??attendance.total??0,stableNote=(report.concerns||[]).length?'':'الأداء مستقر ولا توجد ملاحظات سلبية هذا الشهر.',trend=parentReportTrend(report);
@@ -832,7 +831,7 @@ function parentMonthlyReportHTML(report){
         <section class="parent-report-section-v70"><h3>الحضور</h3><b class="parent-report-inline-score-v70">${score(attendance.percentage)}</b><p>${esc(attendance.present||0)} حاضر · ${esc(attendance.absent||0)} غائب · ${esc(attendance.late||0)} متأخر · ${esc(attendance.excused||0)} بعذر</p><small>${esc(attendance.total||0)} سجل من ${esc(attendanceRequired)} حصة مستحقة</small></section>
         <section class="parent-report-section-v70"><h3>الواجبات</h3><b class="parent-report-inline-score-v70">${esc(homework.submitted||0)} / ${esc(homework.required||0)}</b><p>ناقص ${esc(homework.missing||0)} · مصحح ${esc(homework.graded||0)} · متوسط ${score(homework.averageGrade)}</p>${homeworkRows.slice(0,2).map(row=>`<small>${esc(row.assignment?.title||'واجب')}: ${esc(parentHomeworkStatus(row))}</small>`).join('')}${moreHomework?`<small>+ ${moreHomework} واجبات أخرى</small>`:''}</section>
       </div>
-      <section class="parent-report-facts-v70"><div><small>ترتيب المسار</small><b dir="ltr">${esc(parentReportRankText(motivation))}</b></div><div><small>ترتيب المجموعة</small><b dir="ltr">${esc(parentReportRankText(motivation,'group'))}</b></div><div><small>المحاضرات</small><b>${esc(study.lecturesOpened||0)} مفتوحة / ${esc(study.lecturesAvailable||0)}</b><span>${esc(study.lecturesCompleted||0)} مكتملة · ${score(study.lectureCompletionPercentage)}</span></div><div><small>الدفع</small><b>${esc(parentReportPaymentLabel(pay))}</b></div><div><small>التحفيز</small><b>${esc(motivation.totalPoints??0)} نقطة · ${esc(motivation.transactionCount??0)} حركة</b><span>${esc(motivation.lastReason||'لا توجد حركة مسجلة')}</span></div></section>
+      <section class="parent-report-facts-v70"><div><small>ترتيب المسار</small><b dir="ltr">${esc(parentReportRankText(motivation))}</b></div><div><small>ترتيب المجموعة</small><b dir="ltr">${esc(parentReportRankText(motivation,'group'))}</b></div><div><small>الدفع</small><b>${esc(parentReportPaymentLabel(pay))}</b></div><div><small>التحفيز</small><b>${esc(motivation.totalPoints??0)} نقطة · ${esc(motivation.transactionCount??0)} حركة</b><span>${esc(motivation.lastReason||'لا توجد حركة مسجلة')}</span></div></section>
       <section class="parent-report-section-v70 parent-report-followup-v70"><h3>ملخص المتابعة</h3><div><p><b>✓ نقطة القوة:</b> ${esc(report.strengths?.[0]||report.summaryNote||'الأداء مستقر هذا الشهر.')}</p><p><b>△ يحتاج متابعة:</b> ${esc(report.concerns?.[0]||stableNote)}</p><p><b>ملاحظة المدرس:</b> ${esc(report.teacherNotes||'لا توجد ملاحظة إضافية.')}</p></div></section>
       <footer>آخر تحديث: ${esc(reportMonthLabel(report.monthKey))}<span>Techno Minds</span></footer>
     </article>
@@ -911,7 +910,7 @@ window.copyParentReport = async function(code){
 };
 
 function parentReportWhatsAppIntro(report){
-  const st=report?.student||{},attendance=report?.attendance||{},results=report?.results||{},homework=report?.homework||{},motivation=report?.motivation||{},study=report?.study||{},portal=`${location.origin}/parent.html`;
+  const st=report?.student||{},attendance=report?.attendance||{},results=report?.results||{},homework=report?.homework||{},motivation=report?.motivation||{},portal=`${location.origin}/parent.html`;
   const title=report.monthlyTitle||'بيانات الشهر غير مكتملة',trend=parentReportTrend(report),examLines=(results.rows||[]).slice(0,3).map(row=>`• ${row.activityName||row.examTitle||'امتحان'}: ${monthlyResultStatus(row)}`),moreExams=Math.max(0,(results.rows||[]).length-examLines.length);
   return `السلام عليكم ورحمة الله وبركاته،
 مع حضرتك م. عمرو خالد من Techno Minds.
@@ -928,7 +927,6 @@ ${parentReportTitleIcon(title)} اللقب الشهري: ${title}
 • ترتيب المسار: ${parentReportRankText(motivation)}
 • ترتيب المجموعة: ${parentReportRankText(motivation,'group')}
 • التحفيز: ${motivation.totalPoints??0} نقطة · ${motivation.transactionCount??0} حركة${motivation.lastReason?` — ${motivation.lastReason}`:''}
-• المحاضرات: ${study.lecturesOpened||0} مفتوحة من ${study.lecturesAvailable||0} · ${study.lecturesCompleted||0} مكتملة
 • الدفع: ${parentReportPaymentLabel(report.payment)}
 
 الامتحانات:
@@ -955,7 +953,7 @@ function loadParentReportLogo(){
 
 async function parentReportImageBlob(report){
   const [,logo]=await Promise.all([document.fonts?.ready,loadParentReportLogo()]);
-  const canvas=document.createElement('canvas'),width=1080,height=1350,margin=54,ctx=canvas.getContext('2d'),student=report?.student||{},attendance=report?.attendance||{},results=report?.results||{},homework=report?.homework||{},study=report?.study||{},motivation=report?.motivation||{};
+  const canvas=document.createElement('canvas'),width=1080,height=1350,margin=54,ctx=canvas.getContext('2d'),student=report?.student||{},attendance=report?.attendance||{},results=report?.results||{},homework=report?.homework||{},motivation=report?.motivation||{};
   if(!ctx)throw new Error('المتصفح لا يدعم إنشاء صورة التقرير');
   canvas.width=width;canvas.height=height;ctx.direction='rtl';ctx.textAlign='right';ctx.textBaseline='middle';
   const font=(size,weight=700)=>`${weight} ${size}px Cairo, Arial, sans-serif`,score=value=>value===null||value===undefined?'—':`${Math.round(Number(value)*10)/10}%`;
@@ -987,7 +985,7 @@ async function parentReportImageBlob(report){
   write('الحضور',width-margin-20,y+30,25,'#0c3151',900);write(score(attendance.percentage),width-margin-20,y+72,31,'#08739a',900);write(`${attendance.present||0} حاضر · ${attendance.absent||0} غائب · ${attendance.late||0} متأخر`,width-margin-20,y+115,20,'#445e77',700,duoW-40);write(`${attendance.excused||0} بعذر · ${attendance.unrecorded||0} غير مسجل`,width-margin-20,y+148,18,'#718399',700,duoW-40);
   write('الواجبات',margin+duoW-20,y+30,25,'#0c3151',900);write(`${homework.submitted||0} / ${homework.required||0}`,margin+duoW-20,y+72,31,'#6d4bc1',900);write(`ناقص ${homework.missing||0} · مصحح ${homework.graded||0}`,margin+duoW-20,y+115,20,'#445e77',700,duoW-40);write(`متوسط الدرجات ${score(homework.averageGrade)}`,margin+duoW-20,y+148,18,'#718399',700,duoW-40);
 
-  y=932;const facts=[['ترتيب المسار',motivation.rank?`${motivation.rank} من ${motivation.totalStudents||'-'}`:'غير متاح'],['ترتيب المجموعة',motivation.groupRank?`${motivation.groupRank} من ${motivation.groupTotalStudents||'-'}`:'غير متاح'],['المحاضرات',`فتح ${study.lecturesOpened||0}/${study.lecturesAvailable||0} · تم ${study.lecturesCompleted||0} · ${score(study.lectureCompletionPercentage)}`,14],['التحفيز',`${motivation.totalPoints??0} نقطة · ${motivation.transactionCount??0} حركة`],['الدفع',parentReportPaymentLabel(report.payment)]],factW=(width-2*margin-gap*4)/5;
+  y=932;const facts=[['ترتيب المسار',motivation.rank?`${motivation.rank} من ${motivation.totalStudents||'-'}`:'غير متاح'],['ترتيب المجموعة',motivation.groupRank?`${motivation.groupRank} من ${motivation.groupTotalStudents||'-'}`:'غير متاح'],['التحفيز',`${motivation.totalPoints??0} نقطة · ${motivation.transactionCount??0} حركة`],['الدفع',parentReportPaymentLabel(report.payment)]],factW=(width-2*margin-gap*3)/4;
   facts.forEach(([label,value,valueSize=17],index)=>{const x=width-margin-factW-index*(factW+gap);card(x,y,factW,122,'#f9fbfd');write(label,x+factW-15,y+29,17,'#73869a',800,factW-30);write(value,x+factW-15,y+76,valueSize,'#18324d',900,factW-30);});
 
   y=1072;card(margin,y,width-2*margin,212,'#fffdf8','#eadfbe');write('ملخص المتابعة',width-margin-22,y+31,26,'#473a20',900);

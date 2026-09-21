@@ -6,7 +6,9 @@ const clamp=value=>Math.max(0,Math.min(100,Math.round(value)));
 const average=values=>{const valid=values.filter(Number.isFinite);return valid.length?clamp(valid.reduce((s,v)=>s+v,0)/valid.length):null;};
 const weighted=parts=>{const valid=parts.filter(p=>Number.isFinite(p.value));return valid.length?clamp(valid.reduce((s,p)=>s+p.value*p.weight,0)/valid.reduce((s,p)=>s+p.weight,0)):null;};
 const pending=row=>row?.needsManualReview===true||['pending','pending_review','pending-review','pending_manual','started','in_progress','awaiting_review'].includes(row?.status)&&row?.approved!==true&&row?.reviewed!==true;
-const scorePercent=row=>{const score=asNumber(row?.score),max=asNumber(row?.maxScore);return !pending(row)&&score!==null&&max!==null&&max>0?Math.max(0,Math.min(100,score/max*100)):null;};
+const rowScore=row=>asNumber(row?.score??row?.grade??row?.earnedScore);
+const rowMaxScore=row=>asNumber(row?.maxScore??row?.totalMarks??row?.totalScore??row?.assignmentSnapshot?.maxScore??row?.assignmentSnapshot?.totalScore);
+const scorePercent=row=>{const score=rowScore(row),max=rowMaxScore(row);return !pending(row)&&score!==null&&max!==null&&max>0?Math.max(0,Math.min(100,score/max*100)):null;};
 const levelLabel=value=>value===null?'بيانات غير كافية':value>=90?'ممتاز':value>=75?'جيد جدًا':value>=60?'جيد':'يحتاج متابعة';
 const commitmentLabel=value=>value===null?'بيانات غير كافية':value>=80?'منتظم':value>=60?'مقبول':value>=40?'متقطع':'يحتاج متابعة';
 function dateKey(value){
@@ -83,16 +85,17 @@ function calculateMonthlyReport(input={}){
     const percentage=isSubmitted?scorePercent(row):null;
     const status=isSubmitted?(percentage===null?'pending_review':'graded'):isMissed?'absent':isStarted?'started':open?'available':'upcoming';
     if(status==='pending_review')awaiting++;
-    rows.push({...row,examId:id,activityName:exam.title||row?.activityName||'امتحان',date:row?.reviewedAt||row?.submittedAt||row?.startedAt||row?.date||exam.openAt||'',maxScore:row?.maxScore||exam.totalScore||null,score:percentage===null?null:asNumber(row.score),percentage,status,attemptNumber:row?.attemptNumber||null,absent:isMissed});
+    rows.push({...row,examId:id,activityName:exam.title||row?.activityName||'امتحان',date:row?.reviewedAt||row?.submittedAt||row?.startedAt||row?.date||exam.openAt||'',maxScore:rowMaxScore(row)||exam.totalScore||null,score:percentage===null?null:rowScore(row),percentage,status,attemptNumber:row?.attemptNumber||null,absent:isMissed});
     attempts.delete(id);
   }
   // Retain standalone/manual grades and legacy exams without inventing an entitlement.
-  for(const row of attempts.values()){const percentage=scorePercent(row);rows.push({...row,percentage,score:percentage===null?null:asNumber(row.score),status:percentage===null?'pending_review':'graded'});if(percentage===null)awaiting++;}
+  for(const row of attempts.values()){const percentage=scorePercent(row);rows.push({...row,percentage,score:percentage===null?null:rowScore(row),maxScore:rowMaxScore(row),status:percentage===null?'pending_review':'graded'});if(percentage===null)awaiting++;}
   const scored=rows.filter(row=>row.percentage!==null),gradeAvg=average(scored.map(row=>row.percentage));
-  const assignments=input.assignments||[],latest=newestBy(input.homeworks||[],row=>String(row.assignmentId||''));
+  const assignmentIdentity=row=>String(row?.assignmentId||row?.homeworkId||row?.assignment?.id||row?.assignmentSnapshot?.id||'');
+  const assignments=input.assignments||[],latest=newestBy(input.homeworks||[],assignmentIdentity);
   const homeworkRows=assignments.map(assignment=>{
     const raw=latest.get(String(assignment.id)),percentage=raw?scorePercent(raw):null;
-    const submission=raw?{...raw,score:percentage===null?null:asNumber(raw.score),percentage}:null;
+    const submission=raw?{...raw,score:percentage===null?null:rowScore(raw),maxScore:rowMaxScore(raw)||assignment.totalScore||null,percentage}:null;
     const due=assignment.dueDate?scheduledTimeMillis(assignment.dueDate.length===10?`${assignment.dueDate}T23:59:59`:assignment.dueDate):null;
     const late=Boolean(submission&&due&&Date.parse(submission.submittedAt)>due);
     const required=assignment.activityOnly!==true;

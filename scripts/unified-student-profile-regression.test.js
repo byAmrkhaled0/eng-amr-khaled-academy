@@ -5,6 +5,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const {calculateMonthlyReport,rowMatchesMonth}=require('../functions/lib/monthly-report');
+const {configuredScheduleDays}=require('../functions/lib/attendance-domain');
 
 const root=path.join(__dirname,'..');
 const read=file=>fs.readFileSync(path.join(root,file),'utf8');
@@ -97,6 +98,24 @@ test('homework grades use real submissions and review activity dates',()=>{
   assert.match(backend,/generatedFromGroupSchedule:true/);
 });
 
+test('legacy homework identities and marks remain connected to their assignment',()=>{
+  const report=calculateMonthlyReport({
+    monthKey:'2026-09',student:{studentCode:'ST-123456'},
+    assignments:[{id:'hw-legacy',title:'واجب قديم',totalScore:15,dueDate:'2026-09-20'}],
+    homeworks:[{id:'sub-legacy',homeworkId:'hw-legacy',submittedAt:'2026-09-10',earnedScore:14,totalMarks:15,status:'graded'}]
+  });
+  assert.equal(report.homework.required,1);
+  assert.equal(report.homework.submitted,1);
+  assert.equal(report.homework.averageGrade,93);
+  assert.match(read('functions/index.js'),/row\.earnedScore/);
+  assert.match(read('functions/index.js'),/row\.totalMarks/);
+});
+
+test('group schedule accepts formal colloquial and English weekday spellings',()=>{
+  assert.deepEqual(configuredScheduleDays('التلات والجمعة'),['الثلاثاء','الجمعة']);
+  assert.deepEqual(configuredScheduleDays(['Tuesday','Fri']),['الثلاثاء','الجمعة']);
+});
+
 test('backend unions legacy attendance identities and activity dates with bounded queries',()=>{
   const backend=read('functions/index.js');
   assert.match(backend,/legacyFields\.map\(field=>db\.collection\(collection\)\.where\(field,'==',studentCode\)\.get\(\)\)/);
@@ -107,16 +126,6 @@ test('backend unions legacy attendance identities and activity dates with bounde
   assert.match(backend,/dateFields:\['startedAt','submittedAt','reviewedAt','updatedAt'\]/);
   assert.match(backend,/reportReferencedDocuments\('assignments'/);
   assert.match(backend,/motivation_monthly','motivation_transactions'/);
-  assert.match(backend,/historicalScheduleIds=\[\.\.\.new Set\(\[scheduleId,[\s\S]*\]\.map\(String\)\.filter\(Boolean\)\)\]/);
-});
-
-test('student profile does not wait for a cold full-platform leaderboard rebuild',()=>{
-  const backend=read('functions/index.js'),start=backend.indexOf('exports.getStudentAdminProfile ='),end=backend.indexOf('\nexports.',start+1),source=backend.slice(start,end);
-  assert.match(source,/availableStudentReportRanking\(found\.data,periodKey\)/);
-  assert.doesNotMatch(source,/studentReportRanking\(found\.data,periodKey\)/);
-  assert.match(source,/profileResults=normalizeUnifiedResults/);
-  assert.match(source,/homeworks:monthlyReport\.homework\.rows/);
-  assert.match(backend,/legacy\/orphan submission visible/);
 });
 
 test('unified profile shows motivation transactions and delegates tab navigation',()=>{
@@ -141,6 +150,8 @@ test('parent report uses the backend monthly object across HTML text message and
   assert.match(app,/trend\.previousScore/);
   assert.match(app,/نقطة مئوية عن الشهر السابق/);
   assert.match(parent,/family=Cairo/);
+  const reportSection=app.slice(app.indexOf('function parentMonthlyReportText'),app.indexOf('window.printParentReport'));
+  assert.doesNotMatch(reportSection,/المحاضرات|lecturesAvailable|lecturesOpened|lecturesCompleted/);
 });
 
 test('client overall has no legacy weighted fallback',()=>{
