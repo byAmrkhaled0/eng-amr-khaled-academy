@@ -2,7 +2,7 @@
   'use strict';
 
   const cfg=window.MF_FIREBASE_CONFIG||{};
-  const FRONTEND_VERSION='70.0.0';
+  const FRONTEND_VERSION='70.0.1';
   const API_SCHEMA_VERSION='portal-v64.0.0';
   if(!cfg.enabled||typeof firebase==='undefined'){
     window.MFCloud={ready:false,error:'Firebase غير مفعل'};
@@ -156,6 +156,7 @@
       recordParentReportDeliveryAdmin:callable('recordParentReportDeliveryAdmin'),
       saveStudentPrivateNote:callable('saveStudentPrivateNote'),
       getAdminOperationsDashboard:callable('getAdminOperationsDashboard'),
+      getAdminStudentMetricsBatch:callable('getAdminStudentMetricsBatch'),
       finalizeExamAbsencesAdmin:callable('finalizeExamAbsencesAdmin'),
       upsertClassSession:callable('upsertClassSession'),
       getClassSessionWorkspace:callable('getClassSessionWorkspace'),
@@ -744,6 +745,7 @@
       recordParentReportDeliveryAdmin:payload=>{if(!calls.recordParentReportDeliveryAdmin)throw new Error('Parent report delivery log unavailable');return calls.recordParentReportDeliveryAdmin(payload||{});},
       saveStudentPrivateNote:payload=>{if(!calls.saveStudentPrivateNote)throw new Error('Student note service unavailable');return calls.saveStudentPrivateNote(payload||{});},
       getAdminOperationsDashboard:payload=>{if(!calls.getAdminOperationsDashboard)throw new Error('Operations dashboard service unavailable');return calls.getAdminOperationsDashboard(payload||{});},
+      getAdminStudentMetricsBatch:payload=>{if(!calls.getAdminStudentMetricsBatch)throw new Error('Student metrics batch service unavailable');return calls.getAdminStudentMetricsBatch(payload||{});},
       finalizeExamAbsencesAdmin:()=>{if(!calls.finalizeExamAbsencesAdmin)throw new Error('Exam absence service unavailable');return calls.finalizeExamAbsencesAdmin({});},
       upsertClassSession:payload=>{if(!calls.upsertClassSession)throw new Error('Class session service unavailable');return calls.upsertClassSession(payload||{});},
       getClassSessionWorkspace:payload=>{if(!calls.getClassSessionWorkspace)throw new Error('Class session workspace unavailable');return calls.getClassSessionWorkspace(payload||{});},

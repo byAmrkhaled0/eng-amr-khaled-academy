@@ -51,9 +51,9 @@ test('students receive separate Drive and attachment actions on readable mobile 
 });
 
 test('release metadata and cache invalidate the previous lecture UI', () => {
-  assert.equal(require(path.join(root, 'package.json')).version, '70.0.0');
-  assert.equal(require(path.join(root, 'functions/package.json')).version, '70.0.0');
-  assert.match(read('assets/app.js'), /MF_ASSET_VERSION = '70\.0\.0'/);
-  assert.match(read('service-worker.js'), /technominds-v70-0-0-complete-report/);
-  assert.match(read('service-worker.js'), /ASSET_VERSION = "70\.0\.0"/);
+  assert.equal(require(path.join(root, 'package.json')).version, '70.0.1');
+  assert.equal(require(path.join(root, 'functions/package.json')).version, '70.0.1');
+  assert.match(read('assets/app.js'), /MF_ASSET_VERSION = '70\.0\.1'/);
+  assert.match(read('service-worker.js'), /technominds-v70-0-1-complete-report/);
+  assert.match(read('service-worker.js'), /ASSET_VERSION = "70\.0\.1"/);
 });

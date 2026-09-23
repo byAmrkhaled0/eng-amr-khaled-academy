@@ -2926,8 +2926,8 @@ async function leaderboardRowsForPeriod(academicYear='',monthName='',options={})
   const stateSnap = await leaderboardStateRef.get().catch(() => null);
   const stateVersion = stateSnap?.exists ? Number(stateSnap.data()?.version || 0) : 0;
   const cached=leaderboardCacheByPeriod.get(period.monthKey);
-  if(cached&&cached.expiresAt>Date.now()&&cached.version===stateVersion)return cached.rows;
-  if(period.monthKey!==currentPeriod.monthKey&&options.recalculate!==true){
+  if(cached&&cached.expiresAt>Date.now()&&cached.version===stateVersion&&(!options.includeAll||cached.allRows))return options.includeAll?cached.allRows:cached.rows;
+  if(period.monthKey!==currentPeriod.monthKey&&options.recalculate!==true&&options.includeAll!==true){
     const archived=await db.collection('leaderboard_archives').where('monthKey','==',period.monthKey).limit(ACADEMIC_GRADES.length).get().catch(()=>null);
     if(archived&&!archived.empty&&archived.docs.every(doc=>Number(doc.data()?.sourceVersion)===stateVersion))
       return archived.docs.flatMap(doc=>Array.isArray(doc.data()?.rows)?doc.data().rows:[]).sort((a,b)=>Number(b.score||0)-Number(a.score||0));
@@ -2955,17 +2955,17 @@ async function leaderboardRowsForPeriod(academicYear='',monthName='',options={})
   const recordDate=leaderboardRecordDate;
   const calculatedRows=studentsSnap.docs.map(doc=>{
     const st=doc.data()||{},code=normalizeCode(st.studentCode||st.code||doc.id);
-    const att=currentMonthRows(attendance.get(code)||st.attendance||[]),studentTransfers=transfers.get(code)||[];
+    const att=currentMonthRows(attendance.get(code)||[]),studentTransfers=transfers.get(code)||[];
     const scheduleIds=new Set([st.scheduleId||st.groupId,...studentTransfers.flatMap(row=>[row.currentScheduleId,row.targetScheduleId,row.previousScheduleId,row.oldScheduleId,row.newScheduleId])].filter(Boolean).map(String));
     const applicableSessions=sessionRows.filter(row=>scheduleIds.has(String(row.scheduleId||row.groupId||'')));
 
-    const gradeRows=normalizeUnifiedResults({grades:currentMonthRows(grades.get(code)||st.grades||[]),examAttempts:currentMonthRows(examAttempts.get(code)||[])}).filter(row=>row.type==='exam'&&row.status==='graded'&&Number.isFinite(Number(row.percentage)));
-    const allStudentHomework=homeworks.get(code)||st.homeworks||[],hw=currentMonthRows(allStudentHomework).filter(complete),rec=currentMonthRows(recitations.get(code)||st.recitations||[]).filter(complete);
+    const gradeRows=normalizeUnifiedResults({grades:currentMonthRows(grades.get(code)||[]),examAttempts:currentMonthRows(examAttempts.get(code)||[])}).filter(row=>row.type==='exam'&&row.status==='graded'&&Number.isFinite(Number(row.percentage)));
+    const allStudentHomework=homeworks.get(code)||[],hw=currentMonthRows(allStudentHomework).filter(complete),rec=currentMonthRows(recitations.get(code)||[]).filter(complete);
     const requiredAssignments=assignmentSnap.docs.map(item=>({id:item.id,...item.data()})).filter(item=>{const membership=membershipAt(st,studentTransfers,cairoDateKey(item.publishAt||item.createdAt||item.dueDate));return membership&&assignmentIsReleased(item)&&learningTargetMatchesStudent(item,{...st,...membership,groupId:membership.scheduleId})&&contentAvailableAfterStudentJoined(item,st)&&cairoDateKey(item.publishAt||item.createdAt||item.dueDate).slice(0,7)===period.monthKey;});
     const monthlyEvaluation=calculateMonthlyReport({monthKey:period.monthKey,student:st,transfers:studentTransfers,
       sessions:actualSessionsForStudent(st,applicableSessions,att,studentTransfers),sessionsComplete:true,attendance:att,
-      grades:currentMonthRows(grades.get(code)||st.grades||[]),examAttempts:currentMonthRows(examAttempts.get(code)||[]),
-      assignments:requiredAssignments,homeworks:currentMonthRows(allStudentHomework),recitations:currentMonthRows(recitations.get(code)||st.recitations||[]),
+      grades:currentMonthRows(grades.get(code)||[]),examAttempts:currentMonthRows(examAttempts.get(code)||[]),
+      assignments:requiredAssignments,homeworks:currentMonthRows(allStudentHomework),recitations:currentMonthRows(recitations.get(code)||[]),
       motivationSummary:(motivation.get(code)||[]).find(row=>row.academicYear===period.academicYear&&row.month===period.monthName)||null});
     const attendanceResult=monthlyEvaluation.attendance,attendancePct=attendanceResult.percentage,attendancePoints=monthlyEvaluation.motivation.attendancePoints;
     const classDates=new Set(att.map(recordDate).filter(Boolean));rec.forEach(row=>{const date=recordDate(row);if(date)classDates.add(date);});
@@ -2983,22 +2983,38 @@ async function leaderboardRowsForPeriod(academicYear='',monthName='',options={})
     const absenceCount=attendanceResult.absent,missedExamCount=new Set(currentMonthRows(examAbsences.get(code)||[]).filter(row=>!submittedExamIds.has(String(row.examId||''))).map(row=>String(row.examId||row.id||''))).size,missingHomeworkCount=monthlyEvaluation.homework.missing;
     const latestSubmissionByAssignment=new Map();allStudentHomework.forEach(row=>{if(!row.assignmentId)return;const key=String(row.assignmentId),old=latestSubmissionByAssignment.get(key);if(!old||recordDate(row)>recordDate(old))latestSubmissionByAssignment.set(key,row);});
     const lateHomeworkCount=requiredAssignments.filter(item=>{const submission=latestSubmissionByAssignment.get(String(item.id));return submission&&/^\d{4}-\d{2}-\d{2}$/.test(String(item.dueDate||''))&&recordDate(submission)>String(item.dueDate);}).length;
-    const penaltyReasons=[];if(absenceCount)penaltyReasons.push({label:`غياب ${absenceCount} حصة`,points:-(absenceCount*2)});if(maxStreak>=2)penaltyReasons.push({label:'غياب حصتين متتاليتين',points:-config.penalties.consecutiveAbsence});if(missedExamCount)penaltyReasons.push({label:`غياب ${missedExamCount} امتحان`,points:-(missedExamCount*config.penalties.missedExam)});if(missingHomeworkCount)penaltyReasons.push({label:`${missingHomeworkCount} واجب ناقص`,points:-(missingHomeworkCount*config.penalties.missingHomework)});if(lateHomeworkCount)penaltyReasons.push({label:`${lateHomeworkCount} واجب متأخر`,points:-(lateHomeworkCount*config.penalties.lateHomework)});
-    const penaltyTotal=Math.abs(penaltyReasons.reduce((sum,item)=>sum+item.points,0)),score=Math.max(0,Math.min(100,Math.round(baseScore+motivationBonus+2*(attendanceResult.present+attendanceResult.late)-penaltyTotal)));
+    // Attendance and missing work are already represented by their weighted
+    // percentages. Keep their +/-2 points in motivation, not in ranking score.
+    const penaltyReasons=[];if(maxStreak>=2)penaltyReasons.push({label:'غياب حصتين متتاليتين',points:-config.penalties.consecutiveAbsence});if(missedExamCount)penaltyReasons.push({label:`غياب ${missedExamCount} امتحان`,points:-(missedExamCount*config.penalties.missedExam)});if(lateHomeworkCount)penaltyReasons.push({label:`${lateHomeworkCount} واجب متأخر`,points:-(lateHomeworkCount*config.penalties.lateHomework)});
+    const penaltyTotal=Math.abs(penaltyReasons.reduce((sum,item)=>sum+item.points,0)),score=Math.max(0,Math.min(100,Math.round(baseScore+motivationBonus-penaltyTotal)));
     const achievements=[];if(attendancePct>=90&&attendanceResult.required)achievements.push('ملتزم بالحضور');if(homeworkPct>=100&&requiredAssignments.length)achievements.push('بطل الواجبات');if(gradePct>=90&&gradeRows.length)achievements.push('متفوق في الامتحانات');if(recitationPct>=90&&rec.length)achievements.push('مبرمج الشهر');if(missedExamCount===0&&gradeRows.length)achievements.push('أكمل امتحانات الشهر');
     const metrics=[['الامتحانات',gradePct],['الحضور',attendancePct],['الواجبات',homeworkPct],['درجة الواجب',homeworkGradePct],['التطبيق العملي',rec.length?recitationPct:null]].filter(([,value])=>value!==null).sort((a,b)=>a[1]-b[1]),nextAction=!metrics.length?'لا توجد بيانات كافية لتقييم الشهر':metrics[0][1]<80?`ركّز على ${metrics[0][0]} لرفع تقييمك`:'استمر على نفس مستوى الالتزام';
-    return {studentCode:code,name:publicStudentName(st.studentName||st.name),grade:canonicalLeaderboardGrade(st.grade),group:text(st.group,100),scheduleId:text(st.scheduleId||st.groupId,100),score,level:monthlyEvaluation.level,baseScore,motivationPoints,attendancePoints,motivationBonus,penaltyTotal,penaltyReasons,achievements,nextAction,absenceCount,maxAbsenceStreak:streak,activeAbsenceDates:sortedAttendance.slice(-streak).map(row=>row.date),missedExamCount,missingHomeworkCount,lateHomeworkCount,attendancePct,gradePct,homeworkPct,homeworkGradePct,recitationPct,weights:config.weights,activity:attendanceResult.total+gradeRows.length+hw.length+rec.length+Math.abs(motivationPoints)};
+    return {studentCode:code,name:publicStudentName(st.studentName||st.name),grade:canonicalLeaderboardGrade(st.grade),group:text(st.group,100),scheduleId:text(st.scheduleId||st.groupId,100),score,level:monthlyEvaluation.level,baseScore,motivationPoints,attendancePoints,motivationBonus,penaltyTotal,penaltyReasons,achievements,nextAction,absenceCount,maxAbsenceStreak:streak,activeAbsenceDates:sortedAttendance.slice(-streak).map(row=>row.date),missedExamCount,missingHomeworkCount,lateHomeworkCount,attendancePct,gradePct,homeworkPct,homeworkGradePct,recitationPct,practicalCompleted:monthlyEvaluation.practical.completed,practicalCount:monthlyEvaluation.practical.count,weights:config.weights,activity:attendanceResult.total+gradeRows.length+hw.length+rec.length+Math.abs(motivationPoints)};
   });
   const rows=calculatedRows.filter(x=>x.name&&x.activity>0);
   const rankedCodes=new Set(rows.map(row=>row.studentCode));
   calculatedRows.filter(row=>row.name&&!rankedCodes.has(row.studentCode)&&(row.missedExamCount>0||row.missingHomeworkCount>0||row.maxAbsenceStreak>=2)).forEach(row=>rows.push(row));
   rows.sort((a,b)=>b.score-a.score||b.attendancePct-a.attendancePct||b.gradePct-a.gradePct);
-  leaderboardCacheByPeriod.set(period.monthKey,{expiresAt:Date.now()+5*60*1000,version:stateVersion,rows});
+  leaderboardCacheByPeriod.set(period.monthKey,{expiresAt:Date.now()+5*60*1000,version:stateVersion,rows,allRows:calculatedRows});
   if(leaderboardCacheByPeriod.size>8){const oldest=leaderboardCacheByPeriod.keys().next().value;leaderboardCacheByPeriod.delete(oldest);}
-  return rows;
+  return options.includeAll?calculatedRows:rows;
 }
 
 async function currentLeaderboardRows(){return leaderboardRowsForPeriod();}
+
+exports.getAdminStudentMetricsBatch = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds:60, memory:'512MiB' },async request=>{
+  const staff=await requireStaff(request,['admin']);
+  await rateLimit('admin-student-metrics',staff.uid,60,60*1000);
+  const academicYear=text(request.data?.academicYear,30),month=text(request.data?.month,40);
+  if(!validPaymentAcademicYear(academicYear)||!PAYMENT_MONTH_NAMES.includes(month))throw new HttpsError('invalid-argument','فترة العمل غير صالحة.');
+  const period=leaderboardPeriod(academicYear,month),rows=await leaderboardRowsForPeriod(academicYear,month,{includeAll:true});
+  const metricsByStudent=Object.fromEntries(rows.map(row=>[row.studentCode,{
+    attendancePercentage:row.attendancePct,resultsAverage:row.gradePct,
+    homeworkCompletionPercentage:row.homeworkPct,
+    practicalCompleted:row.practicalCompleted,practicalCount:row.practicalCount
+  }]));
+  return {monthKey:period.monthKey,metricsByStudent};
+});
 
 function enrichLeaderboardRows(rows,previousRows=[]){
   const previousByCode=new Map(previousRows.map((row,index)=>[row.studentCode,{...row,rank:index+1}]));

@@ -181,6 +181,51 @@ test('leaderboard derives attendance and level from the report and refreshes aft
   assert.equal(revised.level,month({sessions:[session('s1','2026-09-10')],attendance:[attendance('s1','2026-09-10','absent')],examAttempts:board.data.exam_attempts}).level);
 });
 
+test('leaderboard uses attendance percentage once while retaining +/-2 in motivation and capping manual bonus',async()=>{
+  const board=leaderboardHarness();
+  board.data.motivation_monthly[0].totalPoints=0;
+  const present=(await board.month())[0];
+  assert.equal(present.attendancePct,100);
+  assert.equal(present.attendancePoints,2);
+  assert.equal(present.motivationPoints,2);
+  assert.equal(present.score,present.baseScore+present.motivationBonus-present.penaltyTotal);
+  assert.equal(present.motivationBonus,0);
+  board.data.attendance[0].status='absent';board.advance();
+  const absent=(await board.month())[0];
+  assert.equal(absent.attendancePct,0);
+  assert.equal(absent.attendancePoints,-2);
+  assert.equal(absent.motivationPoints,-2);
+  assert.equal(absent.penaltyReasons.some(reason=>/غياب حص/.test(reason.label)),false);
+  assert.equal(absent.score,Math.max(0,absent.baseScore+absent.motivationBonus-absent.penaltyTotal));
+  board.data.motivation_monthly[0].totalPoints=1000;board.advance();
+  const bonus=(await board.month())[0];
+  assert.equal(bonus.motivationBonus,5);
+  assert.equal(bonus.motivationPoints,998);
+});
+
+test('one admin batch returns report-derived metrics for selected month with 100% attendance and 3/4 homework',async()=>{
+  const board=leaderboardHarness();
+  board.data.class_sessions=Array.from({length:8},(_,index)=>session(`s${index+1}`,`2026-09-${String(index+3).padStart(2,'0')}`));
+  board.data.attendance=board.data.class_sessions.map(row=>({...attendance(row.id,row.date,'present'),studentCode:'ST-123456'}));
+  board.data.assignments=Array.from({length:4},(_,index)=>({id:`h${index+1}`,title:`واجب ${index+1}`,publishAt:`2026-09-${String(index+3).padStart(2,'0')}`}));
+  board.data.homework_submissions=board.data.assignments.slice(0,3).map((row,index)=>({assignmentId:row.id,studentCode:'ST-123456',submittedAt:`2026-09-${String(index+10).padStart(2,'0')}`,status:'submitted'}));
+  const rows=await board.context.getRows('2026/2027','سبتمبر',{includeAll:true});
+  assert.equal(rows.length,1);
+  assert.equal(rows[0].attendancePct,100);
+  assert.equal(rows[0].homeworkPct,75);
+  const backend=fs.readFileSync(require.resolve('../functions/index.js'),'utf8');
+  const callable=backend.slice(backend.indexOf('exports.getAdminStudentMetricsBatch ='),backend.indexOf('function enrichLeaderboardRows('));
+  let calls=0;
+  const context={exports:{},CALLABLE_OPTIONS:{},onCall:(_config,handler)=>handler,requireStaff:async()=>({uid:'staff'}),rateLimit:async()=>{},text:value=>String(value||''),validPaymentAcademicYear:value=>value==='2026/2027',PAYMENT_MONTH_NAMES:['سبتمبر'],HttpsError:class extends Error{},leaderboardPeriod:()=>({monthKey:'2026-09'}),leaderboardRowsForPeriod:async(...args)=>{calls++;assert.equal(args[0],'2026/2027');assert.equal(args[1],'سبتمبر');assert.equal(args[2].includeAll,true);return rows;}};
+  vm.runInNewContext(callable,context);
+  const response=await context.exports.getAdminStudentMetricsBatch({data:{academicYear:'2026/2027',month:'سبتمبر'}});
+  assert.equal(calls,1);
+  assert.equal(response.monthKey,'2026-09');
+  assert.equal(response.metricsByStudent['ST-123456'].attendancePercentage,100);
+  assert.equal(response.metricsByStudent['ST-123456'].resultsAverage,80);
+  assert.equal(response.metricsByStudent['ST-123456'].homeworkCompletionPercentage,75);
+});
+
 test('archived leaderboard is bypassed after the source revision changes, without writing other months',async()=>{
   const board=leaderboardHarness();board.setCurrent('2026-10-02');
   board.data.leaderboard_archives=[{monthKey:'2026-09',sourceVersion:1,rows:[{studentCode:'ST-123456',motivationPoints:99,score:99}]}];
