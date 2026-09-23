@@ -83,14 +83,14 @@
   function renderExamsV6061(){
     fresh();
     const attempts=(adminData.examAttempts||[]).slice().reverse();
-    const allPending=attempts.filter(row=>row.needsManualReview||row.status==='pending_manual');
+    const allPending=attempts.filter(row=>window.TMResults.isExamGradePending(row));
     const gradeRows=typeof examGradeRows==='function'?examGradeRows():[];
     const ctx=nowContext();
     const availableExams=(adminData.exams||[]).filter(exam=>exam.archived!==true).slice().reverse();
     const selectedId=sessionStorage.getItem('tm-admin-open-exam')||'';
     const currentExam=availableExams.find(exam=>String(exam.id)===selectedId)||null;
     const currentAttempts=currentExam?attempts.filter(row=>String(row.examId)===String(currentExam.id)):[];
-    const pending=currentAttempts.filter(row=>row.needsManualReview||row.status==='pending_manual');
+    const pending=currentAttempts.filter(row=>window.TMResults.isExamGradePending(row));
     const currentGradeRows=currentExam?gradeRows.filter(row=>String(row.examId)===String(currentExam.id)):[];
     window.__adminExamGradeRows=currentGradeRows;
     const examCards=availableExams.map(exam=>{const [label,badge]=examStatus(exam),examAttempts=attempts.filter(row=>String(row.examId)===String(exam.id));return `<article class="admin-exam-card ${String(exam.id)===selectedId?'selected':''}"><div class="admin-exam-card-head"><span class="iconbox" data-icon="clipboard"></span><span class="badge ${badge}">${label}</span></div><h3>${safe(exam.title)}</h3><p>${safe(exam.grade||'كل المسارات')} · ${safe(exam.group||'كل المجموعات')} · ${safe(exam.duration||20)} دقيقة</p><div class="admin-exam-meta"><span>${safe(exam.questionCount||0)} سؤال</span><span>${examAttempts.length} محاولة</span></div><button class="btn ${String(exam.id)===selectedId?'ghost':'primary'} full-width" type="button" onclick="openAdminExamDetails('${safe(exam.id)}')">${String(exam.id)===selectedId?'إغلاق التفاصيل':'فتح بيانات الامتحان'}</button><div class="admin-exam-actions"><button class="small-btn" type="button" onclick="editLiveExam('${safe(exam.id)}')">تعديل</button><button class="small-btn" type="button" onclick="toggleLiveExam('${safe(exam.id)}')">${exam.active===false?'تفعيل':'إيقاف'}</button><button class="small-btn danger" type="button" onclick="deleteItem('exams','${safe(exam.id)}')">أرشفة</button></div></article>`;}).join('');

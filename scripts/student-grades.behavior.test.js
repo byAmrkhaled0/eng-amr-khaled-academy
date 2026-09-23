@@ -15,10 +15,12 @@ test('homework enters student grade average once, latest retake wins and pending
   assert.equal(ui.run('calcStudent(gradeStudent).avg'),75);
   ui.run(`gradeStudent.grades=[];gradeStudent.homeworks[1].score=0;`);
   assert.equal(ui.run('calcStudent(gradeStudent).avg'),0);assert.equal(ui.run('calcStudent(gradeStudent).gradeCount'),1);
-  const render=()=>{ui.run('adminData.students=[gradeStudent];renderStudents()');};render();
-  assert.match(ui.document.querySelector('.v56-student-kpis').textContent,/الدرجات0%/);
-  ui.run('gradeStudent.homeworks=[]');render();assert.match(ui.document.querySelector('.v56-student-kpis').textContent,/لا توجد درجات/);
-  ui.run('gradeStudent.gradeRecordsLoaded=false');render();assert.match(ui.document.querySelector('.v56-student-kpis').textContent,/جارٍ التحميل/);
+  ui.document.body.insertAdjacentHTML('beforeend','<div id="studentGradeCards"></div>');
+  const render=()=>{ui.document.getElementById('studentGradeCards').innerHTML=ui.run('studentsTable([gradeStudent])');};
+  ui.run(`gradeStudent.monthlyReport={schemaVersion:11,policyVersion:'monthly-v11-student-level',monthKey:adminReportMonthKey(),student:{studentCode:'DEMO001'},monthlyTitle:'بيانات غير كافية',level:'بيانات غير كافية',overallScore:null,attendance:{percentage:0},homework:{completionPercentage:0},results:{average:0}};`);render();
+  assert.match(ui.document.querySelector('#studentGradeCards .v56-student-kpis').textContent,/الدرجات0%/);
+  ui.run('delete gradeStudent.monthlyReport');render();assert.match(ui.document.querySelector('#studentGradeCards .v56-student-kpis').textContent,/الدرجات—/);
+  ui.run(`gradeStudent.monthlyReport={schemaVersion:11,policyVersion:'monthly-v11-student-level',monthKey:adminReportMonthKey(),student:{studentCode:'DEMO001'},monthlyTitle:'بيانات غير كافية',level:'بيانات غير كافية',overallScore:null,attendance:{percentage:null},homework:{completionPercentage:null},results:{average:null}};`);render();assert.match(ui.document.querySelector('#studentGradeCards .v56-student-kpis').textContent,/الدرجات—/);
  }finally{ui.close();}
 });
 test('same result policy ignores pending automatic marks and uses latest homework attempt in weighted averages',()=>{

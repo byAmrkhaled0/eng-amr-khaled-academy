@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const {createAdminDOM,tick}=require('./testing/admin-dom');
-test('all 19 administration sections render through the production script chain',async()=>{
+test('all 19 visible administration sections render through the production script chain',async()=>{
  const ui=await createAdminDOM();
  try{
   const calls=[];
@@ -21,7 +21,8 @@ test('all 19 administration sections render through the production script chain'
   }
   assert.equal(sections.length,19);
   const primary=[...ui.document.querySelectorAll('.admin-nav-primary [data-admin-nav]')].map(el=>el.dataset.adminNav);
-  assert.equal(primary.indexOf('questionBanks'),primary.indexOf('theoryLectures')+1);
+  assert.deepEqual(primary,['overview','classroom','students','attendance','assignments']);
+  assert.equal(ui.run("adminLegacySectionAliases.operations"),'classroom');
   assert.deepEqual(ui.errors.map(error=>error.message),[]);
  }finally{ui.close();}
 });
@@ -77,7 +78,7 @@ test('parent report button requests fresh matching data once and restores its st
   const first=ui.window.sendParentMonthlyReport('DEMO1',button);ui.window.sendParentMonthlyReport('DEMO1',button);await tick();
   assert.equal(reportCalls,1);assert.equal(button.disabled,true);assert.equal(payload.force,undefined);
   assert.equal(payload.includeRanking,true);
-  resolveReport({student:{studentCode:'DEMO1'},monthKey:'2026-09'});await first;
+  resolveReport({schemaVersion:11,policyVersion:'monthly-v11-student-level',monthKey:'2026-09',student:{studentCode:'DEMO1',name:'طالب تجريبي 1'},monthlyTitle:'بيانات غير كافية',level:'بيانات غير كافية',overallScore:null,attendance:{percentage:null},homework:{completionPercentage:null},results:{average:null}});await first;
   assert.equal(deliveries,1);assert.equal(button.disabled,false);assert.equal(button.classList.contains('is-loading'),false);
  }finally{ui.close();}
 });
@@ -97,26 +98,27 @@ test('student file button opens the unified server profile instead of the legacy
  try{
   let profileCalls=0,popupCalls=0;
   ui.window.open=()=>{popupCalls++;return null;};
-  ui.window.MFCloud.getStudentAdminProfile=async input=>{profileCalls++;return {student:{studentCode:input.studentCode,name:'طالب تجريبي',grade:'الصف الأول الثانوي',group:'أ'},attendance:[],homeworks:[],results:[],monthlyPayments:[],motivationSummaries:[],motivationTransactions:[],privateNotes:[]};};
+  ui.window.MFCloud.getStudentAdminProfile=async input=>{profileCalls++;return {student:{studentCode:input.studentCode,name:'طالب تجريبي',grade:'الصف الأول الثانوي',group:'أ'},period:{month:'سبتمبر 2026'},monthlyReport:{schemaVersion:11,policyVersion:'monthly-v11-student-level',monthKey:'2026-09',student:{studentCode:input.studentCode},monthlyTitle:'بيانات غير كافية',level:'بيانات غير كافية',overallScore:null,attendance:{percentage:null},homework:{completionPercentage:null},results:{average:null}},attendance:[],homeworks:[],results:[],monthlyPayments:[],motivationSummaries:[],motivationTransactions:[],privateNotes:[]};};
   ui.window.renderStudents();await tick();
   const fileButton=[...ui.document.querySelectorAll('button')].find(button=>button.textContent.trim()==='الملف');assert(fileButton);ui.run(fileButton.getAttribute('onclick'));await tick();
   assert.equal(profileCalls,1);assert.equal(popupCalls,0);assert(ui.document.querySelector('#unifiedStudentProfile'));assert.match(ui.document.querySelector('#unifiedProfileBody').textContent,/ملف الطالب الموحد/);
  }finally{ui.close();}
 });
-test('WhatsApp parent summary includes monthly title and exact ranking scopes',async()=>{
+test('WhatsApp parent summary is concise and uses the production parent portal',async()=>{
  const ui=await createAdminDOM();
  try{
   const message=ui.window.parentReportWhatsAppIntro({monthKey:'2026-09',monthlyTitle:'متفوق الشهر',student:{studentCode:'DEMO1',name:'طالب تجريبي',grade:'الأول الثانوي',group:'أ'},level:'جيد جدًا',overallScore:82,trend:{status:'improved',delta:6,previousScore:76},attendance:{present:3,total:4,absent:1,late:0,percentage:75,rows:[{date:'2026-09-12',status:'absent'}]},results:{rows:[{activityName:'امتحان سبتمبر',score:18,maxScore:20,percentage:90}],submittedExams:1,requiredExams:1,average:90},homework:{submitted:2,required:2,averageGrade:88},study:{lecturesAvailable:2,lecturesOpened:2,lecturesCompleted:1},motivation:{rank:2,totalStudents:18,groupRank:1,groupTotalStudents:6,totalPoints:6,transactionCount:1},payment:null});
-  assert.match(message,/اللقب الشهري: .*متفوق الشهر/);assert.match(message,/ترتيب المسار: 2 \/ 18/);assert.match(message,/ترتيب المجموعة: 1 \/ 6/);assert.match(message,/امتحان سبتمبر: 18 من 20/);assert.doesNotMatch(message,/ترتيب المنصة/);
+  assert.match(message,/م\. عمرو خالد، مدرس البرمجة والذكاء الاصطناعي ومؤسس Techno Minds/);assert.match(message,/مرفق لحضرتك صورة التقرير الشهري للطالب\/ة طالب تجريبي عن شهر سبتمبر ٢٠٢٦/);assert.match(message,/المستوى العام: جيد جدًا/);assert.match(message,/التقييم: 82%/);assert.match(message,/https:\/\/eng-amr-khaled-academy\.vercel\.app\/parent\.html/);assert.match(message,/كود الطالب الموحّد: DEMO1/);
   assert.match(message,/تحسن 6 نقطة مئوية عن الشهر السابق — من 76% إلى 82%/);
+  assert.doesNotMatch(message,/اللقب الشهري|ترتيب المسار|ترتيب المجموعة|الامتحانات:|127\.0\.0\.1|📊|🔗|🔑/);
  }finally{ui.close();}
 });
-test('compact parent HTML renders only backend monthly values and caps long activity lists',async()=>{
+test('compact parent HTML renders all backend monthly activity without truncation',async()=>{
  const ui=await createAdminDOM();
  try{
-  const report={monthKey:'2026-09',monthlyTitle:'متفوق الشهر',student:{studentCode:'DEMO1',name:'طالب تجريبي',grade:'أساسيات برمجة',group:'أ'},overallScore:91,trend:{status:'improved',delta:6,previousScore:85},attendance:{present:5,total:6,required:6,absent:1,late:0,excused:0,percentage:83},results:{average:90,submittedExams:4,requiredExams:4,rows:[1,2,3,4].map(index=>({activityName:`امتحان ${index}`,score:9,maxScore:10,percentage:90,status:'graded',date:'2026-09-10'}))},homework:{submitted:1,required:1,missing:0,graded:1,averageGrade:93,rows:[]},study:{lecturesAvailable:4,lecturesOpened:3,lecturesCompleted:2,lectureCompletionPercentage:50},motivation:{rank:18,totalStudents:28,groupRank:5,groupTotalStudents:13,totalPoints:7,transactionCount:2,lastReason:'التزام'},payment:{status:'paid'},strengths:['نتائج ممتازة'],concerns:[]};
+  const report={monthKey:'2026-09',monthlyTitle:'متفوق الشهر',student:{studentCode:'DEMO1',name:'طالب تجريبي',grade:'أساسيات برمجة',group:'أ'},overallScore:91,trend:{status:'improved',delta:6,previousScore:85},attendance:{present:5,total:6,required:6,absent:1,late:0,excused:0,percentage:83},results:{average:90,submittedExams:5,requiredExams:5,rows:[1,2,3,4,5].map(index=>({activityName:`امتحان ${index}`,score:9,maxScore:10,percentage:90,status:'graded',date:'2026-09-10'}))},homework:{submitted:1,required:1,missing:0,graded:1,averageGrade:93,rows:[{assignment:{title:'واجب البرمجة'},submission:{score:14,maxScore:15,percentage:93},status:'submitted'}]},study:{lecturesAvailable:4,lecturesOpened:3,lecturesCompleted:2,lectureCompletionPercentage:50},practical:{completed:1},motivation:{rank:18,totalStudents:28,groupRank:5,groupTotalStudents:13,totalPoints:7,transactionCount:2,lastReason:'التزام'},payment:{status:'paid'},strengths:['نتائج ممتازة'],concerns:[],recommendations:['حل تدريب إضافي']};
   const html=ui.run(`parentMonthlyReportHTML(${JSON.stringify(report)})`);
-  assert.match(html,/متفوق الشهر/);assert.match(html,/91%/);assert.match(html,/83%/);assert.match(html,/18 \/ 28/);assert.match(html,/5 \/ 13/);assert.match(html,/↑ تحسن 6 نقطة/);assert.match(html,/\+ 1 امتحانات أخرى/);assert.doesNotMatch(html,/ترتيب المنصة/);
+  assert.match(html,/متفوق الشهر/);assert.match(html,/91%/);assert.match(html,/83%/);assert.match(html,/18 \/ 28/);assert.match(html,/5 \/ 13/);assert.match(html,/↑ تحسن 6 نقطة/);assert.match(html,/امتحان 5/);assert.doesNotMatch(html,/امتحانات أخرى/);assert.match(html,/درجات الواجب/);assert.match(html,/واجب البرمجة/);assert.match(html,/خطة ولي الأمر/);assert.doesNotMatch(html,/ترتيب المنصة/);
  }finally{ui.close();}
 });
 test('calcStudent never invents an overall when the backend monthly report is absent',async()=>{

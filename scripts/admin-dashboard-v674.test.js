@@ -26,9 +26,10 @@ test('dashboard shell adds context without removing commands or routes', () => {
   assert.match(admin, /function adminSectionIcon\(id\)/);
   assert.match(admin, /class="admin-staff-card"/);
   assert.match(admin, /id="adminDesktopSectionDescription"/);
-  assert.match(admin, /class="admin-overview-hero"/);
-  assert.match(admin, /class="admin-metric-grid admin-action-kpis"/);
+  assert.match(admin, /class="admin-overview-hero admin-overview-hero-v69"/);
+  assert.match(admin, /class="admin-glance-grid-v69"/);
   assert.match(admin, /class="admin-task-button primary-task"/);
+  assert.match(admin, /id="adminAttentionButton"/);
   assert.match(admin, /onclick="forceFirestoreSync\(\)"/);
   assert.match(admin, /onclick="enableBookingNotifications\(\)"/);
   assert.match(read('assets/app.js'), /refreshCw:/);
@@ -49,14 +50,14 @@ test('admin design covers desktop, dark mode and mobile hierarchy', () => {
   assert.match(css, /@media\(max-width:390px\)/);
 });
 
-test('release metadata is synchronized at 67.8.10', () => {
+test('release metadata is synchronized at 70.0.0', () => {
   const frontend = require(path.join(root, 'package.json'));
   const backend = require(path.join(root, 'functions/package.json'));
   const worker = read('service-worker.js');
 
-  assert.equal(frontend.version, '67.8.10');
+  assert.equal(frontend.version, '70.0.0');
   assert.equal(backend.version, frontend.version);
-  assert.match(read('assets/app.js'), /MF_ASSET_VERSION = '67\.8\.10'/);
-  assert.match(worker, /technominds-v67-8-10-admin-session/);
-  assert.match(worker, /ASSET_VERSION = "67\.8\.10"/);
+  assert.match(read('assets/app.js'), /MF_ASSET_VERSION = '70\.0\.0'/);
+  assert.match(worker, /technominds-v70-0-0-complete-report/);
+  assert.match(worker, /ASSET_VERSION = "70\.0\.0"/);
 });

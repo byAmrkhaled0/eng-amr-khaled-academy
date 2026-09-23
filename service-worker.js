@@ -1,5 +1,5 @@
-const CACHE_NAME = "technominds-v67-8-10-admin-session";
-const ASSET_VERSION = "67.8.10";
+const CACHE_NAME = "technominds-v70-0-0-complete-report";
+const ASSET_VERSION = "70.0.0";
 // Build fills these hashes; source previews continue to use the release URLs.
 const ASSET_REVISIONS = {};
 const APP_SHELL = [

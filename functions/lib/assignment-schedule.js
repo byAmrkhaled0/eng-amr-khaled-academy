@@ -26,7 +26,7 @@ function scheduledTimeMillis(value) {
 }
 
 function assignmentIsReleased(assignment, now = Date.now()) {
-  if (!assignment || assignment.active === false || assignment.published === false || assignment.status === 'مسودة') return false;
+  if (!assignment || assignment.active === false || assignment.published === false || assignment.archived === true || assignment.cancelled === true || ['مسودة','cancelled','archived'].includes(assignment.status)) return false;
   const publishAt = scheduledTimeMillis(assignment.publishAt);
   return publishAt === 0 || publishAt <= Number(now);
 }

@@ -38,7 +38,7 @@ test('payment confirmation is immediate, idempotent and does not wait for a seco
   assert.match(payments,/adminSameAcademic\(r\.summary\?\.course\|\|r\.student\.grade,course\)/);
   assert.match(backend,/sameAcademicValue\(requestedCourse, student\.grade\)/);
   assert.match(backend,/invalidateStudentReportInTransaction\(tx, studentCode, summary\.academicYear, summary\.month, 'payment-updated'\)/);
-  assert.match(login,/v60-payments\.js\?v=67\.8\.10/);
+  assert.match(login,/v60-payments\.js\?v=70\.0\.0/);
 });
 
 test('payment cards explain zero prices and never leave the primary action silently disabled',()=>{
@@ -60,7 +60,7 @@ test('V60.6 restores every payment handler after the V55 compatibility hook',()=
 test('student file opens synchronously before cloud history so popup blockers do not swallow it',()=>{
   const admin=read('assets/admin.js'),start=admin.indexOf('window.printStudentReport=async function'),end=admin.indexOf('window.sendParentMonthlyReport',start),source=admin.slice(start,end);
   assert.ok(source.indexOf("window.open('','_blank')")>=0);
-  assert.ok(source.indexOf("window.open('','_blank')")<source.indexOf('await window.MFCloud'));
+  assert.ok(source.indexOf("window.open('','_blank')")<source.indexOf('await Promise.allSettled'));
   assert.match(source,/جارٍ تجهيز ملف الطالب/);
   assert.match(source,/w\.opener=null/);
 });
@@ -105,7 +105,7 @@ test('student portal keeps essential tabs without a more menu and shows motivati
   const app=read('assets/app.js');
   assert.doesNotMatch(app,/data-student-more-toggle/);
   assert.match(app,/data-student-panel="motivation"/);
-  assert.match(app,/تُحتسب كبونص شهري يساعدك في ترتيب طلاب مسارك/);
+  assert.match(app,/نقاط تحفيز الشهر/);
   assert.match(app,/getStudentLeaderboardPosition/);
 });
 
@@ -150,6 +150,6 @@ test('student and parent portals refresh in place and expose monthly alerts',()=
 
 test('admin preview asset and cache use the current release',()=>{
   assert.match(read('teacher-login.html'),/v63-admin-experience\.js\?v=64\.0\.0/);
-  assert.match(read('service-worker.js'),/technominds-v67-8-10-admin-session/);
-  assert.equal(require(path.join(root,'package.json')).version,'67.8.10');
+  assert.match(read('service-worker.js'),/technominds-v70-0-0-complete-report/);
+  assert.equal(require(path.join(root,'package.json')).version,'70.0.0');
 });

@@ -14,6 +14,18 @@ function scorePercent(score, maxScore) {
   return Math.max(0, Math.min(100, Math.round((earned / maximum) * 10000) / 100));
 }
 
+function isExamGradePending(row = {}) {
+  const score=row.score??row.grade??row.earnedScore;
+  const max=row.maxScore??row.totalMarks??row.totalScore;
+  const valid=score!==null&&score!==undefined&&score!==''&&Number.isFinite(Number(score))&&max!==null&&max!==undefined&&max!==''&&Number(max)>0;
+  const status=String(row.status||'').trim().toLowerCase();
+  if(!valid)return true;
+  if(['absent','started','in_progress'].includes(status))return true;
+  const confirmed=row.approved===true||row.reviewed===true||Boolean(row.reviewedAt)||['corrected','graded','تم التصحيح','تم تصحيح الامتحان'].includes(status);
+  if(confirmed)return false;
+  return row.needsManualReview===true||['pending','pending_review','pending-review','pending_manual','awaiting_review'].includes(status);
+}
+
 function resultDate(row = {}) {
   const value=row.submittedAt || row.reviewedAt || row.date || row.createdAt || row.updatedAt || '';
   if(typeof value?.toDate==='function')return value.toDate().toISOString();
@@ -33,9 +45,9 @@ function dedupeKey(result = {}) {
 }
 
 function normalizeResult(row = {}, type = 'manual', source = 'grades') {
-  const score = row.needsManualReview === true || row.status === 'pending' || row.score === null || row.score === undefined || row.score === '' || !Number.isFinite(Number(row.score)) ? null : Number(row.score);
+  const score = (type === 'exam' ? isExamGradePending(row) : row.needsManualReview === true || row.status === 'pending' || row.score === null || row.score === undefined || row.score === '' || !Number.isFinite(Number(row.score))) ? null : Number(row.score);
   const maxScore = Math.max(0, number(row.maxScore ?? row.totalScore ?? row.outOf, 100));
-  const status = score === null || row.needsManualReview === true ? 'pending' : 'graded';
+  const status = score === null ? 'pending' : 'graded';
   return {
     id: String(row.id || '').slice(0, 120),
     activityId: String(row.assignmentId || row.examId || row.activityId || '').slice(0, 120),
@@ -56,10 +68,12 @@ function normalizeResult(row = {}, type = 'manual', source = 'grades') {
 
 function normalizeUnifiedResults({ grades = [], examAttempts = [], homeworks = [], practicals = [] } = {}) {
   const candidates = [];
+  const authoritativeExams = new Set(examAttempts.map(row => String(row?.examId || '')).filter(Boolean));
   grades.forEach(row => {
     const inferredType = row.type === 'practical' ? 'practical'
       : row.type === 'homework' || row.assignmentId ? 'homework'
         : row.type === 'exam' || row.examId ? 'exam' : 'manual';
+    if (inferredType === 'exam' && authoritativeExams.has(String(row.examId || row.activityId || ''))) return;
     candidates.push(normalizeResult(row, inferredType, 'grades'));
   });
   examAttempts.forEach(row => candidates.push(normalizeResult(row, 'exam', 'examAttempts')));
@@ -75,7 +89,10 @@ function normalizeUnifiedResults({ grades = [], examAttempts = [], homeworks = [
     const existing = unique.get(key);
     if (!existing || priority[result.source] > priority[existing.source] || (priority[result.source] === priority[existing.source] && result.updatedAt >= existing.updatedAt)) unique.set(key, result);
   }
-  return [...unique.values()].sort((left, right) => String(right.date).localeCompare(String(left.date)));
+  const results = [...unique.values()];
+  const latestExams = new Map(latestResults(results.filter(row => row.type === 'exam' && row.activityId)).map(row => [row.activityId, row]));
+  return results.filter(row => row.type !== 'exam' || !row.activityId || latestExams.get(row.activityId) === row)
+    .sort((left, right) => String(right.date).localeCompare(String(left.date)));
 }
 
 function latestResults(results = []) {
@@ -88,23 +105,26 @@ function latestResults(results = []) {
 
 function homeworkMetrics(assignments = [], homeworks = []) {
   const requiredIds = new Set(assignments.filter(item => item && item.id).map(item => String(item.id)));
-  const relevant = homeworks.filter(row => row && row.assignmentId && requiredIds.has(String(row.assignmentId)));
-  const submittedIds = new Set(relevant.filter(row => row.completed === true || row.submittedAt).map(row => String(row.assignmentId)));
+  const assignmentId = row => String(row?.assignmentId || row?.homeworkId || row?.assignment?.id || row?.assignmentSnapshot?.id || '');
+  const relevant = homeworks.filter(row => row && requiredIds.has(assignmentId(row)));
+  const submittedIds = new Set(relevant.filter(row => row.completed === true || row.submittedAt).map(assignmentId));
   const latestByAssignment = new Map();
   relevant.forEach(row => {
-    const key = String(row.assignmentId);
+    const key = assignmentId(row);
     const existing = latestByAssignment.get(key);
-    if (!existing || number(row.attemptNumber,1)>number(existing.attemptNumber,1) || (number(row.attemptNumber,1)===number(existing.attemptNumber,1)&&resultDate(row)>=resultDate(existing))) latestByAssignment.set(key, row);
+    const revision = item => resultDate({ submittedAt:item.reviewedAt || item.updatedAt || item.submittedAt || item.date });
+    if (!existing || number(row.attemptNumber,1)>number(existing.attemptNumber,1) || (number(row.attemptNumber,1)===number(existing.attemptNumber,1)&&revision(row)>=revision(existing))) latestByAssignment.set(key, row);
   });
   const graded = [...latestByAssignment.values()].filter(row => row.needsManualReview !== true && row.status !== 'pending' && row.score !== '' && row.score !== null && row.score !== undefined && Number.isFinite(Number(row.score)) && number(row.maxScore, 0) > 0);
   const averageGrade = graded.length
     ? Math.round((graded.reduce((sum, row) => sum + scorePercent(row.score, row.maxScore), 0) / graded.length) * 100) / 100
-    : 0;
+    : null;
   const lastGrade = graded.sort((a, b) => resultDate(b).localeCompare(resultDate(a)))[0] || null;
   return {
     requiredCount: requiredIds.size,
     submittedCount: submittedIds.size,
-    submissionPercentage: requiredIds.size ? Math.round((submittedIds.size / requiredIds.size) * 10000) / 100 : 0,
+    missingCount: requiredIds.size - submittedIds.size,
+    submissionPercentage: requiredIds.size ? Math.round((submittedIds.size / requiredIds.size) * 10000) / 100 : null,
     gradedCount: graded.length,
     averageGrade,
     lastGrade: lastGrade ? normalizeResult(lastGrade, 'homework', 'homeworkSubmissions') : null
@@ -130,6 +150,7 @@ function configurableOverallAverage(results = [], configuredWeights = {}) {
 
 return {
   scorePercent,
+  isExamGradePending,
   normalizeResult,
   normalizeUnifiedResults,
   latestResults,

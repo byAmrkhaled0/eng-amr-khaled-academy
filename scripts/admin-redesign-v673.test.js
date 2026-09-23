@@ -9,9 +9,9 @@ const root = path.resolve(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
 const expectedSections = [
-  'overview','operations','students','motivation','schedules','attendance',
+  'overview','classroom','students','motivation','schedules','attendance',
   'materials','theoryLectures','assignments','exams','payments','bookings',
-  'studentRequests','warnings','curriculum','reviews','backup','settings'
+  'questionBanks','studentRequests','warnings','curriculum','reviews','backup','settings'
 ];
 
 test('admin redesign keeps every existing section and assigns each to one group', () => {
@@ -26,11 +26,12 @@ test('admin redesign keeps every existing section and assigns each to one group'
     const occurrences = [...groups.matchAll(new RegExp(`'${id}'`, 'g'))].length;
     assert.equal(occurrences, 1, `${id} must appear once in the grouped navigation`);
   }
-  assert.match(groups, /الرئيسية والمتابعة/);
-  assert.match(groups, /الطلاب والحصص/);
-  assert.match(groups, /المحتوى والتقييم/);
+  assert.match(groups, /المتابعة/);
+  assert.match(groups, /إدارة الطلاب/);
+  assert.match(groups, /التعليم والتقييم/);
   assert.match(groups, /الطلبات والتواصل/);
   assert.match(groups, /النظام والبيانات/);
+  assert.match(admin, /adminLegacySectionAliases=\{operations:'classroom'/);
 });
 
 test('admin sidebar provides searchable accessible navigation without changing routes', () => {
@@ -61,14 +62,14 @@ test('navy and gold identity covers public pages, administration, dark mode and 
   assert.match(css, /\.admin-mobile-bottom button\.active/);
 });
 
-test('release metadata is synchronized at 67.8.10', () => {
+test('release metadata is synchronized at 70.0.0', () => {
   const frontend = require(path.join(root, 'package.json'));
   const backend = require(path.join(root, 'functions/package.json'));
   const worker = read('service-worker.js');
 
-  assert.equal(frontend.version, '67.8.10');
+  assert.equal(frontend.version, '70.0.0');
   assert.equal(backend.version, frontend.version);
-  assert.match(read('assets/app.js'), /MF_ASSET_VERSION = '67\.8\.10'/);
-  assert.match(worker, /technominds-v67-8-10-admin-session/);
-  assert.match(worker, /ASSET_VERSION = "67\.8\.10"/);
+  assert.match(read('assets/app.js'), /MF_ASSET_VERSION = '70\.0\.0'/);
+  assert.match(worker, /technominds-v70-0-0-complete-report/);
+  assert.match(worker, /ASSET_VERSION = "70\.0\.0"/);
 });

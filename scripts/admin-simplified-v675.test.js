@@ -10,7 +10,8 @@ const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 test('simplified navigation keeps the daily tools visible and every other tool accessible',()=>{
   const admin=read('assets/admin.js');
   const primary=admin.match(/const adminPrimarySections=\[([^\]]+)\]/)?.[1]||'';
-  for(const id of ['overview','operations','students','attendance','theoryLectures','assignments','exams'])assert.match(primary,new RegExp(`'${id}'`));
+  for(const id of ['overview','classroom','students','attendance','assignments'])assert.match(primary,new RegExp(`'${id}'`));
+  for(const id of ['operations','theoryLectures','questionBanks','exams'])assert.doesNotMatch(primary,new RegExp(`'${id}'`));
   assert.match(admin,/function adminNavButtonHtml\(id,label\)/);
   assert.match(admin,/id="adminAllTools"/);
   assert.match(admin,/كل أدوات الإدارة/);
@@ -33,4 +34,5 @@ test('the simpler dashboard reduces decoration while retaining status and shortc
   assert.match(css,/\.admin-metric-copy em\{display:none\}/);
   assert.match(admin,/class="admin-task-button primary-task"/);
   assert.match(admin,/class="admin-system-note"/);
+  assert.match(admin,/class="card admin-reveal-card-v69"/);
 });

@@ -25,4 +25,10 @@ function paymentTotals(current, paidDelta, expectedAmount) {
   };
 }
 
-module.exports = { money, paymentStatus, paymentTotals };
+function paymentPeriodStatus(rows, academicYear, month) {
+  const current = (rows || []).filter(row => row.academicYear === academicYear && row.month === month);
+  return paymentStatus(current.reduce((total, row) => total + money(row.expectedAmount), 0),
+    current.reduce((total, row) => total + money(row.paidAmount), 0));
+}
+
+module.exports = { money, paymentStatus, paymentTotals, paymentPeriodStatus };

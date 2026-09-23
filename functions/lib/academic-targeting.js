@@ -103,9 +103,9 @@ function learningTargetMatchesStudent(item, student) {
   // remain only as a compatibility fallback for students/content created by
   // older releases. If both sides have ids, a renamed group cannot leak or hide
   // content because the name is no longer part of the decision.
-  const group = allGroups || (targetScheduleId && studentScheduleId
+  const group = targetScheduleId && studentScheduleId
     ? targetScheduleId === studentScheduleId
-    : sameAcademicValue(item.group, student.group));
+    : allGroups || sameAcademicValue(item.group, student.group);
   const term = wildcard(item.term, ['كل الترمات', 'all']) || !student.term || sameAcademicValue(item.term, student.term);
   const year = !item.academicYear || !student.academicYear || sameAcademicValue(item.academicYear, student.academicYear);
   return grade && group && term && year;

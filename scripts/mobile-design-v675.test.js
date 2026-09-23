@@ -42,5 +42,6 @@ test('mobile administration exposes daily work first without removing advanced t
   assert.match(css,/\.admin-command-actions\{position:sticky;top:72px/);
   assert.match(css,/\.admin-mobile-bottom\{right:8px!important/);
   assert.match(admin,/id="adminAllTools"/);
-  assert.match(admin,/const adminPrimarySections=\['overview','operations','students','attendance','theoryLectures','questionBanks','assignments','exams'\]/);
+  assert.match(admin,/const adminPrimarySections=\['overview','classroom','students','attendance','assignments'\]/);
+  assert.match(admin,/admin-mobile-alert-v69/);
 });

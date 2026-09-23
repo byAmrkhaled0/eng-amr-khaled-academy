@@ -2,7 +2,7 @@
   'use strict';
 
   const cfg=window.MF_FIREBASE_CONFIG||{};
-  const FRONTEND_VERSION='67.8.10';
+  const FRONTEND_VERSION='70.0.0';
   const API_SCHEMA_VERSION='portal-v64.0.0';
   if(!cfg.enabled||typeof firebase==='undefined'){
     window.MFCloud={ready:false,error:'Firebase غير مفعل'};
@@ -153,6 +153,7 @@
       getStudentAdminProfile:callable('getStudentAdminProfile'),
       getStudentMonthlyReportAdmin:callable('getStudentMonthlyReportAdmin'),
       getParentMonthlyReport:callable('getParentMonthlyReport'),
+      recordParentReportDeliveryAdmin:callable('recordParentReportDeliveryAdmin'),
       saveStudentPrivateNote:callable('saveStudentPrivateNote'),
       getAdminOperationsDashboard:callable('getAdminOperationsDashboard'),
       finalizeExamAbsencesAdmin:callable('finalizeExamAbsencesAdmin'),
@@ -740,6 +741,7 @@
       getStudentAdminProfile:payload=>{if(!calls.getStudentAdminProfile)throw new Error('Student profile service unavailable');return calls.getStudentAdminProfile(payload||{});},
       getStudentMonthlyReportAdmin:payload=>{if(!calls.getStudentMonthlyReportAdmin)throw new Error('Monthly report service unavailable');return calls.getStudentMonthlyReportAdmin(payload||{});},
       getParentMonthlyReport:async(code,monthKey)=>{if(!calls.getParentMonthlyReport)throw new Error('Monthly parent report service unavailable');const normalized=normalizeCode(code),payload=await portalPayload(normalized,{studentCode:normalized,monthKey},'parent');return publicCallable('/api/parent/monthly-report',payload,calls.getParentMonthlyReport,8000,0);},
+      recordParentReportDeliveryAdmin:payload=>{if(!calls.recordParentReportDeliveryAdmin)throw new Error('Parent report delivery log unavailable');return calls.recordParentReportDeliveryAdmin(payload||{});},
       saveStudentPrivateNote:payload=>{if(!calls.saveStudentPrivateNote)throw new Error('Student note service unavailable');return calls.saveStudentPrivateNote(payload||{});},
       getAdminOperationsDashboard:payload=>{if(!calls.getAdminOperationsDashboard)throw new Error('Operations dashboard service unavailable');return calls.getAdminOperationsDashboard(payload||{});},
       finalizeExamAbsencesAdmin:()=>{if(!calls.finalizeExamAbsencesAdmin)throw new Error('Exam absence service unavailable');return calls.finalizeExamAbsencesAdmin({});},

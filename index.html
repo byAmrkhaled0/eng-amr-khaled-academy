@@ -2,7 +2,7 @@
 
 <html data-theme="light" dir="rtl" lang="ar">
 <head>
-<script src="assets/theme-init.js?v=67.8.10"></script>
+<script src="assets/theme-init.js?v=70.0.0"></script>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
 <meta content="#07111f" name="theme-color"/>
@@ -28,7 +28,7 @@
 <link href="assets/v60-technominds.css?v=64.0.0" rel="stylesheet"/>
 <link rel="stylesheet" href="assets/v61-design.css?v=64.0.0">
 <link rel="stylesheet" href="assets/v65-redesign.css?v=66.2.0">
-<link rel="stylesheet" href="assets/v67-learning-hub.css?v=67.8.10">
+<link rel="stylesheet" href="assets/v67-learning-hub.css?v=70.0.0">
 </head>
 <body id="top">
 <header class="site-header">
@@ -94,18 +94,19 @@
 <form class="card grid grid-2 booking-form-compact" id="bookingForm">
 <div class="booking-steps" aria-label="خطوات الحجز"><span class="active" data-booking-indicator="1"><b>1</b><small>بيانات الطالب</small></span><i></i><span data-booking-indicator="2"><b>2</b><small>المجموعة والموعد</small></span><i></i><span data-booking-indicator="3"><b>3</b><small>استلام الكود</small></span></div>
 <div class="booking-step active" data-booking-step="1">
-<div class="field"><label>اسم الطالب</label><input name="name" placeholder="اكتب اسم الطالب" required="" type="text" maxlength="100" autocomplete="name"/></div>
+<div class="field"><label for="bookingStudentName">اسم الطالب</label><input id="bookingStudentName" name="name" placeholder="اكتب اسم الطالب" required="" type="text" maxlength="100" autocomplete="name"/></div>
 <div class="field"><label for="bookingStudentPhone">رقم الطالب</label><input id="bookingStudentPhone" name="studentPhone" placeholder="مثال: 01012345678" inputmode="tel" data-digits-only minlength="10" maxlength="15" pattern="[0-9]{10,15}" required="" type="tel"/><small class="field-hint">اكتب من 10 إلى 15 رقمًا بدون مسافات.</small></div>
 <div class="field"><label for="bookingParentPhone">رقم ولي الأمر</label><input id="bookingParentPhone" name="parentPhone" placeholder="مثال: 01123456789" inputmode="tel" data-digits-only minlength="10" maxlength="15" pattern="[0-9]{10,15}" required="" type="tel"/><small class="field-hint">ينفع نفس رقم الطالب، وينفع تكرار نفس رقم ولي الأمر لأكثر من ابن.</small></div>
 <button class="btn primary booking-next" type="button" data-booking-next><span data-icon="external-link"></span> التالي: اختار الموعد</button>
 </div>
 <div class="booking-step" data-booking-step="2">
-<div class="field"><label>المسار التعليمي</label><select id="bookingGrade" name="grade" required=""></select></div>
-<div class="field"><label>شهر الاشتراك</label><select id="bookingMonth" name="month" required=""></select></div>
-<div class="field"><label>الترم</label><select id="bookingTerm" name="term" required=""></select></div>
+<div class="field"><label for="bookingGrade">المسار التعليمي</label><select id="bookingGrade" name="grade" required=""></select></div>
+<div class="field"><label for="bookingMonth">شهر الاشتراك</label><select id="bookingMonth" name="month" required=""></select></div>
+<div class="field"><label for="bookingTerm">الترم</label><select id="bookingTerm" name="term" required=""></select></div>
 <div class="field booking-group-picker"><label for="bookingGroup">المجموعة والموعد <small>(اختياري)</small></label><span class="booking-live-label" id="bookingSchedulesLive"><i></i> جاري قراءة المواعيد من لوحة الإدارة…</span><div class="group-search-wrap"><span data-icon="search"></span><input id="bookingGroupSearch" type="search" aria-label="البحث في المجموعات والمواعيد" placeholder="اكتب اسم المجموعة أو اليوم" autocomplete="off"/></div><select id="bookingGroup" name="group" aria-describedby="bookingGroupHint"><option value="">التسجيل بدون مجموعة — أحددها لاحقًا</option></select><input id="bookingScheduleId" name="scheduleId" type="hidden"/><small class="field-hint" id="bookingGroupHint">تقدر تختار موعدًا من لوحة المواعيد أو تكمل الحجز بدون مجموعة.</small></div>
-<div class="field" style="grid-column:1/-1"><label>ملاحظات</label><textarea name="notes" placeholder="أي تفاصيل مهمة عن الطالب أو المستوى"></textarea></div>
+<div class="field" style="grid-column:1/-1"><label for="bookingNotes">ملاحظات</label><textarea id="bookingNotes" name="notes" placeholder="أي تفاصيل مهمة عن الطالب أو المستوى"></textarea></div>
 <div class="booking-submit-status" id="bookingSubmitStatus" role="status" aria-live="polite" hidden></div>
+<p class="booking-privacy-note">بإرسال الطلب أنت توافق على استخدام بيانات الطالب للتسجيل والمتابعة وفق <a href="privacy.html">سياسة الخصوصية</a>.</p>
 <div class="booking-step-actions"><button class="btn ghost" type="button" data-booking-back>رجوع</button><button class="btn primary" type="submit"><span data-icon="send"></span> تأكيد الحجز وإظهار الكود الموحّد</button></div>
 </div>
 <div class="booking-step booking-result-step" data-booking-step="3">
@@ -137,9 +138,9 @@
 <div class="portal-shell">
 <form class="card grid grid-2" id="reviewForm">
 <div class="field"><label for="homeReviewerName">الاسم</label><input id="homeReviewerName" name="name" placeholder="اسمك" required="" type="text" maxlength="100" autocomplete="name"/></div>
-<div class="field"><label>الصفة</label><select name="role"><option>طالب</option><option>ولي أمر</option></select></div>
+<div class="field"><label for="homeReviewerRole">الصفة</label><select id="homeReviewerRole" name="role"><option>طالب</option><option>ولي أمر</option></select></div>
 <div class="field rating-field"><span class="field-label">التقييم</span><div class="star-input" data-star-input=""><input name="rating" type="hidden" value="5"/><button data-rate="1" type="button" aria-label="تقييم 1 من 5">★</button><button data-rate="2" type="button" aria-label="تقييم 2 من 5">★</button><button data-rate="3" type="button" aria-label="تقييم 3 من 5">★</button><button data-rate="4" type="button" aria-label="تقييم 4 من 5">★</button><button data-rate="5" type="button" aria-label="تقييم 5 من 5">★</button><span>5 نجوم</span></div></div>
-<div class="field" style="grid-column:1/-1"><label>رأيك</label><textarea name="text" placeholder="اكتب تقييمك لم. عمرو خالد" required=""></textarea></div>
+<div class="field" style="grid-column:1/-1"><label for="homeReviewText">رأيك</label><textarea id="homeReviewText" name="text" placeholder="اكتب تقييمك لم. عمرو خالد" required=""></textarea></div>
 <button class="btn primary" style="grid-column:1/-1" type="submit"><span data-icon="star"></span> إرسال التقييم</button>
 </form>
 <div class="grid" id="reviewsList"></div>
@@ -191,11 +192,11 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-functions-compat.js"></script>
 <script defer src="assets/firebase-config.js?v=64.0.0"></script>
-<script defer src="assets/firebase-sync.js?v=67.8.10"></script>
-<script defer src="assets/student-grade-records.js?v=67.8.10"></script>
-<script defer src="assets/portal-results.js?v=67.8.10"></script>
-<script defer src="assets/app.js?v=67.8.10"></script>
+<script defer src="assets/firebase-sync.js?v=70.0.0"></script>
+<script defer src="assets/student-grade-records.js?v=70.0.0"></script>
+<script defer src="assets/portal-results.js?v=70.0.0&rev=a811311ccf"></script>
+<script defer src="assets/app.js?v=70.0.0&rev=f275f593ff"></script>
 <script defer src="assets/v53-upgrades.js?v=64.0.0"></script>
-<script defer src="assets/v56-fixes.js?v=67.8.10"></script>
+<script defer src="assets/v56-fixes.js?v=70.0.0"></script>
 </body>
 </html>

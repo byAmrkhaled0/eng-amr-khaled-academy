@@ -53,8 +53,8 @@ test('assessment changes invalidate ranking and any locked parent monthly report
 test('leaderboard deduplicates exam sources and exposes exam and homework scores',()=>{
   const backend=read('functions/index.js'),app=read('assets/app.js');
   assert.match(backend,/normalizeUnifiedResults\(\{grades:currentMonthRows[\s\S]*examAttempts:currentMonthRows/);
-  assert.match(backend,/gradePct\*config\.weights\.exams/);
-  assert.match(backend,/homeworkGradePct\*config\.weights\.homeworkGrade/);
+  assert.match(backend,/\(gradePct\?\?0\)\*config\.weights\.exams/);
+  assert.match(backend,/\(homeworkGradePct\?\?0\)\*config\.weights\.homeworkGrade/);
   assert.match(app,/درجات الامتحانات/);
   assert.match(app,/درجات الواجبات/);
   assert.match(app,/motivation-score-breakdown-v683/);

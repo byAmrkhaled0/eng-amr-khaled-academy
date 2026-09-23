@@ -8,7 +8,7 @@ const { spawnSync } = require('child_process');
 const root = path.resolve(__dirname, '..');
 const requiredFiles = [
   'index.html', 'student.html', 'parent.html', 'exams.html', 'teacher-login.html', 'learning-path.html', 'about.html', 'theory-lectures.html',
-  'assets/app.js', 'assets/admin.js', 'assets/v53-upgrades.js', 'assets/v55-admin.js', 'assets/v55.css', 'assets/v56-fixes.js', 'assets/v56.css', 'assets/amr-khaled-profile.jpeg', 'assets/amr-khaled-profile.webp',
+  'assets/app.js', 'assets/admin.js', 'assets/v53-upgrades.js', 'assets/v55-admin.js', 'assets/v64-admin-operations.js', 'assets/v55.css', 'assets/v56-fixes.js', 'assets/v56.css', 'assets/amr-khaled-profile.jpeg', 'assets/amr-khaled-profile.webp',
   'assets/firebase-sync.js', 'assets/firebase-config.js', 'assets/technominds-logo.png', 'assets/v67-learning-hub.css',
   'firestore.rules', 'storage.rules', 'firestore.indexes.json', 'firebase.json',
   'functions/index.js', 'functions/package.json', 'service-worker.js', 'site.webmanifest', 'teacher.webmanifest', 'offline.html',
@@ -28,7 +28,7 @@ if (!failures.length) ok('Required files exist');
 if(read('assets/portal-results.js')!==read('functions/lib/portal-results.js'))fail('Shared portal results are stale; run node scripts/sync-shared-assets.js');
 
 const jsFiles = [
-  'assets/app.js', 'assets/admin.js', 'assets/v53-upgrades.js', 'assets/v55-admin.js', 'assets/v56-fixes.js',
+  'assets/app.js', 'assets/admin.js', 'assets/v53-upgrades.js', 'assets/v55-admin.js', 'assets/v56-fixes.js', 'assets/v64-admin-operations.js',
   'assets/firebase-sync.js', 'assets/firebase-config.js', 'assets/practical.js', 'assets/v60-payments.js', 'assets/v60-admin-workflow.js',
   'functions/index.js', 'functions/payment-domain.js', 'functions/lib/student-access.js', 'functions/lib/student-identity.js', 'local-server.js', 'scripts/build.js', 'scripts/verify-dist.js', 'scripts/payment-domain.test.js', 'scripts/booking-homework-v628.test.js'
 ];
@@ -161,7 +161,7 @@ const appSourceCode = read('assets/app.js');
 const fixesSourceCode = read('assets/v56-fixes.js');
 if (!adminSourceCode.includes("loadSiteData({fast:true})") || !adminSourceCode.includes('hydrateAdminRecords')) fail('Staged admin loading is missing');
 if (!appSourceCode.includes('staffCacheOnly') || !appSourceCode.includes('if(isStaffWorkspace())return;')) fail('Compact staff browser cache protection is missing');
-if (!appSourceCode.includes("MF_ASSET_VERSION = '67.8.10'")) fail('Lazy asset loader version is stale');
+if (!appSourceCode.includes("MF_ASSET_VERSION = '70.0.0'")) fail('Lazy asset loader version is stale');
 if (!fixesSourceCode.includes('showMoreAdminStudents') || !fixesSourceCode.includes('slice(0,adminStudentVisible)')) fail('Paginated student rendering is missing');
 if (!appSourceCode.includes('ensureQrScannerLibrary') || !appSourceCode.includes("loadQrScanner:()=>loadLazyScript('qr-scanner'")) fail('Cross-browser lazy QR scanner fallback is missing');
 for (const page of ['student.html','parent.html','teacher-login.html']) {
@@ -212,7 +212,7 @@ if (manifest.display !== 'standalone' || manifest.scope !== '/' || !Array.isArra
 if (!manifest.icons.some(icon => String(icon.purpose || '').includes('maskable') && icon.sizes === '512x512')) fail('Maskable PWA icon is missing');
 const sw = read('service-worker.js');
 const appShellSource = sw.slice(0,sw.indexOf('];')+2);
-if (!/technominds-v67-8-10-admin-session/.test(sw) || !sw.includes('/assets/v61-design.css') || !sw.includes('/assets/v67-learning-hub.css') || !sw.includes('/assets/v674-admin.css') || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/curriculum-student.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes("'/practical.html'") || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell or sensitive portal exclusions are incomplete');
+if (!/technominds-v70-0-0-complete-report/.test(sw) || !sw.includes('/assets/v61-design.css') || !sw.includes('/assets/v67-learning-hub.css') || !sw.includes('/assets/v674-admin.css') || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/curriculum-student.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes("'/practical.html'") || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell or sensitive portal exclusions are incomplete');
 if (/xlsx|assets\/admin\.js|teacher-login\.html|html5-qrcode/.test(appShellSource) || !sw.includes("if(cached&&url.searchParams.get('v')===ASSET_VERSION)return cached")) fail('Lazy tools or repeat-visit caching are incomplete');
 if (!read('index.html').includes('<script defer src="https://www.gstatic.com/firebasejs/')) fail('Firebase scripts are not downloaded in parallel with deferred execution');
 const upgrade = read('assets/v53-upgrades.js');

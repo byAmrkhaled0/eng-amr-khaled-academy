@@ -45,7 +45,7 @@ test('monthly report separates academic level from study commitment and lists mi
 
 test('monthly report exposes exact payment and monthly motivation without malformed exam markup',()=>{
   const report=calculateMonthlyReport({monthKey:'2026-09',student:{studentCode:'ST-123456',name:'طالب'},payment:{status:'partial',expectedAmount:500,paidAmount:300,remainingAmount:200},motivationSummary:{totalPoints:8,transactionCount:2,lastReason:'حل الواجب'}});
-  assert.equal(report.schemaVersion,6);assert.equal(report.payment.remainingAmount,200);assert.equal(report.motivation.totalPoints,8);assert.equal(report.motivation.lastReason,'حل الواجب');
+  assert.equal(report.schemaVersion,11);assert.equal(report.payment.remainingAmount,200);assert.equal(report.motivation.totalPoints,8);assert.equal(report.motivation.lastReason,'حل الواجب');
   const app=read('assets/app.js'),backend=read('functions/index.js');
   assert.match(app,/function parentReportPaymentLabel/);assert.match(app,/motivation\.transactionCount/);assert.match(app,/navigator\.canShare/);
   assert.doesNotMatch(app,/class="badge \$\{esc\(monthlyResultStatus\(row\)\)\}<\/span>/);
@@ -92,13 +92,32 @@ test('server owns complete monthly reports and keeps bulk preparation opt-in',()
   assert.match(app,/ملخص المتابعة/);
 });
 
+test('monthly report cache and content dates use the current complete schema',()=>{
+  const backend=read('functions/index.js');
+  assert.match(backend,/cached\?\.report\?\.schemaVersion===11/);
+  assert.doesNotMatch(backend,/cached\?\.report\?\.schemaVersion===10/);
+  assert.match(backend,/reportContentForAnyPeriodField\('assignments',\['publishAt','dueDate','createdAt'\]/);
+  assert.match(backend,/reportContentForAnyPeriodField\('exams',\['openAt','closeAt','createdAt'\]/);
+});
+
+test('manual parent report sharing is auditable without claiming delivery',()=>{
+  const backend=read('functions/index.js'),sync=read('assets/firebase-sync.js'),admin=read('assets/admin.js'),profile=read('assets/v64-admin-operations.js');
+  assert.match(backend,/exports\.recordParentReportDeliveryAdmin = onCall/);
+  assert.match(backend,/collection\('parent_report_deliveries'\)/);
+  assert.match(read('functions/lib/backup.js'),/'parent_report_deliveries'/);
+  assert.match(sync,/recordParentReportDeliveryAdmin:callable\('recordParentReportDeliveryAdmin'\)/);
+  assert.match(admin,/deliveryMode:window\.parentReportDeliveryMode\|\|'image-downloaded'/);
+  assert.match(profile,/data-profile-view="reports">تقارير ولي الأمر/);
+  assert.match(profile,/تم تجهيز الصورة وفتح المشاركة/);
+});
+
 test('redesign shares a parent report image to the saved parent phone and hides archived exams',()=>{
   const app=read('assets/app.js'),admin=read('assets/admin.js'),backend=read('functions/index.js'),teacher=read('teacher-login.html'),css=read('assets/v65-redesign.css'),indexes=JSON.parse(read('firestore.indexes.json'));
-  assert.match(app,/function parentReportImageBlob/);assert.match(app,/parentReportWhatsAppIntro/);assert.match(app,/كود الطالب:/);assert.match(app,/parent\.html/);
-  assert.match(app,/report\?\.student\?\.studentCode!==lastParentStudent\.studentCode/);
+  assert.match(app,/function parentReportImageBlob/);assert.match(app,/parentReportWhatsAppIntro/);assert.match(app,/كود الطالب الموحّد:/);assert.match(app,/parent\.html/);
+  assert.match(app,/compatibleMonthlyReport\(report,lastParentStudent\.studentCode\)/);
   assert.match(app,/parentReportSharePending=true/);assert.match(app,/openParentWhatsApp\('\$\{esc\(st\.studentCode\|\|''\)\}',this\)/);
   assert.match(admin,/deliverParentMonthlyReport\(report,phone/);assert.match(admin,/s\.parentPhone/);
-  assert.match(backend,/exam\.archived!==true&&exam\.active!==false&&exam\.published!==false/);
+  assert.match(backend,/function examIsPublished\(exam\)/);
   assert.match(backend,/exports\.updateStudentSafely = onCall/);assert.match(backend,/const history=availableMonths\.slice\(0,6\)/);
   assert.match(app,/درجة آخر امتحان/);assert.match(app,/درجة آخر واجب/);assert.match(app,/parent-report-sheet-v70/);
   assert.match(app,/technominds-logo\.png/);assert.match(app,/ترتيب المسار/);assert.match(app,/ترتيب المجموعة/);assert.match(app,/monthlyTitle/);assert.doesNotMatch(app,/ترتيب المنصة:/);
@@ -111,7 +130,7 @@ test('new students only receive homework and exams published after joining',()=>
   assert.match(backend,/function contentAvailableAfterStudentJoined/);
   assert.match(backend,/student\.acceptedAt\|\|student\.activatedAt\|\|student\.enrolledAt\|\|student\.createdAt/);
   assert.match(backend,/assignmentIsReleased\(item\)[^\n]+contentAvailableAfterStudentJoined\(item, student\)/);
-  assert.match(backend,/exam\.archived!==true[^\n]+contentAvailableAfterStudentJoined\(exam,found\.data\)/);
+  assert.match(backend,/examIsPublished\(exam\)[^\n]+contentAvailableAfterStudentJoined\(exam,found\.data/);
   assert.match(app,/scheduleState\|\|'open'\)!=='inactive'/);
   assert.match(css,/#examCodeForm,#examStudentResult\{grid-column:1\/-1\}/);
   for(const page of ['index.html','student.html','parent.html','exams.html','teacher-login.html'])assert.match(read(page),/v65-redesign\.css\?v=66\.2\.0/);
@@ -197,7 +216,7 @@ test('QR attendance survives offline use and syncs idempotently after reconnect'
   assert.match(sync,/syncOfflineAttendance:callable\('syncOfflineAttendance'\)/);
   assert.match(worker,/technominds-attendance-sync/);assert.match(worker,/\/teacher-login\.html/);assert.match(worker,/cache\.put\(request,response\.clone\(\)\)/);
   const appShell=worker.slice(0,worker.indexOf('];')+2);
-  assert.doesNotMatch(appShell,/html5-qrcode/);assert.match(worker,/v67-8-10-admin-session/);
+  assert.doesNotMatch(appShell,/html5-qrcode/);assert.match(worker,/v70-0-0-complete-report/);
   assert.match(admin,/qrScanBusy/);assert.match(admin,/offlineQrManualForm/);assert.match(admin,/state\?\.roster/);
   assert.match(app,/assets\/vendor\/html5-qrcode-2\.3\.8\.min\.js/);
   assert.match(page,/assets\/offline-attendance\.js/);
@@ -223,7 +242,7 @@ test('teacher exam and homework builders auto-save and restore local drafts',()=
 test('Drive links are integrated into targeted theoretical lectures and legacy links remain visible',()=>{
   const app=read('assets/app.js'),admin=read('assets/admin.js'),workflow=read('assets/v60-admin-workflow.js'),backend=read('functions/index.js'),page=read('materials.html'),theoryPage=read('theory-lectures.html'),css=read('assets/v65-redesign.css');
   assert.doesNotMatch(admin,/\['classLinks','external-link','روابط الحصص'\]/);
-  assert.match(admin,/requested==='classLinks'\?'theoryLectures'/);
+  assert.match(admin,/adminLegacySectionAliases=\{operations:'classroom',classLinks:'theoryLectures'\}/);
   assert.match(workflow,/name="linkUrl"/);
   assert.match(workflow,/normalizeDriveUrl\(rawLink\)/);
   assert.match(workflow,/resourceType:'theory-lecture'/);

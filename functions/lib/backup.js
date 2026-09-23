@@ -9,7 +9,7 @@ const BACKUP_COLLECTIONS = Object.freeze([
   'materials','questions','groups','assignments','exams','exam_attempts','exam_sessions','exam_absences','homework_submissions',
   'attendance','recitations','grades','payments','monthly_payments','payment_transactions','monthly_reports','reports','activityLog','client_errors',
   'student_attempts','exam_locks','homework_submission_locks','homework_attempt_grants','homework_review_history','exam_review_history',
-  'assessment_versions','class_sessions','student_notes','leaderboard_archives','motivation_monthly','motivation_transactions','student_transfer_requests',
+  'assessment_versions','class_sessions','student_notes','parent_report_deliveries','leaderboard_archives','motivation_monthly','motivation_transactions','student_transfer_requests',
   'curriculum','units','lectures','lecture_materials','assignments_v2','assignment_questions','question_banks','bank_questions',
   'monthly_exams','exam_questions_v2','teacher_files','student_progress','theory_lecture_progress','_student_names','deleted_students'
 ]);

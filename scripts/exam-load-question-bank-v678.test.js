@@ -27,8 +27,8 @@ test('exam and homework grades refresh and contribute to monthly motivation', ()
   assert.match(source, /markLeaderboardDirty\('exam-reviewed'\)/);
   assert.match(source, /markLeaderboardDirty\('assignment-submitted'\)/);
   assert.match(source, /markLeaderboardDirty\('homework-reviewed'\)/);
-  assert.match(source, /gradePct\*config\.weights\.exams/);
-  assert.match(source, /homeworkGradePct\*config\.weights\.homeworkGrade/);
+  assert.match(source, /\(gradePct\?\?0\)\*config\.weights\.exams/);
+  assert.match(source, /\(homeworkGradePct\?\?0\)\*config\.weights\.homeworkGrade/);
   assert.match(source, /weights:\{exams:30,attendance:25,homeworkCompletion:20,homeworkGrade:10/);
 });
 

@@ -44,7 +44,7 @@
     const tx=db.transaction(QUEUE,'readwrite'),done=completed(tx),store=tx.objectStore(QUEUE),studentSession=`${normalize(event.studentCode)}|${event.classSessionId}`;
     const existing=await read(store.index('studentSession').get(studentSession));
     if(existing){await done;return existing;}
-    const row={...event,studentCode:normalize(event.studentCode),attendanceCode:normalize(event.attendanceCode),requestId:event.requestId||(crypto.randomUUID?.()||Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('')),studentSession,status:'pending',attendanceStatus:'present',attempts:0,lastError:'',queuedAt:new Date().toISOString()};
+    const row={...event,studentCode:normalize(event.studentCode),attendanceCode:normalize(event.attendanceCode),requestId:event.requestId||(crypto.randomUUID?.()||Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('')),studentSession,status:'pending',attendanceStatus:event.attendanceStatus==='absent'?'absent':'present',attempts:0,lastError:'',queuedAt:new Date().toISOString()};
     store.add(row);await done;return row;
   }
   async function setRows(rows){const db=await open(),tx=db.transaction(QUEUE,'readwrite'),done=completed(tx);rows.forEach(row=>tx.objectStore(QUEUE).put(row));await done;}
@@ -71,6 +71,16 @@
       return {ok:true,synced,...await counts()};
     }finally{syncing=false;}
   }
+  async function finalizeSession(sessionId,ownerUid){
+    const preparations=await getPreparations(),prep=preparations.find(row=>row.sessionId===sessionId&&row.ownerUid===ownerUid);
+    if(!prep)throw new Error('جهّز الحصة أوفلاين أولًا قبل تسجيل الغياب.');
+    if(Date.parse(prep.expiresAt)<Date.now())throw new Error('انتهت صلاحية تجهيز الحصة؛ اتصل بالإنترنت وجهّزها مرة أخرى.');
+    const [roster,queue]=await Promise.all([getRoster(),getQueue()]),recorded=new Set(queue.filter(row=>row.classSessionId===sessionId).map(row=>normalize(row.studentCode)));
+    const missing=roster.filter(row=>row.ownerUid===ownerUid&&row.scheduleId===prep.scheduleId&&prep.studentCodes?.includes(normalize(row.studentCode))&&!recorded.has(normalize(row.studentCode)));
+    for(const student of missing)await enqueue({studentCode:student.studentCode,attendanceCode:student.attendanceCode,preparationId:prep.preparationId,ownerUid,classSessionId:prep.sessionId,date:prep.date,attendanceStatus:'absent',scannedAt:`${prep.date}T12:00:00Z`,finalizedOffline:true});
+    const db=await open(),tx=db.transaction(META,'readwrite'),done=completed(tx);tx.objectStore(META).put({...prep,finalizedAt:new Date().toISOString(),absentQueued:missing.length});await done;
+    return {ok:true,absentQueued:missing.length,alreadyRecorded:prep.studentCodes.length-missing.length,total:prep.studentCodes.length};
+  }
   async function clearRoster(){const db=await open(),tx=db.transaction([ROSTER,META],'readwrite'),done=completed(tx);tx.objectStore(ROSTER).clear();tx.objectStore(META).clear();await done;}
-  window.OfflineAttendance={cacheRoster,cachePreparation,getPreparations,getRoster,getQueue,enqueue,counts,sync,applyResults,clearRoster};
+  window.OfflineAttendance={cacheRoster,cachePreparation,getPreparations,getRoster,getQueue,enqueue,counts,sync,applyResults,finalizeSession,clearRoster};
 })();

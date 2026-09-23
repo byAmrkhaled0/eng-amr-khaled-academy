@@ -8,8 +8,8 @@ const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 
 test('service worker has one valid release cache and offline assessment shells',()=>{
   const worker=read('service-worker.js');
-  assert.match(worker,/technominds-v67-8-10-admin-session/);
-  assert.match(worker,/ASSET_VERSION = "67\.8\.10"/);
+  assert.match(worker,/technominds-v70-0-0-complete-report/);
+  assert.match(worker,/ASSET_VERSION = "70\.0\.0"/);
   assert.match(worker,/url\.pathname\.endsWith\("\.webmanifest"\)/);
   for(const route of ['/student.html','/exams.html'])assert.match(worker,new RegExp(route.replace('.','\\.')));
 });
@@ -40,7 +40,8 @@ test('exam progress is server timed, resumable, idempotent and auto-submits once
 test('homework grade is separate from submission in monthly motivation and parent report is complete',()=>{
   const app=read('assets/app.js'),backend=read('functions/index.js');
   assert.match(backend,/homeworkGradePct/);
-  assert.match(backend,/homeworkPct\*config\.weights\.homeworkCompletion\+homeworkGradePct\*config\.weights\.homeworkGrade/);
+  assert.match(backend,/homeworkPct=monthlyEvaluation\.homework\.completionPercentage,homeworkGradePct=monthlyEvaluation\.homework\.averageGrade/);
+  assert.match(backend,/\(homeworkPct\?\?0\)\*config\.weights\.homeworkCompletion\+\(homeworkGradePct\?\?0\)\*config\.weights\.homeworkGrade/);
   assert.match(backend,/where\('submittedAt','>=',periodStart\)/);
   assert.match(app,/Techno Minds · تقرير ولي الأمر الشهري/);
   assert.match(app,/الأداء الأكاديمي/);

@@ -44,7 +44,7 @@ test('new join, excused absence, cancellation and transfer use actual session me
 });
 test('empty month, unrecorded session and lecture opening cannot manufacture achievement',()=>{
  const report=calculateMonthlyReport({...base,sessionsComplete:true,sessions:[{id:'b1',scheduleId:'b',date:'2026-09-20'}],lectureProgress:[{viewed:true,percent:100,completed:true}]});
- assert.equal(report.attendance.absent,0);assert.equal(report.attendance.unrecorded,1);assert.equal(report.attendance.percentage,null);assert.equal(report.study.lecturesCompleted,0);assert.equal(attachTrend(report,report).trend.status,'insufficient');
+ assert.equal(report.attendance.absent,1);assert.equal(report.attendance.unrecorded,0);assert.equal(report.attendance.percentage,0);assert.equal(report.study.lecturesCompleted,0);assert.equal(attachTrend(report,report).trend.status,'insufficient');
  assert.equal(calculateMonthlyReport(base).overallScore,null);
 });
 test('Cairo month handles UTC midnight boundary in summer and winter',()=>{

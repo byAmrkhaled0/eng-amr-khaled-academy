@@ -253,6 +253,11 @@ body:not(.admin-dashboard-active){padding-top:74px}
 }
 @media(max-width:600px){.payment-export-actions,.payment-settings-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.payment-export-actions .btn,.payment-settings-actions .btn{width:100%}.payment-kpis-v606{grid-template-columns:1fr 1fr}.payment-kpis-v606 article{grid-column:auto!important}.payment-toolbar-v606{grid-template-columns:1fr!important}.payment-toolbar-v606>*{grid-column:1!important}.monthly-payment-card{padding:10px}.monthly-payment-main{grid-template-columns:auto minmax(0,1fr)}.monthly-payment-main>.badge{grid-column:1/-1;width:max-content}.monthly-payment-card .payment-actions{display:grid;grid-template-columns:1fr 1fr}.payment-history-item{grid-template-columns:1fr}.payment-history-item>.badge{width:max-content}.payment-dialog .grid-2{grid-template-columns:1fr!important}}
 
+.course-price-saved-state{margin:14px 0 4px;padding:10px 12px;border:1px solid color-mix(in srgb,var(--success,#1f9d72) 24%,var(--line));border-radius:12px;background:color-mix(in srgb,var(--success,#1f9d72) 7%,var(--panel));color:var(--muted);font-size:.78rem;font-weight:800;line-height:1.7}
+.course-price-editor[open]>summary{padding-bottom:12px;border-bottom:1px solid var(--line)}
+.quick-paid-button{min-width:112px}.monthly-payment-card.is-saving{opacity:.72;pointer-events:none}
+@media(max-width:600px){.course-price-editor>summary{align-items:flex-start}.course-price-grid{grid-template-columns:1fr}.payment-settings-actions{grid-template-columns:1fr}.quick-paid-button{width:100%}}
+
 /* Secure student-track lectures and question bank */
 .student-resources-hero{padding:72px 0 46px;background:radial-gradient(circle at 12% 12%,rgba(14,165,233,.14),transparent 30%),radial-gradient(circle at 88% 8%,rgba(99,102,241,.12),transparent 32%),linear-gradient(180deg,#f8fbff,#fff)}
 .student-resource-access-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(320px,.75fr);gap:28px;align-items:center}
