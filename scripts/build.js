@@ -27,8 +27,8 @@ const entriesToCopy = [
   'robots.txt',
   'sitemap.xml',
   'llms.txt',
-  'site.webmanifest',
-  'teacher.webmanifest',
+  'site-manifest.json',
+  'teacher-manifest.json',
   'service-worker.js',
   'offline.html',
   '404.html'

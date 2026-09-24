@@ -24,7 +24,7 @@ try {
     "/materials.html", "/theory-lectures.html", "/questions.html",
     "/practical.html", "/learning-path.html", "/about.html", "/reviews.html",
     "/privacy.html", "/terms.html", "/teacher-login.html", "/offline.html", "/404.html",
-    "/service-worker.js", "/site.webmanifest", "/teacher.webmanifest"
+    "/service-worker.js", "/site-manifest.json", "/teacher-manifest.json"
   )
   $slowPages = @()
   foreach ($page in $pages) {

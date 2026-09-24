@@ -131,7 +131,7 @@ test('profile, portal, monthly report and leaderboard reference the same level a
   assert.match(portal,/const motivationCurrent=monthlyReport\?\.motivation\|\|null/);
   assert.match(portal,/monthlyReport\.concerns\.slice\(0,2\)/);
   assert.match(admin,/report\.concerns\|\|\[\]/);
-  assert.match(backend,/cached\?\.report\?\.schemaVersion===11&&cached\.report\.policyVersion==='monthly-v11-student-level'/);
+  assert.match(backend,/cached\?\.report\?\.schemaVersion===11&&cached\.report\.policyVersion==='monthly-v11-student-level-homework-progress'/);
   assert.match(adminForm,/requestId:form\.dataset\.motivationRequestId/);
   assert.match(studentEditor,/requestId:motivationForm\.dataset\.motivationRequestId/);
   assert.match(studentEditor,/نقاط يدوية ·/);

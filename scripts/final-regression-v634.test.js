@@ -13,7 +13,8 @@ test('parent report derives required and graded states from assignments plus sub
   assert.match(app, /const st=report\?\.student\|\|\{\},attendance=report\?\.attendance/);
   assert.match(app, /homeworkRows=\(homework\.rows\|\|\[\]\)\.slice\(0,3\)/);
   assert.match(app, /function parentHomeworkStatus/);
-  assert.match(app, /row\.submission\?\.score===null\|\|row\.submission\?\.score===undefined\?'قيد التصحيح'/);
+  assert.match(app, /submission\.needsManualReview===true\|\|\['pending'/);
+  assert.match(app, /submission\?\.method==='teacher_class_check'/);
   assert.match(app, /يستطيع الطالب تسليم الواجب من بوابة الطالب/);
   const parentReport = app.slice(app.indexOf('function parentMonthlyReportHTML'), app.indexOf('async function loadParentMonthlyReport'));
   assert.doesNotMatch(parentReport, /assignment-answer-form/);

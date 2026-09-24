@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const backend=fs.readFileSync(require.resolve('../functions/index.js'),'utf8'),app=fs.readFileSync(require.resolve('../assets/app.js'),'utf8'),admin=fs.readFileSync(require.resolve('../assets/admin.js'),'utf8');
 const {calculateMonthlyReport}=require('../functions/lib/monthly-report');
 const {normalizeUnifiedResults}=require('../functions/lib/portal-results');
-const report={schemaVersion:11,policyVersion:'monthly-v11-student-level',monthKey:'2026-09',student:{name:'محمد أحمد',studentCode:'80463690'},level:'جيد جدًا',overallScore:85,attendance:{percentage:100},results:{average:80,rows:[]},homework:{required:4,missing:1,averageGrade:90},practical:{count:3,completed:2},strengths:['أدى جيدًا في التمارين'],concerns:['واجب يحتاج استكمال'],recommendations:['سلّم الواجب قبل الحصة القادمة']};
+const report={schemaVersion:11,policyVersion:'monthly-v11-student-level-homework-progress',monthKey:'2026-09',student:{name:'محمد أحمد',studentCode:'80463690'},level:'جيد جدًا',overallScore:85,attendance:{percentage:100},results:{average:80,rows:[]},homework:{required:4,missing:1,averageGrade:90},practical:{count:3,completed:2},strengths:['أدى جيدًا في التمارين'],concerns:['واجب يحتاج استكمال'],recommendations:['سلّم الواجب قبل الحصة القادمة']};
 function parentHarness({share=false,cancel=false,delay=false}={}){
   const events={opens:[],downloads:0,share:null,notices:[],resolved:!delay};let release;
   const image=delay?new Promise(resolve=>{release=()=>{events.resolved=true;resolve(new Blob(['png'],{type:'image/png'}));};}):Promise.resolve(new Blob(['png'],{type:'image/png'}));

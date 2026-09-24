@@ -113,7 +113,10 @@ function calculateMonthlyReport(input={}){
   for(const row of attempts.values()){const percentage=scorePercent(row,'exam');rows.push({...row,percentage,score:percentage===null?null:rowScore(row),maxScore:rowMaxScore(row),status:percentage===null?'pending_review':'graded'});if(percentage===null)awaiting++;}
   const scored=rows.filter(row=>row.percentage!==null),gradeAvg=average(scored.map(row=>row.percentage));
   const assignmentIdentity=row=>String(row?.assignmentId||row?.homeworkId||row?.assignment?.id||row?.assignmentSnapshot?.id||row?.id||'');
-  const assignments=input.assignments||[],latest=newestBy(input.homeworks||[],assignmentIdentity);
+  const assignments=input.assignments||[],knownAssignmentIds=new Set(assignments.map(row=>String(row.id||'')).filter(Boolean));
+  const isClassProgress=row=>row?.method==='teacher_class_check'&&row?.type==='homework'&&!knownAssignmentIds.has(String(row.assignmentId||row.homeworkId||row.assignment?.id||row.assignmentSnapshot?.id||''));
+  const classProgress=(input.homeworks||[]).filter(isClassProgress).map(row=>({id:row.id||'',title:row.homeworkTitle||row.title||'واجب الحصة',status:row.status||'تم عمل الواجب',date:row.submittedAt||row.date||'',completed:row.completed===true}));
+  const latest=newestBy((input.homeworks||[]).filter(row=>!isClassProgress(row)),assignmentIdentity);
   const homeworkRows=assignments.map(assignment=>{
     const raw=latest.get(String(assignment.id)),percentage=raw?scorePercent(raw):null;
     const submission=raw?{...raw,score:percentage===null?null:rowScore(raw),maxScore:rowMaxScore(raw)||assignment.totalScore||null,percentage}:null;
@@ -122,7 +125,6 @@ function calculateMonthlyReport(input={}){
     const required=assignment.activityOnly!==true;
     return {assignment,submission,required,late,status:submission?'submitted':required&&(assignment.submissionClosed||due&&due<new Date(now).getTime())?'missing':'available'};
   });
-  const knownAssignmentIds=new Set(assignments.map(row=>String(row.id||'')).filter(Boolean));
   // A corrected submission remains part of the student's record even when its
   // old assignment document was archived, deleted, or predates the current
   // assignment schema. It is activity-only, so it cannot inflate required work.
@@ -172,12 +174,12 @@ function calculateMonthlyReport(input={}){
   const sufficientData=academicEvidenceSufficient||(attendancePct!==null&&requiredHw.length>0);
   const monthlyTitle=activityCount&&overallScore!==null&&overallScore<45?'يحتاج تدخل سريع':attendancePct!==null&&attendancePct<60&&denominator>=2?'إنذار غياب':missingHw.length>=2?'متأخر في الواجبات':academicEvidenceSufficient&&overallScore>=90?'متفوق الشهر':academicEvidenceSufficient&&gradeAvg>=90?'مبرمج الشهر':attendancePct>=95&&denominator>=2?'نجم الحضور':homeworkCompletionPct===100&&homeworkGradeAvg>=80?'بطل الواجبات':academicEvidenceSufficient&&overallScore>=80?'المهندس البارع':activityCount&&overallScore!==null&&overallScore>=70?'نجم الالتزام':activityCount?'نجم التطور':'بيانات الشهر غير مكتملة';
   const monthlyTitleTone=/يحتاج|إنذار|متأخر/.test(monthlyTitle)?'negative':monthlyTitle==='بيانات الشهر غير مكتملة'?'neutral':'positive';
-  return {schemaVersion:11,policyVersion:'monthly-v11-student-level',monthKey,student:{studentCode:String(student.studentCode||student.code||student.id||''),name:student.studentName||student.name||'',grade:student.grade||'',group:student.group||'',academicYear:student.academicYear||''},
+  return {schemaVersion:11,policyVersion:'monthly-v11-student-level-homework-progress',monthKey,student:{studentCode:String(student.studentCode||student.code||student.id||''),name:student.studentName||student.name||'',grade:student.grade||'',group:student.group||'',academicYear:student.academicYear||''},
     overallScore,baseOverallScore,motivationBonus,level:levelLabel(overallScore),monthlyTitle,monthlyTitleTone,academicScore,academicLevel:levelLabel(academicScore),academicEvidenceCount,academicEvidenceSufficient,commitmentScore,commitmentLevel:commitmentLabel(commitmentScore),activityCount,sufficientData,
     comparisonBasis:[gradeAvg!==null,homeworkGradeAvg!==null,attendancePct!==null,homeworkCompletionPct!==null,onTimePct!==null].join(','),
     attendance:{total:attendance.length,required:entitlementKnown?sessions.length:null,entitlementKnown,present,late,absent,excused,unrecorded,percentage:attendancePct,rows:attendance,consecutiveAbsenceWarning:consecutiveAbsenceWarning(attendance)},
     results:{count:rows.length,gradedCount:scored.length,gradedExams:scored.length,average:gradeAvg,examAverage:gradeAvg,rows,requiredExams:required,availableExams:available,startedExams:started,submittedExams:submitted,attendedExams:submitted,missedExams:missed,absentExams:missed,pendingReview:awaiting,retakePolicy:'أحدث محاولة؛ إن كانت تنتظر التصحيح تُستبعد من المتوسط حتى اعتمادها.'},
-    homework:{required:requiredHw.length,submitted:submittedRequiredHw.length,activitySubmitted:submittedHw.length,submittedRequired:submittedRequiredHw.length,missing:missingHw.length,missingAssignments:requiredHw.length-submittedRequiredHw.length,available:requiredHw.filter(row=>row.status==='available').length,graded:submittedHw.filter(row=>row.submission.percentage!==null).length,late:lateHw.length,completionPercentage:homeworkCompletionPct,scorePercentage:homeworkGradeAvg,averageGrade:homeworkGradeAvg,onTimePercentage:onTimePct,rows:homeworkRows},
+    homework:{required:requiredHw.length,submitted:submittedRequiredHw.length,activitySubmitted:submittedHw.length,submittedRequired:submittedRequiredHw.length,missing:missingHw.length,missingAssignments:requiredHw.length-submittedRequiredHw.length,available:requiredHw.filter(row=>row.status==='available').length,graded:submittedHw.filter(row=>row.submission.percentage!==null).length,late:lateHw.length,completionPercentage:homeworkCompletionPct,scorePercentage:homeworkGradeAvg,averageGrade:homeworkGradeAvg,onTimePercentage:onTimePct,rows:homeworkRows,classProgress},
     practical:{count:recitations.length,completed:completedPractical,percentage:null,rows:recitations},study:{lecturesAvailable:lectureRows.length,lecturesOpened:opened,lecturesCompleted:verified,lectureCompletionPercentage:lectureCompletionPct,rows:lectureRows},
     payment:payment?{status:payment.status,expectedAmount:payment.expectedAmount,paidAmount:payment.paidAmount,remainingAmount:payment.remainingAmount}:null,motivation,
     strengths,concerns,recommendations,warnings,summaryNote,teacherNotes:String(input.teacherNotes||'')};

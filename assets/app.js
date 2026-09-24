@@ -549,7 +549,7 @@ function studentAssignmentCard(assignment,studentCode,isParent=false,submission=
   const badge=extra?'warn':submission?(submission.needsManualReview?'warn':'good'):closed?'danger':'warn';
   return `<details class="student-assignment-card"><summary class="student-assignment-head"><div><span class="record-eyebrow">${typeName}${assignment.lessonNumber?` · الحصة ${esc(assignment.lessonNumber)}`:''}</span><h4>${esc(assignment.title||'واجب جديد')}</h4><small>${esc(assignment.lessonTitle||'')} · ${due}</small></div><span class="badge ${badge}">${status}</span></summary><div class="student-assignment-body"><p>${esc(assignment.description||'')}</p><small>${esc(assignment.questionCount||1)} سؤال · من ${esc(assignment.totalScore||1)} درجة</small>${download}${result}${form}${isParent&&!submission?'<p class="assignment-parent-note">يستطيع الطالب تسليم الواجب من بوابة الطالب.</p>':''}</div></details>`;
 }
-const MONTHLY_REPORT_POLICY='monthly-v11-student-level';
+const MONTHLY_REPORT_POLICY='monthly-v11-student-level-homework-progress';
 function compatibleMonthlyReport(report,code){return report?.schemaVersion===11&&report.policyVersion===MONTHLY_REPORT_POLICY&&report.student?.studentCode===code&&/^\d{4}-\d{2}$/.test(report.monthKey)&&typeof report.monthlyTitle==='string'&&!!report.attendance&&!!report.homework&&!!report.results&&typeof report.level==='string'&&Object.prototype.hasOwnProperty.call(report,'overallScore');}
 function monthlyReportTitle(report,failed=false){return report?report.monthlyTitle:failed?'تعذر تحميل بيانات الشهر':'جاري تحميل بيانات الشهر';}
 function studentProfileHTML(raw, isParent=false){
@@ -810,7 +810,14 @@ function parentReportTrend(report={}){
   return {available:true,status:delta>0?'improved':delta<0?'declined':'stable',short:delta===0?'ثبات عن الشهر السابق':`${symbol} ${direction} ${amount} نقطة`,detail:delta===0?`المستوى ثابت عند ${current}% مقارنة بالشهر السابق.`:`${direction} ${amount} نقطة مئوية عن الشهر السابق — من ${previous}% إلى ${current}%.`};
 }
 function parentHomeworkStatus(row){
-  return row.status==='missing'?'لم يسلّم':row.status==='available'?'متاح':row.submission?.score===null||row.submission?.score===undefined?'قيد التصحيح':`${row.submission.score} من ${row.submission.maxScore||row.assignment?.totalScore||100}`;
+  const submission=row?.submission;
+  if(submission?.method==='teacher_class_check'&&submission.type==='homework'&&!submission.assignmentId)return 'تم عمل الواجب';
+  if(row.status==='missing')return 'لم يسلّم';
+  if(row.status==='available')return 'متاح';
+  if(!submission)return 'غير مسجل';
+  if(submission.needsManualReview===true||['pending','pending_review','pending-review','pending_manual','awaiting_review','بانتظار تصحيح المدرس'].includes(submission.status)&&submission.approved!==true&&submission.reviewed!==true)return 'قيد التصحيح';
+  if(submission.score!==null&&submission.score!==undefined)return `${submission.score} من ${submission.maxScore||row.assignment?.totalScore||100}`;
+  return 'تم التسليم';
 }
 function parentAttendanceStatus(row={}){
   return ({present:'حاضر',absent:'غائب',late:'متأخر',excused:'بعذر',unrecorded:'غير مسجل',scheduled:'غير مسجل'})[row.status]||'غير مسجل';

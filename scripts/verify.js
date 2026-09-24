@@ -11,7 +11,7 @@ const requiredFiles = [
   'assets/app.js', 'assets/admin.js', 'assets/v53-upgrades.js', 'assets/v55-admin.js', 'assets/v64-admin-operations.js', 'assets/v55.css', 'assets/v56-fixes.js', 'assets/v56.css', 'assets/amr-khaled-profile.jpeg', 'assets/amr-khaled-profile.webp',
   'assets/firebase-sync.js', 'assets/firebase-config.js', 'assets/technominds-logo.png', 'assets/v67-learning-hub.css',
   'firestore.rules', 'storage.rules', 'firestore.indexes.json', 'firebase.json',
-  'functions/index.js', 'functions/package.json', 'service-worker.js', 'site.webmanifest', 'teacher.webmanifest', 'offline.html',
+  'functions/index.js', 'functions/package.json', 'service-worker.js', 'site-manifest.json', 'teacher-manifest.json', 'offline.html',
   'practical.html', 'assets/practical.js', 'assets/v60-technominds.css', 'assets/v61-design.css', 'assets/v60-payments.js', 'assets/v60-admin-workflow.js', 'functions/payment-domain.js', 'functions/lib/student-access.js', 'functions/lib/student-identity.js',
   'check-deployment.ps1', 'deploy-hosting-only.ps1', 'DEPLOY-HOSTING-ONLY.cmd', 'CHECK-SITE.cmd', 'PREPARE-GITHUB.cmd', 'llms.txt', 'scripts/live-audit-v625.test.js'
 ];
@@ -38,7 +38,7 @@ for (const relative of jsFiles) {
 }
 if (!failures.some(x => x.startsWith('JavaScript syntax'))) ok('JavaScript syntax checks passed');
 
-const jsonFiles = ['package.json', 'package-lock.json', 'firebase.json', 'firestore.indexes.json', 'site.webmanifest', 'teacher.webmanifest', 'vercel.json', 'functions/package.json'];
+const jsonFiles = ['package.json', 'package-lock.json', 'firebase.json', 'firestore.indexes.json', 'site-manifest.json', 'teacher-manifest.json', 'vercel.json', 'functions/package.json'];
 for (const relative of jsonFiles) {
   try { JSON.parse(read(relative)); }
   catch (error) { fail(`Invalid JSON: ${relative} (${error.message})`); }
@@ -207,7 +207,7 @@ if (!failures.some(x => x.includes('rules are not') || x.includes('direct creati
   ok('Firestore security and assistant-permission checks passed');
 }
 
-const manifest = JSON.parse(read('site.webmanifest'));
+const manifest = JSON.parse(read('site-manifest.json'));
 if (manifest.display !== 'standalone' || manifest.scope !== '/' || !Array.isArray(manifest.icons)) fail('PWA manifest is incomplete');
 if (!manifest.icons.some(icon => String(icon.purpose || '').includes('maskable') && icon.sizes === '512x512')) fail('Maskable PWA icon is missing');
 const sw = read('service-worker.js');

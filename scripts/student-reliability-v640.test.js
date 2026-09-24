@@ -10,7 +10,7 @@ test('service worker has one valid release cache and offline assessment shells',
   const worker=read('service-worker.js');
   assert.match(worker,/technominds-v70-0-4-complete-report/);
   assert.match(worker,/ASSET_VERSION = "70\.0\.4"/);
-  assert.match(worker,/url\.pathname\.endsWith\("\.webmanifest"\)/);
+  assert.match(worker,/url\.pathname\.endsWith\("-manifest\.json"\)/);
   for(const route of ['/student.html','/exams.html'])assert.match(worker,new RegExp(route.replace('.','\\.')));
 });
 

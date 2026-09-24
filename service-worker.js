@@ -8,7 +8,7 @@ const APP_SHELL = [
   "/assets/v56.css", "/assets/v60-technominds.css", "/assets/v61-design.css", "/assets/v65-redesign.css", "/assets/v67-learning-hub.css", "/assets/v674-admin.css", "/assets/theme-init.js", "/assets/app.js", "/assets/portal-results.js", "/assets/student-grade-records.js", "/assets/practical.js", "/assets/firebase-sync.js",
   "/assets/firebase-config.js", "/assets/v53-upgrades.js", "/assets/v65-enhancements.js", "/assets/offline-attendance.js", "/assets/curriculum-student.js",
   "/assets/technominds-logo.png", "/assets/technominds-logo.webp",
-  "/assets/amr-khaled-profile.webp", "/site.webmanifest", "/teacher.webmanifest"
+  "/assets/amr-khaled-profile.webp", "/site-manifest.json", "/teacher-manifest.json"
 ];
 const VERSIONED_APP_SHELL=APP_SHELL.map(url=>/\.(?:css|js)$/.test(url)?`${url}?v=${ASSET_VERSION}${ASSET_REVISIONS[url]?`&rev=${ASSET_REVISIONS[url]}`:''}`:url);
 const SENSITIVE_NAVIGATION=new Set(['/student.html','/parent.html','/exams.html','/materials.html','/theory-lectures.html','/questions.html','/practical.html','/teacher-login.html']);
@@ -110,7 +110,7 @@ self.addEventListener("fetch", event => {
     return;
   }
 
-  if(url.pathname.endsWith(".webmanifest")){
+  if(url.pathname.endsWith("-manifest.json")){
     // A stale manifest can keep old asset URLs alive after deployment.
     event.respondWith(fetch(request,{cache:"no-store"}).catch(()=>caches.match(request)));
     return;
