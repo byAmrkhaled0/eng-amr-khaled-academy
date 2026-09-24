@@ -100,7 +100,7 @@ test('localhost pages reference exact changed asset hashes instead of cached rel
   for(const [page,assets] of Object.entries({'../student.html':['portal-results','app'],'../parent.html':['portal-results','app'],'../teacher-login.html':['portal-results','app','admin','v60-admin-workflow','v64-admin-operations']})){
     const html=read(page);
     for(const asset of assets){const name=`assets/${asset}.js`,digest=crypto.createHash('sha256').update(read(`../${name}`)).digest('hex').slice(0,10);
-      assert.ok(html.includes(`${name}?v=70.0.2&rev=${digest}`),`${page} contains the current ${name}`);
+      assert.ok(html.includes(`${name}?v=70.0.3&rev=${digest}`),`${page} contains the current ${name}`);
     }
   }
 });
