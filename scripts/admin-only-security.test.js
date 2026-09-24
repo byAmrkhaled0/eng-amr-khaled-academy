@@ -27,7 +27,7 @@ test('Firestore and Storage resolve every legacy staff helper to the single Admi
 
 test('the browser verifies claims and observes token revocation without duplicate refreshes', () => {
   const sync = read('assets/firebase-sync.js');
-  const admin = read('assets/admin.js');
+  const admin = read('assets/admin-entry.js');
   assert.match(sync, /getIdTokenResult\(false\)/);
   assert.doesNotMatch(sync, /getIdTokenResult\(true\)/);
   assert.match(sync, /token\.claims\.admin===true/);

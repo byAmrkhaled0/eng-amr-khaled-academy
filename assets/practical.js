@@ -17,9 +17,9 @@
   const $=id=>document.getElementById(id);
   const editor=$('codeEditor'),language=$('codeLanguage'),stdin=$('codeStdin'),output=$('codeOutput'),runButton=$('runCodeButton');
   const LOCAL_HOSTS=['localhost','127.0.0.1','0.0.0.0'];
-  const PROXY_FUNCTIONS_BASE=LOCAL_HOSTS.includes(location.hostname)?'https://eng-amr-khaled-academy.web.app/api/code':'/api/code';
+  const PROXY_FUNCTIONS_BASE=LOCAL_HOSTS.includes(location.hostname)?'https://eng-amr-khaled-academy.vercel.app/api/code':'/api/code';
   const DIRECT_FUNCTIONS_BASE='https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net';
-  const PREFER_DIRECT=/\.vercel\.app$/i.test(location.hostname);
+  const PREFER_DIRECT=/\.vercel\.app$/i.test(location.hostname)||LOCAL_HOSTS.includes(location.hostname);
   const FUNCTION_BASES=PREFER_DIRECT?[DIRECT_FUNCTIONS_BASE,PROXY_FUNCTIONS_BASE]:[PROXY_FUNCTIONS_BASE,DIRECT_FUNCTIONS_BASE];
   let languages=FALLBACK;
   const storageKey=key=>`tm_code_v60_${key}`;

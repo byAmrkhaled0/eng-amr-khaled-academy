@@ -16,9 +16,9 @@ const functionBody = name => {
 };
 
 test('release, theme bootstrap and transparent logo stay synchronized', () => {
-  assert.equal(require(path.join(root, 'package.json')).version, '70.0.4');
-  assert.equal(require(path.join(root, 'functions/package.json')).version, '70.0.2');
-  assert.match(read('service-worker.js'), /technominds-v70-0-4-complete-report/);
+  assert.equal(require(path.join(root, 'package.json')).version, '70.0.5');
+  assert.equal(require(path.join(root, 'functions/package.json')).version, '70.0.5');
+  assert.match(read('service-worker.js'), /technominds-v70-0-5-complete-report/);
 
   for (const name of fs.readdirSync(root).filter(file => file.endsWith('.html'))) {
     const html = read(name);

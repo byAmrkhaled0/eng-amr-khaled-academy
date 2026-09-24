@@ -1,27 +1,11 @@
-# دليل نشر V63.0.2 — Windows PowerShell
+# دليل نشر Techno Minds
 
-> نفّذ الأوامر من جذر المشروع بعد تسجيل الدخول إلى Firebase/Vercel الصحيحين. خذ Backup قبل أي migration. لا تنشر الواجهة قبل الـBackend.
+الواجهة منشورة عبر **GitHub → Vercel** فقط، ولا يُستخدم Firebase Hosting. شغّل `npm test` ثم `npm run build` ثم `npm run verify:dist` قبل اعتماد أي إصدار.
+
+لنشر Firebase Functions بعد مراجعة الدوال المتغيرة فقط:
 
 ```powershell
-npm ci
-npm --prefix functions ci
-npm test
-npm run build
-npm run verify:dist
-
-# 1) القواعد والفهارس والتخزين
-npx firebase-tools deploy --only firestore:rules,firestore:indexes,storage
-
-# 2) Cloud Functions المتوافقة 63.0.2
-npx firebase-tools deploy --only functions
-
-# 3) اختياري: شغّل migration من لوحة الإدارة Dry Run أولًا، ثم Apply بعد مراجعة التقرير
-
-# 4) الواجهة — Firebase Hosting إن كان هو المضيف
-npx firebase-tools deploy --only hosting
-
-# أو Vercel من مجلد المشروع
-npx vercel --prod
+.\deploy-production.ps1 -Functions getPlatformHealthHttp,getPortalStudent -SkipSiteCheck
 ```
 
-بعد النشر تحقق أن Portal response يعرض: `backendVersion=63.0.2` و`apiSchemaVersion=portal-v63.0.2`. عند ظهور `BACKEND_VERSION_MISMATCH` لا تنشر/تُبقِ الواجهة الجديدة قبل إعادة نشر Functions بنجاح.
+استبدل الأسماء بدوال الإصدار الفعلية. اختياريًا استخدم `-DeployRules` أو `-DeployIndexes` فقط عندما تكون القواعد أو الفهارس قد تغيرت. لا تستخدم `--force`، ولا تنشر جميع Functions. لا يرفع السكربت الواجهة أو GitHub ولا يحذف الدوال البعيدة. بعد نشر واجهة Vercel والـBackend شغّل `CHECK-SITE.cmd`؛ نجاح Health لا يثبت مسارات الدفع والحضور والتقارير والبوابة.

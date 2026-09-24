@@ -1,12 +1,12 @@
 param(
-  [string]$BaseUrl = "https://eng-amr-khaled-academy.web.app",
+  [string]$BaseUrl = "https://eng-amr-khaled-academy.vercel.app",
   [switch]$FullCodeRunner,
   [int]$SlowRouteWarningMs = 1000
 )
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ExpectedVersion = (Get-Content -LiteralPath (Join-Path $ProjectRoot "functions\package.json") -Raw | ConvertFrom-Json).version
+$ExpectedVersion = (Get-Content -LiteralPath (Join-Path $ProjectRoot "package.json") -Raw | ConvertFrom-Json).version
 
 function Invoke-Callable([string]$Path, [hashtable]$Data, [int]$TimeoutSec = 45) {
   $body = @{ data = $Data } | ConvertTo-Json -Depth 8 -Compress
@@ -27,10 +27,12 @@ try {
     "/service-worker.js", "/site-manifest.json", "/teacher-manifest.json"
   )
   $slowPages = @()
+  $routeResponses = @{}
   foreach ($page in $pages) {
     $timer = [System.Diagnostics.Stopwatch]::StartNew()
     $response = Invoke-WebRequest -UseBasicParsing -Method Get -Uri ($BaseUrl.TrimEnd('/') + $page) -TimeoutSec 30
     $timer.Stop()
+    $routeResponses[$page] = $response
     if ($response.StatusCode -ne 200) { throw "$page returned HTTP $($response.StatusCode)" }
     $elapsedMs = [int]$timer.Elapsed.TotalMilliseconds
     if ($elapsedMs -gt $SlowRouteWarningMs) {
@@ -41,10 +43,21 @@ try {
     }
   }
 
+  if ($routeResponses["/teacher-login.html"].Content -notmatch 'href="teacher-manifest.json"' -or
+      $routeResponses["/index.html"].Content -notmatch 'href="site-manifest.json"') {
+    throw "Deployed HTML refers to an unexpected manifest path."
+  }
+  foreach ($manifestPath in @("/site-manifest.json", "/teacher-manifest.json")) {
+    $manifest = $routeResponses[$manifestPath].Content | ConvertFrom-Json
+    if (-not $manifest.name -or -not $manifest.icons) { throw "Manifest $manifestPath is invalid." }
+  }
+  if ($routeResponses["/teacher-login.html"].Headers["X-Content-Type-Options"] -ne "nosniff") {
+    Write-Warning "Expected X-Content-Type-Options: nosniff on the teacher page."
+  }
   $escapedVersion = [regex]::Escape($ExpectedVersion)
   $syncBundle = Invoke-WebRequest -UseBasicParsing -Method Get -Uri ($BaseUrl.TrimEnd('/') + "/assets/firebase-sync.js?v=$ExpectedVersion") -TimeoutSec 30
   if ($syncBundle.Content -notmatch "FRONTEND_VERSION='$escapedVersion'") {
-    throw "The deployed firebase-sync.js is stale. Expected frontend version $ExpectedVersion. Wait for Hosting/Vercel deployment and check again."
+    throw "The deployed firebase-sync.js is stale. Expected frontend version $ExpectedVersion. Wait for Vercel deployment and check again."
   }
   $workerBundle = Invoke-WebRequest -UseBasicParsing -Method Get -Uri ($BaseUrl.TrimEnd('/') + "/service-worker.js") -TimeoutSec 30
   if ($workerBundle.Content -notmatch "technominds-v$($ExpectedVersion.Replace('.', '-'))-") {
@@ -54,8 +67,13 @@ try {
 
   $health = Invoke-RestMethod -Method Get -Uri ($BaseUrl.TrimEnd('/') + "/api/health") -TimeoutSec 30
   if ($health.status -ne "ok" -or -not $health.firestore) { throw "Health endpoint did not confirm Firestore." }
-  if ($health.version -ne $ExpectedVersion) { throw "Backend version $($health.version) does not match source version $ExpectedVersion. Deploy Firebase Functions before the interface." }
-  Write-Host "OK backend version and Firestore connectivity. Capability flags do not verify booking, payments, or portal journeys." -ForegroundColor Green
+  if ($health.version -ne $ExpectedVersion) {
+    Write-Warning "Backend release $($health.version) differs from frontend $ExpectedVersion. Check selective Functions rollout and API schema; release number alone does not prove incompatibility."
+  }
+  if ($health.apiSchemaVersion -and $health.apiSchemaVersion -ne "portal-v64.0.0") {
+    throw "Backend API schema $($health.apiSchemaVersion) is incompatible with the expected portal-v64.0.0 contract."
+  }
+  Write-Host "OK backend health and Firestore connectivity. Health does not verify payments, reports, attendance or portal journeys." -ForegroundColor Green
 
   $languages = Invoke-Callable "/api/code/getCodeLanguages" @{}
   if (-not $languages.languages) { throw "Code language endpoint returned no languages." }

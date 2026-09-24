@@ -8,7 +8,7 @@ set "DEPLOY_EXIT=%ERRORLEVEL%"
 if not "%DEPLOY_EXIT%"=="0" goto failed
 if not exist ".deploy-success" goto interrupted
 echo.
-echo Deployment V64.0.0 completed successfully.
+echo Selected Firebase backend steps completed. Frontend is deployed via GitHub to Vercel.
 del /q ".deploy-success" >nul 2>nul
 pause
 exit /b 0
@@ -16,13 +16,16 @@ exit /b 0
 :interrupted
 echo.
 echo Deployment did not produce a success marker. It was interrupted or stopped early.
-echo Resume with: DEPLOY-WINDOWS.cmd -Resume
+echo Resume with the same selected resources, for example: DEPLOY-WINDOWS.cmd -Resume -Functions getPlatformHealthHttp,getPortalStudent
+echo Repeat your original -Functions, -DeployRules and -DeployIndexes selections.
 pause
 exit /b 1
 
 :failed
 echo.
 echo Deployment stopped because a step failed. Exit code: %DEPLOY_EXIT%
-echo Fix the reported cause, then run: DEPLOY-WINDOWS.cmd -Resume
+echo Fix the reported cause, then resume with the same selected resources.
+echo Example: DEPLOY-WINDOWS.cmd -Resume -Functions getPlatformHealthHttp,getPortalStudent
+echo Repeat your original -Functions, -DeployRules and -DeployIndexes selections.
 pause
 exit /b %DEPLOY_EXIT%

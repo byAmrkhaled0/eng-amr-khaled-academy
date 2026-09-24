@@ -9,7 +9,7 @@ const { version: releaseVersion } = require(path.join(root, 'package.json'));
 const releaseCacheVersion = releaseVersion.replace(/\./g, '-');
 const releaseCacheName = `technominds-v${releaseCacheVersion}-backend-compatibility`;
 const failures = [];
-const required = ['index.html','404.html','teacher-login.html','service-worker.js','assets/theme-init.js','assets/app.js','assets/admin.js','assets/v60-payments.js','assets/v60-admin-workflow.js','assets/v60-technominds.css','assets/v61-design.css','assets/v67-learning-hub.css','assets/curriculum-admin.js','assets/curriculum-student.js'];
+const required = ['index.html','404.html','teacher-login.html','service-worker.js','assets/theme-init.js','assets/app.js','assets/admin-entry.js','assets/admin.js','assets/v60-payments.js','assets/v60-admin-workflow.js','assets/v60-technominds.css','assets/v61-design.css','assets/v67-learning-hub.css','assets/curriculum-admin.js','assets/curriculum-student.js'];
 
 for (const file of required) if (!fs.existsSync(path.join(dist, file))) failures.push(`Missing dist/${file}`);
 if (fs.existsSync(path.join(dist, '.env')) || fs.existsSync(path.join(dist, 'functions'))) failures.push('Secrets or backend source leaked into dist');

@@ -201,24 +201,26 @@ npm run verify:dist
 
 نسخة النشر تُنشأ داخل `dist/`.
 
-## النشر على Firebase
+## النشر الحالي: Vercel للواجهة وFirebase للـBackend فقط
 
-للنشر الكامل الآمن على Windows:
+تُنشر الواجهة بعد اعتماد التغييرات عبر Git commit ثم GitHub → Vercel. لا تستخدم Firebase Hosting أو `DEPLOY-HOSTING-ONLY.cmd` لنشر الواجهة.
+
+لنشر موارد الـBackend المتغيرة فقط، حدد أسماء Functions المطلوبة صراحةً، أو استخدم `-DeployRules` / `-DeployIndexes` عند تغييرها فعليًا:
 
 ```powershell
-.\DEPLOY-WINDOWS.cmd
+.\deploy-production.ps1 -Functions getPlatformHealthHttp,getPortalStudent -SkipSiteCheck
 ```
 
-لاستكمال نشر توقف بسبب خطأ:
+لاستكمال نشر توقف بسبب خطأ، أعد تمرير نفس اختيارات الموارد (والخيارات الأخرى):
 
 ```powershell
-.\DEPLOY-WINDOWS.cmd -Resume
+.\deploy-production.ps1 -Resume -Functions getPlatformHealthHttp,getPortalStudent -SkipSiteCheck
 ```
 
-لنشر الواجهة فقط من دون Functions أو Rules أو Indexes:
+وإذا استخدمت مشغّل CMD، فمرر له نفس الاختيارات عند الاستئناف:
 
-```powershell
-.\DEPLOY-HOSTING-ONLY.cmd
+```cmd
+DEPLOY-WINDOWS.cmd -Resume -Functions getPlatformHealthHttp,getPortalStudent -SkipSiteCheck
 ```
 
 ## متطلبات مهمة
@@ -228,4 +230,4 @@ npm run verify:dist
 - تفعيل المصادقة الثنائية لحسابات فريق العمل يتم من إعدادات Firebase Authentication / Identity Platform.
 - تفعيل Push يتطلب إنشاء Web Push certificate من Firebase Console ووضع المفتاح العام فقط في `messagingVapidKey`.
 - لا يشغّل أي سكربت `git push`. راجع `README_DEPLOY.md` قبل أي رفع يدوي إلى GitHub.
-- راجع `UPGRADE_V56_AR.md` قبل النشر، خصوصًا ترتيب نشر الدوال ثم الاستضافة.
+- راجع `README_DEPLOY.md` قبل النشر للاطلاع على خطوات الإصدار الحالية.

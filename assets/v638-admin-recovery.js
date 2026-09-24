@@ -154,5 +154,7 @@
   }
 
   installDataRecovery();
-  document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{installDataRecovery();installRenderEnhancers();},60));
+  window.__tmAdminRenderReady=new Promise(resolve=>{
+    document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{installDataRecovery();installRenderEnhancers();resolve();},60),{once:true});
+  });
 })();

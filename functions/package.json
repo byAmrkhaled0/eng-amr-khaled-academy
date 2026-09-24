@@ -1,6 +1,6 @@
 {
   "name": "technominds-platform-functions",
-  "version": "70.0.2",
+  "version": "70.0.5",
   "private": true,
   "main": "entry.js",
   "engines": {
@@ -9,7 +9,7 @@
   "scripts": {
     "lint": "node --check entry.js && node --check index.js",
     "serve": "firebase emulators:start --only functions,firestore",
-    "deploy": "firebase deploy --only functions"
+    "deploy": "node -e \"console.error('Select Functions explicitly with deploy-production.ps1 -Functions names'); process.exit(1)\""
   },
   "dependencies": {
     "firebase-admin": "^13.10.0",

@@ -24,13 +24,12 @@ test('staff profile checks reuse the verified Firebase token without a forced re
   assert.match(sync, /token\.claims\.email_verified===true/);
 });
 
-test('a temporary session refresh failure keeps the current admin workspace open', () => {
-  const admin = read('assets/admin.js');
-  const restore = sliceBetween(admin, 'async function tryRestoreSession()', 'async function tryOfflineStaffWorkspace()');
-  assert.match(restore, /sessionRejected/);
-  assert.match(restore, /if\(sessionRejected\)\{await window\.MFCloud\.signOut/);
-  assert.match(restore, /تعذر تحديث جلسة الإدارة مؤقتًا/);
-  assert.doesNotMatch(restore, /catch\(e\)\{await window\.MFCloud\.signOut/);
+test('temporary token refresh failures keep the verified workspace open', () => {
+  const entry = read('assets/admin-entry.js');
+  assert.match(entry, /auth\.onIdTokenChanged/);
+  assert.match(entry, /permission-denied\|unauthenticated/);
+  assert.match(entry, /تعذر تحديث جلسة الإدارة مؤقتًا/);
+  assert.match(entry, /if\(document\.querySelector\('\.admin-page'\)\)location\.reload\(\)/);
 });
 
 test('opening exam details and edit mode remain local UI actions', () => {
@@ -46,9 +45,8 @@ test('opening exam details and edit mode remain local UI actions', () => {
   assert.match(editExam, /toggleExamCreator\(true,true\)/);
 });
 
-test('the token observer cannot race the explicit sign-in profile check', () => {
-  const admin = read('assets/admin.js');
-  assert.match(admin, /let adminLoginInProgress = false/);
-  assert.match(admin, /if\(adminLoginInProgress\)return/);
-  assert.match(admin, /finally\{adminLoginInProgress=false;\}/);
+test('the login observer cannot race explicit sign-in or duplicate bundle loading', () => {
+  const entry = read('assets/admin-entry.js');
+  assert.match(entry, /if\(signingIn\|\|user\.uid===suppressedUid\)return/);
+  assert.match(entry, /if\(bundlePromise\)return bundlePromise/);
 });

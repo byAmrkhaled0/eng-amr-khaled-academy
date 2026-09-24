@@ -2,7 +2,7 @@
   'use strict';
 
   const cfg=window.MF_FIREBASE_CONFIG||{};
-  const FRONTEND_VERSION='70.0.4';
+  const FRONTEND_VERSION='70.0.5';
   const API_SCHEMA_VERSION='portal-v64.0.0';
   if(!cfg.enabled||typeof firebase==='undefined'){
     window.MFCloud={ready:false,error:'Firebase غير مفعل'};
@@ -35,12 +35,11 @@
       };
     };
 
-    // Firebase Hosting rewrites public callables reliably. Vercel proxies can
-    // wait for the full upstream timeout before falling back, so Vercel uses
-    // the callable SDK first and keeps the proxy only as a network fallback.
+    // Use the same backend path on localhost and Vercel. Direct callables are
+    // primary; the Vercel proxy remains a fallback for transient failures.
     const localHosts=new Set(['localhost','127.0.0.1','0.0.0.0']);
-    const publicApiOrigin=localHosts.has(globalThis.location?.hostname)?'https://eng-amr-khaled-academy.web.app':'';
-    const preferDirectCallable=/\.vercel\.app$/i.test(String(globalThis.location?.hostname||''));
+    const publicApiOrigin=localHosts.has(globalThis.location?.hostname)?'https://eng-amr-khaled-academy.vercel.app':'';
+    const preferDirectCallable=/\.vercel\.app$/i.test(String(globalThis.location?.hostname||''))||localHosts.has(globalThis.location?.hostname);
     const apiError=(payload,status)=>{
       const details=payload?.error||{};
       const error=new Error(details.message||`HTTP ${status}`);

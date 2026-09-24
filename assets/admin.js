@@ -3,7 +3,6 @@
 let adminData = typeof loadData === 'function' ? loadData() : {students:[],bookings:[],materials:[],questions:[],exams:[],examAttempts:[],reviews:[],groups:[],assignments:[],studentTransferRequests:[],settings:{}};
 let currentSection = 'overview';
 let currentStaff = null;
-let adminLoginInProgress = false;
 let qrScanner = null,qrScanBusy=false,qrLastValue='',qrLastAt=0;
 let attendanceDate = isoDateAdmin();
 let adminCloudSaveTimer = null;
@@ -273,78 +272,6 @@ async function hydrateAdminRecords(token){
   }catch(error){(adminData.students||[]).forEach(st=>{st.gradeRecordsLoaded=true;st.gradeRecordsError=true;});console.warn('admin-records-background-load',error);if(currentSection==='students')renderStudents();}
 }
 
-function unauthorized(message='غير مصرح لك بالدخول.'){
-  const root=document.getElementById('adminRoot');
-  root.className='login-page';
-  root.innerHTML=`<div class="card login-card"><div class="logo"><span class="logo-mark" aria-hidden="true"></span><span>Techno Minds <small>Programming &amp; AI</small></span></div><h1 class="section-title" style="font-size:2rem;margin:22px 0 8px">${safe(message)}</h1><p class="section-desc">هذه الصفحة مخصصة فقط لحساب الإدارة المعتمد.</p><button class="btn ghost" id="unauthorizedReload" type="button">رجوع لتسجيل الدخول</button></div>`;
-  document.getElementById('unauthorizedReload')?.addEventListener('click',()=>location.reload());
-  hydrateIcons();
-}
-
-function adminLogin(){
-  const form=document.getElementById('loginForm'); if(!form) return;
-  const resetButton=document.getElementById('adminPasswordReset');
-  if(resetButton&&!resetButton.dataset.bound){
-    resetButton.dataset.bound='true';
-    resetButton.addEventListener('click',async()=>{
-      const email=form.email.value.trim();
-      if(!email||!form.email.checkValidity()){form.email.reportValidity();return;}
-      resetButton.disabled=true;resetButton.classList.add('is-loading');
-      try{
-        if(!window.MFCloud?.sendPasswordReset)throw new Error('Password reset unavailable');
-        await window.MFCloud.sendPasswordReset(email);
-        aToast('تم إرسال رابط إعادة ضبط كلمة المرور إذا كان البريد مسجلًا في Authentication.');
-      }catch(error){
-        const raw=`${error?.code||''} ${error?.message||''}`;
-        aToast(/network|unavailable/i.test(raw)?'تعذر الاتصال بـ Firebase الآن. حاول مرة أخرى.':'تعذر إرسال الرابط. راجع بريد Firebase Authentication ثم حاول.');
-      }finally{resetButton.disabled=false;resetButton.classList.remove('is-loading');}
-    });
-  }
-  form.addEventListener('submit',async e=>{
-    e.preventDefault();
-    const email=form.email.value.trim(); const pass=form.password.value;
-    if(!window.MFCloud?.ready || !window.MFCloud.signIn) return aToast('خدمة تسجيل الدخول غير متاحة الآن. تحقق من الإنترنت وحاول مرة أخرى.');
-    if(adminLoginInProgress)return;
-    adminLoginInProgress=true;
-    try{
-      await window.MFCloud.signIn(email,pass);
-      currentStaff = await window.MFCloud.getCurrentStaffProfile();
-      if(!currentStaff?.allowed){ await window.MFCloud.signOut?.(); unauthorized('غير مصرح لك بالدخول.'); return; }
-      cacheOfflineStaffProfile();window.__adminOfflineMode=false;
-      await reloadFromCloud();
-      renderAdmin();
-      aToast('تم الدخول إلى لوحة الإدارة');
-    }catch(err){const raw=String(err?.code||'')+' '+String(err?.message||'');const message=/invalid-credential|wrong-password|user-not-found|invalid-login/i.test(raw)?'البريد أو كلمة المرور غير صحيحة. استخدم نفس البريد الموجود في Firebase Authentication.':/permission-denied/i.test(raw)?'تم تسجيل الدخول لكن البريد غير موجود ضمن حسابات الإدارة المسموحة.':/unauthenticated/i.test(raw)?'تعذر تأكيد جلسة الدخول. حدّث الصفحة وحاول مرة أخرى.':/network|unavailable|internal|function.*unavailable/i.test(raw)?'تم الوصول إلى Firebase لكن وظائف الإدارة غير مرفوعة أو الاتصال غير متاح. ارفع Functions ثم حاول.':'تعذر فتح لوحة الإدارة. راجع البريد وكلمة المرور وصلاحية المستخدم.';aToast(message); }
-    finally{adminLoginInProgress=false;}
-  });
-}
-
-async function tryRestoreSession(){
-  if(!window.MFCloud?.auth?.onIdTokenChanged) return;
-  window.MFCloud.auth.onIdTokenChanged(async user=>{
-    if(!user) return;
-    // signIn already performs the authoritative profile check. Avoid racing it
-    // with a second observer request that can invalidate an otherwise valid UI.
-    if(adminLoginInProgress)return;
-    try{
-      currentStaff = await window.MFCloud.getCurrentStaffProfile();
-      if(currentStaff?.allowed){
-        cacheOfflineStaffProfile();
-        if(!document.querySelector('.admin-page')){ await reloadFromCloud(); renderAdmin(); }
-      }else { await window.MFCloud.signOut?.(); unauthorized(); }
-    }catch(e){
-      if(navigator.onLine===false){await tryOfflineStaffWorkspace();return;}
-      const raw=`${e?.code||''} ${e?.message||''}`;
-      const sessionRejected=/auth\/(?:user-token-expired|invalid-user-token|user-disabled)|permission-denied|unauthenticated/i.test(raw);
-      console.warn('admin-session-refresh',e);
-      if(sessionRejected){await window.MFCloud.signOut?.();unauthorized('انتهت جلسة الإدارة. سجّل الدخول مرة أخرى.');return;}
-      // A temporary 400/timeout during token refresh must not destroy the
-      // current admin workspace or discard an exam editor in progress.
-      if(document.querySelector('.admin-page'))aToast('تعذر تحديث جلسة الإدارة مؤقتًا. بياناتك ما زالت مفتوحة؛ حاول الحفظ مرة أخرى بعد لحظات.');
-    }
-  });
-}
-
 async function tryOfflineStaffWorkspace(){
   if(navigator.onLine!==false||document.querySelector('.admin-page')||!window.OfflineAttendance)return;
   const profile=readOfflineStaffProfile(),roster=(await window.OfflineAttendance.getRoster().catch(()=>[])).filter(row=>row.ownerUid===profile?.uid);if(!profile||!roster.length)return;
@@ -597,7 +524,18 @@ function bindAdminNavigationTools(){
     window.__adminNavShortcutBound=true;
   }
 }
-window.adminLogout=async function(){const counts=await window.OfflineAttendance?.counts();if(counts?.total&&!confirm(`يوجد ${counts.total} سجل غير متزامن. سيظل محفوظًا على هذا الجهاز ويحتاج دخول الحساب نفسه للمزامنة. تسجيل الخروج؟`))return;try{if(!counts?.total)await window.OfflineAttendance?.clearRoster();localStorage.removeItem(OFFLINE_STAFF_PROFILE_KEY);bookingNotificationUnsubscribe?.();adminGroupsUnsubscribe?.();adminStudentsUnsubscribe?.();adminTransferRequestsUnsubscribe?.();adminHomeworkSubmissionsUnsubscribe?.();adminExamAttemptsUnsubscribe?.();adminMotivationUnsubscribe?.();window.stopMonthlyPaymentListeners?.();await window.MFCloud?.unregisterTeacherPushToken?.();await window.MFCloud?.signOut?.();}catch(e){}location.reload();};
+window.adminLogout=async function(){
+  const counts=await window.OfflineAttendance?.counts();
+  if(counts?.total&&!confirm(`يوجد ${counts.total} سجل غير متزامن. سيظل محفوظًا على هذا الجهاز ويحتاج دخول الحساب نفسه للمزامنة. تسجيل الخروج؟`))return;
+  try{
+    await window.MFCloud?.unregisterTeacherPushToken?.().catch(error=>console.warn('push-unregister',error));
+    await window.MFCloud?.signOut?.();
+  }catch(error){aToast(adminActionErrorMessage(error,'تعذر تسجيل الخروج. حاول مرة أخرى.'));return;}
+  if(!counts?.total)await window.OfflineAttendance?.clearRoster().catch(error=>console.warn('offline-roster-clear',error));
+  localStorage.removeItem(OFFLINE_STAFF_PROFILE_KEY);
+  bookingNotificationUnsubscribe?.();adminGroupsUnsubscribe?.();adminStudentsUnsubscribe?.();adminTransferRequestsUnsubscribe?.();adminHomeworkSubmissionsUnsubscribe?.();adminExamAttemptsUnsubscribe?.();adminMotivationUnsubscribe?.();window.stopMonthlyPaymentListeners?.();
+  location.reload();
+};
 window.forceFirestoreSync=async function(){const button=document.getElementById('adminSaveButton'),label=button?.querySelector('.admin-save-label');if(button?.disabled)return;try{if(!window.MFCloud?.saveSiteData)throw new Error('Sync service unavailable');if(button)button.disabled=true;if(label)label.textContent='جارٍ الحفظ…';await window.MFCloud.saveSiteData(adminData);saveData(adminData);if(label)label.textContent='تم الحفظ';aToast('تم حفظ جميع التغييرات');setTimeout(()=>{if(label)label.textContent='حفظ التغييرات';},1600);}catch(error){if(label)label.textContent='إعادة المحاولة';aToast(adminActionErrorMessage(error,'تعذر حفظ التغييرات.'));}finally{if(button)button.disabled=false;}};
 
 const adminPaymentPeriods={key:'',statuses:new Map(),pending:null,updatedAt:0};
@@ -1147,5 +1085,6 @@ function renderSection(){({overview:renderOverview,classroom:()=>window.renderCl
 function exportCSV(name, rows){const csv=rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'})); a.download=name; a.click();}
 window.exportBookingsCSV=function(){exportCSV('bookings.csv',[['code','name','grade','month','group','parentPhone','status'],...adminData.bookings.map(b=>[b.code,b.name,b.grade,b.month,b.group,b.parentPhone,b.status])]);};
 
-function initAdmin(){const requested=new URLSearchParams(location.search).get('section'),resolvedSection=adminLegacySectionAliases[requested]||requested;if(adminSections.some(([id])=>id===resolvedSection))currentSection=resolvedSection;setupTheme();hydrateIcons();adminLogin();tryRestoreSession();tryOfflineStaffWorkspace();if(!window.__offlineAttendanceEventsBound){window.addEventListener('online',()=>{window.__adminOfflineMode=false;syncOfflineAttendanceNow();window.refreshAdminAttentionAlerts?.(true);});window.addEventListener('offline',()=>{window.__adminOfflineMode=true;renderOfflineAttendanceStatus();});navigator.serviceWorker?.addEventListener?.('message',event=>{if(event.data?.type==='SYNC_OFFLINE_ATTENDANCE')syncOfflineAttendanceNow(true);});window.__offlineAttendanceEventsBound=true;}}
+function initAdmin(){const requested=new URLSearchParams(location.search).get('section'),resolvedSection=adminLegacySectionAliases[requested]||requested;if(adminSections.some(([id])=>id===resolvedSection))currentSection=resolvedSection;setupTheme();hydrateIcons();tryOfflineStaffWorkspace();if(!window.__offlineAttendanceEventsBound){window.addEventListener('online',()=>{window.__adminOfflineMode=false;syncOfflineAttendanceNow();window.refreshAdminAttentionAlerts?.(true);});window.addEventListener('offline',()=>{window.__adminOfflineMode=true;renderOfflineAttendanceStatus();});navigator.serviceWorker?.addEventListener?.('message',event=>{if(event.data?.type==='SYNC_OFFLINE_ATTENDANCE')syncOfflineAttendanceNow(true);});window.__offlineAttendanceEventsBound=true;}}
+window.__tmAdminBootstrapStart=async function(profile){currentStaff=profile;window.__adminOfflineMode=false;cacheOfflineStaffProfile();await reloadFromCloud();if(window.MFCloud?.auth?.currentUser?.uid!==profile.uid)throw new Error('انتهت جلسة الإدارة قبل فتح اللوحة.');renderAdmin();};
 document.addEventListener('DOMContentLoaded',initAdmin);
