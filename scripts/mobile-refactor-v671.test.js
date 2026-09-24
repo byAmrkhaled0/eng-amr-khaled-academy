@@ -52,7 +52,7 @@ test('release build normalizes immutable asset versions and keeps heavy QR code 
   assert.match(build, /html\.replace\(/);
   assert.doesNotMatch(appShell, /html5-qrcode/);
   assert.ok(worker.includes("if(cached&&url.searchParams.get('v')===ASSET_VERSION)return cached"));
-  assert.match(worker, /technominds-v70-0-3-complete-report/);
+  assert.match(worker, /technominds-v70-0-4-complete-report/);
 });
 
 test('health status reflects the usable default code runner without claiming a live probe', () => {

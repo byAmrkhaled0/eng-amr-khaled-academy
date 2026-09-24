@@ -17,6 +17,16 @@
       if(Number(row.maxAbsenceStreak)>=2)items.push({...common,type:'absence',count:Number(row.maxAbsenceStreak),title:'غياب حصتين متتاليتين',detail:`أطول سلسلة غياب ${Number(row.maxAbsenceStreak)} حصص`});
       if(Number(row.missingHomeworkCount)>0)items.push({...common,type:'homework',count:Number(row.missingHomeworkCount),title:'واجب غير مُسلَّم',detail:`${Number(row.missingHomeworkCount)} واجب يحتاج تسليم`});
     });
+    const seenBookings=new Set();
+    pendingBookings().forEach(booking=>{
+      const code=String(booking.code||booking.id||'');
+      if(!code||seenBookings.has(code))return;
+      seenBookings.add(code);
+      const rawDate=booking.createdAt?.toDate?.()||booking.createdAt||booking.date;
+      const parsed=rawDate?new Date(rawDate):null;
+      const when=parsed&&Number.isFinite(parsed.getTime())?new Intl.DateTimeFormat('ar-EG',{dateStyle:'medium',timeStyle:'short',timeZone:'Africa/Cairo'}).format(parsed):'';
+      items.push({type:'booking',count:1,studentCode:code,studentName:booking.name||booking.studentName||'طالب جديد',grade:booking.grade||'',group:booking.group||'',detail:when});
+    });
     return items.sort((a,b)=>b.count-a.count||a.studentName.localeCompare(b.studentName,'ar'));
   }
   function updateAttentionBadges(items=[]){
@@ -25,8 +35,8 @@
   }
   function renderAttentionPanel(items=[]){
     const body=document.getElementById('adminAttentionPanelBody');if(!body)return;
-    const groups=[['exam','غياب الامتحانات','clipboard'],['absence','غياب متتالٍ','alert-triangle'],['homework','واجبات غير مُسلَّمة','file-text']];
-    body.innerHTML=items.length?groups.map(([type,label,icon])=>{const rows=items.filter(item=>item.type===type);if(!rows.length)return '';return `<section class="admin-attention-group-v69"><header><span data-icon="${icon}"></span><h3>${label}</h3><b>${rows.length}</b></header>${rows.map(item=>`<button type="button" class="admin-attention-row-v69" onclick="editStudent('${esc(item.studentCode)}');toggleAdminAttentionPanel(false)"><span class="admin-attention-avatar-v69">${esc(item.studentName.trim().charAt(0)||'ط')}</span><span><b>${esc(item.studentName)}</b><small>${esc(item.detail)} · ${esc(item.grade)}${item.group?` · ${esc(item.group)}`:''}</small></span><em>فتح الملف</em></button>`).join('')}</section>`;}).join(''):`<div class="admin-attention-clear-v69"><span data-icon="user-check"></span><h3>لا توجد حالات عاجلة</h3><p>لا يوجد غياب امتحان أو غياب حصتين متتاليتين أو واجب ناقص في الفترة المختارة.</p></div>`;
+    const groups=[['booking','حجوزات جديدة','calendar'],['exam','غياب الامتحانات','clipboard'],['absence','غياب متتالٍ','alert-triangle'],['homework','واجبات غير مُسلَّمة','file-text']];
+    body.innerHTML=items.length?groups.map(([type,label,icon])=>{const rows=items.filter(item=>item.type===type);if(!rows.length)return '';return `<section class="admin-attention-group-v69"><header><span data-icon="${icon}"></span><h3>${label}</h3><b>${rows.length}</b></header>${rows.map(item=>`<button type="button" class="admin-attention-row-v69" onclick="${type==='booking'?"goAdminSection('bookings')":`editStudent('${esc(item.studentCode)}')`};toggleAdminAttentionPanel(false)"><span class="admin-attention-avatar-v69">${esc(item.studentName.trim().charAt(0)||'ط')}</span><span><b>${esc(item.studentName)}</b><small>${esc(item.grade)}${item.group?` · ${esc(item.group)}`:''}${item.detail?` · ${esc(item.detail)}`:''}</small></span><em>${type==='booking'?'فتح الحجز':'فتح الملف'}</em></button>`).join('')}</section>`;}).join(''):`<div class="admin-attention-clear-v69"><span data-icon="user-check"></span><h3>لا توجد حالات عاجلة</h3><p>لا توجد حجوزات جديدة أو حالات طلاب تحتاج متابعة في الفترة المختارة.</p></div>`;
     hydrateIcons();
   }
   window.toggleAdminAttentionPanel=function(force){
@@ -34,12 +44,17 @@
     const open=force===undefined?panel.hidden:!!force;panel.hidden=!open;if(backdrop)backdrop.hidden=!open;document.body.classList.toggle('admin-attention-open-v69',open);
     if(open)window.refreshAdminAttentionAlerts?.();
   };
+  window.refreshAdminAttentionFromBookings=function(){
+    const items=attentionItems(attentionData||[]);
+    updateAttentionBadges(items);
+    if(!document.getElementById('adminAttentionPanel')?.hidden)renderAttentionPanel(items);
+  };
   window.refreshAdminAttentionAlerts=async function(force=false){
     const context=adminWorkspaceContext(),contextKey=`${context.academicYear}|${context.month}`;
     if(!force&&attentionData&&attentionContextKey===contextKey&&Date.now()-attentionLoadedAt<60000){const items=attentionItems(attentionData);updateAttentionBadges(items);renderAttentionPanel(items);return items;}
     const body=document.getElementById('adminAttentionPanelBody');if(body&&!document.getElementById('adminAttentionPanel')?.hidden)body.innerHTML=loading('جارٍ تحديث تنبيهات الطلاب…');
     try{attentionData=await window.MFCloud.getMotivationLeaderboardAdmin({academicYear:context.academicYear,month:context.month,alertsOnly:true});attentionLoadedAt=Date.now();attentionContextKey=contextKey;const items=attentionItems(attentionData);updateAttentionBadges(items);renderAttentionPanel(items);return items;}
-    catch(error){if(attentionData){const items=attentionItems(attentionData);updateAttentionBadges(items);renderAttentionPanel(items);return items;}updateAttentionBadges([]);if(body)body.innerHTML=empty(adminActionErrorMessage(error,'تعذر تحميل التنبيهات الآن.'));return [];}
+    catch(error){const items=attentionItems(attentionData||[]);updateAttentionBadges(items);if(items.length)renderAttentionPanel(items);else if(body)body.innerHTML=empty(adminActionErrorMessage(error,'تعذر تحميل التنبيهات الآن.'));return items;}
   };
 
   function kpis(data){return `<div class="operations-kpis"><article><b>${data.students?.length||0}</b><small>طالب نشط</small></article><article class="good"><b>${data.attendance?.length||0}</b><small>حضور مسجل اليوم</small></article><article class="warn"><b>${data.corrections?.total||0}</b><small>ينتظر التصحيح</small></article><article class="danger"><b>${data.alerts?.pendingBookings||0}</b><small>طلبات تسجيل</small></article></div>`;}
