@@ -38,7 +38,7 @@ test('payment confirmation is immediate, idempotent and does not wait for a seco
   assert.match(payments,/adminSameAcademic\(r\.summary\?\.course\|\|r\.student\.grade,course\)/);
   assert.match(backend,/sameAcademicValue\(requestedCourse, student\.grade\)/);
   assert.match(backend,/invalidateStudentReportInTransaction\(tx, studentCode, summary\.academicYear, summary\.month, 'payment-updated'\)/);
-  assert.match(login,/v60-payments\.js\?v=70\.0\.1/);
+  assert.match(login,/v60-payments\.js\?v=70\.0\.2/);
 });
 
 test('payment cards explain zero prices and never leave the primary action silently disabled',()=>{
@@ -67,7 +67,8 @@ test('student file opens synchronously before cloud history so popup blockers do
 
 test('parent report delivery is fresh, student-bound and protected from duplicate clicks',()=>{
   const admin=read('assets/admin.js'),backend=read('functions/index.js'),studentList=read('assets/v56-fixes.js');
-  assert.match(admin,/getStudentMonthlyReportAdmin\(\{studentCode:stCode\(st\),monthKey:adminReportMonthKey\(\),includeRanking:true\}\)/);
+  assert.match(admin,/getStudentMonthlyReportAdmin\(\{studentCode:stCode\(st\),monthKey:adminReportMonthKey\(\),includeRanking:true,includeDeliveryState\}\)/);
+  assert.match(admin,/loadAccurateMonthlyReport\(s,true\)/);
   assert.match(admin,/parentReportDeliveryPending\.has\(code\)/);
   assert.match(admin,/report\?\.student\?\.studentCode!==code/);
   assert.match(backend,/studentReportRanking\(found\.data,monthKey\)/);
@@ -150,6 +151,6 @@ test('student and parent portals refresh in place and expose monthly alerts',()=
 
 test('admin preview asset and cache use the current release',()=>{
   assert.match(read('teacher-login.html'),/v63-admin-experience\.js\?v=64\.0\.0/);
-  assert.match(read('service-worker.js'),/technominds-v70-0-1-complete-report/);
-  assert.equal(require(path.join(root,'package.json')).version,'70.0.1');
+  assert.match(read('service-worker.js'),/technominds-v70-0-2-complete-report/);
+  assert.equal(require(path.join(root,'package.json')).version,'70.0.2');
 });

@@ -106,7 +106,7 @@ test('manual parent report sharing is auditable without claiming delivery',()=>{
   assert.match(backend,/collection\('parent_report_deliveries'\)/);
   assert.match(read('functions/lib/backup.js'),/'parent_report_deliveries'/);
   assert.match(sync,/recordParentReportDeliveryAdmin:callable\('recordParentReportDeliveryAdmin'\)/);
-  assert.match(admin,/deliveryMode:window\.parentReportDeliveryMode\|\|'image-downloaded'/);
+  assert.match(admin,/if\(shared\)\{[\s\S]*deliveryMode:window\.parentReportDeliveryMode,requestId/);
   assert.match(profile,/data-profile-view="reports">تقارير ولي الأمر/);
   assert.match(profile,/تم تجهيز الصورة وفتح المشاركة/);
 });
@@ -216,7 +216,7 @@ test('QR attendance survives offline use and syncs idempotently after reconnect'
   assert.match(sync,/syncOfflineAttendance:callable\('syncOfflineAttendance'\)/);
   assert.match(worker,/technominds-attendance-sync/);assert.match(worker,/\/teacher-login\.html/);assert.match(worker,/cache\.put\(request,response\.clone\(\)\)/);
   const appShell=worker.slice(0,worker.indexOf('];')+2);
-  assert.doesNotMatch(appShell,/html5-qrcode/);assert.match(worker,/v70-0-1-complete-report/);
+  assert.doesNotMatch(appShell,/html5-qrcode/);assert.match(worker,/v70-0-2-complete-report/);
   assert.match(admin,/qrScanBusy/);assert.match(admin,/offlineQrManualForm/);assert.match(admin,/state\?\.roster/);
   assert.match(app,/assets\/vendor\/html5-qrcode-2\.3\.8\.min\.js/);
   assert.match(page,/assets\/offline-attendance\.js/);

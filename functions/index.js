@@ -1301,6 +1301,7 @@ async function attemptSummaries(studentCode) {
     examTitle: text(a.examTitle, 200),
     submittedAt: text(a.submittedAt, 60),
     reviewedAt: a.reviewedAt ? reportIso(a.reviewedAt) : '',
+    assessmentMode: a.assessmentMode === 'paper' ? 'paper' : 'online',
     score: a.score === null || a.score === undefined ? null : Number(a.score),
     attemptNumber: Math.max(1, Number(a.attemptNumber || a.attemptSequence || 1)),
     autoScore: a.autoScore === null || a.autoScore === undefined ? null : Number(a.autoScore),
@@ -1996,10 +1997,11 @@ exports.getStudentAdminProfile = onCall(CALLABLE_OPTIONS, async request => {
 
 exports.recordParentReportDeliveryAdmin = onCall(CALLABLE_OPTIONS, async request => {
   const staff=await requireStaff(request,['admin']);
-  const studentCode=normalizeCode(request.data?.studentCode),monthKey=text(request.data?.monthKey,7),deliveryMode=text(request.data?.deliveryMode,40)||'whatsapp-opened';
-  if(!validLegacyOrStrongCode(studentCode)||!/^\d{4}-(0[1-9]|1[0-2])$/.test(monthKey))throw new HttpsError('invalid-argument','بيانات التقرير غير مكتملة.');
+  const studentCode=normalizeCode(request.data?.studentCode),monthKey=text(request.data?.monthKey,7),deliveryMode=text(request.data?.deliveryMode,40),requestId=text(request.data?.requestId,100);
+  if(!validLegacyOrStrongCode(studentCode)||!/^\d{4}-(0[1-9]|1[0-2])$/.test(monthKey)||!['whatsapp-opened','system-share-opened'].includes(deliveryMode)||!/^report-[a-zA-Z0-9.-]{8,100}$/.test(requestId))throw new HttpsError('invalid-argument','بيانات إرسال التقرير غير مكتملة.');
   const found=await getStudentPortalByCode(studentCode),record={studentCode,studentName:text(found.data.studentName||found.data.name,100),monthKey,channel:'whatsapp',deliveryMode,recipientPhone:digits(found.data.parentPhone),createdByUid:staff.uid,createdByEmail:staff.email||'',createdAt:FieldValue.serverTimestamp()};
-  const ref=await db.collection('parent_report_deliveries').add(record);
+  const ref=db.collection('parent_report_deliveries').doc(hash(`${studentCode}:${requestId}`).slice(0,48));
+  try{await ref.create(record);}catch(error){if(error?.code===6||error?.code==='already-exists')return {ok:true,id:ref.id,duplicate:true};throw error;}
   await serverActivity(staff,'تجهيز تقرير ولي الأمر',{studentCode,monthKey,channel:'whatsapp',deliveryMode});
   return {ok:true,id:ref.id};
 });
@@ -2139,8 +2141,8 @@ function reportPublicRows(rows,kind) {
     if(kind==='attendance')return {id:text(row.id,120),sessionId:text(row.sessionId,120),classSessionId:text(row.classSessionId,120),sessionKey:text(row.sessionKey,160),scheduleId:text(row.scheduleId,120),date:text(row.date,10),time:text(row.time,20),status:text(row.status,30),method:text(row.method,30),group:text(row.group,100)};
     if(kind==='assignment')return {id:text(row.id,120),title:text(row.title,200),lessonTitle:text(row.lessonTitle,200),publishAt:reportIso(row.publishAt),dueDate:text(row.dueDate,40),totalScore:Number(row.totalScore||1),submissionClosed:row.submissionClosed===true,activityOnly:row.activityOnly===true};
     if(kind==='homework')return {id:text(row.id,120),assignmentId:text(row.assignmentId||row.homeworkId||row.assignment?.id||row.assignmentSnapshot?.id,120),title:text(row.homeworkTitle||row.assignmentTitle||row.assignmentSnapshot?.title||row.title,200),submittedAt:reportIso(row.submittedAt||row.date||row.createdAt),reviewedAt:reportIso(row.reviewedAt||row.gradedAt),updatedAt:reportIso(row.updatedAt),score:row.score===null||row.score===undefined?(row.grade===null||row.grade===undefined?(row.earnedScore===null||row.earnedScore===undefined?null:Number(row.earnedScore)):Number(row.grade)):Number(row.score),maxScore:Number(row.maxScore||row.totalScore||row.totalMarks||row.assignmentSnapshot?.totalScore||row.assignmentSnapshot?.maxScore||100),status:text(row.status,50),attemptNumber:Number(row.attemptNumber||1),needsManualReview:row.needsManualReview===true,approved:row.approved===true};
-    if(kind==='result')return {id:text(row.id,120),examId:text(row.examId,120),activityName:text(row.activityName||row.examTitle||row.exam||row.title,200),examTitle:text(row.examTitle||row.exam,200),type:text(row.type,40),typeLabel:text(row.typeLabel,80),date:reportIso(row.date||row.submittedAt),submittedAt:reportIso(row.submittedAt||row.date),score:row.score===null||row.score===undefined?null:Number(row.score),maxScore:Number(row.maxScore||100),status:text(row.status,50),needsManualReview:row.needsManualReview===true,attemptNumber:Number(row.attemptNumber||row.attemptSequence||1),reviewedAt:reportIso(row.reviewedAt),updatedAt:reportIso(row.updatedAt),approved:row.approved===true};
-    if(kind==='exam')return {id:text(row.id,120),title:text(row.title||row.examTitle,200),openAt:reportIso(row.openAt||row.createdAt),closeAt:reportIso(row.closeAt),createdAt:reportIso(row.createdAt),totalScore:Number(row.totalScore||row.maxScore||100),required:row.required!==false,cancelled:row.cancelled===true||row.status==='cancelled',finished:(scheduledTimeMillis(row.closeAt)>0&&scheduledTimeMillis(row.closeAt)<=Date.now()),activityOnly:row.activityOnly===true,submittedElsewhere:row.submittedElsewhere===true};
+    if(kind==='result')return {id:text(row.id,120),examId:text(row.examId,120),activityName:text(row.activityName||row.examTitle||row.exam||row.title,200),examTitle:text(row.examTitle||row.exam,200),type:text(row.type,40),typeLabel:text(row.typeLabel,80),assessmentMode:row.assessmentMode==='paper'?'paper':'online',date:reportIso(row.date||row.submittedAt),submittedAt:reportIso(row.submittedAt||row.date),score:row.score===null||row.score===undefined?null:Number(row.score),maxScore:Number(row.maxScore||100),status:text(row.status,50),needsManualReview:row.needsManualReview===true,attemptNumber:Number(row.attemptNumber||row.attemptSequence||1),reviewedAt:reportIso(row.reviewedAt),updatedAt:reportIso(row.updatedAt),approved:row.approved===true};
+    if(kind==='exam')return {id:text(row.id,120),title:text(row.title||row.examTitle,200),assessmentMode:row.assessmentMode==='paper'?'paper':'online',openAt:reportIso(row.openAt||row.createdAt),closeAt:reportIso(row.closeAt),createdAt:reportIso(row.createdAt),totalScore:Number(row.totalScore||row.maxScore||100),required:row.required!==false,cancelled:row.cancelled===true||row.status==='cancelled',finished:(scheduledTimeMillis(row.closeAt)>0&&scheduledTimeMillis(row.closeAt)<=Date.now()),activityOnly:row.activityOnly===true,submittedElsewhere:row.submittedElsewhere===true};
     if(kind==='practical')return {id:text(row.id,120),title:text(row.title,200),date:reportIso(row.date||row.createdAt),status:text(row.status,60),completed:row.completed===true,approved:row.approved===true};
     if(kind==='progress')return {id:text(row.id,120),lectureId:text(row.lectureId||row.id,120),title:text(row.title,200),percent:Number(row.maxPercent??row.percent??0),viewed:row.viewed===true,completed:row.completed===true||Number(row.maxPercent??row.percent)>=100,lastOpenedAt:reportIso(row.lastOpenedAt||row.updatedAt),completedAt:reportIso(row.completedAt),completionVerified:row.completionVerified===true,completionEvidence:text(row.completionEvidence,40)};
     return row;
@@ -2270,10 +2272,11 @@ exports.getStudentMonthlyReportAdmin = onCall({ ...CALLABLE_OPTIONS, timeoutSeco
   const studentCode=normalizeCode(request.data?.studentCode),monthKey=text(request.data?.monthKey,7);
   if(!validLegacyOrStrongCode(studentCode))throw new HttpsError('invalid-argument','كود الطالب غير صالح.');
   const found=await getStudentPortalByCode(studentCode);
-  const report=await buildStudentMonthlyReport(found.data,monthKey,{force:request.data?.force===true});
-  if(request.data?.includeRanking!==true)return report;
+  const [report,deliverySnap]=await Promise.all([buildStudentMonthlyReport(found.data,monthKey,{force:request.data?.force===true}),request.data?.includeDeliveryState===true?db.collection('parent_report_deliveries').where('studentCode','==',studentCode).limit(1).get():Promise.resolve(null)]);
+  const response=deliverySnap?{...report,deliveryState:{firstDelivery:deliverySnap.empty}}:report;
+  if(request.data?.includeRanking!==true)return response;
   const ranking=await studentReportRanking(found.data,monthKey).catch(()=>null);
-  return ranking?{...report,motivation:{...(report.motivation||{}),...ranking}}:report;
+  return ranking?{...response,motivation:{...(report.motivation||{}),...ranking}}:response;
 });
 
 exports.getParentMonthlyReport = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds:60, memory:'512MiB' }, async request => {
@@ -2980,7 +2983,9 @@ async function leaderboardRowsForPeriod(academicYear='',monthName='',options={})
     const baseScore=Math.round(((gradePct??0)*config.weights.exams+attendancePct*config.weights.attendance+(homeworkPct??0)*config.weights.homeworkCompletion+(homeworkGradePct??0)*config.weights.homeworkGrade+recitationPct*config.weights.practical)/weightTotal);
     const sortedAttendance=attendanceResult.rows;let streak=0,maxStreak=0;sortedAttendance.forEach(row=>{if(row.status==='absent'){streak+=1;maxStreak=Math.max(maxStreak,streak);}else streak=0;});
     const submittedExamIds=new Set((examAttempts.get(code)||[]).filter(row=>row.submittedAt&&row.status!=='started'&&row.status!=='absent').map(row=>String(row.examId||'')).filter(Boolean));
-    const absenceCount=attendanceResult.absent,missedExamCount=new Set(currentMonthRows(examAbsences.get(code)||[]).filter(row=>!submittedExamIds.has(String(row.examId||''))).map(row=>String(row.examId||row.id||''))).size,missingHomeworkCount=monthlyEvaluation.homework.missing;
+    const absenceCount=attendanceResult.absent,missedExamIds=new Set(currentMonthRows(examAbsences.get(code)||[]).filter(row=>!submittedExamIds.has(String(row.examId||''))).map(row=>String(row.examId||row.id||'')));
+    currentMonthRows(examAttempts.get(code)||[]).filter(row=>row.assessmentMode==='paper'&&row.status==='absent'&&row.required!==false).forEach(row=>missedExamIds.add(String(row.examId||'')));
+    const missedExamCount=missedExamIds.size,missingHomeworkCount=monthlyEvaluation.homework.missing;
     const latestSubmissionByAssignment=new Map();allStudentHomework.forEach(row=>{if(!row.assignmentId)return;const key=String(row.assignmentId),old=latestSubmissionByAssignment.get(key);if(!old||recordDate(row)>recordDate(old))latestSubmissionByAssignment.set(key,row);});
     const lateHomeworkCount=requiredAssignments.filter(item=>{const submission=latestSubmissionByAssignment.get(String(item.id));return submission&&/^\d{4}-\d{2}-\d{2}$/.test(String(item.dueDate||''))&&recordDate(submission)>String(item.dueDate);}).length;
     // Attendance and missing work are already represented by their weighted
@@ -3847,6 +3852,49 @@ exports.bulkMarkAttendance = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 60, m
   return { ok: true, date, group, totalStudents: students.length, alreadyRecorded: students.length - missing.length, saved: missing.length, timeZone: 'Africa/Cairo' };
 });
 
+exports.savePaperExamGradesAdmin = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds:120, memory:'512MiB' },async request=>{
+  const staff=await requireStaff(request,['admin','teacher']),body=request.data||{};
+  const title=text(body.title,200).trim(),examDate=text(body.examDate,10),totalScore=Number(body.totalScore),grade=text(canonicalAcademicLabel(body.grade),80),group=text(body.group,100),scheduleId=text(body.scheduleId,100),academicYear=text(body.academicYear,20),term=text(body.term,40),required=body.required!==false;
+  const results=body.results;
+  const validDate=/^\d{4}-\d{2}-\d{2}$/.test(examDate)&&Number.isFinite(Date.parse(`${examDate}T12:00:00Z`))&&new Date(`${examDate}T12:00:00Z`).toISOString().slice(0,10)===examDate;
+  if(!title||!validDate||!Number.isFinite(totalScore)||totalScore<=0||totalScore>10000||!grade||!validPaymentAcademicYear(academicYear)||!term||!Array.isArray(results)||results.length>100||!group&&!scheduleId)throw new HttpsError('invalid-argument','بيانات الامتحان الورقي غير صالحة.');
+  if(leaderboardPeriod(academicYear,PAYMENT_MONTH_NAMES[Number(examDate.slice(5,7))-1]).monthKey!==examDate.slice(0,7))throw new HttpsError('invalid-argument','تاريخ الامتحان لا يطابق العام الدراسي.');
+  const examId=body.examId?cleanDocId(text(body.examId,120)):db.collection('exams').doc().id;
+  if(!examId)throw new HttpsError('invalid-argument','معرّف الامتحان غير صالح.');
+  const studentCodes=results.map(row=>normalizeCode(row?.studentCode));
+  if(studentCodes.some(code=>!validLegacyOrStrongCode(code))||new Set(studentCodes).size!==studentCodes.length)throw new HttpsError('invalid-argument','يوجد كود طالب غير صالح أو مكرر.');
+  for(const row of results){const score=Number(row?.score);if(!['corrected','absent'].includes(row?.status)||row.status==='corrected'&&(row.score===null||row.score===''||!Number.isFinite(score)||score<0||score>totalScore))throw new HttpsError('invalid-argument','درجة طالب خارج حدود الامتحان.');}
+  const examRef=db.collection('exams').doc(examId);
+  const [oldSnap,studentsSnap,attemptsSnap]=await Promise.all([
+    examRef.get(),fetchAllCollectionDocuments('students',query=>query.where('active','==',true)),
+    results.length||body.examId?db.collection('exam_attempts').where('examId','==',examId).limit(501).get():Promise.resolve(null)
+  ]);
+  if(oldSnap.exists&&oldSnap.data()?.assessmentMode!=='paper')throw new HttpsError('failed-precondition','هذا المعرّف يخص امتحانًا إلكترونيًا.');
+  if((attemptsSnap?.size||0)>500)throw new HttpsError('resource-exhausted','تجاوز الامتحان الحد المسموح للمحاولات.');
+  const exam={id:examId,title,assessmentMode:'paper',source:'center-paper',examDate,totalScore,grade,group,scheduleId,groupId:scheduleId,academicYear,term,required,published:true,active:true,
+    openAt:`${examDate}T09:00:00+03:00`,closeAt:`${examDate}T23:59:59+03:00`,audienceKeys:academicAudienceKeysForItem({grade,group,scheduleId,academicYear,term})};
+  if(oldSnap.exists){const old=oldSnap.data()||{};if((attemptsSnap?.size||0)>0&&['examDate','totalScore','grade','group','scheduleId','academicYear','term','required'].some(field=>String(old[field]??'')!==String(exam[field]??'')))throw new HttpsError('failed-precondition','لا يمكن تغيير فترة الامتحان أو جمهوره أو الدرجة النهائية بعد تسجيل النتائج.');}
+  const students=new Map(studentsSnap.docs.map(doc=>{const row=doc.data()||{};return [normalizeCode(row.studentCode||row.code||doc.id),row];}));
+  const existing=new Map((attemptsSnap?.docs||[]).map(doc=>[normalizeCode(doc.data()?.studentCode),doc]));
+  const writes=[];let revisions=0;
+  for(const row of results){
+    const code=normalizeCode(row.studentCode),student=students.get(code),attemptId=cleanDocId(`${examId}_${code}_paper`);
+    if(!student||!membershipAt(student,[],examDate)||!learningTargetMatchesStudent(exam,student))throw new HttpsError('permission-denied',`الطالب ${code} غير موجود أو غير مستهدف بالامتحان.`);
+    const previous=existing.get(code);
+    if(previous&&previous.id!==attemptId)throw new HttpsError('failed-precondition',`يوجد سجل امتحان آخر للطالب ${code}.`);
+    if(previous)revisions++;
+    const absent=row.status==='absent',payload={id:attemptId,examId,examTitle:title,studentCode:code,studentName:text(student.studentName||student.name,100),grade:text(student.grade,80),group:text(student.group,100),scheduleId:text(student.scheduleId||student.groupId,100),academicYear,term,assessmentMode:'paper',attemptType:'paper',source:'center-paper',required,submittedAt:`${examDate}T12:00:00+03:00`,examDate,score:absent?null:Number(row.score),maxScore:totalScore,status:absent?'absent':'corrected',needsManualReview:false,approved:!absent,note:text(row.note,500),updatedAt:FieldValue.serverTimestamp(),reviewedAt:absent?null:FieldValue.serverTimestamp(),reviewedByUid:staff.uid};
+    if(!previous)payload.createdAt=FieldValue.serverTimestamp();
+    writes.push(batch=>batch.set(db.collection('exam_attempts').doc(attemptId),payload,{merge:true}));
+    writes.push(batch=>batch.set(db.collection('monthly_reports').doc(cleanDocId(`${code}_${examDate.slice(0,7)}`)),{studentCode:code,monthKey:examDate.slice(0,7),invalidatedAt:FieldValue.serverTimestamp(),invalidationReason:'paper-exam-grades',updatedAt:FieldValue.serverTimestamp()},{merge:true}));
+  }
+  writes.unshift(batch=>batch.set(examRef,{...exam,updatedAt:FieldValue.serverTimestamp(),updatedByUid:staff.uid,...(!oldSnap.exists?{createdAt:FieldValue.serverTimestamp()}: {})},{merge:true}));
+  await commitServerWrites(writes);
+  if(results.length||!oldSnap.exists)await markLeaderboardDirty('paper-exam-grades');
+  await serverActivity(staff,oldSnap.exists?'تعديل درجات امتحان ورقي':'إنشاء امتحان ورقي',{examId,examDate,studentCount:results.length,revisions});
+  return {ok:true,examId,saved:results.length,revisions};
+});
+
 function examMatchesStudent(exam, student) {
   return learningTargetMatchesStudent(exam, student);
 }
@@ -3873,7 +3921,7 @@ exports.getExamDashboard = onCall(EXAM_ENTRY_OPTIONS, async request => {
   requireApprovedStudent(found.data);
   const examDocs = await targetedLearningDocs('exams', found.data);
   const exams = examDocs.map(doc => ({ id: doc.id, ...doc.data() }))
-    .filter(exam => examIsPublished(exam)&&examMatchesStudent(exam, found.data)&&contentAvailableAfterStudentJoined(exam,found.data,scheduledTimeMillis(exam.closeAt)?scheduledTimeMillis(exam.closeAt)-1:Date.now()))
+    .filter(exam => exam.assessmentMode!=='paper'&&examIsPublished(exam)&&examMatchesStudent(exam, found.data)&&contentAvailableAfterStudentJoined(exam,found.data,scheduledTimeMillis(exam.closeAt)?scheduledTimeMillis(exam.closeAt)-1:Date.now()))
     .map(exam => ({
       id: text(exam.id, 100),
       title: text(exam.title, 200),
@@ -3901,7 +3949,7 @@ async function finalizeExamAbsenceRecords(){
   const now=Date.now(),[examResult,studentResult]=await Promise.all([fetchAllCollectionDocuments('exams'),fetchAllCollectionDocuments('students',query=>query.where('active','==',true))]);
   const students=studentResult.docs.map(doc=>({id:doc.id,...doc.data()}));
   const exams=examResult.docs.map(doc=>({...doc.data(),id:doc.id,ref:doc.ref})).filter(exam=>{
-    if(!examIsPublished(exam))return false;
+    if(!examIsPublished(exam)||exam.assessmentMode==='paper')return false;
     const ended=scheduledTimeMillis(exam.closeAt)||(exam.active===false||exam.archived===true?firestoreMillis(exam.archivedAt||exam.updatedAt):0);
     return ended>0&&ended<=now&&(!exam.absenceFinalizedAt||firestoreMillis(exam.updatedAt)>firestoreMillis(exam.absenceFinalizedAt));
   }).slice(0,80);
@@ -3932,6 +3980,7 @@ exports.startExam = onCall(EXAM_ENTRY_OPTIONS, async request => {
   const examSnap = await db.collection('exams').doc(examId).get();
   if (!examSnap.exists) throw new HttpsError('not-found', 'الامتحان غير موجود.');
   const exam = { id: examSnap.id, ...examSnap.data() };
+  if(exam.assessmentMode==='paper')throw new HttpsError('failed-precondition','الامتحان الورقي لا يبدأ من بوابة الطالب.');
   if (!examIsOpen(exam)) throw new HttpsError('failed-precondition', 'الامتحان غير متاح في الوقت الحالي.');
   if (!examMatchesStudent(exam, found.data) || !contentAvailableAfterStudentJoined(exam, found.data)) {
     throw new HttpsError('permission-denied', 'هذا الامتحان غير مخصص لمسارك أو مجموعتك أو عامك الدراسي.');

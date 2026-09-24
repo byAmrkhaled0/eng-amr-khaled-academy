@@ -50,14 +50,14 @@ test('admin design covers desktop, dark mode and mobile hierarchy', () => {
   assert.match(css, /@media\(max-width:390px\)/);
 });
 
-test('release metadata is synchronized at 70.0.1', () => {
+test('release metadata is synchronized at 70.0.2', () => {
   const frontend = require(path.join(root, 'package.json'));
   const backend = require(path.join(root, 'functions/package.json'));
   const worker = read('service-worker.js');
 
-  assert.equal(frontend.version, '70.0.1');
+  assert.equal(frontend.version, '70.0.2');
   assert.equal(backend.version, frontend.version);
-  assert.match(read('assets/app.js'), /MF_ASSET_VERSION = '70\.0\.1'/);
-  assert.match(worker, /technominds-v70-0-1-complete-report/);
-  assert.match(worker, /ASSET_VERSION = "70\.0\.1"/);
+  assert.match(read('assets/app.js'), /MF_ASSET_VERSION = '70\.0\.2'/);
+  assert.match(worker, /technominds-v70-0-2-complete-report/);
+  assert.match(worker, /ASSET_VERSION = "70\.0\.2"/);
 });

@@ -53,25 +53,26 @@ test('portal and parent use the same report title; unavailable and loading are d
 });
 
 test('admin missing metrics stay blank, zero stays zero and report values win',()=>{
-  const scope={compatibleMonthlyReport:reportUi().compatibleMonthlyReport,stCode:st=>st.studentCode,adminReportMonthKey:()=> '2026-09'};
-  const code=admin.slice(admin.indexOf('function calcStudentAdmin('),admin.indexOf('function badgeStatus('));
+  const scope={stCode:st=>st.studentCode,adminReportMonthKey:()=> '2026-09'};
+  const code=admin.slice(admin.indexOf('const adminStudentMetrics='),admin.indexOf('function badgeStatus('));
   vm.runInNewContext(`${code}\nthis.calculate=calcStudentAdmin;`,scope);
   const student={studentCode:'ST-HOTFIX'};
   assert.equal(scope.calculate({...student,attendance:[{status:'present'}],grades:[{score:0}]}).avg,null);
-  const base={schemaVersion:11,policyVersion:'monthly-v11-student-level',monthKey:'2026-09',student:{studentCode:'ST-HOTFIX'},monthlyTitle:'نجم التطور',level:'جيد',overallScore:60,attendance:{percentage:0},homework:{completionPercentage:0},results:{average:0}};
-  const zero=scope.calculate({...student,monthlyReport:base});assert.equal(zero.attendancePct,0);assert.equal(zero.avg,0);
-  const actual=scope.calculate({...student,monthlyReport:{...base,attendance:{percentage:87.5},homework:{completionPercentage:75},results:{average:80}}});
+  vm.runInNewContext("adminStudentMetrics.monthKey='2026-09';adminStudentMetrics.rows={'ST-HOTFIX':{attendancePercentage:0,homeworkCompletionPercentage:0,resultsAverage:0}};",scope);
+  const zero=scope.calculate(student);assert.equal(zero.attendancePct,0);assert.equal(zero.avg,0);
+  vm.runInNewContext("adminStudentMetrics.rows['ST-HOTFIX']={attendancePercentage:87.5,homeworkCompletionPercentage:75,resultsAverage:80};",scope);
+  const actual=scope.calculate(student);
   assert.deepEqual([actual.attendancePct,actual.homeworkPct,actual.avg],[87.5,75,80]);
   assert.match(admin,/c\.avg==null\?'—':`\$\{c\.avg\}%`/);
   assert.match(admin,/c\.homeworkPct==null\?'—'/);
 });
 
 function deliveryHarness(canShare){
-  const intro=app.slice(app.indexOf('function parentReportWhatsAppIntro('),app.indexOf('window.parentReportWhatsAppIntro=parentReportWhatsAppIntro;')+'window.parentReportWhatsAppIntro=parentReportWhatsAppIntro;'.length);
-  const delivery=app.slice(app.indexOf('window.deliverParentMonthlyReport=async function('),app.indexOf('let parentReportSharePending=false;'));
+  const intro=app.slice(app.indexOf('function parentReportFeedback('),app.indexOf('let parentReportLogoPromise='));
+  const delivery=app.slice(app.indexOf('window.reserveParentWhatsAppWindow='),app.indexOf('let parentReportSharePending=false;'));
   const events={notices:[],downloads:0,shared:null,opened:null};
   const report={schemaVersion:11,policyVersion:'monthly-v11-student-level',monthKey:'2026-09',student:{studentCode:'ST-HOTFIX',name:'طالب اختبار'},monthlyTitle:'متفوق الشهر',level:'جيد جدًا',overallScore:82,attendance:{},homework:{},results:{}};
-  const scope={window:{open:link=>{events.opened=link;return {opener:null};}},navigator:{clipboard:{writeText:async()=>{}},canShare:()=>canShare,share:async payload=>{events.shared=payload;}},
+  const scope={window:{open:link=>{events.opened=link;return {opener:null,closed:false,location:{href:''},close(){this.closed=true;}};}},navigator:{clipboard:{writeText:async()=>{}},canShare:()=>canShare,share:async payload=>{events.shared=payload;}},
     parentReportTrend:()=>({available:false}),reportMonthLabel:()=> 'سبتمبر ٢٠٢٦',whatsappPhone:value=>value,whatsappLink:(phone,message)=>`https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
     compatibleMonthlyReport:()=>true,confirm:()=>true,toast:()=>{},parentReportImageBlob:async()=>new Blob(['PNG'],{type:'image/png'}),
     File:class File{constructor(parts,name,options){this.name=name;this.type=options.type;this.parts=parts;}},URL:{createObjectURL:()=> 'blob:report',revokeObjectURL:()=>{}},setTimeout:()=>{},
@@ -83,13 +84,13 @@ function deliveryHarness(canShare){
 test('WhatsApp message has actual student and level; share API includes PNG and text',async()=>{
   const flow=deliveryHarness(true);assert.equal(await flow.run(),true);
   const message=flow.events.shared.text;
-  assert.match(message,/طالب اختبار/);assert.match(message,/جيد جدًا/);assert.match(message,/الحضور والواجبات والامتحانات/);
+  assert.match(message,/طالب اختبار/);assert.match(message,/جيد جدًا/);assert.match(message,/بوابة ولي الأمر/);
   assert.match(message,/82%/);assert.equal(flow.events.shared.files[0].type,'image/png');assert.equal(flow.events.downloads,0);
 });
 
 test('desktop fallback downloads PNG and opens text without claiming the image was sent',async()=>{
   const flow=deliveryHarness(false);assert.equal(await flow.run(),true);
-  assert.equal(flow.events.downloads,1);assert.match(flow.events.opened,/wa\.me/);
+  assert.equal(flow.events.downloads,1);assert.equal(flow.events.opened,'about:blank');
   assert.match(flow.events.notices.at(-1),/أرفق الصورة التي تم تنزيلها/);
   assert.doesNotMatch(flow.events.notices.at(-1),/تم إرسال الصورة/);
   assert.equal(flow.scope.window.parentReportDeliveryMode,'whatsapp-opened');
@@ -99,7 +100,7 @@ test('localhost pages reference exact changed asset hashes instead of cached rel
   for(const [page,assets] of Object.entries({'../student.html':['portal-results','app'],'../parent.html':['portal-results','app'],'../teacher-login.html':['portal-results','app','admin','v60-admin-workflow','v64-admin-operations']})){
     const html=read(page);
     for(const asset of assets){const name=`assets/${asset}.js`,digest=crypto.createHash('sha256').update(read(`../${name}`)).digest('hex').slice(0,10);
-      assert.ok(html.includes(`${name}?v=70.0.1&rev=${digest}`),`${page} contains the current ${name}`);
+      assert.ok(html.includes(`${name}?v=70.0.2&rev=${digest}`),`${page} contains the current ${name}`);
     }
   }
 });

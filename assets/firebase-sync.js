@@ -2,7 +2,7 @@
   'use strict';
 
   const cfg=window.MF_FIREBASE_CONFIG||{};
-  const FRONTEND_VERSION='70.0.1';
+  const FRONTEND_VERSION='70.0.2';
   const API_SCHEMA_VERSION='portal-v64.0.0';
   if(!cfg.enabled||typeof firebase==='undefined'){
     window.MFCloud={ready:false,error:'Firebase غير مفعل'};
@@ -169,6 +169,7 @@
       saveExamProgress:callable('saveExamProgress'),
       submitExam:callable('submitExam'),
       reviewExamAttempt:callable('reviewExamAttempt'),
+      savePaperExamGradesAdmin:callable('savePaperExamGradesAdmin'),
       reportClientError:callable('reportClientError'),
       createStudentAccess:callable('createStudentAccess'),
       regenerateParentAccessCode:callable('regenerateParentAccessCode'),
@@ -782,6 +783,7 @@
       saveSecureExamProgress:async(sessionId,studentCode,answers,current,revision)=>{if(!calls.saveExamProgress)throw new Error('Secure exam progress function is unavailable');const normalized=normalizeCode(studentCode),payload=await portalPayload(normalized,{sessionId,studentCode:normalized,answers,current,revision});return publicCallable('/api/exams/progress',payload,calls.saveExamProgress,5000,0);},
       submitSecureExam:async(sessionId,studentCode,answers)=>{if(!calls.submitExam)throw new Error('Secure submit exam function is unavailable');const normalized=normalizeCode(studentCode),payload=await portalPayload(normalized,{sessionId,studentCode:normalized,answers});return publicCallable('/api/exams/submit',payload,calls.submitExam,10000,0);},
       reviewExamAttempt:async payload=>{if(!calls.reviewExamAttempt)throw new Error('Secure exam correction service is unavailable');return calls.reviewExamAttempt(payload||{});},
+      savePaperExamGradesAdmin:payload=>{if(!calls.savePaperExamGradesAdmin)throw new Error('Paper exam grades service is unavailable');return calls.savePaperExamGradesAdmin(payload||{});},
       upsertAttendance,getAttendanceForDate,
       recordAttendanceByQr:(attendanceCode,date)=>{if(!calls.recordAttendance)throw new Error('Secure attendance service unavailable');return calls.recordAttendance({attendanceCode:String(attendanceCode||'').trim().toUpperCase(),date,status:'present'});},
       prepareOfflineAttendance:data=>calls.prepareOfflineAttendance(data),

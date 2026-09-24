@@ -47,20 +47,21 @@ function dedupeKey(result = {}) {
 function normalizeResult(row = {}, type = 'manual', source = 'grades') {
   const score = (type === 'exam' ? isExamGradePending(row) : row.needsManualReview === true || row.status === 'pending' || row.score === null || row.score === undefined || row.score === '' || !Number.isFinite(Number(row.score))) ? null : Number(row.score);
   const maxScore = Math.max(0, number(row.maxScore ?? row.totalScore ?? row.outOf, 100));
-  const status = score === null ? 'pending' : 'graded';
+  const status = type === 'exam' && row.status === 'absent' ? 'absent' : score === null ? 'pending' : 'graded';
   return {
     id: String(row.id || '').slice(0, 120),
     activityId: String(row.assignmentId || row.examId || row.activityId || '').slice(0, 120),
     activityName: String(row.activityName || row.homeworkTitle || row.examTitle || row.exam || row.title || 'نشاط').slice(0, 200),
     type,
-    typeLabel: ({ exam: 'امتحان', homework: 'واجب', practical: 'عملي', manual: 'درجة يدوية' })[type] || 'درجة يدوية',
+    typeLabel: type === 'exam' && row.assessmentMode === 'paper' ? 'امتحان ورقي' : ({ exam: 'امتحان', homework: 'واجب', practical: 'عملي', manual: 'درجة يدوية' })[type] || 'درجة يدوية',
+    assessmentMode: row.assessmentMode === 'paper' ? 'paper' : 'online',
     score,
     maxScore,
     percentage: score === null ? null : scorePercent(score, maxScore),
     date: resultDate(row),
     updatedAt: resultDate({date:row.reviewedAt||row.updatedAt||resultDate(row)}),
     status,
-    statusLabel: status === 'graded' ? 'تم التصحيح' : 'قيد التصحيح',
+    statusLabel: status === 'absent' ? 'غائب عن الامتحان' : status === 'graded' ? 'تم التصحيح' : 'قيد التصحيح',
     attemptNumber: Math.max(1, Math.floor(number(row.attemptNumber || row.attemptSequence, 1))),
     source
   };

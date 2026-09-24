@@ -73,12 +73,15 @@ test('parent report button requests fresh matching data once and restores its st
  const ui=await createAdminDOM();
  try{
   ui.run(`adminData.students[0].parentPhone='01000000000';`);const button=ui.document.createElement('button');let reportCalls=0,deliveries=0,resolveReport,payload;
+  ui.window.reserveParentWhatsAppWindow=()=>({confirmed:true,popup:{closed:false,close(){},location:{}}});
+  ui.window.MFCloud.recordParentReportDeliveryAdmin=async()=>({ok:true});
   ui.window.MFCloud.getStudentMonthlyReportAdmin=async input=>{reportCalls++;payload=input;return new Promise(resolve=>{resolveReport=resolve;});};
   ui.window.deliverParentMonthlyReport=async()=>{deliveries++;return true;};
   const first=ui.window.sendParentMonthlyReport('DEMO1',button);ui.window.sendParentMonthlyReport('DEMO1',button);await tick();
   assert.equal(reportCalls,1);assert.equal(button.disabled,true);assert.equal(payload.force,undefined);
   assert.equal(payload.includeRanking,true);
-  resolveReport({schemaVersion:11,policyVersion:'monthly-v11-student-level',monthKey:'2026-09',student:{studentCode:'DEMO1',name:'طالب تجريبي 1'},monthlyTitle:'بيانات غير كافية',level:'بيانات غير كافية',overallScore:null,attendance:{percentage:null},homework:{completionPercentage:null},results:{average:null}});await first;
+  assert.equal(payload.includeDeliveryState,true);
+  resolveReport({schemaVersion:11,policyVersion:'monthly-v11-student-level',monthKey:'2026-09',student:{studentCode:'DEMO1',name:'طالب تجريبي 1'},monthlyTitle:'بيانات غير كافية',level:'بيانات غير كافية',overallScore:null,attendance:{percentage:null},homework:{completionPercentage:null},results:{average:null},deliveryState:{firstDelivery:true}});await first;
   assert.equal(deliveries,1);assert.equal(button.disabled,false);assert.equal(button.classList.contains('is-loading'),false);
  }finally{ui.close();}
 });
@@ -104,13 +107,30 @@ test('student file button opens the unified server profile instead of the legacy
   assert.equal(profileCalls,1);assert.equal(popupCalls,0);assert(ui.document.querySelector('#unifiedStudentProfile'));assert.match(ui.document.querySelector('#unifiedProfileBody').textContent,/ملف الطالب الموحد/);
  }finally{ui.close();}
 });
-test('WhatsApp parent summary is concise and uses the production parent portal',async()=>{
+test('WhatsApp parent summary supports first and later delivery modes',async()=>{
  const ui=await createAdminDOM();
  try{
-  const message=ui.window.parentReportWhatsAppIntro({monthKey:'2026-09',monthlyTitle:'متفوق الشهر',student:{studentCode:'DEMO1',name:'طالب تجريبي',grade:'الأول الثانوي',group:'أ'},level:'جيد جدًا',overallScore:82,trend:{status:'improved',delta:6,previousScore:76},attendance:{present:3,total:4,absent:1,late:0,percentage:75,rows:[{date:'2026-09-12',status:'absent'}]},results:{rows:[{activityName:'امتحان سبتمبر',score:18,maxScore:20,percentage:90}],submittedExams:1,requiredExams:1,average:90},homework:{submitted:2,required:2,averageGrade:88},study:{lecturesAvailable:2,lecturesOpened:2,lecturesCompleted:1},motivation:{rank:2,totalStudents:18,groupRank:1,groupTotalStudents:6,totalPoints:6,transactionCount:1},payment:null});
-  assert.match(message,/م\. عمرو خالد، مدرس البرمجة والذكاء الاصطناعي ومؤسس Techno Minds/);assert.match(message,/مرفق لحضرتك صورة التقرير الشهري للطالب\/ة طالب تجريبي عن شهر سبتمبر ٢٠٢٦/);assert.match(message,/المستوى العام: جيد جدًا/);assert.match(message,/التقييم: 82%/);assert.match(message,/https:\/\/eng-amr-khaled-academy\.vercel\.app\/parent\.html/);assert.match(message,/كود الطالب الموحّد: DEMO1/);
-  assert.match(message,/تحسن 6 نقطة مئوية عن الشهر السابق — من 76% إلى 82%/);
-  assert.doesNotMatch(message,/اللقب الشهري|ترتيب المسار|ترتيب المجموعة|الامتحانات:|127\.0\.0\.1|📊|🔗|🔑/);
+  const report={
+   monthKey:'2026-09',
+   student:{studentCode:'DEMO1',name:'Demo Student',grade:'Grade',group:'A'},
+   level:'Good',
+   overallScore:82,
+   trend:{status:'improved',delta:6,previousScore:76},
+   attendance:{present:3,total:4,absent:1,late:0,percentage:75,rows:[]},
+   results:{rows:[],submittedExams:1,requiredExams:1,average:90},
+   homework:{submitted:2,required:2,averageGrade:88},
+   study:{lecturesAvailable:2,lecturesOpened:2,lecturesCompleted:1},
+   motivation:{totalPoints:6,transactionCount:1},
+   payment:null
+  };
+  const first=ui.window.parentReportWhatsAppIntro(report,true);
+  const later=ui.window.parentReportWhatsAppIntro(report,false);
+  assert.match(first,/Techno Minds/);
+  assert.match(first,/DEMO1/);
+  assert.match(first,/https:\/\/eng-amr-khaled-academy\.vercel\.app\/parent\.html/);
+  assert.match(later,/Techno Minds/);
+  assert.match(later,/DEMO1/);
+  assert.notEqual(first,later);
  }finally{ui.close();}
 });
 test('compact parent HTML renders all backend monthly activity without truncation',async()=>{

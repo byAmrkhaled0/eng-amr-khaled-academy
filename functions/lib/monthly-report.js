@@ -101,12 +101,12 @@ function calculateMonthlyReport(input={}){
     const open=!exam.openAt||Date.parse(exam.openAt)<=new Date(now).getTime(),finished=exam.finished===true||(exam.closeAt&&Date.parse(exam.closeAt)<=new Date(now).getTime());
     const isRequired=exam.required!==false&&exam.activityOnly!==true;
     if(isRequired)required++;if(open&&!finished)available++;if(isStarted)started++;if(isSubmitted)submitted++;
-    const isMissed=finished&&isRequired&&!isSubmitted&&exam.submittedElsewhere!==true;
+    const isMissed=isRequired&&row?.status==='absent'||finished&&isRequired&&!isSubmitted&&exam.submittedElsewhere!==true;
     if(isMissed)missed++;
     const percentage=isSubmitted?scorePercent(row,'exam'):null;
     const status=isSubmitted?(percentage===null?'pending_review':'graded'):isMissed?'absent':isStarted?'started':open?'available':'upcoming';
     if(status==='pending_review')awaiting++;
-    rows.push({...row,examId:id,activityName:exam.title||row?.activityName||'امتحان',date:row?.submittedAt||row?.date||row?.startedAt||exam.openAt||'',maxScore:rowMaxScore(row)||exam.totalScore||null,score:percentage===null?null:rowScore(row),percentage,status,attemptNumber:row?.attemptNumber||row?.attemptSequence||null,absent:isMissed});
+    rows.push({...row,examId:id,assessmentMode:exam.assessmentMode==='paper'?'paper':'online',activityName:exam.title||row?.activityName||'امتحان',date:row?.submittedAt||row?.date||row?.startedAt||exam.openAt||'',maxScore:rowMaxScore(row)||exam.totalScore||null,score:percentage===null?null:rowScore(row),percentage,status,attemptNumber:row?.attemptNumber||row?.attemptSequence||null,absent:isMissed});
     attempts.delete(id);
   }
   // Retain standalone/manual grades and legacy exams without inventing an entitlement.
