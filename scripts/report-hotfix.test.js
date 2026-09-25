@@ -40,7 +40,7 @@ function reportUi(){
   const scope={};vm.runInNewContext(`${source}\nthis.compatibleMonthlyReport=compatibleMonthlyReport;this.monthlyReportTitle=monthlyReportTitle;`,scope);return scope;
 }
 test('portal and parent use the same report title; unavailable and loading are distinct states',()=>{
-  const ui=reportUi(),payload={schemaVersion:11,policyVersion:'monthly-v11-student-level-homework-progress',monthKey:'2026-09',student:{studentCode:'ST-HOTFIX'},monthlyTitle:'متفوق الشهر',level:'جيد جدًا',overallScore:82,attendance:{percentage:80},homework:{completionPercentage:75},results:{average:80}};
+  const ui=reportUi(),payload={schemaVersion:11,policyVersion:'monthly-v12-scheduled-session-attendance',monthKey:'2026-09',student:{studentCode:'ST-HOTFIX'},monthlyTitle:'متفوق الشهر',level:'جيد جدًا',overallScore:82,attendance:{percentage:80},homework:{completionPercentage:75},results:{average:80}};
   assert.equal(ui.compatibleMonthlyReport(payload,'ST-HOTFIX'),true);
   assert.equal(ui.monthlyReportTitle(payload),'متفوق الشهر');
   assert.equal(ui.monthlyReportTitle(null,true),'تعذر تحميل بيانات الشهر');
@@ -71,7 +71,7 @@ function deliveryHarness(canShare){
   const intro=app.slice(app.indexOf('function parentReportFeedback('),app.indexOf('let parentReportLogoPromise='));
   const delivery=app.slice(app.indexOf('window.reserveParentWhatsAppWindow='),app.indexOf('let parentReportSharePending=false;'));
   const events={notices:[],downloads:0,shared:null,opened:null};
-  const report={schemaVersion:11,policyVersion:'monthly-v11-student-level-homework-progress',monthKey:'2026-09',student:{studentCode:'ST-HOTFIX',name:'طالب اختبار'},monthlyTitle:'متفوق الشهر',level:'جيد جدًا',overallScore:82,attendance:{},homework:{},results:{}};
+  const report={schemaVersion:11,policyVersion:'monthly-v12-scheduled-session-attendance',monthKey:'2026-09',student:{studentCode:'ST-HOTFIX',name:'طالب اختبار'},monthlyTitle:'متفوق الشهر',level:'جيد جدًا',overallScore:82,attendance:{},homework:{},results:{}};
   const scope={window:{open:link=>{events.opened=link;return {opener:null,closed:false,location:{href:''},close(){this.closed=true;}};}},navigator:{clipboard:{writeText:async()=>{}},canShare:()=>canShare,share:async payload=>{events.shared=payload;}},
     parentReportTrend:()=>({available:false}),reportMonthLabel:()=> 'سبتمبر ٢٠٢٦',whatsappPhone:value=>value,whatsappLink:(phone,message)=>`https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
     compatibleMonthlyReport:()=>true,confirm:()=>true,toast:()=>{},parentReportImageBlob:async()=>new Blob(['PNG'],{type:'image/png'}),

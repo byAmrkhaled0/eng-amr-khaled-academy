@@ -55,7 +55,7 @@ test('parent status distinguishes completed class check, genuine pending review,
   assert.equal(status({status:'submitted',submission:{assignmentId:'a',status:'pending_review',score:null}}),'قيد التصحيح');
   assert.equal(status({status:'submitted',submission:{assignmentId:'a',score:14,maxScore:15,status:'corrected'}}),'14 من 15');
   assert.equal(status({status:'submitted',submission:{assignmentId:'a',score:null,status:'submitted'}}),'تم التسليم');
-  assert.match(read('functions/index.js'),/monthly-v11-student-level-homework-progress/);
-  assert.match(read('functions/lib/monthly-report.js'),/monthly-v11-student-level-homework-progress/);
-  assert.match(app,/MONTHLY_REPORT_POLICY='monthly-v11-student-level-homework-progress'/);
+  assert.match(read('functions/index.js'),/monthly-v12-scheduled-session-attendance/);
+  assert.match(read('functions/lib/monthly-report.js'),/monthly-v12-scheduled-session-attendance/);
+  assert.match(app,/MONTHLY_REPORT_POLICY='monthly-v12-scheduled-session-attendance'/);
 });

@@ -2,6 +2,7 @@
 
 const {scheduledTimeMillis}=require('./assignment-schedule');
 const {isExamGradePending}=require('./portal-results');
+const {attendanceDayDecision}=require('./attendance-domain');
 const asNumber=value=>value===null||value===undefined||value===''?null:Number.isFinite(Number(value))?Number(value):null;
 const clamp=value=>Math.max(0,Math.min(100,Math.round(value)));
 const average=values=>{const valid=values.filter(Number.isFinite);return valid.length?clamp(valid.reduce((s,v)=>s+v,0)/valid.length):null;};
@@ -33,20 +34,36 @@ function membershipAt(student,transfers,date){
   for(const transfer of history){if(date<dateKey(transfer.effectiveAt||transfer.reviewedAt)){scheduleId=transfer.currentScheduleId;group=transfer.currentGroup;}}
   return {scheduleId,group};
 }
-function entitledSessions(student,sessions,transfers,monthKey,now){
+function scheduleForMembership(student,membership,groupsBySchedule){
+  if(!membership)return '';
+  const group=groupsBySchedule?.get?.(String(membership.scheduleId||''));
+  if(group)return group.days||group.scheduleDays||'';
+  return membership.scheduleId===String(student.scheduleId||student.groupId||'')?student.scheduleDays||'':'';
+}
+function scheduledForStudent(student,transfers,date,scheduleId,groupsBySchedule){
+  const membership=membershipAt(student,transfers,date);
+  if(!membership||scheduleId&&scheduleId!==membership.scheduleId)return false;
+  // Historical callers without a group snapshot keep the existing actual-session behavior.
+  if(!groupsBySchedule)return true;
+  return attendanceDayDecision(scheduleForMembership(student,membership,groupsBySchedule),date).allowed;
+}
+function entitledSessions(student,sessions,transfers,monthKey,now,groupsBySchedule){
   return sessions.filter(session=>{
     const date=dateKey(session.date),membership=membershipAt(student,transfers,date);
     return date.startsWith(monthKey)&&date<=dateKey(now)&&membership&&session.cancelled!==true&&session.status!=='cancelled'&&
-      (session.scheduleId?session.scheduleId===membership.scheduleId:session.group===membership.group);
+      (session.scheduleId||session.groupId?String(session.scheduleId||session.groupId)===membership.scheduleId:session.group===membership.group)&&scheduledForStudent(student,transfers,date,String(session.scheduleId||session.groupId||''),groupsBySchedule);
   });
 }
-function actualSessionsForStudent(student,sessions=[],attendance=[],transfers=[]){
-  const result=[...sessions],days=new Set(result.map(row=>`${row.scheduleId||''}:${dateKey(row.date)}`));
+function actualSessionsForStudent(student,sessions=[],attendance=[],transfers=[],groupsBySchedule){
+  const result=sessions.filter(row=>scheduledForStudent(student,transfers,dateKey(row.date),String(row.scheduleId||row.groupId||''),groupsBySchedule));
+  const days=new Set(result.map(row=>`${row.scheduleId||row.groupId||''}:${dateKey(row.date)}`));
+  const cancelled=new Set(sessions.filter(row=>row.cancelled===true||row.status==='cancelled').map(row=>`${row.scheduleId||row.groupId||''}:${dateKey(row.date)}`));
   for(const row of attendance){
     const date=dateKey(row.date),membership=membershipAt(student,transfers,date);
-    if(!date||!membership||row.scheduleId&&row.scheduleId!==membership.scheduleId)continue;
+    if(!date||!membership||row.scheduleId&&row.scheduleId!==membership.scheduleId||!row.scheduleId&&row.group&&membership.group&&row.group!==membership.group||row.classSessionId||row.sessionId)continue;
     const key=`${row.scheduleId||membership.scheduleId||''}:${date}`;
-    if(days.has(key))continue;
+    if(days.has(key)||cancelled.has(key))continue;
+    if(!attendanceDayDecision(scheduleForMembership(student,membership,groupsBySchedule),date).allowed)continue;
     days.add(key);
     result.push({id:String(row.classSessionId||row.sessionId||`legacy_${key}`),scheduleId:membership.scheduleId,group:membership.group,date,status:'closed',legacyAttendance:true});
   }
@@ -74,16 +91,16 @@ function newestBy(rows,key){
 }
 function calculateMonthlyReport(input={}){
   const student=input.student||{},now=input.now||new Date(),monthKey=String(input.monthKey||''),transfers=input.transfers||[];
-  const sessions=entitledSessions(student,input.sessions||[],transfers,monthKey,now);
-  const recorded=normalizedAttendanceRows(input.attendance||[]).filter(row=>{const membership=membershipAt(student,transfers,row.date);return membership&&(!row.scheduleId||row.scheduleId===membership.scheduleId);});
+  const sessions=entitledSessions(student,input.sessions||[],transfers,monthKey,now,input.groupsBySchedule);
+  const recorded=normalizedAttendanceRows(input.attendance||[]).filter(row=>{const membership=membershipAt(student,transfers,row.date);return membership&&(!row.scheduleId||row.scheduleId===membership.scheduleId)&&(!row.group||row.scheduleId||!membership.group||row.group===membership.group);});
   const usedAttendance=new Set();
-  const attendance=(input.sessionsComplete===true||sessions.length)?sessions.map(session=>{
-    const candidates=recorded.filter(row=>!usedAttendance.has(row)&&(sessionKey(row)===session.id||(!row.classSessionId&&!row.sessionId&&row.date===session.date&&(!row.scheduleId||row.scheduleId===session.scheduleId))));
+  const attendance=sessions.map(session=>{
+    const candidates=recorded.filter(row=>!usedAttendance.has(row)&&row.date===session.date&&(!row.scheduleId||row.scheduleId===String(session.scheduleId||session.groupId||''))&&(sessionKey(row)===session.id||(!row.classSessionId&&!row.sessionId)));
     const timestamp=row=>row.updatedAt?.toMillis?.()||Date.parse(row.updatedAt?.toDate?.()||row.updatedAt||row.recordedAt?.toDate?.()||row.recordedAt||'')||0;
     const matching=candidates.sort((a,b)=>Number(sessionKey(b)===session.id)-Number(sessionKey(a)===session.id)||timestamp(b)-timestamp(a))[0];
     if(matching)usedAttendance.add(matching);
     return matching&&matching.status!=='unrecorded'?matching:{sessionId:session.id,date:session.date,time:session.time||'',status:'absent',method:'session_without_attendance'};
-  }):recorded;
+  });
   const count=status=>attendance.filter(row=>row.status===status).length;
   const present=count('present'),late=count('late'),absent=count('absent'),excused=count('excused'),unrecorded=count('unrecorded');
   const entitlementKnown=input.sessionsComplete===true;
@@ -150,8 +167,8 @@ function calculateMonthlyReport(input={}){
   // Level uses scheduled attendance and assigned homework. Lecture browsing
   // remains a study metric and cannot change the academic level on its own.
   const commitmentScore=weighted([{value:attendancePct,weight:50},{value:homeworkCompletionPct,weight:30},{value:onTimePct,weight:10}]);
-  const motivationRow=input.motivationSummary,attendancePoints=2*(present+late)-2*absent,manualPoints=Math.trunc(Number(motivationRow?.totalPoints||0));
-  const motivation={totalPoints:manualPoints+attendancePoints,manualPoints,transactionCount:Math.max(0,Number(motivationRow?.transactionCount||0)),lastReason:String(motivationRow?.lastReason||''),attendancePoints};
+  const motivationRow=input.motivationSummary,attendancePoints=2*(present+late)-2*absent,paperExamPoints=Number(motivationRow?.paperExamPoints||0),manualPoints=Number(motivationRow?.totalPoints||0)-paperExamPoints;
+  const motivation={totalPoints:manualPoints+paperExamPoints+attendancePoints,manualPoints,paperExamPoints,transactionCount:Math.max(0,Number(motivationRow?.transactionCount||0)),lastReason:String(motivationRow?.lastReason||''),attendancePoints};
   const baseOverallScore=weighted([{value:academicScore,weight:60},{value:commitmentScore,weight:40}]);
   const motivationBonus=baseOverallScore===null||!motivation?0:Math.max(-3,Math.min(3,Math.trunc(motivation.totalPoints/10)));
   const overallScore=baseOverallScore===null?null:clamp(baseOverallScore+motivationBonus);
@@ -165,7 +182,7 @@ function calculateMonthlyReport(input={}){
   if(materials.length&&opened<materials.length){concerns.push(`${materials.length-opened} محاضرة متاحة لم تُفتح`);recommendations.push('تابع المحاضرات المتاحة بصورة أكثر انتظامًا.');}
   const warnings=[];if(!entitlementKnown)warnings.push('سجل المواعيد الفعلية غير مكتمل؛ عدد الحصص المستحقة ونسبة الحضور غير مؤكدين.');if(unrecorded)warnings.push(`${unrecorded} حصة بلا حالة حضور؛ لم تُحوّل إلى غياب.`);
   if(opened)warnings.push('فتح المحاضرة أو تقدم المشغّل لا يثبت إكمالها أو فهمها.');
-  const activityCount=recorded.length+submittedHw.length+rows.length+recitations.length+opened;
+  const activityCount=attendance.length+submittedHw.length+rows.length+recitations.length+opened;
   const payment=input.payment;
   const summaryNote=attendancePct!==null&&attendancePct<70?'يحتاج الطالب إلى تحسين انتظام الحضور، لأن الغياب يؤثر على تقدمه.':missingHw.length&&gradeAvg!==null&&gradeAvg>=75?'نتائج الطالب في الامتحانات جيدة، لكنه يحتاج إلى انتظام أكبر في تسليم الواجبات.':missingHw.length?'يحتاج الطالب إلى استكمال الواجبات الناقصة والانتظام في التسليم.':materials.length&&opened<materials.length?'يحتاج إلى متابعة المحاضرات بصورة أكثر انتظامًا.':overallScore!==null&&overallScore>=75?'الطالب ملتزم ويحقق مستوى جيدًا ومستقرًا هذا الشهر.':overallScore===null?'البيانات المتاحة هذا الشهر لا تكفي لتقييم مستوى الطالب.':'يحتاج الطالب إلى متابعة المؤشرات الأضعف المسجلة هذا الشهر.';
   const gradedHomeworkCount=submittedHw.filter(row=>row.submission.percentage!==null).length;
@@ -174,7 +191,7 @@ function calculateMonthlyReport(input={}){
   const sufficientData=academicEvidenceSufficient||(attendancePct!==null&&requiredHw.length>0);
   const monthlyTitle=activityCount&&overallScore!==null&&overallScore<45?'يحتاج تدخل سريع':attendancePct!==null&&attendancePct<60&&denominator>=2?'إنذار غياب':missingHw.length>=2?'متأخر في الواجبات':academicEvidenceSufficient&&overallScore>=90?'متفوق الشهر':academicEvidenceSufficient&&gradeAvg>=90?'مبرمج الشهر':attendancePct>=95&&denominator>=2?'نجم الحضور':homeworkCompletionPct===100&&homeworkGradeAvg>=80?'بطل الواجبات':academicEvidenceSufficient&&overallScore>=80?'المهندس البارع':activityCount&&overallScore!==null&&overallScore>=70?'نجم الالتزام':activityCount?'نجم التطور':'بيانات الشهر غير مكتملة';
   const monthlyTitleTone=/يحتاج|إنذار|متأخر/.test(monthlyTitle)?'negative':monthlyTitle==='بيانات الشهر غير مكتملة'?'neutral':'positive';
-  return {schemaVersion:11,policyVersion:'monthly-v11-student-level-homework-progress',monthKey,student:{studentCode:String(student.studentCode||student.code||student.id||''),name:student.studentName||student.name||'',grade:student.grade||'',group:student.group||'',academicYear:student.academicYear||''},
+  return {schemaVersion:11,policyVersion:'monthly-v12-scheduled-session-attendance',monthKey,student:{studentCode:String(student.studentCode||student.code||student.id||''),name:student.studentName||student.name||'',grade:student.grade||'',group:student.group||'',academicYear:student.academicYear||''},
     overallScore,baseOverallScore,motivationBonus,level:levelLabel(overallScore),monthlyTitle,monthlyTitleTone,academicScore,academicLevel:levelLabel(academicScore),academicEvidenceCount,academicEvidenceSufficient,commitmentScore,commitmentLevel:commitmentLabel(commitmentScore),activityCount,sufficientData,
     comparisonBasis:[gradeAvg!==null,homeworkGradeAvg!==null,attendancePct!==null,homeworkCompletionPct!==null,onTimePct!==null].join(','),
     attendance:{total:attendance.length,required:entitlementKnown?sessions.length:null,entitlementKnown,present,late,absent,excused,unrecorded,percentage:attendancePct,rows:attendance,consecutiveAbsenceWarning:consecutiveAbsenceWarning(attendance)},

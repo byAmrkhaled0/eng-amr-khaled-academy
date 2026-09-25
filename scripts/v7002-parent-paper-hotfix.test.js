@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const backend=fs.readFileSync(require.resolve('../functions/index.js'),'utf8'),app=fs.readFileSync(require.resolve('../assets/app.js'),'utf8'),admin=fs.readFileSync(require.resolve('../assets/admin.js'),'utf8');
-const {calculateMonthlyReport}=require('../functions/lib/monthly-report');
+const {calculateMonthlyReport,membershipAt}=require('../functions/lib/monthly-report');
 const {normalizeUnifiedResults}=require('../functions/lib/portal-results');
 const report={schemaVersion:11,policyVersion:'monthly-v11-student-level-homework-progress',monthKey:'2026-09',student:{name:'محمد أحمد',studentCode:'80463690'},level:'جيد جدًا',overallScore:85,attendance:{percentage:100},results:{average:80,rows:[]},homework:{required:4,missing:1,averageGrade:90},practical:{count:3,completed:2},strengths:['أدى جيدًا في التمارين'],concerns:['واجب يحتاج استكمال'],recommendations:['سلّم الواجب قبل الحصة القادمة']};
 function parentHarness({share=false,cancel=false,delay=false}={}){
@@ -28,14 +28,30 @@ test('7b: admin reserves once, blocks repeated click and logs delivery only on s
   success=true;const second=context.window.sendParentMonthlyReport('80463690');resume({...report,deliveryState:{firstDelivery:false}});await second;assert.equal(logs,1);
 });
 function paperHarness(){
-  const docs=new Map(),students=[{studentCode:'80463690',name:'محمد أحمد',grade:'برمجة',group:'A',scheduleId:'group-A',academicYear:'2026/2027',term:'الترم الأول',active:true,createdAt:'2026-08-01'},{studentCode:'12345678',name:'أحمد',grade:'برمجة',group:'A',scheduleId:'group-A',academicYear:'2026/2027',term:'الترم الأول',active:true,createdAt:'2026-08-01'}],audits=[];let dirty=0,commits=0;
+  const docs=new Map(),students=[{studentCode:'80463690',name:'محمد أحمد',grade:'برمجة',group:'A',scheduleId:'group-A',academicYear:'2026/2027',term:'الترم الأول',active:true,createdAt:'2026-08-01'},{studentCode:'12345678',name:'أحمد',grade:'برمجة',group:'A',scheduleId:'group-A',academicYear:'2026/2027',term:'الترم الأول',active:true,createdAt:'2026-08-01'}],audits=[],transfers=new Map();let dirty=0,commits=0,transferReads=0;
   const ref=(col,id)=>({id:id||'paper-1',get:async()=>({exists:docs.has(`${col}/${id||'paper-1'}`),data:()=>docs.get(`${col}/${id||'paper-1'}`)}),set:(data,options)=>{const key=`${col}/${id||'paper-1'}`;docs.set(key,options?.merge?{...docs.get(key),...data}:data);}});
-  const db={collection:col=>({doc:id=>ref(col,id),where:(field,op,value)=>({limit(){return this;},get:async()=>{const matches=[...docs].filter(([key,row])=>key.startsWith(`${col}/`)&&row[field]===value).map(([key,row])=>({id:key.split('/')[1],data:()=>row}));return {docs:matches,size:matches.length};}})})};
-  const context={exports:{},db,CALLABLE_OPTIONS:{},onCall:(_opts,fn)=>fn,requireStaff:async()=>({uid:'admin-1',email:'admin@example.com'}),text:(v,n)=>String(v??'').slice(0,n||100),normalizeCode:v=>String(v??''),canonicalAcademicLabel:v=>v,cleanDocId:v=>String(v||''),validLegacyOrStrongCode:v=>/^\d{8}$/.test(v),validPaymentAcademicYear:v=>v==='2026/2027',PAYMENT_MONTH_NAMES:['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'],leaderboardPeriod:()=>({monthKey:'2026-09'}),fetchAllCollectionDocuments:async()=>({docs:students.map(row=>({id:row.studentCode,data:()=>row}))}),membershipAt:(st,_,date)=>st.createdAt<=date?{}:null,learningTargetMatchesStudent:(ex,st)=>ex.grade===st.grade&&ex.scheduleId===st.scheduleId,academicAudienceKeysForItem:()=>['grade:برمجة'],FieldValue:{serverTimestamp:()=> '2026-09-25'},HttpsError:class extends Error{constructor(code,message){super(message);this.code=code;}},commitServerWrites:async writes=>{commits++;const batch={set:(item,data,opts)=>item.set(data,opts)};for(const write of writes)write(batch);},markLeaderboardDirty:async()=>{dirty++;},serverActivity:async(_staff,action)=>audits.push(action)};
+  const db={collection:col=>({doc:id=>ref(col,id),where:(field,op,value)=>({limit(){return this;},get:async()=>{const matches=[...docs].filter(([key,row])=>key.startsWith(`${col}/`)&&row[field]===value).map(([key,row])=>({id:key.split('/')[1],data:()=>row}));return {docs:matches,size:matches.length};}})}),runTransaction:async fn=>{const writes=[],tx={getAll:async(...refs)=>Promise.all(refs.map(ref=>ref.get())),set:(item,data,opts)=>writes.push(()=>item.set(data,opts)),create:(item,data)=>writes.push(()=>{if(docs.has(item.key))throw Error('duplicate transaction');item.set(data);})};const result=await fn(tx);for(const write of writes)write();commits++;return result;}};
+  const originalRef=ref;db.collection=col=>({doc:id=>{const item=originalRef(col,id);item.key=`${col}/${item.id}`;const save=item.set;item.set=(data,opts)=>{if(col==='_system'&&item.id==='leaderboard')dirty++;save(data,opts);};return item;},where:(field,op,value)=>({limit(){return this;},get:async()=>{const matches=[...docs].filter(([key,row])=>key.startsWith(`${col}/`)&&row[field]===value).map(([key,row])=>({id:key.split('/')[1],data:()=>row}));return {docs:matches,size:matches.length};}})});
+  const context={exports:{},db,CALLABLE_OPTIONS:{},onCall:(_opts,fn)=>fn,requireStaff:async()=>({uid:'admin-1',email:'admin@example.com'}),text:(v,n)=>String(v??'').slice(0,n||100),normalizeCode:v=>String(v??''),canonicalAcademicLabel:v=>v,cleanDocId:v=>String(v||''),validLegacyOrStrongCode:v=>/^\d{8}$/.test(v),validPaymentAcademicYear:v=>v==='2026/2027',PAYMENT_MONTH_NAMES:['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'],leaderboardPeriod:(_year,month)=>({monthKey:month==='أكتوبر'?'2026-10':'2026-09'}),motivationPeriodId:(code,_year,month)=>`period_${code}_${month}`,hash:v=>require('node:crypto').createHash('sha256').update(v).digest('hex'),leaderboardStateRef:db.collection('_system').doc('leaderboard'),invalidateStudentReportInTransaction:(tx,code,_year,_month,reason)=>tx.set(db.collection('monthly_reports').doc(`${code}_${_month==='أكتوبر'?'2026-10':'2026-09'}`),{invalidationReason:reason},{merge:true}),fetchAllCollectionDocuments:async()=>({docs:students.map(row=>({id:row.studentCode,data:()=>row}))}),attendanceTransferHistoryBatch:async()=>{transferReads++;return transfers;},membershipAt,learningTargetMatchesStudent:(ex,st)=>ex.grade===st.grade&&ex.scheduleId===st.scheduleId,academicAudienceKeysForItem:()=>['grade:برمجة'],FieldValue:{serverTimestamp:()=> '2026-09-25',increment:v=>v},HttpsError:class extends Error{constructor(code,message){super(message);this.code=code;}},serverActivity:async(_staff,action)=>audits.push(action)};
   vm.runInNewContext(backend.slice(backend.indexOf('exports.savePaperExamGradesAdmin ='),backend.indexOf('exports.getExamDashboard =')),context);
   const payload={title:'امتحان السنتر',examDate:'2026-09-12',totalScore:20,grade:'برمجة',group:'A',scheduleId:'group-A',academicYear:'2026/2027',term:'الترم الأول',required:true,results:[{studentCode:'80463690',score:17,status:'corrected'},{studentCode:'12345678',status:'absent'}]};
-  return {context,docs,payload,students,audits,save:data=>context.exports.savePaperExamGradesAdmin({data}),stats:()=>({dirty,commits})};
+  return {context,docs,payload,students,transfers,audits,save:data=>context.exports.savePaperExamGradesAdmin({data}),stats:()=>({dirty,commits,transferReads})};
 }
+test('paper exam targets historical membership and persists the group at exam date with one transfer batch',async()=>{
+  const h=paperHarness(),student=h.students[0];student.group='B';student.scheduleId='group-B';
+  h.transfers.set(student.studentCode,[{studentCode:student.studentCode,status:'approved',currentScheduleId:'group-A',currentGroup:'A',targetScheduleId:'group-B',targetGroup:'B',effectiveAt:'2026-09-24'}]);
+  const result=await h.save({...h.payload,examDate:'2026-09-22',results:[{studentCode:student.studentCode,score:17,status:'corrected'}]});
+  const attempt=h.docs.get(`exam_attempts/${result.examId}_${student.studentCode}_paper`);
+  assert.equal(attempt.scheduleId,'group-A');assert.equal(attempt.group,'A');assert.equal(h.stats().transferReads,1);
+  attempt.scheduleId='group-B';attempt.group='B';
+  await h.save({...h.payload,examId:result.examId,examDate:'2026-09-22',results:[{studentCode:student.studentCode,score:17,status:'corrected'}]});
+  assert.equal(h.docs.get(`exam_attempts/${result.examId}_${student.studentCode}_paper`).scheduleId,'group-A');assert.equal(h.docs.get(`exam_attempts/${result.examId}_${student.studentCode}_paper`).group,'A');
+  assert.equal([...h.docs.values()].filter(row=>row.source==='paper_exam').length,1);
+  await assert.rejects(h.save({...h.payload,examId:'paper-after',examDate:'2026-09-25',results:[{studentCode:student.studentCode,score:17,status:'corrected'}]}),error=>error.code==='permission-denied');
+  assert.equal(h.stats().transferReads,3);assert.equal(h.stats().commits,2);
+  const later=await h.save({...h.payload,examId:'paper-after',examDate:'2026-09-25',group:'B',scheduleId:'group-B',results:[{studentCode:student.studentCode,score:17,status:'corrected'}]});
+  assert.equal(h.docs.get(`exam_attempts/${later.examId}_${student.studentCode}_paper`).scheduleId,'group-B');
+});
 test('8: paper exam persists official exams and exam_attempts in one batch',async()=>{const h=paperHarness(),r=await h.save(h.payload);assert.equal(r.saved,2);assert.equal(h.stats().commits,1);assert.equal(h.docs.get(`exams/${r.examId}`).assessmentMode,'paper');assert.equal(h.docs.get(`exam_attempts/${r.examId}_80463690_paper`).score,17);});
 test('9: repeat save updates deterministic attempt without duplicate',async()=>{const h=paperHarness(),r=await h.save(h.payload);await h.save({...h.payload,examId:r.examId,results:[{studentCode:'80463690',score:18,status:'corrected'}]});assert.equal([...h.docs.keys()].filter(key=>key.includes('80463690_paper')).length,1);assert.equal(h.docs.get(`exam_attempts/${r.examId}_80463690_paper`).score,18);});
 test('10: absent score is null, never zero',async()=>{const h=paperHarness(),r=await h.save(h.payload);const absent=h.docs.get(`exam_attempts/${r.examId}_12345678_paper`);assert.equal(absent.score,null);assert.equal(absent.status,'absent');});
@@ -49,6 +65,37 @@ test('16: editing a paper grade invalidates original report month and marks lead
 test('17: parent report HTML and PNG label paper exams',()=>{assert.match(app,/assessmentMode==='paper'\?'ورقي':'إلكتروني'/);assert.match(app,/تقييم حالة الطالب هذا الشهر/);assert.match(app,/parentReportFeedback\(report\)/);});
 test('18: student results retain paper label and explicit absence',()=>{const rows=normalizeUnifiedResults({examAttempts:[{examId:'paper-1',assessmentMode:'paper',score:17,maxScore:20,status:'corrected',submittedAt:'2026-09-12'},{examId:'paper-2',assessmentMode:'paper',score:null,maxScore:20,status:'absent',submittedAt:'2026-09-12'}]});assert.equal(rows[0].typeLabel,'امتحان ورقي');assert.ok(rows.some(row=>row.status==='absent'&&row.percentage===null));});
 test('19: electronic exam dashboard and result normalization retain current flow',()=>{const rows=normalizeUnifiedResults({examAttempts:[{examId:'online',score:8,maxScore:10,status:'corrected',submittedAt:'2026-09-12'}]});assert.equal(rows[0].typeLabel,'امتحان');assert.equal(rows[0].percentage,80);});
+test('paper score revisions are one transactional delta per exam and student',async()=>{
+  const h=paperHarness(),code='80463690',period=`motivation_monthly/period_${code}_سبتمبر`,transactions=()=>[...h.docs].filter(([key,row])=>key.startsWith('motivation_transactions/')&&row.source==='paper_exam').map(([,row])=>row),
+    save=async(examId,score,status='corrected')=>h.save({...h.payload,examId,...(examId?{}:{}),results:[{studentCode:code,score,status}]});
+  const first=await save(undefined,17);assert.equal(h.docs.get(period).totalPoints,17);assert.equal(h.docs.get(period).paperExamPoints,17);assert.deepEqual(transactions().map(row=>row.points),[17]);
+  await save(first.examId,17);assert.equal(h.docs.get(period).totalPoints,17);assert.equal(transactions().length,1);
+  await save(first.examId,19);assert.equal(h.docs.get(period).totalPoints,19);assert.deepEqual(transactions().map(row=>row.points).sort((a,b)=>a-b),[2,17]);
+  await save(first.examId,14);assert.equal(h.docs.get(period).totalPoints,14);assert.ok(transactions().some(row=>row.points===-5));
+  await save(first.examId,null,'absent');assert.equal(h.docs.get(period).paperExamPoints,0);assert.ok(transactions().some(row=>row.points===-14));
+  await save(first.examId,null,'absent');assert.equal(transactions().length,4);
+  await save(first.examId,15);assert.equal(h.docs.get(period).paperExamPoints,15);assert.equal(transactions().length,5);
+  const second=await save('paper-second',8);assert.notEqual(second.examId,first.examId);
+  assert.equal(h.docs.get(period).paperExamPoints,23);assert.equal(transactions().length,6);
+  assert.ok(transactions().every(row=>row.periodId===`period_${code}_سبتمبر`&&row.referenceId&&row.source==='paper_exam'));
+});
+test('paper September contribution combines with manual and attendance without affecting October',async()=>{
+  const h=paperHarness(),code='80463690',period=`motivation_monthly/period_${code}_سبتمبر`;
+  h.docs.set(period,{studentCode:code,academicYear:'2026/2027',month:'سبتمبر',totalPoints:5,transactionCount:1});
+  const {examId}=await h.save({...h.payload,results:[{studentCode:code,score:17,status:'corrected'}]});
+  assert.equal(h.docs.get(period).totalPoints,22);assert.equal(h.docs.has(`motivation_monthly/period_${code}_أكتوبر`),false);
+  const r=calculateMonthlyReport({monthKey:'2026-09',now:'2026-10-01',student:h.students[0],exams:[{...h.docs.get(`exams/${examId}`),id:examId}],examAttempts:[h.docs.get(`exam_attempts/${examId}_${code}_paper`)],sessions:[{id:'s1',date:'2026-09-22',scheduleId:'group-A'}],attendance:[{classSessionId:'s1',date:'2026-09-22',scheduleId:'group-A',status:'present'}],motivationSummary:h.docs.get(period),sessionsComplete:true});
+  assert.equal(r.motivation.manualPoints,5);assert.equal(r.motivation.paperExamPoints,17);assert.equal(r.motivation.attendancePoints,2);assert.equal(r.motivation.totalPoints,24);
+  assert.equal(r.results.rows[0].percentage,85);
+  assert.match(backend,/manualMotivationPoints=monthlyEvaluation\.motivation\.manualPoints/);
+  assert.match(backend,/fetchAllCollectionDocuments\('motivation_monthly',query=>query\.where\('academicYear'/);
+  assert.doesNotMatch(backend.slice(backend.indexOf('async function leaderboardRowsForPeriod('),backend.indexOf('async function currentLeaderboardRows()')),/source==='paper_exam'/);
+});
+test('online grading never writes a paper-exam motivation transaction',()=>{
+  const online=backend.slice(backend.indexOf('exports.startExam ='),backend.indexOf('exports.savePaperExamGradesAdmin ='));
+  assert.doesNotMatch(online,/source:'paper_exam'/);
+  assert.match(backend.slice(backend.indexOf('exports.savePaperExamGradesAdmin ='),backend.indexOf('function examMatchesStudent(')),/source:'paper_exam'/);
+});
 test('deliveryState uses exactly one limit(1) read only on send request',async()=>{
   let reads=0,limit=0,exists=false;
   const ctx={exports:{},onCall:(_opt,handler)=>handler,CALLABLE_OPTIONS:{},requireStaff:async()=>({}),normalizeCode:v=>v,text:v=>String(v||''),validLegacyOrStrongCode:()=>true,getStudentPortalByCode:async()=>({data:{studentCode:'80463690'}}),buildStudentMonthlyReport:async()=>report,studentReportRanking:async()=>null,db:{collection:()=>({where:()=>({limit:n=>{limit=n;return {get:async()=>{reads++;return {empty:!exists};}};}})})}};

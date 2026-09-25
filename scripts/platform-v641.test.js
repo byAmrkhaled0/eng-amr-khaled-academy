@@ -67,7 +67,7 @@ test('two consecutive absences warn the teacher and appear in the parent report 
   ]);
   assert.equal(warning.count,2);
   assert.deepEqual(warning.dates,['2026-08-01','2026-08-04']);
-  const report=calculateMonthlyReport({monthKey:'2026-08',student:{name:'طالب'},attendance:[{id:'s1',date:'2026-08-01',status:'absent'},{id:'s2',date:'2026-08-04',status:'absent'}]});
+  const report=calculateMonthlyReport({monthKey:'2026-08',student:{name:'طالب',scheduleId:'g'},sessionsComplete:true,sessions:[{id:'s1',scheduleId:'g',date:'2026-08-01'},{id:'s2',scheduleId:'g',date:'2026-08-04'}],attendance:[{id:'s1',date:'2026-08-01',status:'absent'},{id:'s2',date:'2026-08-04',status:'absent'}]});
   assert.equal(report.attendance.consecutiveAbsenceWarning.count,2);
   assert.match(report.concerns.join(' '),/حصتين متتاليتين/);
   const admin=read('assets/admin.js'),app=read('assets/app.js');

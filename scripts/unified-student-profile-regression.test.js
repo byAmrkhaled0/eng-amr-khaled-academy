@@ -47,7 +47,7 @@ test('joining midmonth, transfer and duplicate or edited attendance respect actu
   assert.equal(result.attendance.percentage,100);
   assert.equal(result.motivation.attendancePoints,4);
   assert.equal(calculateMonthlyReport({...input,attendance:attendance.slice(0,1).concat(attendance.slice(2))}).motivation.attendancePoints,0);
-  assert.equal(actualSessionsForStudent(student,sessions,attendance,transfers).length,3);
+  assert.equal(actualSessionsForStudent(student,sessions,attendance,transfers).length,2);
 });
 
 test('legacy attendance proves one real session without creating all recurring weekdays',()=>{
@@ -280,7 +280,7 @@ test('homework grades use real submissions and review activity dates',()=>{
   assert.equal(report.homework.averageGrade,93.33);
   const backend=read('functions/index.js');
   assert.match(backend,/dateFields:\['submittedAt','reviewedAt','gradedAt','updatedAt'\]/);
-  assert.match(backend,/actualSessionsForStudent\(student,sessionGroups\.flat\(\),attendance,transfers\)/);
+  assert.match(backend,/actualSessionsForStudent\(student,sessionGroups\.flat\(\),attendance,transfers,groupsBySchedule\)/);
 });
 
 test('a corrected homework remains visible when its old assignment document is missing',()=>{

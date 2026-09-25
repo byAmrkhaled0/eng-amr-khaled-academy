@@ -81,7 +81,7 @@ test('parent report button requests fresh matching data once and restores its st
   assert.equal(reportCalls,1);assert.equal(button.disabled,true);assert.equal(payload.force,undefined);
   assert.equal(payload.includeRanking,true);
   assert.equal(payload.includeDeliveryState,true);
-  resolveReport({schemaVersion:11,policyVersion:'monthly-v11-student-level-homework-progress',monthKey:'2026-09',student:{studentCode:'DEMO1',name:'طالب تجريبي 1'},monthlyTitle:'بيانات غير كافية',level:'بيانات غير كافية',overallScore:null,attendance:{percentage:null},homework:{completionPercentage:null},results:{average:null},deliveryState:{firstDelivery:true}});await first;
+  resolveReport({schemaVersion:11,policyVersion:'monthly-v12-scheduled-session-attendance',monthKey:'2026-09',student:{studentCode:'DEMO1',name:'طالب تجريبي 1'},monthlyTitle:'بيانات غير كافية',level:'بيانات غير كافية',overallScore:null,attendance:{percentage:null},homework:{completionPercentage:null},results:{average:null},deliveryState:{firstDelivery:true}});await first;
   assert.equal(deliveries,1);assert.equal(button.disabled,false);assert.equal(button.classList.contains('is-loading'),false);
  }finally{ui.close();}
 });
@@ -101,7 +101,7 @@ test('student file button opens the unified server profile instead of the legacy
  try{
   let profileCalls=0,popupCalls=0;
   ui.window.open=()=>{popupCalls++;return null;};
-  ui.window.MFCloud.getStudentAdminProfile=async input=>{profileCalls++;return {student:{studentCode:input.studentCode,name:'طالب تجريبي',grade:'الصف الأول الثانوي',group:'أ'},period:{month:'سبتمبر 2026'},monthlyReport:{schemaVersion:11,policyVersion:'monthly-v11-student-level-homework-progress',monthKey:'2026-09',student:{studentCode:input.studentCode},monthlyTitle:'بيانات غير كافية',level:'بيانات غير كافية',overallScore:null,attendance:{percentage:null},homework:{completionPercentage:null},results:{average:null}},attendance:[],homeworks:[],results:[],monthlyPayments:[],motivationSummaries:[],motivationTransactions:[],privateNotes:[]};};
+  ui.window.MFCloud.getStudentAdminProfile=async input=>{profileCalls++;return {student:{studentCode:input.studentCode,name:'طالب تجريبي',grade:'الصف الأول الثانوي',group:'أ'},period:{month:'سبتمبر 2026'},monthlyReport:{schemaVersion:11,policyVersion:'monthly-v12-scheduled-session-attendance',monthKey:'2026-09',student:{studentCode:input.studentCode},monthlyTitle:'بيانات غير كافية',level:'بيانات غير كافية',overallScore:null,attendance:{percentage:null},homework:{completionPercentage:null},results:{average:null}},attendance:[],homeworks:[],results:[],monthlyPayments:[],motivationSummaries:[],motivationTransactions:[],privateNotes:[]};};
   ui.window.renderStudents();await tick();
   const fileButton=[...ui.document.querySelectorAll('button')].find(button=>button.textContent.trim()==='الملف');assert(fileButton);ui.run(fileButton.getAttribute('onclick'));await tick();
   assert.equal(profileCalls,1);assert.equal(popupCalls,0);assert(ui.document.querySelector('#unifiedStudentProfile'));assert.match(ui.document.querySelector('#unifiedProfileBody').textContent,/ملف الطالب الموحد/);

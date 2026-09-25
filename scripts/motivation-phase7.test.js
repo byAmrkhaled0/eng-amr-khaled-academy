@@ -131,7 +131,7 @@ test('profile, portal, monthly report and leaderboard reference the same level a
   assert.match(portal,/const motivationCurrent=monthlyReport\?\.motivation\|\|null/);
   assert.match(portal,/monthlyReport\.concerns\.slice\(0,2\)/);
   assert.match(admin,/report\.concerns\|\|\[\]/);
-  assert.match(backend,/cached\?\.report\?\.schemaVersion===11&&cached\.report\.policyVersion==='monthly-v11-student-level-homework-progress'/);
+  assert.match(backend,/cached\?\.report\?\.schemaVersion===11&&cached\.report\.policyVersion==='monthly-v12-scheduled-session-attendance'/);
   assert.match(adminForm,/requestId:form\.dataset\.motivationRequestId/);
   assert.match(studentEditor,/requestId:motivationForm\.dataset\.motivationRequestId/);
   assert.match(studentEditor,/نقاط يدوية ·/);
@@ -147,7 +147,7 @@ function leaderboardHarness(){
   const data={students:[{studentCode:'ST-123456',name:'طالب',grade:'برمجة',scheduleId:'group-1',active:true,createdAt:'2026-08-01'}],
     attendance:[attendance('s1','2026-09-10','present')],grades:[],exam_attempts:[{id:'attempt-1',studentCode:'ST-123456',examId:'exam-1',status:'graded',score:8,maxScore:10,submittedAt:'2026-09-15'}],
     homework_submissions:[],recitations:[],assignments:[],motivation_monthly:[{studentCode:'ST-123456',academicYear:'2026/2027',month:'سبتمبر',totalPoints:5}],
-    exam_absences:[],class_sessions:[session('s1','2026-09-10')],student_transfer_requests:[],leaderboard_archives:[]};
+    groups:[{id:'group-1',days:'الخميس والأحد'}],exam_absences:[],class_sessions:[session('s1','2026-09-10')],student_transfer_requests:[],leaderboard_archives:[]};
   for(const rows of Object.values(data))for(const row of rows)if(!row.studentCode&&['attendance','class_sessions'].length&&row.classSessionId)row.studentCode='ST-123456';
   let version=1,current='2026-09-23';
   const snap=rows=>({docs:rows.map((row,index)=>({id:row.id||String(index),data:()=>row})),empty:rows.length===0});
@@ -228,7 +228,7 @@ test('one admin batch returns report-derived metrics for selected month with 100
 
 test('archived leaderboard is bypassed after the source revision changes, without writing other months',async()=>{
   const board=leaderboardHarness();board.setCurrent('2026-10-02');
-  board.data.leaderboard_archives=[{monthKey:'2026-09',sourceVersion:1,rows:[{studentCode:'ST-123456',motivationPoints:99,score:99}]}];
+  board.data.leaderboard_archives=[{monthKey:'2026-09',sourceVersion:1,attendancePolicyVersion:'monthly-v12-scheduled-session-attendance',rows:[{studentCode:'ST-123456',motivationPoints:99,score:99}]}];
   assert.equal((await board.month())[0].motivationPoints,99);
   board.data.motivation_monthly[0].totalPoints=0;board.advance();
   assert.equal((await board.month())[0].motivationPoints,2);

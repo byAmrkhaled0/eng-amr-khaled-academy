@@ -441,8 +441,9 @@ function normalizedStudent(st){const code=toEnglishDigits(st?.studentCode||st?.c
 function findStudentByCode(code){const q=normalizeText(code); return (appData.students||[]).map(normalizedStudent).find(s=>normalizeText(s.code)===q || normalizeText(s.studentCode)===q) || null;}
 function attendanceDocId(st,date){return `${st.studentCode||st.code}_${date}`.replace(/[\\/#?\[\]]/g,'-');}
 function getAttendanceRows(st){
-  const legacy=(st.attendance||[]).map(a=>({...a,status:a.status==='حاضر'?'present':a.status==='غائب'?'absent':a.status,date:String(a.date||'').replaceAll('/','-'),time:a.time||'',group:a.group||st.group}));
-  return legacy.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const report=st?.monthlyReport;
+  if(!compatibleMonthlyReport(report,st?.studentCode))return [];
+  return [...(report.attendance.rows||[])].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
 }
 function attendanceSummaryHTML(st){
   const summary=st.monthlyReport?.attendance,rows=summary?.rows||getAttendanceRows(st); const total=summary?.required??null,present=summary?.present??null,absent=summary?.absent??null,pct=summary?.percentage??null;
@@ -549,7 +550,7 @@ function studentAssignmentCard(assignment,studentCode,isParent=false,submission=
   const badge=extra?'warn':submission?(submission.needsManualReview?'warn':'good'):closed?'danger':'warn';
   return `<details class="student-assignment-card"><summary class="student-assignment-head"><div><span class="record-eyebrow">${typeName}${assignment.lessonNumber?` · الحصة ${esc(assignment.lessonNumber)}`:''}</span><h4>${esc(assignment.title||'واجب جديد')}</h4><small>${esc(assignment.lessonTitle||'')} · ${due}</small></div><span class="badge ${badge}">${status}</span></summary><div class="student-assignment-body"><p>${esc(assignment.description||'')}</p><small>${esc(assignment.questionCount||1)} سؤال · من ${esc(assignment.totalScore||1)} درجة</small>${download}${result}${form}${isParent&&!submission?'<p class="assignment-parent-note">يستطيع الطالب تسليم الواجب من بوابة الطالب.</p>':''}</div></details>`;
 }
-const MONTHLY_REPORT_POLICY='monthly-v11-student-level-homework-progress';
+const MONTHLY_REPORT_POLICY='monthly-v12-scheduled-session-attendance';
 function compatibleMonthlyReport(report,code){return report?.schemaVersion===11&&report.policyVersion===MONTHLY_REPORT_POLICY&&report.student?.studentCode===code&&/^\d{4}-\d{2}$/.test(report.monthKey)&&typeof report.monthlyTitle==='string'&&!!report.attendance&&!!report.homework&&!!report.results&&typeof report.level==='string'&&Object.prototype.hasOwnProperty.call(report,'overallScore');}
 function monthlyReportTitle(report,failed=false){return report?report.monthlyTitle:failed?'تعذر تحميل بيانات الشهر':'جاري تحميل بيانات الشهر';}
 function studentProfileHTML(raw, isParent=false){
@@ -562,7 +563,7 @@ function studentProfileHTML(raw, isParent=false){
   const attempts=[...(st.examAttempts||[]),...(appData.examAttempts||[]).filter(a=>normalizeText(a.studentCode)===normalizeText(st.studentCode))];
   const unifiedProfileResults=window.TMResults?.normalizeUnifiedResults?window.TMResults.normalizeUnifiedResults({grades:[...(st.results||[]),...(st.grades||[])],examAttempts:attempts,homeworks:st.homeworks||[]}):[...(st.results||[]),...(st.grades||[]),...attempts,...(st.homeworks||[])];
   const grades=(window.TMResults?.latestResults?window.TMResults.latestResults(unifiedProfileResults):unifiedProfileResults).slice().sort((a,b)=>String(b.date||b.submittedAt||b.reviewedAt||'').localeCompare(String(a.date||a.submittedAt||a.reviewedAt||'')));
-  const attendance=[...(monthlyReport?.attendance?.rows||[]),...getAttendanceRows(st).filter(row=>!monthlyReport?.monthKey||!String(row.date||'').startsWith(monthlyReport.monthKey))];
+  const attendance=getAttendanceRows(st);
   const homeworks=(st.homeworks||[]).slice().reverse();
   const latestExam=grades.find(row=>row.type==='exam'||row.examId||row.examTitle||row.exam),latestHomework=grades.find(row=>row.type==='homework'||row.assignmentId||row.homeworkTitle);
   const assignments=(st.assignments||[]).slice().sort((a,b)=>String(b.createdAt||b.dueDate||'').localeCompare(String(a.createdAt||a.dueDate||'')));

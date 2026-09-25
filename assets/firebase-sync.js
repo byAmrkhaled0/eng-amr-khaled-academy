@@ -511,7 +511,7 @@
           return {rows:snap.docs.map(doc=>({...doc.data(),id:doc.id})),nextCursor:snap.size===pageSize?snap.docs.at(-1).id:null};
         }),
         getDocs('attendance',300,'date').catch(()=>getDocs('attendance',300)),getDocs('recitations',300,'date').catch(()=>getDocs('recitations',300)),
-        getDocs('student_transfer_requests',100,'createdAt').catch(()=>getDocs('student_transfer_requests',100))
+        getDocs('student_transfer_requests',501,'createdAt').catch(()=>getDocs('student_transfer_requests',501)).then(rows=>{if(rows.length>500)throw new Error('سجل النقل أكبر من حد التحميل الآمن للحضور التاريخي.');return rows;})
       ]);
       const {attempts,grades,homeworks}=academic;
       attendance.forEach(item=>seedFingerprint('attendance',cleanDocId(item.id),item));
