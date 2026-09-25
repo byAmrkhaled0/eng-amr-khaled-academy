@@ -22,7 +22,10 @@ async function createAdminDOM(){
   vm.runInContext(fs.readFileSync(path.join(root,source),'utf8'),context,{filename:source});
  }
  vm.runInContext(fs.readFileSync(path.join(root,'scripts/browser/attendance-fixture.js'),'utf8'),context);
- await tick(180);
+ for(let waited=0; !window.document.getElementById('adminContent') && waited<5000; waited+=25){
+  await tick(25);
+ }
+ if(!window.document.getElementById('adminContent')) throw new Error('Admin DOM did not initialize within 5000ms');
  const run=source=>vm.runInContext(source,context);
  return {window,document:window.document,errors,run,tick,close(){observers.forEach(observer=>observer.disconnect());window.close();}};
 }
