@@ -1,0 +1,154 @@
+{
+  "provider": "https://ce.judge0.com",
+  "safeHelloOnly": true,
+  "limits": {
+    "processes": 128,
+    "memoryKb": 131072
+  },
+  "results": [
+    {
+      "language": "python",
+      "status": {
+        "id": 3,
+        "description": "Accepted"
+      },
+      "stdout": "PHASE23_HELLO\n",
+      "stderr": null,
+      "compile_output": null,
+      "memory": 3352,
+      "pass": true
+    },
+    {
+      "language": "javascript",
+      "status": {
+        "id": 3,
+        "description": "Accepted"
+      },
+      "stdout": "PHASE23_HELLO\n",
+      "stderr": null,
+      "compile_output": null,
+      "memory": 7052,
+      "pass": true
+    },
+    {
+      "language": "typescript",
+      "status": {
+        "id": 3,
+        "description": "Accepted"
+      },
+      "stdout": "PHASE23_HELLO\n",
+      "stderr": null,
+      "compile_output": null,
+      "memory": 7832,
+      "pass": true
+    },
+    {
+      "language": "c",
+      "status": {
+        "id": 3,
+        "description": "Accepted"
+      },
+      "stdout": "PHASE23_HELLO\n",
+      "stderr": null,
+      "compile_output": null,
+      "memory": 860,
+      "pass": true
+    },
+    {
+      "language": "cpp",
+      "status": {
+        "id": 3,
+        "description": "Accepted"
+      },
+      "stdout": "PHASE23_HELLO",
+      "stderr": null,
+      "compile_output": null,
+      "memory": 892,
+      "pass": true
+    },
+    {
+      "language": "java",
+      "status": {
+        "id": 3,
+        "description": "Accepted"
+      },
+      "stdout": "PHASE23_HELLO\n",
+      "stderr": null,
+      "compile_output": null,
+      "memory": 16060,
+      "pass": true
+    },
+    {
+      "language": "csharp",
+      "status": {
+        "id": 3,
+        "description": "Accepted"
+      },
+      "stdout": "PHASE23_HELLO\n",
+      "stderr": null,
+      "compile_output": null,
+      "memory": 3800,
+      "pass": true
+    },
+    {
+      "language": "go",
+      "status": {
+        "id": 3,
+        "description": "Accepted"
+      },
+      "stdout": "PHASE23_HELLO\n",
+      "stderr": null,
+      "compile_output": null,
+      "memory": 5052,
+      "pass": true
+    },
+    {
+      "language": "php",
+      "status": {
+        "id": 3,
+        "description": "Accepted"
+      },
+      "stdout": "PHASE23_HELLO",
+      "stderr": null,
+      "compile_output": null,
+      "memory": 3216,
+      "pass": true
+    },
+    {
+      "language": "ruby",
+      "status": {
+        "id": 3,
+        "description": "Accepted"
+      },
+      "stdout": "PHASE23_HELLO\n",
+      "stderr": null,
+      "compile_output": null,
+      "memory": 9056,
+      "pass": true
+    },
+    {
+      "language": "rust",
+      "status": {
+        "id": 3,
+        "description": "Accepted"
+      },
+      "stdout": "PHASE23_HELLO\n",
+      "stderr": null,
+      "compile_output": null,
+      "memory": 7272,
+      "pass": true
+    },
+    {
+      "language": "kotlin",
+      "status": {
+        "id": 3,
+        "description": "Accepted"
+      },
+      "stdout": "PHASE23_HELLO\n",
+      "stderr": null,
+      "compile_output": "OpenJDK 64-Bit Server VM warning: Options -Xverify:none and -noverify were deprecated in JDK 13 and will likely be removed in a future release.\n",
+      "memory": 63492,
+      "pass": true
+    }
+  ]
+}

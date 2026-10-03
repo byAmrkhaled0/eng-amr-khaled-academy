@@ -52,11 +52,12 @@ service firebase.storage {
 
     match /homework/{studentCode}/{uploadId}/{fileName} {
       allow read: if isStaff();
-      allow create: if validCode(studentCode)
+      allow create: if resource == null && validCode(studentCode)
         && uploadId.size() == 36
         && fileName.size() <= 220
         && firestore.exists(/databases/(default)/documents/_homework_upload_tokens/$(uploadId))
         && firestore.get(/databases/(default)/documents/_homework_upload_tokens/$(uploadId)).data.studentCode == studentCode
+        && firestore.get(/databases/(default)/documents/_homework_upload_tokens/$(uploadId)).data.get('status', 'prepared') == 'prepared'
         && firestore.get(/databases/(default)/documents/_homework_upload_tokens/$(uploadId)).data.safeName == fileName
         && firestore.get(/databases/(default)/documents/_homework_upload_tokens/$(uploadId)).data.size == request.resource.size
         && firestore.get(/databases/(default)/documents/_homework_upload_tokens/$(uploadId)).data.contentType == request.resource.contentType
@@ -64,6 +65,12 @@ service firebase.storage {
         && safeHomeworkFile();
       allow update: if false;
       allow delete: if isTeacher();
+    }
+
+    // Accepted submissions are sealed by Admin SDK; clients only upload staging.
+    match /homework-submitted/{studentCode}/{uploadId}/{fileName} {
+      allow read: if isStaff();
+      allow write: if false;
     }
 
     match /teacher-uploads/{fileName} {

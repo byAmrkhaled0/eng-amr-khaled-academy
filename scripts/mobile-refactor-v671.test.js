@@ -60,7 +60,8 @@ test('health status reflects the usable default code runner without claiming a l
   const functionsPackage = require(path.join(root, 'functions/package.json'));
 
   assert.equal(functionsPackage.version, '70.0.5');
-  assert.match(backend, /\['http:', 'https:'\]\.includes\(endpoint\.protocol\)/);
+  assert.match(backend, /runner = codeRunnerConfig\(\)/);
+  assert.equal(require('../functions/lib/code-runner-policy').codeRunnerConfig({}).baseUrl, 'https://ce.judge0.com');
   assert.match(backend, /default-provider-configured/);
   assert.match(backend, /codeRunnerVerification: 'configuration-only'/);
   assert.doesNotMatch(backend, /default-provider-unverified/);

@@ -18,7 +18,8 @@ function harness(){
   stores.class_sessions.set('new_2026-09-24',{date:'2026-09-24',scheduleId:'new',group:'الجديدة',status:'open'});
   let reads=0,batches=0;
   const doc=(id,row)=>({id,exists:row!==undefined,data:()=>row});
-  const db={collection:name=>({doc:id=>({id,get:async()=>{reads++;return doc(id,stores[name]?.get(id));}}),where(field,operator,value){const filters=[[field,operator,value]];return {where(f,o,v){filters.push([f,o,v]);return this;},limit(n){this.max=n;return this;},async get(){reads++;const docs=[...(stores[name]||[])].filter(([,row])=>filters.every(([key,op,expected])=>op==='=='?row[key]===expected:op==='>='?row[key]>=expected:row[key]<expected)).slice(0,this.max||Infinity).map(([id,row])=>doc(id,row));return {docs,size:docs.length,empty:!docs.length};}};}}),batch:()=>{const writes=[];return {set(ref,row){writes.push([ref,row]);},async commit(){batches++;for(const [ref,row] of writes)stores.attendance.set(ref.id,row);}}}};
+  const db={collection:name=>({doc:id=>({id,collection:name,get:async()=>{reads++;return doc(id,stores[name]?.get(id));}}),where(field,operator,value){const filters=[[field,operator,value]];return {where(f,o,v){filters.push([f,o,v]);return this;},limit(n){this.max=n;return this;},async get(){reads++;const docs=[...(stores[name]||[])].filter(([,row])=>filters.every(([key,op,expected])=>op==='=='?row[key]===expected:op==='>='?row[key]>=expected:row[key]<expected)).slice(0,this.max||Infinity).map(([id,row])=>doc(id,row));return {docs,size:docs.length,empty:!docs.length};}};}}),batch:()=>{const writes=[];return {set(ref,row){writes.push([ref,row]);},async commit(){batches++;for(const [ref,row] of writes)stores.attendance.set(ref.id,row);}}}};
+  db.runTransaction=async fn=>{batches++;const writes=[];const tx={get:async ref=>{reads++;return doc(ref.id,stores[ref.collection]?.get(ref.id));},create:(ref,row)=>writes.push([ref,row])};const result=await fn(tx);for(const [ref,row] of writes)stores[ref.collection].set(ref.id,row);return result;};
   const ctx={exports:{},db,CALLABLE_OPTIONS:{},onCall:(_options,handler)=>handler,membershipAt,...domain,
     HttpsError:class extends Error{constructor(code,message){super(message);this.code=code;}},requireStaff:async()=>({uid:'staff',email:'staff@test.com'}),rateLimit:async()=>{},normalizeCode:v=>String(v||''),validLegacyOrStrongCode:()=>true,text:v=>String(v||''),cleanDocId:v=>String(v||''),canonicalAcademicLabel:v=>v,sameAcademicValue:(a,b)=>a===b,cairoDateKey:v=>typeof v==='string'?v.slice(0,10):'2026-09-22',FieldValue:{serverTimestamp:()=>''},crypto:{randomUUID:()=> 'request-1'},markLeaderboardDirty:async()=>{},serverActivity:async()=>{},Date,Promise,console};
   ctx.findAttendanceStudentSnapshot=async code=>doc(code,stores.students.get(code));
@@ -59,7 +60,7 @@ test('historical bulk uses one day read, transfer batch and respects legacy and 
   assert.equal(stores.attendance.has('ST1_old_2026-09-22'),false);
   assert.equal(stores.attendance.has('ST2_old_2026-09-22'),false);
   assert.equal(stores.attendance.has('ST3_old_2026-09-22'),false);
-  assert.equal(stats().batches,1);assert.ok(stats().reads<=5,'bounded shared queries, no per-student read');
+  assert.equal(stats().batches,1);assert.ok(stats().reads<=8,'shared day queries plus transaction point rechecks for the missing student');
   const after=await ctx.exports.bulkMarkAttendance({data:{date:'2026-09-25',scheduleId:'old',group:'القديمة',grade:'برمجة'}});
   assert.equal(after.totalStudents,3);assert.equal(after.savedStudentCodes.includes('ST1'),false);
 });

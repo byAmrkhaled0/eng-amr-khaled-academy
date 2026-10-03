@@ -24,7 +24,7 @@ test('production script order keeps paper exam creation in the active admin rend
     GRADES:['البرمجة'],hydrateIcons(){},examBuilderCard(){return '';},
     TMResults:{isExamGradePending(){return false;}},console,setTimeout};
   context.window=context;
-  vm.createContext(context);
+  vm.createContext(context);require('./testing/render-actions')(context);
   for(const script of ['assets/admin.js','assets/v60-admin-workflow.js']){
     vm.runInContext(fs.readFileSync(path.join(__dirname,'..',script),'utf8'),context,{filename:script});
   }

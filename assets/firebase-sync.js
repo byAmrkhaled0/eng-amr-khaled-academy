@@ -483,11 +483,13 @@
       return {students:[],bookings:[],materials,questions,exams:[],reviews,groups,assignments,examAttempts:[],grades:[],settings};
     }
 
-    async function loadStaffCoreCollections(){
+    async function loadStaffCoreCollections(options={}){
+      const deferred=new Set(['materials','questions','exams','reviews','assignments']);
+      const coreDocs=(name,limit,order)=>((options.shell===true&&deferred.has(name))||(options.deferredOnly===true&&!deferred.has(name)))?Promise.resolve([]):getDocs(name,limit,order).catch(()=>getDocs(name,limit));
       const [students,bookings,materials,questions,exams,reviews,groups,assignments,payments,settings]=await Promise.all([
-        getDocs('students',200,'updatedAt').catch(()=>getDocs('students',200)),getDocs('bookings',100,'createdAt').catch(()=>getDocs('bookings',100)),getDocs('materials',150,'updatedAt').catch(()=>getDocs('materials',150)),getDocs('questions',150,'updatedAt').catch(()=>getDocs('questions',150)),
-        getDocs('exams',150,'updatedAt').catch(()=>getDocs('exams',150)),getDocs('reviews',100,'createdAt').catch(()=>getDocs('reviews',100)),getDocs('groups',200,'updatedAt').catch(()=>getDocs('groups',200)),getDocs('assignments',150,'updatedAt').catch(()=>getDocs('assignments',150)),
-        getDocs('payments',300,'updatedAt').catch(()=>getDocs('payments',300)),getSettings().catch(()=>({}))
+        coreDocs('students',200,'updatedAt'),coreDocs('bookings',100,'createdAt'),coreDocs('materials',150,'updatedAt'),coreDocs('questions',150,'updatedAt'),
+        coreDocs('exams',150,'updatedAt'),coreDocs('reviews',100,'createdAt'),coreDocs('groups',200,'updatedAt'),coreDocs('assignments',150,'updatedAt'),
+        coreDocs('payments',300,'updatedAt'),options.deferredOnly===true?Promise.resolve({}):getSettings()
       ]);
       const normalized=students.map(normalizedStudent);const map=new Map(normalized.map(st=>[st.studentCode,st]));
       payments.forEach(row=>{const st=map.get(normalizeCode(row.studentCode||row.studentId||''));if(st){st.paid=row.paid===true;st.paymentDate=row.paymentDate||st.paymentDate;st.paymentAmount=Number(row.paymentAmount??st.paymentAmount??0);st.paymentCourse=row.paymentCourse||st.paymentCourse||st.grade;}});
@@ -498,7 +500,7 @@
       bookings.forEach(item=>seedFingerprint('bookings',cleanDocId(item.code||item.id),item));
       payments.forEach(item=>seedFingerprint('payments',cleanDocId(item.studentCode||item.studentId||item.id),item));
       [['materials',materials],['questions',questions],['exams',exams],['reviews',reviews],['groups',groups],['assignments',assignments]].forEach(([collection,rows])=>rows.forEach(item=>seedFingerprint(collection,cleanDocId(item.id),item)));
-      seedFingerprint('settings','platform',settings);
+      if(options.deferredOnly!==true)seedFingerprint('settings','platform',settings);
       return {students:normalized,bookings,materials,questions,exams,reviews,groups,assignments,examAttempts:[],grades:[],settings};
     }
 
@@ -533,7 +535,7 @@
       return {...core,students:normalized,examAttempts:records.attempts,grades:records.grades,studentTransferRequests:records.studentTransferRequests||[]};
     }
 
-    async function loadStaffCollections(options={}){const core=await loadStaffCoreCollections();if(options.fast===true)return core;return mergeStaffRecords(core,await loadStaffRecordCollections((core.students||[]).map(st=>st.studentCode)));}
+    async function loadStaffCollections(options={}){const core=await loadStaffCoreCollections(options);if(options.fast===true)return core;return mergeStaffRecords(core,await loadStaffRecordCollections((core.students||[]).map(st=>st.studentCode)));}
 
     async function loadFromCollections(options={}){const profile=await getCurrentStaffProfile().catch(()=>null);return profile?.allowed?loadStaffCollections(options):loadPublicCollections();}
 
@@ -639,10 +641,19 @@
       await markLeaderboardDirty('student-deleted');
       return {ok:true,studentCode,backupMode:'browser'};
     }
-    async function getAttendanceForDate(date,grade,group){
-      const snap=await db.collection('attendance').where('date','==',date).get();
+    async function getAttendanceForDate(date,grade,group,options={}){
+      const readDate=async collection=>{
+        const snap=await db.collection(collection).where('date','==',date).limit(501).get({source:'server'});
+        if(snap.size>500)throw new Error('سجلات اليوم تجاوزت حد العرض الآمن.');
+        return snap.docs.map(doc=>({...doc.data(),id:doc.id}));
+      };
+      const rows=await readDate('attendance');
+      if(options.workspace){
+        const [recitations,homeworks,transfers]=await Promise.all([readDate('recitations'),readDate('homework_submissions'),options.transfersLoaded?Promise.resolve(null):db.collection('student_transfer_requests').limit(501).get({source:'server'}).then(snap=>{if(snap.size>500)throw new Error('سجل النقل تجاوز حد العرض الآمن.');return snap.docs.map(doc=>({...doc.data(),id:doc.id}));})]);
+        return {attendance:rows,recitations,homeworks:homeworks.filter(row=>row.method==='teacher_class_check'),studentTransferRequests:transfers};
+      }
       const same=(left,right)=>typeof globalThis.sameAcademicValueClient==='function'?globalThis.sameAcademicValueClient(left,right):String(left||'')===String(right||'');
-      return snap.docs.map(doc=>({id:doc.id,...doc.data()})).filter(row=>(!grade||grade==='all'||same(row.grade,grade))&&(!group||group==='all'||same(row.group,group)));
+      return rows.filter(row=>(!grade||grade==='all'||same(row.grade,grade))&&(!group||group==='all'||same(row.group,group)));
     }
     async function logActivity(action,meta){
       const profile=await getCurrentStaffProfile().catch(()=>null);if(!profile?.allowed)return;
@@ -657,7 +668,7 @@
     }
 
     window.MFCloud={
-      ready:true,app,auth,db,storage,functions,cleanDocId,normalizePhoneDigits:digits,currentUser:()=>auth.currentUser,
+      ready:true,app,auth,db,storage,functions,clearPortalSession:(code,mode='student')=>{try{sessionStorage.removeItem(portalSessionKey(code,mode));}catch(_){}},cleanDocId,normalizePhoneDigits:digits,currentUser:()=>auth.currentUser,
       signIn:(email,password)=>auth.signInWithEmailAndPassword(email,password),signOut:()=>auth.signOut(),
       sendPasswordReset:email=>auth.sendPasswordResetEmail(String(email||'').trim()),getCurrentStaffProfile,
       activateOwnerAccount:()=>calls.activateOwnerAccount?calls.activateOwnerAccount({}):Promise.reject(new Error('Owner activation service unavailable')),
@@ -667,7 +678,7 @@
       getCodeExecutionResult:runId=>calls.getCodeExecutionResult?calls.getCodeExecutionResult({runId}):Promise.reject(new Error('Code runner service unavailable')),
       loadSiteData:async(options={})=>{
         const profile=await getCurrentStaffProfile().catch(()=>null);
-        const data=await (profile?.allowed?loadStaffCollections(options):loadPublicCollections()).catch(()=>null);
+        const data=profile?.allowed?await loadStaffCollections(options):await loadPublicCollections().catch(()=>null);
         const hasData=data&&['students','bookings','materials','questions','exams','reviews','groups','assignments'].some(key=>Array.isArray(data[key])&&data[key].length);
         if(profile?.allowed&&!hasData){
           const legacy=await legacySiteDoc.get().catch(()=>null);
@@ -680,6 +691,7 @@
         }
         return data;
       },
+      loadStaffContent:()=>loadStaffCoreCollections({deferredOnly:true}),
       loadStaffRecords:async codes=>{const profile=await getCurrentStaffProfile();if(!profile?.allowed)throw new Error('Not authorized');return loadStaffRecordCollections(codes||[]);},
       saveSiteData:async(payload,options={})=>syncPayloadToCollections(payload,options),
       saveSettings:async settings=>{const profile=await getCurrentStaffProfile();if(!profile?.allowed||profile.role!=='admin')throw new Error('Not authorized');await platformSettingsDoc.set({...settings,schemaVersion:55,updatedAt:serverTime()},{merge:true});seedFingerprint('settings','platform',settings);},
@@ -809,7 +821,7 @@
       getParentStudent:async code=>{const normalized=normalizeCode(code),result=requireCompatibleBackend(await fetchPortalStudent({code:normalized,mode:'parent'}));savePortalSession(normalized,'parent',result);return result;},
       createStudentTransferRequest:async payload=>{if(!calls.createStudentTransferRequest)throw new Error('Student transfer service unavailable');const normalized=normalizeCode(payload?.studentCode);return calls.createStudentTransferRequest(await portalPayload(normalized,{...payload,studentCode:normalized}));},
       reviewStudentTransferRequest:payload=>{if(!calls.reviewStudentTransferRequest)throw new Error('Student transfer review service unavailable');return calls.reviewStudentTransferRequest(payload||{});},
-      uploadHomework:async(file,studentCode)=>{const normalized=normalizeCode(studentCode);if(!calls.prepareHomeworkUpload||!calls.registerHomeworkSubmission)throw new Error('Secure homework function is unavailable');const permit=await calls.prepareHomeworkUpload(await portalPayload(normalized,{studentCode:normalized,fileName:file.name,size:file.size,contentType:file.type}));const uploaded=await upload(file,`homework/${cleanDocId(normalized)}/${permit.uploadId}`,permit.safeName,true);await calls.registerHomeworkSubmission(await portalPayload(normalized,{studentCode:normalized,uploadId:permit.uploadId,...uploaded,fileName:file.name}));return uploaded;},
+      uploadHomework:async(file,studentCode)=>{const normalized=normalizeCode(studentCode);if(!calls.prepareHomeworkUpload||!calls.registerHomeworkSubmission)throw new Error('Secure homework function is unavailable');const permit=await calls.prepareHomeworkUpload(await portalPayload(normalized,{studentCode:normalized,fileName:file.name,size:file.size,contentType:file.type}));const uploaded=await upload(file,`homework/${cleanDocId(normalized)}/${permit.uploadId}`,permit.safeName,true);const registered=await calls.registerHomeworkSubmission(await portalPayload(normalized,{studentCode:normalized,uploadId:permit.uploadId,...uploaded,fileName:file.name}));return {...uploaded,url:registered.fileUrl,path:registered.path};},
       submitAssignmentAnswer:async payload=>{if(!calls.submitAssignmentAnswer)throw new Error('Assignment answer service unavailable');const normalized=normalizeCode(payload?.studentCode);return calls.submitAssignmentAnswer(await portalPayload(normalized,{...payload,studentCode:normalized}));},
       reviewHomeworkSubmission:async payload=>{if(!calls.reviewHomeworkSubmission){const error=new Error('خدمة تصحيح الواجبات غير متاحة. يجب نشر Firebase Functions المتوافقة.');error.code='BACKEND_VERSION_MISMATCH';throw error;}return retryTransient(()=>calls.reviewHomeworkSubmission(payload||{}),1);},
       grantHomeworkRetake:payload=>{if(!calls.grantHomeworkRetake)throw new Error('Homework retake service unavailable');return calls.grantHomeworkRetake(payload||{});},

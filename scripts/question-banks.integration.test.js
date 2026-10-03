@@ -4,14 +4,14 @@ if(!process.env.FIRESTORE_EMULATOR_HOST||!process.env.FIREBASE_STORAGE_EMULATOR_
 const admin=require('../functions/node_modules/firebase-admin'),functions=require('../functions/entry'),db=admin.firestore();
 const auth={uid:'banks-test-admin',token:{admin:true,email_verified:true,email:'bank@example.test'}};
 const call=(name,data,identity=auth)=>functions[name].run({auth:identity,data,rawRequest:{headers:{},socket:{remoteAddress:'127.0.0.1'}}});
-const code='BANKTEST001',grade='أساسيات برمجة',lessonId='test-theory-lesson',token='bank-session-'.padEnd(48,'a');
+const code='BANKTEST001',grade='أساسيات برمجة',lessonId='test-theory-lesson',token=crypto.randomBytes(32).toString('base64url');
 const portal={code,studentCode:code,portalSessionToken:token};
 const bank={title:'بنك تجريبي',grade:'مسار آخر',status:'published',lectureId:lessonId,lectureSource:'materials',order:0,content:'سؤال تجريبي'};
 test.before(async()=>{
  await db.doc('users/'+auth.uid).set({role:'admin',active:true});
  await db.doc('students/'+code).set({studentCode:code,studentName:'طالب تجريبي',active:true,grade,scheduleId:'banks-group',group:'تجريبية',academicYear:'2026/2027'});
  await db.doc('materials/'+lessonId).set({title:'درس الشروط',grade,lectureCategory:'theory',active:true,published:true,status:'منشور',scheduleId:'banks-group',group:'تجريبية',academicYear:'2026/2027',term:'الترم الأول'});
- await db.doc('_portal_sessions/'+crypto.createHash('sha256').update(token).digest('hex')).set({studentCode:code,mode:'student',expiresAt:admin.firestore.Timestamp.fromMillis(Date.now()+3600000)});
+ await db.doc('_portal_sessions/'+crypto.createHash('sha256').update(token).digest('hex')).set({studentCode:code,mode:'student',expiresAt:admin.firestore.Timestamp.fromMillis(Date.now()+30*60*1000)});
 });
 test('bank save, retry and audience are server-owned; hidden or archived lessons block resource and file access',async()=>{
  const filePath=`curriculum/${grade}/question_banks/fixture.pdf`;

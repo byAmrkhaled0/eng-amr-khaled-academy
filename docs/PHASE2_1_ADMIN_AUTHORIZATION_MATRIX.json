@@ -1,0 +1,2309 @@
+{
+  "method": "actual callable run handlers with Firestore emulator; authorization boundary, not all business operations",
+  "results": [
+    {
+      "endpoint": "activateOwnerAccount",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "activateOwnerAccount",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "activateOwnerAccount",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "activateOwnerAccount",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "activateOwnerAccount",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "activateOwnerAccount",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "returned"
+    },
+    {
+      "endpoint": "addStudentMotivationPoints",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "addStudentMotivationPoints",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "addStudentMotivationPoints",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "addStudentMotivationPoints",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "addStudentMotivationPoints",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "addStudentMotivationPoints",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "approveBooking",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "approveBooking",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "approveBooking",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "approveBooking",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "approveBooking",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "approveBooking",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "archiveContentItem",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "archiveContentItem",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "archiveContentItem",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "archiveContentItem",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "archiveContentItem",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "archiveContentItem",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "bulkMarkAttendance",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "bulkMarkAttendance",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "bulkMarkAttendance",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "bulkMarkAttendance",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "bulkMarkAttendance",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "bulkMarkAttendance",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "cancelPaymentTransaction",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "cancelPaymentTransaction",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "cancelPaymentTransaction",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "cancelPaymentTransaction",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "cancelPaymentTransaction",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "cancelPaymentTransaction",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "createBackupNow",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "createBackupNow",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "createBackupNow",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "createBackupNow",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "createBackupNow",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "createBackupNow",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "returned"
+    },
+    {
+      "endpoint": "createMonthlyExamPlan",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "createMonthlyExamPlan",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "createMonthlyExamPlan",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "createMonthlyExamPlan",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "createMonthlyExamPlan",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "createMonthlyExamPlan",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "createPaymentTransaction",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "createPaymentTransaction",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "createPaymentTransaction",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "createPaymentTransaction",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "createPaymentTransaction",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "createPaymentTransaction",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "createStudentAccess",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "createStudentAccess",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "createStudentAccess",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "createStudentAccess",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "createStudentAccess",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "createStudentAccess",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "deleteCurriculumEntity",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "deleteCurriculumEntity",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "deleteCurriculumEntity",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "deleteCurriculumEntity",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "deleteCurriculumEntity",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "deleteCurriculumEntity",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "deleteStudentSafely",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "deleteStudentSafely",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "deleteStudentSafely",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "deleteStudentSafely",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "deleteStudentSafely",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "deleteStudentSafely",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "editPaymentTransaction",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "editPaymentTransaction",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "editPaymentTransaction",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "editPaymentTransaction",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "editPaymentTransaction",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "editPaymentTransaction",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "finalizeExamAbsencesAdmin",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "finalizeExamAbsencesAdmin",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "finalizeExamAbsencesAdmin",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "finalizeExamAbsencesAdmin",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "finalizeExamAbsencesAdmin",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "finalizeExamAbsencesAdmin",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "returned"
+    },
+    {
+      "endpoint": "freezeLeaderboardMonthAdmin",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "freezeLeaderboardMonthAdmin",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "freezeLeaderboardMonthAdmin",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "freezeLeaderboardMonthAdmin",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "freezeLeaderboardMonthAdmin",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "freezeLeaderboardMonthAdmin",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "returned"
+    },
+    {
+      "endpoint": "getAdminCollectionPage",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "getAdminCollectionPage",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getAdminCollectionPage",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getAdminCollectionPage",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getAdminCollectionPage",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getAdminCollectionPage",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "getAdminOperationsDashboard",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "getAdminOperationsDashboard",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getAdminOperationsDashboard",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getAdminOperationsDashboard",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getAdminOperationsDashboard",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getAdminOperationsDashboard",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "returned"
+    },
+    {
+      "endpoint": "getAdminStudentMetricsBatch",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "getAdminStudentMetricsBatch",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getAdminStudentMetricsBatch",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getAdminStudentMetricsBatch",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getAdminStudentMetricsBatch",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getAdminStudentMetricsBatch",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "getBackupDownloadUrl",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "getBackupDownloadUrl",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getBackupDownloadUrl",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getBackupDownloadUrl",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getBackupDownloadUrl",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getBackupDownloadUrl",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "getClassSessionWorkspace",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "getClassSessionWorkspace",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getClassSessionWorkspace",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getClassSessionWorkspace",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getClassSessionWorkspace",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getClassSessionWorkspace",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "getHomeworkAdminWorkspace",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "getHomeworkAdminWorkspace",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getHomeworkAdminWorkspace",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getHomeworkAdminWorkspace",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getHomeworkAdminWorkspace",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getHomeworkAdminWorkspace",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "returned"
+    },
+    {
+      "endpoint": "getMotivationLeaderboardAdmin",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "getMotivationLeaderboardAdmin",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getMotivationLeaderboardAdmin",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getMotivationLeaderboardAdmin",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getMotivationLeaderboardAdmin",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getMotivationLeaderboardAdmin",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "getMotivationSettingsAdmin",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "getMotivationSettingsAdmin",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getMotivationSettingsAdmin",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getMotivationSettingsAdmin",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getMotivationSettingsAdmin",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getMotivationSettingsAdmin",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "returned"
+    },
+    {
+      "endpoint": "getPaymentDashboard",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "getPaymentDashboard",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getPaymentDashboard",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getPaymentDashboard",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getPaymentDashboard",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getPaymentDashboard",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "returned"
+    },
+    {
+      "endpoint": "getPaymentHistory",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "getPaymentHistory",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getPaymentHistory",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getPaymentHistory",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getPaymentHistory",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getPaymentHistory",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "returned"
+    },
+    {
+      "endpoint": "getStudentAdminProfile",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "getStudentAdminProfile",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getStudentAdminProfile",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getStudentAdminProfile",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getStudentAdminProfile",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getStudentAdminProfile",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "getStudentMonthlyReportAdmin",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "getStudentMonthlyReportAdmin",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getStudentMonthlyReportAdmin",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getStudentMonthlyReportAdmin",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getStudentMonthlyReportAdmin",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getStudentMonthlyReportAdmin",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "getStudentMotivationAdmin",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "getStudentMotivationAdmin",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getStudentMotivationAdmin",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getStudentMotivationAdmin",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getStudentMotivationAdmin",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getStudentMotivationAdmin",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "getTheoryLectureAnalytics",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "getTheoryLectureAnalytics",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getTheoryLectureAnalytics",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getTheoryLectureAnalytics",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getTheoryLectureAnalytics",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "getTheoryLectureAnalytics",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "grantHomeworkRetake",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "grantHomeworkRetake",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "grantHomeworkRetake",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "grantHomeworkRetake",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "grantHomeworkRetake",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "grantHomeworkRetake",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "listAutomaticBackups",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "listAutomaticBackups",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "listAutomaticBackups",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "listAutomaticBackups",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "listAutomaticBackups",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "listAutomaticBackups",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "returned"
+    },
+    {
+      "endpoint": "listCurriculumAdmin",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "listCurriculumAdmin",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "listCurriculumAdmin",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "listCurriculumAdmin",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "listCurriculumAdmin",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "listCurriculumAdmin",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "logStaffActivity",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "logStaffActivity",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "logStaffActivity",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "logStaffActivity",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "logStaffActivity",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "logStaffActivity",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "returned"
+    },
+    {
+      "endpoint": "migrateCurriculumV61",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "migrateCurriculumV61",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "migrateCurriculumV61",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "migrateCurriculumV61",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "migrateCurriculumV61",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "migrateCurriculumV61",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "returned"
+    },
+    {
+      "endpoint": "migrateLegacyPayments",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "migrateLegacyPayments",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "migrateLegacyPayments",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "migrateLegacyPayments",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "migrateLegacyPayments",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "migrateLegacyPayments",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "failed-precondition"
+    },
+    {
+      "endpoint": "migratePlatformV63",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "migratePlatformV63",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "migratePlatformV63",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "migratePlatformV63",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "migratePlatformV63",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "migratePlatformV63",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "returned"
+    },
+    {
+      "endpoint": "migrateStudentCodeSafely",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "migrateStudentCodeSafely",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "migrateStudentCodeSafely",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "migrateStudentCodeSafely",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "migrateStudentCodeSafely",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "migrateStudentCodeSafely",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "prepareOfflineAttendance",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "prepareOfflineAttendance",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "prepareOfflineAttendance",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "prepareOfflineAttendance",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "prepareOfflineAttendance",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "prepareOfflineAttendance",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "previewAutomaticBackup",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "previewAutomaticBackup",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "previewAutomaticBackup",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "previewAutomaticBackup",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "previewAutomaticBackup",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "previewAutomaticBackup",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "failed-precondition"
+    },
+    {
+      "endpoint": "recordAttendance",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "recordAttendance",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "recordAttendance",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "recordAttendance",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "recordAttendance",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "recordAttendance",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "not-found"
+    },
+    {
+      "endpoint": "recordClassProgress",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "recordClassProgress",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "recordClassProgress",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "recordClassProgress",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "recordClassProgress",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "recordClassProgress",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "recordParentReportDeliveryAdmin",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "recordParentReportDeliveryAdmin",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "recordParentReportDeliveryAdmin",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "recordParentReportDeliveryAdmin",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "recordParentReportDeliveryAdmin",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "recordParentReportDeliveryAdmin",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "regenerateParentAccessCode",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "regenerateParentAccessCode",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "regenerateParentAccessCode",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "regenerateParentAccessCode",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "regenerateParentAccessCode",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "regenerateParentAccessCode",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "registerTeacherPushToken",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "registerTeacherPushToken",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "registerTeacherPushToken",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "registerTeacherPushToken",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "registerTeacherPushToken",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "registerTeacherPushToken",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "rejectBooking",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "rejectBooking",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "rejectBooking",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "rejectBooking",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "rejectBooking",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "rejectBooking",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "repairLegacyExamFormats",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "repairLegacyExamFormats",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "repairLegacyExamFormats",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "repairLegacyExamFormats",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "repairLegacyExamFormats",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "repairLegacyExamFormats",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "returned"
+    },
+    {
+      "endpoint": "restoreAutomaticBackup",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "restoreAutomaticBackup",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "restoreAutomaticBackup",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "restoreAutomaticBackup",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "restoreAutomaticBackup",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "restoreAutomaticBackup",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "failed-precondition"
+    },
+    {
+      "endpoint": "restoreContentItem",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "restoreContentItem",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "restoreContentItem",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "restoreContentItem",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "restoreContentItem",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "restoreContentItem",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "reverseStudentMotivationTransaction",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "reverseStudentMotivationTransaction",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "reverseStudentMotivationTransaction",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "reverseStudentMotivationTransaction",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "reverseStudentMotivationTransaction",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "reverseStudentMotivationTransaction",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "reviewExamAttempt",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "reviewExamAttempt",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "reviewExamAttempt",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "reviewExamAttempt",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "reviewExamAttempt",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "reviewExamAttempt",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "reviewHomeworkSubmission",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "reviewHomeworkSubmission",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "reviewHomeworkSubmission",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "reviewHomeworkSubmission",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "reviewHomeworkSubmission",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "reviewHomeworkSubmission",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "reviewStudentTransferRequest",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "reviewStudentTransferRequest",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "reviewStudentTransferRequest",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "reviewStudentTransferRequest",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "reviewStudentTransferRequest",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "reviewStudentTransferRequest",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "saveMotivationSettingsAdmin",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "saveMotivationSettingsAdmin",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "saveMotivationSettingsAdmin",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "saveMotivationSettingsAdmin",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "saveMotivationSettingsAdmin",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "saveMotivationSettingsAdmin",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "returned"
+    },
+    {
+      "endpoint": "savePaperExamGradesAdmin",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "savePaperExamGradesAdmin",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "savePaperExamGradesAdmin",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "savePaperExamGradesAdmin",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "savePaperExamGradesAdmin",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "savePaperExamGradesAdmin",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "saveStudentPrivateNote",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "saveStudentPrivateNote",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "saveStudentPrivateNote",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "saveStudentPrivateNote",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "saveStudentPrivateNote",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "saveStudentPrivateNote",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "searchStudentsAdmin",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "searchStudentsAdmin",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "searchStudentsAdmin",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "searchStudentsAdmin",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "searchStudentsAdmin",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "searchStudentsAdmin",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "syncOfflineAttendance",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "syncOfflineAttendance",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "syncOfflineAttendance",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "syncOfflineAttendance",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "syncOfflineAttendance",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "syncOfflineAttendance",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "unifyStudentAccessCodes",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "unifyStudentAccessCodes",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "unifyStudentAccessCodes",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "unifyStudentAccessCodes",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "unifyStudentAccessCodes",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "unifyStudentAccessCodes",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "returned"
+    },
+    {
+      "endpoint": "unregisterTeacherPushToken",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "unregisterTeacherPushToken",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "unregisterTeacherPushToken",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "unregisterTeacherPushToken",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "unregisterTeacherPushToken",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "unregisterTeacherPushToken",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "returned"
+    },
+    {
+      "endpoint": "updateStudentSafely",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "updateStudentSafely",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "updateStudentSafely",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "updateStudentSafely",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "updateStudentSafely",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "updateStudentSafely",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "upsertClassSession",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "upsertClassSession",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "upsertClassSession",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "upsertClassSession",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "upsertClassSession",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "upsertClassSession",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "upsertCurriculumEntity",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "upsertCurriculumEntity",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "upsertCurriculumEntity",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "upsertCurriculumEntity",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "upsertCurriculumEntity",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "upsertCurriculumEntity",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "upsertGroupSchedule",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "upsertGroupSchedule",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "upsertGroupSchedule",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "upsertGroupSchedule",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "upsertGroupSchedule",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "upsertGroupSchedule",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    },
+    {
+      "endpoint": "upsertVersionedContent",
+      "scenario": "anonymous",
+      "result": "DENY",
+      "code": "unauthenticated"
+    },
+    {
+      "endpoint": "upsertVersionedContent",
+      "scenario": "no-claim",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "upsertVersionedContent",
+      "scenario": "unverified",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "upsertVersionedContent",
+      "scenario": "wrong-role",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "upsertVersionedContent",
+      "scenario": "inactive",
+      "result": "DENY",
+      "code": "permission-denied"
+    },
+    {
+      "endpoint": "upsertVersionedContent",
+      "scenario": "verified-active-admin",
+      "result": "AUTHORIZATION_ACCEPTED",
+      "businessResult": "invalid-argument"
+    }
+  ]
+}

@@ -15,7 +15,7 @@ test('top attention centre covers the three requested student risks',()=>{
   assert.match(ui,/maxAbsenceStreak/);
   assert.match(ui,/missingHomeworkCount/);
   assert.match(ui,/getMotivationLeaderboardAdmin/);
-  assert.match(ui,/onclick="editStudent\('/);
+  assert.match(ui,/renderActionAttrs\(type==='booking'\?'goAdminSection':'editStudent'/);
   assert.match(css,/\.admin-attention-panel-v69/);
   assert.match(css,/html\[data-theme="dark"\] \.admin-attention-button-v69\.has-alerts/);
 });

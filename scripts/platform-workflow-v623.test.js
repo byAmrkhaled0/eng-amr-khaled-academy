@@ -38,7 +38,7 @@ test('admin reports homework completion and QR attendance blocks days outside th
   assert.match(admin,/return \{ok:true,days,day,\.\.\.membership\};/);
   assert.match(admin,/if\(!days\.includes\(day\)\)return \{ok:false/);
   assert.match(admin,/هذا اليوم خارج مواعيد مجموعة الطالب/);
-  assert.match(admin,/bulk_absent/);
+  assert.match(read('functions/index.js'),/bulk_absent/); // The server owns bulk results; the UI refreshes the authoritative day.
 });
 
 test('student code can resolve the parent portal and legacy grade naming stays compatible',()=>{

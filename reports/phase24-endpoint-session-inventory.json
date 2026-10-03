@@ -1,0 +1,764 @@
+{
+  "entries": [
+    {
+      "file": "functions/index.js",
+      "name": "activateOwnerAccount",
+      "line": 395,
+      "type": "onCall",
+      "sessionGate": "OTHER / inherited Phase2.1 audit",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "registerTeacherPushToken",
+      "line": 454,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "unregisterTeacherPushToken",
+      "line": 463,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "notifyStaffOnBookingCreated",
+      "line": 479,
+      "type": "onDocumentCreated",
+      "sessionGate": "OTHER / inherited Phase2.1 audit",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getPaymentDashboard",
+      "line": 563,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getPaymentHistory",
+      "line": 580,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "createPaymentTransaction",
+      "line": 589,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "editPaymentTransaction",
+      "line": 684,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "cancelPaymentTransaction",
+      "line": 735,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "addStudentMotivationPoints",
+      "line": 804,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getStudentMotivationAdmin",
+      "line": 851,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "reverseStudentMotivationTransaction",
+      "line": 865,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getMotivationLeaderboardAdmin",
+      "line": 906,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getMotivationSettingsAdmin",
+      "line": 919,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "saveMotivationSettingsAdmin",
+      "line": 925,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "freezeLeaderboardMonthAdmin",
+      "line": 947,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "freezeMonthlyLeaderboard",
+      "line": 948,
+      "type": "onSchedule",
+      "sessionGate": "OTHER / inherited Phase2.1 audit",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getPortalStudent",
+      "line": 1551,
+      "type": "onCall",
+      "sessionGate": "PUBLIC LOGIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "createStudentTransferRequest",
+      "line": 1623,
+      "type": "onCall",
+      "sessionGate": "PORTAL",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "reviewStudentTransferRequest",
+      "line": 1673,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "upsertGroupSchedule",
+      "line": 1748,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "upsertVersionedContent",
+      "line": 1832,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getHomeworkAdminWorkspace",
+      "line": 1900,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "archiveContentItem",
+      "line": 1927,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getAdminCollectionPage",
+      "line": 1952,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "searchStudentsAdmin",
+      "line": 1979,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getStudentAdminProfile",
+      "line": 1994,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "recordParentReportDeliveryAdmin",
+      "line": 2030,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getStudentMonthlyReportAdmin",
+      "line": 2304,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getParentMonthlyReport",
+      "line": 2316,
+      "type": "onCall",
+      "sessionGate": "PORTAL",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "prepareMonthlyParentReports",
+      "line": 2324,
+      "type": "onSchedule",
+      "sessionGate": "OTHER / inherited Phase2.1 audit",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "saveStudentPrivateNote",
+      "line": 2338,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getAdminOperationsDashboard",
+      "line": 2351,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "upsertClassSession",
+      "line": 2392,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getClassSessionWorkspace",
+      "line": 2404,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getStudentResources",
+      "line": 2461,
+      "type": "onCall",
+      "sessionGate": "PORTAL",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "submitAssignmentAnswer",
+      "line": 2501,
+      "type": "onCall",
+      "sessionGate": "PORTAL",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "reviewHomeworkSubmission",
+      "line": 2675,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "reviewExamAttempt",
+      "line": 2709,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "grantHomeworkRetake",
+      "line": 2783,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "migratePlatformV63",
+      "line": 2824,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getAdminStudentMetricsBatch",
+      "line": 3052,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getPublicLeaderboard",
+      "line": 3097,
+      "type": "onCall",
+      "sessionGate": "OTHER / inherited Phase2.1 audit",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getStudentLeaderboardPosition",
+      "line": 3107,
+      "type": "onCall",
+      "sessionGate": "PORTAL",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "createStudentAccess",
+      "line": 3121,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "migrateStudentCodeSafely",
+      "line": 3217,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "regenerateParentAccessCode",
+      "line": 3261,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "unifyStudentAccessCodes",
+      "line": 3315,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "unifyLegacyStudentAccess",
+      "line": 3330,
+      "type": "onSchedule",
+      "sessionGate": "OTHER / inherited Phase2.1 audit",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "createBooking",
+      "line": 3346,
+      "type": "onCall",
+      "sessionGate": "OTHER / inherited Phase2.1 audit",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "approveBooking",
+      "line": 3483,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getBookingStatus",
+      "line": 3544,
+      "type": "onCall",
+      "sessionGate": "OTHER / inherited Phase2.1 audit",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "rejectBooking",
+      "line": 3568,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "createReview",
+      "line": 3596,
+      "type": "onCall",
+      "sessionGate": "OTHER / inherited Phase2.1 audit",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "recordClassProgress",
+      "line": 3617,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "recordAttendance",
+      "line": 3778,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "prepareOfflineAttendance",
+      "line": 3827,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "syncOfflineAttendance",
+      "line": 3863,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "bulkMarkAttendance",
+      "line": 3899,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "savePaperExamGradesAdmin",
+      "line": 3958,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getExamDashboard",
+      "line": 4046,
+      "type": "onCall",
+      "sessionGate": "PORTAL",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "finalizeExamAbsencesAdmin",
+      "line": 4101,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "finalizeExamAbsences",
+      "line": 4102,
+      "type": "onSchedule",
+      "sessionGate": "OTHER / inherited Phase2.1 audit",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "startExam",
+      "line": 4104,
+      "type": "onCall",
+      "sessionGate": "PORTAL",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "saveExamProgress",
+      "line": 4209,
+      "type": "onCall",
+      "sessionGate": "PORTAL",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "submitExam",
+      "line": 4232,
+      "type": "onCall",
+      "sessionGate": "PORTAL",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "prepareHomeworkUpload",
+      "line": 4399,
+      "type": "onCall",
+      "sessionGate": "PORTAL",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "registerHomeworkSubmission",
+      "line": 4425,
+      "type": "onCall",
+      "sessionGate": "PORTAL",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "reportClientError",
+      "line": 4491,
+      "type": "onCall",
+      "sessionGate": "OTHER / inherited Phase2.1 audit",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "scheduledPlatformBackup",
+      "line": 4514,
+      "type": "onSchedule",
+      "sessionGate": "OTHER / inherited Phase2.1 audit",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "cleanupArchivedStorage",
+      "line": 4521,
+      "type": "onSchedule",
+      "sessionGate": "OTHER / inherited Phase2.1 audit",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "createBackupNow",
+      "line": 4550,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "migrateLegacyPayments",
+      "line": 4557,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "listAutomaticBackups",
+      "line": 4656,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getBackupDownloadUrl",
+      "line": 4664,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "previewAutomaticBackup",
+      "line": 4673,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "restoreAutomaticBackup",
+      "line": 4679,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "updateStudentSafely",
+      "line": 4702,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "deleteStudentSafely",
+      "line": 4723,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getCodeLanguages",
+      "line": 4793,
+      "type": "onCall",
+      "sessionGate": "OTHER / inherited Phase2.1 audit",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getPlatformHealth",
+      "line": 4843,
+      "type": "onCall",
+      "sessionGate": "OTHER / inherited Phase2.1 audit",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getPlatformHealthHttp",
+      "line": 4847,
+      "type": "onRequest",
+      "sessionGate": "OTHER / inherited Phase2.1 audit",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "submitCodeExecution",
+      "line": 4855,
+      "type": "onCall",
+      "sessionGate": "OTHER / inherited Phase2.1 audit",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getCodeExecutionResult",
+      "line": 4982,
+      "type": "onCall",
+      "sessionGate": "OTHER / inherited Phase2.1 audit",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "logStaffActivity",
+      "line": 5072,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "upsertCurriculumEntity",
+      "line": 5079,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "listCurriculumAdmin",
+      "line": 5121,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "deleteCurriculumEntity",
+      "line": 5145,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "createMonthlyExamPlan",
+      "line": 5158,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getStudentCurriculum",
+      "line": 5235,
+      "type": "onCall",
+      "sessionGate": "PORTAL",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getLectureContent",
+      "line": 5256,
+      "type": "onCall",
+      "sessionGate": "PORTAL",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "recordLectureProgress",
+      "line": 5282,
+      "type": "onCall",
+      "sessionGate": "PORTAL",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getTheoryLectureAnalytics",
+      "line": 5309,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "getCurriculumFileUrl",
+      "line": 5324,
+      "type": "onCall",
+      "sessionGate": "PORTAL",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    },
+    {
+      "file": "functions/index.js",
+      "name": "migrateCurriculumV61",
+      "line": 5339,
+      "type": "onCall",
+      "sessionGate": "ADMIN",
+      "detail": "Existing Phase2.1 full authorization inventory remains authoritative for categories outside this scope."
+    }
+  ]
+}

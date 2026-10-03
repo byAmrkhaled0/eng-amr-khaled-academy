@@ -77,7 +77,7 @@ for (const selector of ['.site-header', '.hero', '.parent-hero-v29', '.student-h
 if (!failures.some(x => x.startsWith('Missing design'))) ok('Public, portal, admin and dark-mode design coverage passed');
 
 const buttonSources = [...htmlFiles, ...jsFiles.filter(file => file.startsWith('assets/'))].map(relative => ({ relative, source: read(relative) }));
-const combinedButtonSource = buttonSources.map(item => item.source).join('\n');
+const combinedButtonSource = fs.readdirSync(path.join(root,'assets')).filter(name=>name.endsWith('.js')).map(name=>read('assets/'+name)).join('\n');
 const inlineHandlers = new Map();
 for (const item of buttonSources) {
   for (const match of item.source.matchAll(/\bon(?:click|change|input|submit)\s*=\s*["']\s*([A-Za-z_$][\w$]*)\s*\(/g)) {
@@ -85,13 +85,16 @@ for (const item of buttonSources) {
     inlineHandlers.get(match[1]).add(item.relative);
   }
 }
+// Check the fixed data-action registry as well as unchanged static inline handlers.
+const renderRegistry=read('assets/app.js').match(/const TM_RENDER_ACTIONS=new Set\((\[[^;]+\])\)/);
+for(const name of renderRegistry?JSON.parse(renderRegistry[1]):[]){if(!inlineHandlers.has(name))inlineHandlers.set(name,new Set(['assets/app.js data action registry']));}
 for (const [name, locations] of inlineHandlers) {
   if (['location', 'history', 'window'].includes(name)) continue;
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const definitions = [new RegExp(`function\\s+${escaped}\\b`), new RegExp(`window\\.${escaped}\\s*=`), new RegExp(`(?:const|let|var)\\s+${escaped}\\s*=`)];
   if (!definitions.some(pattern => pattern.test(combinedButtonSource))) fail(`Missing button handler ${name} used in ${[...locations].join(', ')}`);
 }
-if (!failures.some(x => x.startsWith('Missing button handler'))) ok(`All ${inlineHandlers.size} inline action handlers are defined`);
+if (!failures.some(x => x.startsWith('Missing button handler'))) ok(`All ${inlineHandlers.size} static/delegated action handlers are defined`);
 
 const appCheckScanFiles = ['assets/firebase-config.js', 'assets/firebase-sync.js', 'functions/index.js', ...htmlFiles];
 for (const relative of appCheckScanFiles) {
@@ -159,7 +162,7 @@ const adminSourceCode = read('assets/admin.js');
 const adminWorkflowSource = read('assets/v60-admin-workflow.js');
 const appSourceCode = read('assets/app.js');
 const fixesSourceCode = read('assets/v56-fixes.js');
-if (!adminSourceCode.includes("loadSiteData({fast:true})") || !adminSourceCode.includes('hydrateAdminRecords')) fail('Staged admin loading is missing');
+if (!adminSourceCode.includes("loadSiteData({fast:true,shell:true})") || !adminSourceCode.includes('hydrateAdminRecords')) fail('Staged admin loading is missing');
 if (!appSourceCode.includes('staffCacheOnly') || !appSourceCode.includes('if(isStaffWorkspace())return;')) fail('Compact staff browser cache protection is missing');
 if (!appSourceCode.includes("MF_ASSET_VERSION = '70.0.5'")) fail('Lazy asset loader version is stale');
 if (!fixesSourceCode.includes('showMoreAdminStudents') || !fixesSourceCode.includes('slice(0,adminStudentVisible)')) fail('Paginated student rendering is missing');
@@ -257,7 +260,7 @@ if (!read('about.html').includes('https://amrkhaledabozeid.vercel.app/') || !rea
 if (!read('assets/admin.js').includes('admin-command-header') || !read('assets/admin.js').includes('adminBookingAlertCount') || !read('assets/admin.js').includes('حفظ التغييرات') || !read('assets/admin.js').includes('معاينة الموقع') || read('teacher-login.html').includes('<header class="site-header"') || !read('assets/v56-fixes.js').includes('openStudentGroupManager')) fail('Dedicated admin header or group manager is incomplete');
 if (!read('assets/v55-admin.js').includes('coursePrices') || !read('assets/v55-admin.js').includes('paymentCollected') || !read('assets/v55-admin.js').includes('paymentAmount') || !read('assets/firebase-sync.js').includes('saveSettings:async')) fail('Course prices, payment totals, or focused Firebase payment saving are incomplete');
 const deploymentChecks = read('deploy-production.ps1') + '\n' + read('check-deployment.ps1');
-if (!read('assets/practical.js').includes('runJavascriptFallback') || !deploymentChecks.includes('getCodeLanguages') || !deploymentChecks.includes('TM_JS_OK')) fail('Code runner fallback or deployed execution smoke test is incomplete');
+if (read('assets/practical.js').includes('runJavascriptFallback') || /\(0,\s*eval\)/.test(read('assets/practical.js')) || !read('assets/practical.js').includes("publicCallable('submitCodeExecution'") || !deploymentChecks.includes('getCodeLanguages') || !deploymentChecks.includes('TM_JS_OK')) fail('Code runner must fail closed without local eval and preserve remote execution smoke checks');
 if (!functionsSource.includes('wait=false') || !functionsSource.includes('judge0-poll-') || !functionsSource.includes('fields=stdout,time,memory')) fail('Judge0 asynchronous submission and polling support is incomplete');
 if (!functionsSource.includes('exports.getPlatformHealth = onCall') || !deploymentChecks.includes('/api/health') || !deploymentChecks.includes('-Method Get')) fail('Post-deploy Firebase, booking, and portal health check is incomplete');
 const deployScript = read('deploy-production.ps1');

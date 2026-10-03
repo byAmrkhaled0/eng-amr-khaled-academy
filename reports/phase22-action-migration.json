@@ -1,0 +1,692 @@
+{
+  "count": 128,
+  "records": [
+    {
+      "file": "assets/admin.js",
+      "line": 613,
+      "source": "moveStudentToGroup('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 613,
+      "source": "editStudent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 613,
+      "source": "copyStudentCodes('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 613,
+      "source": "regenerateStudentCode('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 613,
+      "source": "quickPresent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 613,
+      "source": "printStudentReport('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 613,
+      "source": "sendParentMonthlyReport('${safe(s.studentCode)}',this)"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 613,
+      "source": "deleteStudent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 614,
+      "source": "moveStudentToGroup('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 614,
+      "source": "editStudent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 614,
+      "source": "quickPresent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 614,
+      "source": "sendParentMonthlyReport('${safe(s.studentCode)}',this)"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 614,
+      "source": "copyStudentCodes('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 614,
+      "source": "regenerateStudentCode('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 614,
+      "source": "printStudentReport('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 614,
+      "source": "deleteStudent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 623,
+      "source": "confirmStudentGroupMove('${safe(code)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 673,
+      "source": "editSchedule('${safe(g.id)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 673,
+      "source": "toggleSchedule('${safe(g.id)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 680,
+      "source": "approveBooking('${safe(b.code)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 680,
+      "source": "deleteBooking('${safe(b.code)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 808,
+      "source": "setAttendanceStatus('${safe(st.studentCode)}','present')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 809,
+      "source": "setAttendanceStatus('${safe(st.studentCode)}','absent')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 810,
+      "source": "toggleClassProgress('${safe(st.studentCode)}','recitation')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 811,
+      "source": "toggleClassProgress('${safe(st.studentCode)}','homework')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 861,
+      "source": "setPaid('${safe(s.studentCode)}',true)"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 861,
+      "source": "setPaid('${safe(s.studentCode)}',false)"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 864,
+      "source": "deleteItem('materials','${safe(m.id)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 864,
+      "source": "deleteItem('questions','${safe(q.id)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 901,
+      "source": "sendAbsenceWarningWhatsApp('${safe(student.studentCode)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 918,
+      "source": "reviewStudentTransferRequestAdmin('${safe(item.id)}','approve')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 918,
+      "source": "reviewStudentTransferRequestAdmin('${safe(item.id)}','reject')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 925,
+      "source": "deleteItem('assignments','${safe(item.id)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 985,
+      "source": "sendExamGradeToParent('${safe(row.rowId)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 1010,
+      "source": "correctAttempt('${safe(a.id)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 1018,
+      "source": "saveAttemptCorrection('${safe(a.id)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 1040,
+      "source": "approveReview('${safe(r.id)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 1040,
+      "source": "deleteItem('reviews','${safe(r.id)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 1150,
+      "source": "openPaperExamGrades('${safe(e.id)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 1150,
+      "source": "deleteItem('exams','${safe(e.id)}')"
+    },
+    {
+      "file": "assets/admin.js",
+      "line": 1165,
+      "source": "editStudent('${safe(row.studentCode)}')"
+    },
+    {
+      "file": "assets/app.js",
+      "line": 854,
+      "source": "copyParentReport('${esc(st.studentCode||'')}')"
+    },
+    {
+      "file": "assets/app.js",
+      "line": 854,
+      "source": "openParentWhatsApp('${esc(st.studentCode||'')}',this)"
+    },
+    {
+      "file": "assets/app.js",
+      "line": 885,
+      "source": "copyParentReport('${esc(st.studentCode||'')}')"
+    },
+    {
+      "file": "assets/app.js",
+      "line": 885,
+      "source": "openParentWhatsApp('${esc(st.studentCode||'')}',this)"
+    },
+    {
+      "file": "assets/app.js",
+      "line": 1355,
+      "source": "copyBookingCode('${esc(code)}')"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 183,
+      "source": "editSchedule('${safe(item.id)}')"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 183,
+      "source": "toggleSchedule('${safe(item.id)}')"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 183,
+      "source": "deleteSchedule('${safe(item.id)}')"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 223,
+      "source": "editStudent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 223,
+      "source": "copyStudentCodes('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 223,
+      "source": "regenerateStudentCode('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 223,
+      "source": "quickPresent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 223,
+      "source": "printStudentReport('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 223,
+      "source": "sendParentMonthlyReport('${safe(s.studentCode)}',this)"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 223,
+      "source": "deleteStudent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 226,
+      "source": "editStudent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 226,
+      "source": "quickPresent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 226,
+      "source": "sendParentMonthlyReport('${safe(s.studentCode)}',this)"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 226,
+      "source": "copyStudentCodes('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 226,
+      "source": "regenerateStudentCode('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 226,
+      "source": "printStudentReport('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 226,
+      "source": "deleteStudent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 343,
+      "source": "setPaid('${safe(s.studentCode)}',true)"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 343,
+      "source": "setPaid('${safe(s.studentCode)}',false)"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 405,
+      "source": "downloadAutomaticBackup('${safe(item.name)}')"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 405,
+      "source": "restoreAutomaticBackup('${safe(item.name)}')"
+    },
+    {
+      "file": "assets/v53-upgrades.js",
+      "line": 412,
+      "source": "deleteClientError('${safe(row.id)}')"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 36,
+      "source": "setPaid('${safe(st.studentCode)}',true)"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 36,
+      "source": "setPaid('${safe(st.studentCode)}',false)"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 62,
+      "source": "approveReview('${safe(row.id)}')"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 62,
+      "source": "deleteItem('reviews','${safe(row.id)}')"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 64,
+      "source": "editSchedule('${safe(item.id)}')"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 64,
+      "source": "toggleSchedule('${safe(item.id)}')"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 64,
+      "source": "deleteSchedule('${safe(item.id)}')"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 68,
+      "source": "editStudent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 68,
+      "source": "printStudentReport('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 68,
+      "source": "quickPresent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 68,
+      "source": "sendParentMonthlyReport('${safe(s.studentCode)}',this)"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 68,
+      "source": "copyStudentCodes('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 68,
+      "source": "deleteStudent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 69,
+      "source": "editStudent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 69,
+      "source": "printStudentReport('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 69,
+      "source": "quickPresent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 69,
+      "source": "sendParentMonthlyReport('${safe(s.studentCode)}',this)"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 69,
+      "source": "copyStudentCodes('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 69,
+      "source": "deleteStudent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 70,
+      "source": "editStudent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 70,
+      "source": "printStudentReport('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 70,
+      "source": "quickPresent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 70,
+      "source": "sendParentMonthlyReport('${safe(s.studentCode)}',this)"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 70,
+      "source": "copyStudentCodes('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v55-admin.js",
+      "line": 70,
+      "source": "deleteStudent('${safe(s.studentCode)}')"
+    },
+    {
+      "file": "assets/v56-fixes.js",
+      "line": 74,
+      "source": "editStudent('${safe(student.studentCode)}')"
+    },
+    {
+      "file": "assets/v56-fixes.js",
+      "line": 74,
+      "source": "editStudent('${safe(student.studentCode)}')"
+    },
+    {
+      "file": "assets/v56-fixes.js",
+      "line": 74,
+      "source": "openStudentGroupManager('${safe(student.studentCode)}')"
+    },
+    {
+      "file": "assets/v56-fixes.js",
+      "line": 74,
+      "source": "quickPresent('${safe(student.studentCode)}')"
+    },
+    {
+      "file": "assets/v56-fixes.js",
+      "line": 74,
+      "source": "sendParentMonthlyReport('${safe(student.studentCode)}',this)"
+    },
+    {
+      "file": "assets/v56-fixes.js",
+      "line": 74,
+      "source": "copyStudentCodes('${safe(student.studentCode)}')"
+    },
+    {
+      "file": "assets/v56-fixes.js",
+      "line": 74,
+      "source": "regenerateStudentCode('${safe(student.studentCode)}')"
+    },
+    {
+      "file": "assets/v56-fixes.js",
+      "line": 74,
+      "source": "deleteStudent('${safe(student.studentCode)}')"
+    },
+    {
+      "file": "assets/v56-fixes.js",
+      "line": 97,
+      "source": "saveStudentGroupChange('${safe(code)}')"
+    },
+    {
+      "file": "assets/v60-admin-workflow.js",
+      "line": 96,
+      "source": "openPaperExamGrades('${safe(exam.id)}')"
+    },
+    {
+      "file": "assets/v60-admin-workflow.js",
+      "line": 96,
+      "source": "deleteItem('exams','${safe(exam.id)}')"
+    },
+    {
+      "file": "assets/v60-admin-workflow.js",
+      "line": 96,
+      "source": "openAdminExamDetails('${safe(exam.id)}')"
+    },
+    {
+      "file": "assets/v60-admin-workflow.js",
+      "line": 96,
+      "source": "editLiveExam('${safe(exam.id)}')"
+    },
+    {
+      "file": "assets/v60-admin-workflow.js",
+      "line": 96,
+      "source": "toggleLiveExam('${safe(exam.id)}')"
+    },
+    {
+      "file": "assets/v60-admin-workflow.js",
+      "line": 96,
+      "source": "deleteItem('exams','${safe(exam.id)}')"
+    },
+    {
+      "file": "assets/v60-admin-workflow.js",
+      "line": 197,
+      "source": "saveHomeworkCorrection('${safe(row.id)}',this)"
+    },
+    {
+      "file": "assets/v60-admin-workflow.js",
+      "line": 197,
+      "source": "grantHomeworkRetakeAdmin('${safe(row.assignmentId)}','${safe(row.studentCode)}')"
+    },
+    {
+      "file": "assets/v60-admin-workflow.js",
+      "line": 251,
+      "source": "editPracticalLecture('${safe(row.id)}')"
+    },
+    {
+      "file": "assets/v60-admin-workflow.js",
+      "line": 251,
+      "source": "deleteItem('materials','${safe(row.id)}')"
+    },
+    {
+      "file": "assets/v60-admin-workflow.js",
+      "line": 252,
+      "source": "openHomeworkAdminFile('${safe(row.id)}')"
+    },
+    {
+      "file": "assets/v60-admin-workflow.js",
+      "line": 252,
+      "source": "toggleLiveHomework('${safe(row.id)}')"
+    },
+    {
+      "file": "assets/v60-admin-workflow.js",
+      "line": 252,
+      "source": "deleteItem('assignments','${safe(row.id)}')"
+    },
+    {
+      "file": "assets/v60-admin-workflow.js",
+      "line": 253,
+      "source": "deleteItem('questions','${safe(row.id)}')"
+    },
+    {
+      "file": "assets/v60-payments.js",
+      "line": 53,
+      "source": "markStudentPaid('${safe(code)}','${safe(row.month)}','${safe(row.academicYear)}','${safe(rowCourse)}')"
+    },
+    {
+      "file": "assets/v60-payments.js",
+      "line": 53,
+      "source": "openMonthlyPaymentForm('${safe(code)}','${safe(row.month)}','${safe(row.academicYear)}','','${safe(rowCourse)}')"
+    },
+    {
+      "file": "assets/v638-admin-recovery.js",
+      "line": 117,
+      "source": "restoreArchivedContent('exams','${safe(exam.id)}')"
+    },
+    {
+      "file": "assets/v638-admin-recovery.js",
+      "line": 135,
+      "source": "restoreArchivedContent('assignments','${safe(item.id)}')"
+    },
+    {
+      "file": "assets/v64-admin-operations.js",
+      "line": 62,
+      "source": "editStudent('${esc(row.studentCode)}')"
+    },
+    {
+      "file": "assets/v64-admin-operations.js",
+      "line": 65,
+      "source": "openClassSession('${esc(row.id)}')"
+    },
+    {
+      "file": "assets/v64-admin-operations.js",
+      "line": 75,
+      "source": "setSessionAttendance('${esc(row.studentCode)}','present',this)"
+    },
+    {
+      "file": "assets/v64-admin-operations.js",
+      "line": 75,
+      "source": "setSessionAttendance('${esc(row.studentCode)}','absent',this)"
+    },
+    {
+      "file": "assets/v64-admin-operations.js",
+      "line": 75,
+      "source": "setSessionPractical('${esc(row.studentCode)}',${row.recitation?'false':'true'},this)"
+    },
+    {
+      "file": "assets/v64-admin-operations.js",
+      "line": 83,
+      "source": "editStudentBasics('${esc(student.studentCode||'')}')"
+    },
+    {
+      "file": "assets/v64-admin-operations.js",
+      "line": 83,
+      "source": "printStudentReport('${esc(student.studentCode||'')}')"
+    }
+  ],
+  "names": [
+    "removeLearningContent",
+    "moveStudentToGroup",
+    "editStudent",
+    "copyStudentCodes",
+    "regenerateStudentCode",
+    "quickPresent",
+    "printStudentReport",
+    "sendParentMonthlyReport",
+    "deleteStudent",
+    "confirmStudentGroupMove",
+    "editSchedule",
+    "toggleSchedule",
+    "approveBooking",
+    "deleteBooking",
+    "setAttendanceStatus",
+    "toggleClassProgress",
+    "setPaid",
+    "deleteItem",
+    "sendAbsenceWarningWhatsApp",
+    "reviewStudentTransferRequestAdmin",
+    "sendExamGradeToParent",
+    "correctAttempt",
+    "saveAttemptCorrection",
+    "approveReview",
+    "openPaperExamGrades",
+    "copyParentReport",
+    "openParentWhatsApp",
+    "copyBookingCode",
+    "deleteSchedule",
+    "downloadAutomaticBackup",
+    "restoreAutomaticBackup",
+    "deleteClientError",
+    "openStudentGroupManager",
+    "saveStudentGroupChange",
+    "openAdminExamDetails",
+    "editLiveExam",
+    "toggleLiveExam",
+    "saveHomeworkCorrection",
+    "grantHomeworkRetakeAdmin",
+    "editPracticalLecture",
+    "openHomeworkAdminFile",
+    "toggleLiveHomework",
+    "markStudentPaid",
+    "openMonthlyPaymentForm",
+    "restoreArchivedContent",
+    "openClassSession",
+    "setSessionAttendance",
+    "setSessionPractical",
+    "editStudentBasics",
+    "goAdminSection"
+  ]
+}

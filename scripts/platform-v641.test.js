@@ -115,7 +115,7 @@ test('redesign shares a parent report image to the saved parent phone and hides 
   const app=read('assets/app.js'),admin=read('assets/admin.js'),backend=read('functions/index.js'),teacher=read('teacher-login.html'),css=read('assets/v65-redesign.css'),indexes=JSON.parse(read('firestore.indexes.json'));
   assert.match(app,/function parentReportImageBlob/);assert.match(app,/parentReportWhatsAppIntro/);assert.match(app,/كود الطالب الموحّد:/);assert.match(app,/parent\.html/);
   assert.match(app,/compatibleMonthlyReport\(report,lastParentStudent\.studentCode\)/);
-  assert.match(app,/parentReportSharePending=true/);assert.match(app,/openParentWhatsApp\('\$\{esc\(st\.studentCode\|\|''\)\}',this\)/);
+  assert.match(app,/parentReportSharePending=true/);assert.match(app,/renderActionAttrs\("openParentWhatsApp",\[String\(\(st\.studentCode\|\|''\)\?\?''\)\],true\)/);
   assert.match(admin,/deliverParentMonthlyReport\(report,phone/);assert.match(admin,/s\.parentPhone/);
   assert.match(backend,/function examIsPublished\(exam\)/);
   assert.match(backend,/exports\.updateStudentSafely = onCall/);assert.match(backend,/const history=availableMonths\.slice\(0,6\)/);

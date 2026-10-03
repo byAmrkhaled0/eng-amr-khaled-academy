@@ -21,7 +21,7 @@ const {
   academicAudienceKeysForItem
 } = require('./lib/academic-targeting');
 const { studentCanOpenPortal, studentIsApproved } = require('./lib/student-access');
-const { reusableLearningContentIsVisible } = require('./lib/content-visibility');
+const { reusableLearningContentIsVisible, reusableContentAccessAllowed } = require('./lib/content-visibility');
 const {
   homeworkLockId,
   submissionIdForAttempt,
@@ -33,7 +33,7 @@ const {
   homeworkMetrics,
   configurableOverallAverage
 } = require('./lib/portal-results');
-const { configuredScheduleDays, cairoWeekdayForDate, attendanceDayDecision } = require('./lib/attendance-domain');
+const { attendanceDateInWindow, configuredScheduleDays, cairoWeekdayForDate, attendanceDayDecision } = require('./lib/attendance-domain');
 const { calculateMonthlyReport, attachTrend, membershipAt, rowMatchesMonth, actualSessionsForStudent } = require('./lib/monthly-report');
 const {
   studentNameKey,
@@ -153,20 +153,40 @@ async function createPortalSession(studentCode, mode, request) {
 }
 
 async function requirePortalSession(request, expectedStudentCode, allowedModes = ['student']) {
-  const token = text(request.data?.portalSessionToken, 1000);
-  if (!token || token.length < 32) throw new HttpsError('unauthenticated', 'انتهت جلسة البوابة. افتح حساب الطالب من جديد.');
+  const token = request.data?.portalSessionToken;
+  if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(token)) throw new HttpsError('unauthenticated', 'انتهت جلسة البوابة. افتح حساب الطالب من جديد.');
   const ref = db.collection('_portal_sessions').doc(hash(token));
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError('unauthenticated', 'جلسة البوابة غير صالحة.');
   const session = snap.data() || {};
-  const expiresAt = session.expiresAt?.toMillis?.() || 0;
-  if (expiresAt <= Date.now()) {
+  const expiresAt = typeof session.expiresAt?.toMillis === 'function' ? session.expiresAt.toMillis() : 0;
+  const issuedAt = typeof session.createdAt?.toMillis === 'function' ? session.createdAt.toMillis() : undefined;
+  const now = Date.now();
+  if (!Number.isFinite(expiresAt) || expiresAt <= now
+      || (Number.isFinite(issuedAt) ? issuedAt > now || expiresAt > issuedAt + 30 * 60 * 1000 : expiresAt > now + 30 * 60 * 1000)) {
     await ref.delete().catch(() => {});
     throw new HttpsError('unauthenticated', 'انتهت جلسة البوابة. افتح الحساب من جديد.');
   }
   if (normalizeCode(session.studentCode) !== normalizeCode(expectedStudentCode) || !allowedModes.includes(session.mode)) {
     throw new HttpsError('permission-denied', 'الجلسة لا تخص هذا الحساب.');
   }
+  // A bearer session does not freeze account approval. Read the current
+  // canonical account even for exam progress/submission and upload registration.
+  let account = await db.collection('students').doc(cleanDocId(session.studentCode)).get();
+  if (!account.exists) {
+    // Some imported canonical rows use an old document ID. Resolve their
+    // current state with the same bounded legacy identity fields as login.
+    for (const field of ['studentCode', 'code', 'id']) {
+      const matches = await db.collection('students').where(field, '==', normalizeCode(session.studentCode)).limit(1).get();
+      if (!matches.empty) { account = matches.docs[0]; break; }
+    }
+  }
+  if (!account.exists) {
+    // Retain old projection-only student accounts; never prefer a projection
+    // over a present canonical row (which may have been revoked).
+    account = await db.collection('student_portal').doc(cleanDocId(session.studentCode)).get();
+  }
+  if (!account.exists || !studentIsApproved(account.data())) throw new HttpsError('permission-denied', 'حساب الطالب غير متاح لهذه الخدمة.');
   return session;
 }
 
@@ -386,13 +406,23 @@ exports.activateOwnerAccount = onCall(CALLABLE_OPTIONS, async request => {
     active: true,
     updatedAt: FieldValue.serverTimestamp()
   };
-  await db.collection('users').doc(request.auth.uid).set(profile, { merge: true });
+  await db.runTransaction(async tx => {
+    const ref=db.collection('users').doc(request.auth.uid),existing=await tx.get(ref);
+    if(existing.exists&&(existing.data().role!=='admin'||existing.data().active===false))throw new HttpsError('permission-denied','صلاحية الحساب سُحبت؛ يلزم مراجعة إدارة الصلاحيات.');
+    tx.set(ref,profile,{merge:true});
+  });
   return { ok: true, role: 'admin', active: true };
 });
 
 async function notifyStaffAboutBooking(booking) {
   const snap = await db.collection('staff_push_tokens').where('active', '==', true).limit(500).get();
-  const tokens = [...new Set(snap.docs.map(doc => text(doc.data().token, 500)).filter(Boolean))];
+  const owners = [...new Set(snap.docs.map(doc => text(doc.data().uid, 128)).filter(Boolean))];
+  if (!owners.length) return;
+  // Push registration is not permanent authorization: recheck distinct owners
+  // at delivery, without polling or one read per device token.
+  const profiles = await db.getAll(...owners.map(uid => db.collection('users').doc(uid)));
+  const allowed = new Set(profiles.filter(doc => doc.exists && doc.data().role === 'admin' && doc.data().active !== false).map(doc => doc.id));
+  const tokens = [...new Set(snap.docs.filter(doc => allowed.has(doc.data().uid)).map(doc => text(doc.data().token, 500)).filter(Boolean))];
   if (!tokens.length) return;
   const response = await admin.messaging().sendEachForMulticast({
     tokens,
@@ -1422,7 +1452,7 @@ async function materialsForStudent(student = {}) {
   ]);
   const progress = new Map((progressSnap?.docs || []).map(doc => [doc.id, doc.data() || {}]));
   return docs
-    .filter(doc => reusableLearningContentIsVisible(doc.data() || {}) && learningTargetMatchesStudent(doc.data() || {}, student))
+    .filter(doc => reusableLearningContentIsVisible(doc.data() || {}) && learningTargetMatchesStudent(doc.data() || {}, student) && reusableContentAccessAllowed(doc.data() || {}, student))
     .map(doc => studentResourcePayload(doc, 'material', progress.get(doc.id)))
     .sort((a, b) => Number(a.order || 0) - Number(b.order || 0) || String(a.title || '').localeCompare(String(b.title || ''), 'ar', { numeric:true }))
     .slice(0, 120);
@@ -2446,11 +2476,8 @@ exports.getStudentResources = onCall(CALLABLE_OPTIONS, async request => {
     db.collection('student_progress').doc(studentCode).collection('lectures').limit(500).get().catch(() => null)
   ]);
   const progress = new Map((progressSnap?.docs || []).map(doc => [doc.id, doc.data() || {}]));
-  // Lectures, files and lesson questions are reusable course content. Their
-  // visibility follows publication + academic targeting, not the student's
-  // enrolment date. The from-joining rule remains below for exams and inside
-  // assignmentsForStudent, where historic work must stay hidden.
-  const visible = doc => reusableLearningContentIsVisible(doc.data() || {});
+  // The same server enrolment decision governs lists and direct object access.
+  const visible = doc => reusableLearningContentIsVisible(doc.data() || {}) && reusableContentAccessAllowed(doc.data() || {}, found.data);
   const banks = await visibleQuestionBanks(questionBankDocs, found.data, materialDocs);
   return {
     ...apiMetadata(),
@@ -2486,7 +2513,7 @@ exports.submitAssignmentAnswer = onCall(CALLABLE_OPTIONS, async request => {
   if (!assignmentSnap.exists) throw new HttpsError('not-found', 'الواجب غير موجود.');
   const assignment = assignmentSnap.data() || {};
   const grade = text(found.data.grade, 80);
-  if (!assignmentIsReleased(assignment) || !learningTargetMatchesStudent(assignment, found.data)) {
+  if (!assignmentIsReleased(assignment) || !learningTargetMatchesStudent(assignment, found.data) || !contentAvailableAfterStudentJoined(assignment, found.data)) {
     throw new HttpsError('permission-denied', 'هذا الواجب غير متاح لمسار الطالب.');
   }
   const assignmentClosed = assignmentDueDatePassed(assignment, cairoDateKey(new Date()));
@@ -3799,7 +3826,7 @@ exports.recordAttendance = onCall(CALLABLE_OPTIONS, async request => {
 
 exports.prepareOfflineAttendance = onCall({...CALLABLE_OPTIONS,timeoutSeconds:60,memory:'512MiB'},async request=>{
   const staff=await requireStaff(request),scheduleId=cleanDocId(text(request.data?.scheduleId,100)),date=text(request.data?.date,10);
-  if(!scheduleId||!/^\d{4}-\d{2}-\d{2}$/.test(date)||Math.abs(Date.parse(`${date}T12:00:00Z`)-Date.now())>7*86400000)throw new HttpsError('invalid-argument','اختر مجموعة وحصة في حدود أسبوع من اليوم.');
+  if(!scheduleId||!attendanceDateInWindow(date))throw new HttpsError('invalid-argument','اختر مجموعة وحصة في حدود أسبوع من اليوم.');
   const groupSnap=await db.collection('groups').doc(scheduleId).get();if(!groupSnap.exists)throw new HttpsError('not-found','المجموعة غير موجودة.');
   const group=groupSnap.data(),sessionId=`${scheduleId}_${date}`,sessionRef=db.collection('class_sessions').doc(sessionId),sessionSnap=await sessionRef.get();
   assertAttendanceDay(group.days||group.scheduleDays,date);
@@ -3824,10 +3851,12 @@ async function commitAttendanceOnce(payload,requestId,staff){
     const [seen,existing,legacy]=await Promise.all([tx.get(dedup),tx.get(ref),tx.get(legacyRef)]);
     if(seen.exists){if(seen.data().fingerprint!==fingerprint)throw new HttpsError('already-exists','معرّف المزامنة مستخدم لسجل مختلف.');return {id:seen.data().id||ref.id,duplicate:true,status:seen.data().status};}
     if(!existing.exists&&legacy.exists&&!legacy.data().classSessionId&&(!legacy.data().scheduleId||legacy.data().scheduleId===payload.scheduleId)){if(legacy.data().status!==payload.status)throw new HttpsError('failed-precondition','سجل قديم بحالة مختلفة؛ يحتاج مراجعة.');tx.create(dedup,{fingerprint,id:legacy.id,status:payload.status,expiresAt:Timestamp.fromMillis(Date.now()+30*86400000)});return {id:legacy.id,duplicate:true,status:payload.status};}
-    if(existing.exists&&existing.data().status!==payload.status)throw new HttpsError('failed-precondition','توجد حالة مختلفة للحصة؛ راجع السجل قبل تعديلها.');
+    const replacesAutomaticAbsence=existing.exists&&existing.data().status==='absent'&&existing.data().method==='bulk_absent'&&payload.status==='present';
+    if(existing.exists&&existing.data().status!==payload.status&&!replacesAutomaticAbsence)throw new HttpsError('failed-precondition','توجد حالة مختلفة للحصة؛ راجع السجل قبل تعديلها.');
+    if(replacesAutomaticAbsence)tx.set(ref,payload,{merge:true});
     if(!existing.exists)tx.create(ref,payload);
     tx.create(dedup,{fingerprint,id:ref.id,status:payload.status,expiresAt:Timestamp.fromMillis(Date.now()+30*86400000)});
-    return {id:ref.id,duplicate:existing.exists,status:payload.status};
+    return {id:ref.id,duplicate:existing.exists&&!replacesAutomaticAbsence,status:payload.status};
   });
 }
 
@@ -3899,21 +3928,31 @@ exports.bulkMarkAttendance = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 60, m
     existingCodes.add(code);
   }
   const missing = students.filter(student => !existingCodes.has(normalizeCode(student.studentCode || student.id)));
-  for (let index = 0; index < missing.length; index += 420) {
-    const batch = db.batch();
-    missing.slice(index, index + 420).forEach(student => {
-      const payload = attendanceServerPayload(student, date, 'absent', 'bulk_absent', staff);
-      payload.classSessionId = sessionId;
-      payload.scheduleId = scheduleId;
-      payload.group = sessionSnap.data().group||groupSnap.data().name||group;
-      payload.id=cleanDocId(`${payload.studentCode}_${sessionId}`);
-      batch.set(db.collection('attendance').doc(payload.id), payload, { merge: true });
+  const savedStudentCodes=[];
+  // At most 50 writes and 101 point reads per transaction; every retry rechecks server state.
+  for(let index=0;index<missing.length;index+=50){
+    const chunk=missing.slice(index,index+50),saved=await db.runTransaction(async tx=>{
+      const session=await tx.get(db.collection('class_sessions').doc(sessionId));
+      if(!session.exists||session.data().cancelled===true||session.data().status==='cancelled')throw new HttpsError('failed-precondition','الحصة ملغاة أو غير موجودة.');
+      const records=await Promise.all(chunk.map(async student=>{
+        const payload=attendanceServerPayload(student,date,'absent','bulk_absent',staff);payload.classSessionId=sessionId;payload.scheduleId=scheduleId;payload.group=session.data().group||groupSnap.data().name||group;payload.id=cleanDocId(`${payload.studentCode}_${sessionId}`);
+        const ref=db.collection('attendance').doc(payload.id),legacyRef=db.collection('attendance').doc(cleanDocId(`${payload.studentCode}_${date}`));
+        const [official,legacy]=await Promise.all([tx.get(ref),tx.get(legacyRef)]);
+        return {payload,ref,official,legacy};
+      }));
+      const saved=[];
+      for(const {payload,ref,official,legacy} of records){
+        if(official.exists)continue;
+        if(legacy.exists&&!legacy.data().classSessionId&&!legacy.data().sessionId&&(!legacy.data().scheduleId||legacy.data().scheduleId===scheduleId))continue;
+        tx.create(ref,payload);saved.push(payload.studentCode);
+      }
+      return saved;
     });
-    await batch.commit();
+    savedStudentCodes.push(...saved);
   }
-  if (missing.length) await markLeaderboardDirty('bulk-attendance');
-  await serverActivity(staff, 'تسجيل غياب جماعي', { date, group, scheduleId, count: missing.length });
-  return { ok: true, date, group, totalStudents: students.length, alreadyRecorded: students.length - missing.length, saved: missing.length, savedStudentCodes:missing.map(student=>normalizeCode(student.studentCode||student.code||student.id)), timeZone: 'Africa/Cairo' };
+  if(savedStudentCodes.length)await markLeaderboardDirty('bulk-attendance');
+  await serverActivity(staff,'تسجيل غياب جماعي',{date,group,scheduleId,count:savedStudentCodes.length});
+  return {ok:true,date,group,totalStudents:students.length,alreadyRecorded:students.length-savedStudentCodes.length,saved:savedStudentCodes.length,savedStudentCodes,timeZone:'Africa/Cairo'};
 });
 
 exports.savePaperExamGradesAdmin = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds:120, memory:'512MiB' },async request=>{
@@ -4376,6 +4415,7 @@ exports.prepareHomeworkUpload = onCall(CALLABLE_OPTIONS, async request => {
     safeName,
     contentType,
     size,
+    status: 'prepared',
     expiresAt: Timestamp.fromMillis(Date.now() + 10 * 60 * 1000),
     createdAt: FieldValue.serverTimestamp()
   });
@@ -4383,65 +4423,69 @@ exports.prepareHomeworkUpload = onCall(CALLABLE_OPTIONS, async request => {
 });
 
 exports.registerHomeworkSubmission = onCall(CALLABLE_OPTIONS, async request => {
-  const body = request.data || {};
-  const studentCode = normalizeCode(body.studentCode);
-  await requirePortalSession(request, studentCode, ['student']);
-  await rateLimitStudentAction('homework-submit', studentCode, request, 20, 5000, 60 * 60 * 1000);
-  const found = await getStudentPortalByCode(studentCode);
-  requireApprovedStudent(found.data);
-  const uploadId = text(body.uploadId, 80);
-  const tokenRef = db.collection('_homework_upload_tokens').doc(cleanDocId(uploadId));
-  const tokenSnap = await tokenRef.get();
-  if (!tokenSnap.exists) throw new HttpsError('permission-denied', 'انتهت صلاحية رفع الملف. ابدأ الرفع من جديد.');
-  const token = tokenSnap.data() || {};
-  const expiresAt = token.expiresAt?.toMillis?.() || 0;
-  if (token.studentCode !== studentCode || expiresAt <= Date.now()) {
-    await tokenRef.delete().catch(() => {});
-    throw new HttpsError('permission-denied', 'انتهت صلاحية رفع الملف. ابدأ الرفع من جديد.');
-  }
-  const filePath = text(body.path || body.filePath, 500);
-  const expectedPath = `homework/${cleanDocId(studentCode)}/${uploadId}/${token.safeName}`;
-  if (filePath !== expectedPath) {
-    throw new HttpsError('permission-denied', 'مسار ملف الواجب غير صالح.');
-  }
-  const bucket = admin.storage().bucket();
-  let metadata;
-  try{[metadata] = await bucket.file(filePath).getMetadata();}catch(error){throw new HttpsError('not-found', 'ملف الواجب لم يكتمل رفعه. حاول مرة أخرى.');}
-  const size = Number(metadata.size || 0),contentType = text(metadata.contentType, 100);
-  if (size !== Number(token.size) || contentType !== token.contentType) throw new HttpsError('permission-denied', 'بيانات الملف المرفوع لا تطابق طلب الرفع.');
-  let downloadToken = text(metadata.metadata?.firebaseStorageDownloadTokens?.split(',')?.[0], 200);
-  if (!downloadToken) {
-    downloadToken = crypto.randomUUID();
-    await bucket.file(filePath).setMetadata({ metadata: { ...(metadata.metadata || {}), firebaseStorageDownloadTokens: downloadToken } });
-  }
-  const fileUrl = downloadToken ? `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(filePath)}?alt=media&token=${encodeURIComponent(downloadToken)}` : '';
-  if (!fileUrl) throw new HttpsError('internal', 'تعذر تجهيز رابط ملف الواجب. حاول مرة أخرى.');
-  const ref = db.collection('homework_submissions').doc();
-  const batch = db.batch();
-  batch.set(ref, {
-    id: ref.id,
-    studentCode,
-    studentName: text(found.data.studentName || found.data.name, 100),
-    grade: text(found.data.grade, 80),
-    group: text(found.data.group, 100),
-    academicYear: text(found.data.academicYear, 20),
-    term: text(found.data.term, 40),
-    fileName: text(body.fileName || token.safeName, 180),
-    fileUrl,
-    url: fileUrl,
-    filePath,
-    path: filePath,
-    contentType,
-    size,
-    status: 'بانتظار مراجعة المدرس',
-    completed: false,
-    approved: false,
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp()
+  const body=request.data||{},studentCode=normalizeCode(body.studentCode);
+  await requirePortalSession(request,studentCode,['student']);
+  await rateLimitStudentAction('homework-submit',studentCode,request,20,5000,60*60*1000);
+  const found=await getStudentPortalByCode(studentCode);requireApprovedStudent(found.data);
+  const uploadId=text(body.uploadId,80);
+  if(!/^[a-f0-9-]{36}$/i.test(uploadId))throw new HttpsError('permission-denied','معرّف الرفع غير صالح.');
+  const tokenRef=db.collection('_homework_upload_tokens').doc(uploadId),ref=db.collection('homework_submissions').doc(uploadId);
+  const filePath=text(body.path||body.filePath,500);
+  const duplicate=row=>{if(row.studentCode!==studentCode||row.stagingPath!==filePath||String(row.assignmentId||'')!==String(body.assignmentId||'')||Number(row.attemptNumber||0)!==Number(body.attemptNumber||0))throw new HttpsError('permission-denied','الرفع لا يخص هذا الحساب.');return {id:ref.id,ok:true,duplicate:true,fileUrl:row.fileUrl,path:row.filePath};};
+  const [tokenSnap,existing]=await Promise.all([tokenRef.get(),ref.get()]);
+  if(existing.exists)return duplicate(existing.data());
+  const validate=token=>{
+    if(!token||token.studentCode!==studentCode||(token.expiresAt?.toMillis?.()||0)<=Date.now())throw new HttpsError('permission-denied','انتهت صلاحية رفع الملف. ابدأ الرفع من جديد.');
+    if(filePath!==`homework/${cleanDocId(studentCode)}/${uploadId}/${token.safeName}`)throw new HttpsError('permission-denied','مسار ملف الواجب غير صالح.');
+    if(String(token.assignmentId||'')!==String(body.assignmentId||'')||Number(token.attemptNumber||0)!==Number(body.attemptNumber||0))throw new HttpsError('permission-denied','التوكن لا يخص هذا الواجب أو المحاولة.');
+    if(!['image/jpeg','image/png','image/webp','application/pdf'].includes(token.contentType)||!(Number(token.size)>0&&Number(token.size)<=10*1024*1024))throw new HttpsError('permission-denied','بيانات تصريح الملف غير صالحة.');
+  };
+  const token=tokenSnap.exists?tokenSnap.data():null;validate(token);
+  const bucket=admin.storage().bucket();let metadata;
+  try{[metadata]=await bucket.file(filePath).getMetadata();}catch(_){throw new HttpsError('not-found','ملف الواجب لم يكتمل رفعه. حاول مرة أخرى.');}
+  if(Number(metadata.size)!==Number(token.size)||metadata.contentType!==token.contentType||!metadata.generation||!metadata.md5Hash)throw new HttpsError('permission-denied','بيانات الملف المرفوع لا تطابق طلب الرفع.');
+  const reservation=crypto.randomUUID();
+  const claimed=await db.runTransaction(async tx=>{
+    const [fresh,registered]=await Promise.all([tx.get(tokenRef),tx.get(ref)]);
+    if(registered.exists)return {duplicate:duplicate(registered.data())};
+    const current=fresh.exists?fresh.data():null;validate(current);
+    if((current.status||'prepared')!=='prepared')throw new HttpsError('aborted','جارٍ تثبيت الملف؛ أعد المحاولة بعد اكتمال التسجيل.');
+    if(current.safeName!==token.safeName||current.size!==token.size||current.contentType!==token.contentType)throw new HttpsError('permission-denied','تغير تصريح الرفع.');
+    tx.update(tokenRef,{status:'finalizing',reservation,sourceGeneration:String(metadata.generation),sourceMd5:metadata.md5Hash});
+    return {};
   });
-  batch.delete(tokenRef);
-  await batch.commit();
-  return { id: ref.id, ok: true };
+  if(claimed.duplicate)return claimed.duplicate;
+  // Only Admin SDK can write this immutable accepted object. A late staging
+  // upload, or a runtime that mislabels replacement CREATE, cannot touch it.
+  const finalPath=`homework-submitted/${cleanDocId(studentCode)}/${uploadId}/${token.safeName}`,finalFile=bucket.file(finalPath);
+  try{
+    let sealed;
+    try{[sealed]=await finalFile.getMetadata();}catch(error){if(error.code!==404)throw error;}
+    if(!sealed){
+      await bucket.file(filePath,{generation:String(metadata.generation)}).copy(finalFile,{preconditionOpts:{ifGenerationMatch:0},contentType:token.contentType,metadata:{studentCode,uploadId,sourceGeneration:String(metadata.generation),sourceMd5:metadata.md5Hash,firebaseStorageDownloadTokens:crypto.randomUUID()}});
+      [sealed]=await finalFile.getMetadata();
+    }
+    if(sealed.metadata?.studentCode!==studentCode||sealed.metadata?.uploadId!==uploadId||sealed.md5Hash!==metadata.md5Hash||Number(sealed.size)!==Number(token.size)||sealed.contentType!==token.contentType)throw new HttpsError('permission-denied','لا يمكن اعتماد ملف تغير أثناء تثبيت الرفع.');
+    const downloadToken=text(sealed.metadata.firebaseStorageDownloadTokens,200);
+    if(!downloadToken)throw new HttpsError('internal','تعذر تجهيز رابط ملف الواجب.');
+    const fileUrl=`https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(finalPath)}?alt=media&token=${encodeURIComponent(downloadToken)}`;
+    const result=await db.runTransaction(async tx=>{
+      const [fresh,registered]=await Promise.all([tx.get(tokenRef),tx.get(ref)]);
+      if(registered.exists)return duplicate(registered.data());
+      const current=fresh.exists?fresh.data():null;validate(current);
+      if(current.status!=='finalizing'||current.reservation!==reservation)throw new HttpsError('aborted','تغيرت حالة تثبيت الرفع.');
+      tx.create(ref,{id:ref.id,uploadId,studentCode,studentName:text(found.data.studentName||found.data.name,100),grade:text(found.data.grade,80),group:text(found.data.group,100),academicYear:text(found.data.academicYear,20),term:text(found.data.term,40),fileName:text(body.fileName||token.safeName,180),fileUrl,url:fileUrl,filePath:finalPath,path:finalPath,stagingPath:filePath,contentType:token.contentType,size:Number(token.size),storageGeneration:String(sealed.generation),storageMd5:sealed.md5Hash,...(token.assignmentId?{assignmentId:token.assignmentId,attemptNumber:Number(token.attemptNumber)}:{}),status:'بانتظار مراجعة المدرس',completed:false,approved:false,createdAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()});
+      tx.delete(tokenRef);
+      return {id:ref.id,ok:true,duplicate:false,fileUrl,path:finalPath};
+    });
+    await bucket.file(filePath).delete({ifGenerationMatch:String(metadata.generation)}).catch(()=>{});
+    return result;
+  }catch(error){
+    // Never expire a live reservation into another concurrent writer. A failed
+    // invocation may retry the sealed object; an interrupted one needs a new grant.
+    await db.runTransaction(async tx=>{const current=await tx.get(tokenRef);if(current.exists&&current.data().reservation===reservation)tx.update(tokenRef,{status:'prepared',reservation:FieldValue.delete()});}).catch(()=>{});
+    throw error;
+  }
 });
 
 exports.reportClientError = onCall(CALLABLE_OPTIONS, async request => {
@@ -4731,29 +4775,19 @@ const CODE_LANGUAGES = Object.freeze([
   { key: 'kotlin', name: 'Kotlin', judge0Id: 78, template: 'fun main() {\n  println("Hello, Techno Minds!")\n}' }
 ]);
 
-function integerEnv(name, fallback, min, max) {
-  const value = Number(process.env[name]);
-  return Number.isFinite(value) ? Math.max(min, Math.min(max, Math.round(value))) : fallback;
-}
-
-function codeRunnerConfig() {
-  return {
-    baseUrl: String(process.env.JUDGE0_BASE_URL || 'https://ce.judge0.com').replace(/\/$/, ''),
-    apiKey: String(process.env.JUDGE0_API_KEY || ''),
-    apiKeyHeader: String(process.env.JUDGE0_API_KEY_HEADER || 'X-Auth-Token'),
-    rapidHost: String(process.env.JUDGE0_RAPIDAPI_HOST || ''),
-    codeMax: integerEnv('CODE_MAX_BYTES', 65536, 1024, 262144),
-    stdinMax: integerEnv('STDIN_MAX_BYTES', 16384, 0, 65536),
-    outputMax: integerEnv('OUTPUT_MAX_BYTES', 32768, 1024, 131072),
-    cpuSeconds: integerEnv('CODE_CPU_SECONDS', 5, 1, 15),
-    wallSeconds: integerEnv('CODE_WALL_SECONDS', 10, 2, 30),
-    memoryKb: integerEnv('CODE_MEMORY_KB', 131072, 32768, 262144)
-  };
-}
-
-function limitedOutput(value, maxBytes) {
-  const raw = String(value || '');
-  return Buffer.byteLength(raw, 'utf8') <= maxBytes ? raw : `${raw.slice(0, maxBytes)}\n… تم اختصار المخرجات`;
+const { codeRunnerConfig, validateEndpointAddresses, limitedOutput, boundedJson, statusId, submissionToken: validateSubmissionToken, numericResult, assertProviderCapabilities } = require('./lib/code-runner-policy');
+let activeCodeRuns = 0;
+let codeProviderCheck = null;
+async function ensureCodeProvider(config, headers, signal) {
+  const key = hash(`${config.baseUrl}:${config.apiKeyHeader}:${config.apiKey}:${config.rapidHost}:${config.cpuSeconds}:${config.wallSeconds}:${config.memoryKb}:${config.maxProcesses}`);
+  if (codeProviderCheck?.key === key && codeProviderCheck.expiresAt > Date.now()) return codeProviderCheck.promise;
+  const promise = (async () => {
+    const response = await fetch(`${config.baseUrl}/config_info`, { method: 'GET', headers, signal, redirect: 'error' });
+    if (!response.ok) throw new Error('judge0-provider-configuration');
+    assertProviderCapabilities(await boundedJson(response, 16384), config);
+  })();
+  codeProviderCheck = { key, promise, expiresAt: Date.now() + 5 * 60 * 1000 };
+  try { await promise; } catch (error) { if (codeProviderCheck?.promise === promise) codeProviderCheck = null; throw error; }
 }
 
 exports.getCodeLanguages = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 15 }, async () => ({
@@ -4769,13 +4803,13 @@ async function platformHealthPayload() {
     db.collection('settings').doc('platform').get(),
     db.collection('groups').limit(1).get()
   ]);
-  const runner = codeRunnerConfig();
+  let runner;
   let codeRunnerConfigured = false;
   try {
-    const endpoint = new URL(runner.baseUrl);
-    codeRunnerConfigured = ['http:', 'https:'].includes(endpoint.protocol) && CODE_LANGUAGES.length > 0;
+    runner = codeRunnerConfig();
+    codeRunnerConfigured = CODE_LANGUAGES.length > 0;
   } catch (_) { /* Invalid custom endpoint: report the service as unavailable. */ }
-  const customCodeRunner = Boolean(process.env.JUDGE0_BASE_URL || runner.apiKey);
+  const customCodeRunner = Boolean(process.env.JUDGE0_BASE_URL || runner?.apiKey);
   return {
     status: 'ok',
     version: PLATFORM_VERSION,
@@ -4819,8 +4853,9 @@ exports.getPlatformHealthHttp = onRequest({ region:'europe-west1', timeoutSecond
 });
 
 exports.submitCodeExecution = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 30, memory: '256MiB' }, async request => {
-  const config = codeRunnerConfig();
-  const language = CODE_LANGUAGES.find(item => item.key === String(request.data?.language || ''));
+  let config;
+  try { config = codeRunnerConfig(); } catch (_) { throw new HttpsError('unavailable', 'خدمة تشغيل الأكواد غير متاحة حاليًا.'); }
+  const language = typeof request.data?.language === 'string' && CODE_LANGUAGES.find(item => item.key === request.data.language);
   if (!language) throw new HttpsError('invalid-argument', 'لغة البرمجة غير مدعومة.');
   const sourceCode = String(request.data?.sourceCode || '');
   const stdin = String(request.data?.stdin || '');
@@ -4829,8 +4864,10 @@ exports.submitCodeExecution = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 30, 
   if (Buffer.byteLength(stdin, 'utf8') > config.stdinMax) throw new HttpsError('invalid-argument', 'بيانات الإدخال أكبر من الحد المسموح.');
   // The practical lab is public. Abuse is limited per visitor IP while code is
   // still executed in Judge0 without network access and with strict resources.
-  const visitorIdentity = requestIp(request) || text(request.data?.visitorId, 80) || 'anonymous';
-  await rateLimitPublic('code-run-public', visitorIdentity, request, 6, 20, 60 * 1000);
+  const visitorIdentity = `${requestIp(request)}:${text(request.data?.visitorId, 80) || 'anonymous'}`;
+  await rateLimitPublic('code-run-public', visitorIdentity, request, 6, config.ipRuns, 60 * 1000);
+  if (activeCodeRuns >= 4) throw new HttpsError('resource-exhausted', 'خدمة التشغيل مشغولة. حاول مرة أخرى بعد لحظات.');
+  activeCodeRuns += 1;
 
   const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
   if (config.apiKey) headers[config.apiKeyHeader] = config.apiKey;
@@ -4846,54 +4883,62 @@ exports.submitCodeExecution = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 30, 
     wall_time_limit: config.wallSeconds,
     memory_limit: config.memoryKb,
     enable_network: false,
-    max_file_size: 1024
+    max_file_size: 1024,
+    max_processes_and_or_threads: config.maxProcesses,
+    enable_per_process_and_thread_time_limit: false,
+    enable_per_process_and_thread_memory_limit: false
   };
   let response;
   let data;
   try {
+    await Promise.race([
+      validateEndpointAddresses(config),
+      new Promise((_, reject) => controller.signal.addEventListener('abort', () => reject(Object.assign(new Error('timeout'), { name: 'AbortError' })), { once: true }))
+    ]);
+    await ensureCodeProvider(config, headers, controller.signal);
     // Judge0 documents that wait=true is not enabled on every host and does
     // not scale well. Submit asynchronously, then poll the returned token so
     // the lab works with both managed and self-hosted Judge0 deployments.
     response = await fetch(`${judge0Base}/submissions?base64_encoded=false&wait=false`, {
-      method: 'POST', headers, signal: controller.signal,
+      method: 'POST', headers, signal: controller.signal, redirect: 'error',
       body: JSON.stringify(submissionBody)
     });
     if (!response.ok) throw new Error(`judge0-submit-${response.status}`);
-    data = await response.json();
-    const submissionToken = text(data.token, 120);
-    if (submissionToken && (!data.status || Number(data.status.id || 0) <= 2)) {
+    data = await boundedJson(response, config.outputMax * 4 + 8192);
+    const submissionToken = data.token === undefined ? null : validateSubmissionToken(data.token);
+    if (data.status) statusId(data);
+    if (submissionToken && (!data.status || statusId(data) <= 2)) {
       for (let attempt = 0; attempt < 40; attempt += 1) {
         await new Promise(resolve => setTimeout(resolve, 450));
         const resultUrl = `${judge0Base}/submissions/${encodeURIComponent(submissionToken)}?base64_encoded=false`;
         let poll = await fetch(`${resultUrl}&fields=stdout,time,memory,stderr,compile_output,message,status,exit_code`, {
-          method: 'GET', headers, signal: controller.signal
+          method: 'GET', headers, signal: controller.signal, redirect: 'error'
         });
         // Some Judge0 gateways intermittently return 400 while a new token is
         // propagating, or reject the optional fields list. Retry the plain
         // result route before treating the public lab as unavailable.
-        if (poll.status === 400) poll = await fetch(resultUrl, { method: 'GET', headers, signal: controller.signal });
+        if (poll.status === 400) poll = await fetch(resultUrl, { method: 'GET', headers, signal: controller.signal, redirect: 'error' });
         if (!poll.ok) {
           if ([400, 404, 408, 409, 425, 429, 500, 502, 503, 504].includes(poll.status) && attempt < 8) continue;
           throw new Error(`judge0-poll-${poll.status}`);
         }
-        data = await poll.json();
-        if (Number(data.status?.id || 0) > 2) break;
+        data = await boundedJson(poll, config.outputMax * 4 + 8192);
+        if (statusId(data) > 2) break;
       }
     }
-    if (!data.status || Number(data.status.id || 0) <= 2) throw new Error('judge0-timeout');
+    if (!data.status || statusId(data) <= 2) throw new Error('judge0-timeout');
   } catch (error) {
-    let message = String(error?.message || '');
-    // A synchronous retry is safe here because submitted programs run in an
-    // isolated sandbox with networking disabled. It covers Judge0 providers
-    // whose asynchronous token endpoint is temporarily inconsistent.
-    if (error?.name !== 'AbortError' && /judge0-poll-(?:400|404|408|409|425|429|5\d\d)/.test(message)) {
+    let message = String(error?.message || 'judge0-provider-failure');
+    // One compatibility retry is retained only for an unavailable token route.
+    // Never duplicate a submission because of provider throttling/server errors.
+    if (error?.name !== 'AbortError' && /judge0-poll-(?:400|404)$/.test(message)) {
       try {
         const fallback = await fetch(`${judge0Base}/submissions?base64_encoded=false&wait=true`, {
-          method: 'POST', headers, signal: controller.signal, body: JSON.stringify(submissionBody)
+          method: 'POST', headers, signal: controller.signal, redirect: 'error', body: JSON.stringify(submissionBody)
         });
         if (!fallback.ok) throw new Error(`judge0-sync-${fallback.status}`);
-        data = await fallback.json();
-        if (!data.status || Number(data.status.id || 0) <= 2) throw new Error('judge0-sync-timeout');
+        data = await boundedJson(fallback, config.outputMax * 4 + 8192);
+        if (!data.status || statusId(data) <= 2) throw new Error('judge0-sync-timeout');
         message = '';
       } catch (fallbackError) {
         error = fallbackError;
@@ -4901,23 +4946,29 @@ exports.submitCodeExecution = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 30, 
       }
     }
     if (message) {
-      throw new HttpsError('unavailable', error?.name === 'AbortError' || /timeout/.test(message) ? 'انتهت مهلة تشغيل الكود.' : `خدمة تشغيل الأكواد غير متاحة حاليًا${/judge0-(?:submit|poll|sync)-\d+/.test(message) ? ` (${message.replace('judge0-', '')})` : ''}.`);
+      throw new HttpsError('unavailable', error?.name === 'AbortError' || /timeout/.test(message) ? 'انتهت مهلة تشغيل الكود.' : `خدمة تشغيل الأكواد غير متاحة حاليًا${/^judge0-(?:submit|poll|sync)-\d{3}$/.test(message) ? ` (${message.replace('judge0-', '')})` : ''}.`);
     }
-  } finally { clearTimeout(timeout); }
+  } finally { clearTimeout(timeout); activeCodeRuns -= 1; }
   const runId = crypto.randomUUID();
+  const resultToken = crypto.randomBytes(32).toString('base64url');
+  const publicText = value => typeof value === 'string' ? (config.apiKey ? value.replaceAll(config.apiKey, '[REDACTED]') : value) : '';
   const result = {
     runId,
-    status: text(data.status?.description || 'Unknown', 80),
-    stdout: limitedOutput(data.stdout, config.outputMax),
-    stderr: limitedOutput(data.stderr, config.outputMax),
-    compileOutput: limitedOutput(data.compile_output, config.outputMax),
-    message: limitedOutput(data.message, config.outputMax),
-    time: text(data.time, 30),
-    memory: Number(data.memory || 0),
-    exitCode: data.exit_code ?? null
+    resultToken,
+    status: text(publicText(data.status?.description) || 'Unknown', 80),
+    /* status validated before remote values reach the result */
+    stdout: limitedOutput(publicText(data.stdout), config.outputMax),
+    stderr: limitedOutput(publicText(data.stderr), config.outputMax),
+    compileOutput: limitedOutput(publicText(data.compile_output), config.outputMax),
+    message: limitedOutput(publicText(data.message), config.outputMax),
+    time: numericResult(data.time, 0, 3600) === null ? '' : String(numericResult(data.time, 0, 3600)),
+    memory: numericResult(data.memory, 0, config.memoryKb) ?? 0,
+    exitCode: numericResult(data.exit_code, 0, 255, true)
   };
+  const { resultToken: _privateCapability, ...storedResult } = result;
   await db.collection('code_execution_runs').doc(runId).set({
-    ...result,
+    ...storedResult,
+    resultTokenHash: hash(resultToken),
     visitorHash: hash(visitorIdentity),
     ipHash: hash(requestIp(request)),
     language: language.key,
@@ -4930,11 +4981,13 @@ exports.submitCodeExecution = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 30, 
 
 exports.getCodeExecutionResult = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 15 }, async request => {
   const runId = text(request.data?.runId, 80);
-  if (!/^[0-9a-f-]{36}$/i.test(runId)) throw new HttpsError('invalid-argument', 'رقم عملية التشغيل غير صالح.');
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(runId)) throw new HttpsError('invalid-argument', 'رقم عملية التشغيل غير صالح.');
   const snap = await db.collection('code_execution_runs').doc(runId).get();
   if (!snap.exists) throw new HttpsError('not-found', 'نتيجة التشغيل انتهت أو غير موجودة.');
   const data = snap.data();
-  if (data.ipHash !== hash(requestIp(request))) throw new HttpsError('permission-denied', 'هذه النتيجة تخص جلسة أخرى.');
+  const resultToken = typeof request.data?.resultToken === 'string' ? request.data.resultToken : '';
+  if (!/^[A-Za-z0-9_-]{43}$/.test(resultToken) || !/^[a-f0-9]{64}$/.test(data.resultTokenHash || '') || !crypto.timingSafeEqual(Buffer.from(hash(resultToken)), Buffer.from(data.resultTokenHash))) throw new HttpsError('permission-denied', 'هذه النتيجة تخص جلسة أخرى.');
+  if (!data.expiresAt?.toMillis || data.expiresAt.toMillis() <= Date.now()) throw new HttpsError('not-found', 'نتيجة التشغيل انتهت أو غير موجودة.');
   return {
     runId,
     status: data.status || '', stdout: data.stdout || '', stderr: data.stderr || '',
@@ -4943,8 +4996,7 @@ exports.getCodeExecutionResult = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 1
   };
 });
 
-// ---------------------------------------------------------------------------
-// Curriculum V61: server-owned content, progress and idempotent migration.
+// -------------------------------------------------// Curriculum V61: server-owned content, progress and idempotent migration.
 // ---------------------------------------------------------------------------
 const CURRICULUM_COLLECTIONS = new Set([
   'curriculum', 'units', 'lectures', 'lecture_materials', 'assignments_v2',
@@ -5143,13 +5195,13 @@ function contentIsOpen(data, now = Timestamp.now()) {
 }
 
 function bankLessonVisible(lesson, source, student) {
-  if (!lesson || !learningTargetMatchesStudent(lesson, student)) return false;
+  if (!lesson || !learningTargetMatchesStudent(lesson, student) || !reusableContentAccessAllowed(lesson, student)) return false;
   if (source !== 'materials') return contentIsOpen(lesson);
   return reusableLearningContentIsVisible(lesson);
 }
 
 async function visibleQuestionBanks(documents, student, materialDocs = []) {
-  const candidates = documents.filter(doc => contentIsOpen(doc.data() || {}) && learningTargetMatchesStudent(doc.data() || {}, student));
+  const candidates = documents.filter(doc => contentIsOpen(doc.data() || {}) && learningTargetMatchesStudent(doc.data() || {}, student) && reusableContentAccessAllowed(doc.data() || {}, student));
   const parents = new Map(materialDocs.map(doc => [`materials/${doc.id}`, doc.data()]));
   const missing = new Map();
   const keyOf = row => `${row.lectureSource === 'materials' ? 'materials' : 'lectures'}/${curriculumId(row.lectureId)}`;
@@ -5195,8 +5247,8 @@ exports.getStudentCurriculum = onCall(CALLABLE_OPTIONS, async request => {
   ]);
   const progress = new Map(progressSnap.docs.map(doc => [doc.id, doc.data()]));
   const now = Timestamp.now();
-  const lectures = lectureDocs.filter(doc => learningTargetMatchesStudent(doc.data(), student) && contentIsOpen(doc.data(), now)).map(doc => publicLecture(doc.data(), doc.id, progress.get(doc.id))).sort((a,b)=>a.order-b.order);
-  const units = unitDocs.filter(doc => learningTargetMatchesStudent(doc.data(), student) && contentIsOpen(doc.data(), now)).map(doc => ({ id: doc.id, title: text(doc.data().title, 220), term: text(doc.data().term, 40), order: Number(doc.data().order || 0) })).sort((a,b)=>a.order-b.order);
+  const lectures = lectureDocs.filter(doc => learningTargetMatchesStudent(doc.data(), student) && contentIsOpen(doc.data(), now) && reusableContentAccessAllowed(doc.data(), student)).map(doc => publicLecture(doc.data(), doc.id, progress.get(doc.id))).sort((a,b)=>a.order-b.order);
+  const units = unitDocs.filter(doc => learningTargetMatchesStudent(doc.data(), student) && contentIsOpen(doc.data(), now) && reusableContentAccessAllowed(doc.data(), student)).map(doc => ({ id: doc.id, title: text(doc.data().title, 220), term: text(doc.data().term, 40), order: Number(doc.data().order || 0) })).sort((a,b)=>a.order-b.order);
   const completed = lectures.filter(item => item.progress >= 100).length;
   return { student: { code, name: text(student.name || student.studentName, 100), grade, term: text(student.term, 40) }, units, lectures, overallProgress: lectures.length ? Math.round(completed / lectures.length * 100) : 0 };
 });
@@ -5210,10 +5262,10 @@ exports.getLectureContent = onCall(CALLABLE_OPTIONS, async request => {
   if (!lectureSnap.exists || !contentIsOpen(lectureSnap.data())) throw new HttpsError('not-found', 'المحاضرة غير متاحة.');
   const student = found.data || {}, lecture = lectureSnap.data();
   requireApprovedStudent(student);
-  if (!learningTargetMatchesStudent(lecture, student)) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الطالب.');
+  if (!learningTargetMatchesStudent(lecture, student) || !reusableContentAccessAllowed(lecture, student)) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الطالب.');
   const queryVisible = async collection => {
     const snap = await db.collection(collection).where('lectureId', '==', lectureId).orderBy('order', 'asc').limit(50).get();
-    return snap.docs.filter(doc => contentIsOpen(doc.data()) && learningTargetMatchesStudent(doc.data(), student) && (collection !== 'question_banks' || doc.data().lectureSource !== 'materials')).map(doc => {
+    return snap.docs.filter(doc => contentIsOpen(doc.data()) && learningTargetMatchesStudent(doc.data(), student) && reusableContentAccessAllowed(doc.data(), student) && (collection !== 'question_banks' || doc.data().lectureSource !== 'materials')).map(doc => {
       const data = doc.data();
       const safe = { id: doc.id, sourceCollection: collection, title: text(data.title, 220), description: text(data.description, 4000), questionType: text(data.questionType, 60), points: Number(data.points || 0), filePath: text(data.filePath, 500) };
       if (collection === 'question_banks') safe.content = text(data.content, 50000);
@@ -5236,7 +5288,7 @@ exports.recordLectureProgress = onCall(CALLABLE_OPTIONS, async request => {
   requireApprovedStudent(found.data);
   let sourceCollection=requestedSource,lectureSnap=requestedSnap;
   if(!lectureSnap.exists&&requestedSource==='lectures'){sourceCollection='materials';lectureSnap=await db.collection('materials').doc(lectureId).get();}
-  const lecture=lectureSnap.exists?lectureSnap.data()||{}:{},materialStatus=String(lecture.status||'').trim().toLowerCase(),visible=sourceCollection==='lectures'?contentIsOpen(lecture):(lecture.active!==false&&lecture.published!==false&&!['مسودة','مخفي','draft','hidden'].includes(materialStatus)&&lecture.archived!==true&&contentAvailableAfterStudentJoined(lecture,found.data));
+  const lecture=lectureSnap.exists?lectureSnap.data()||{}:{},visible=(sourceCollection==='lectures'?contentIsOpen(lecture):reusableLearningContentIsVisible(lecture))&&reusableContentAccessAllowed(lecture,found.data);
   if (!lectureSnap.exists || !visible || !learningTargetMatchesStudent(lecture, found.data)) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الطالب.');
   const percent = Math.max(0, Math.min(100, Number(request.data?.percent || 0)));
   const progressRef = db.collection('student_progress').doc(code),lectureProgressRef=progressRef.collection('lectures').doc(lectureId),monthKey=cairoDateKey(new Date()).slice(0,7),monthlyEventRef=progressRef.collection('monthly_events').doc(cleanDocId(`${monthKey}_${lectureId}`)),analyticsRef=db.collection('theory_lecture_progress').doc(hash(`${lectureId}|${code}`).slice(0,48));
@@ -5276,8 +5328,8 @@ exports.getCurriculumFileUrl = onCall(CALLABLE_OPTIONS, async request => {
   if (!['lectures','lecture_materials','assignments_v2','question_banks','bank_questions','monthly_exams'].includes(collection)) throw new HttpsError('invalid-argument', 'نوع الملف غير صالح.');
   const [found, snap] = await Promise.all([getStudentPortalByCode(code), db.collection(collection).doc(id).get()]);
   requireApprovedStudent(found.data);
-  if (!snap.exists || !contentIsOpen(snap.data()) || !learningTargetMatchesStudent(snap.data(), found.data)) throw new HttpsError('permission-denied', 'الملف غير متاح لهذا الطالب.');
-  if (collection === 'question_banks' && !(await visibleQuestionBanks([snap], found.data)).length) throw new HttpsError('permission-denied', 'الدرس المرتبط بالملف غير متاح لهذا الطالب.');
+  if (!snap.exists || !contentIsOpen(snap.data()) || !learningTargetMatchesStudent(snap.data(), found.data) || !reusableContentAccessAllowed(snap.data(), found.data)) throw new HttpsError('permission-denied', 'الملف غير متاح لهذا الطالب.');
+  if (['lecture_materials','assignments_v2','question_banks','bank_questions','monthly_exams'].includes(collection) && !(await visibleQuestionBanks([snap], found.data)).length) throw new HttpsError('permission-denied', 'الدرس المرتبط بالملف غير متاح لهذا الطالب.');
   const path = text(snap.data().filePath, 500);
   if (!path) throw new HttpsError('not-found', 'لا يوجد ملف مرتبط.');
   const [url] = await admin.storage().bucket().file(path).getSignedUrl({ action: 'read', expires: Date.now() + 10 * 60 * 1000 });

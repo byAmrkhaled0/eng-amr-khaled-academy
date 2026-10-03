@@ -74,7 +74,9 @@ test('report cache invalidates after a corrected grade and never exposes interna
  await functions.invalidateReport_grades.run({data:{before,after},params:{id:'review-grade'}});
  const second=await call('getStudentMonthlyReportAdmin',{studentCode:code,monthKey:'2026-09'});assert.equal(second.results.average,88);
  const profile=await call('getStudentAdminProfile',{studentCode:code,academicYear,month});assert.equal(profile.monthlyReport.attendance.percentage,second.attendance.percentage);assert.equal(profile.monthlyReport.results.average,second.results.average);assert.equal(profile.monthlyReport.homework.required,second.homework.required);assert.equal(profile.monthlyReport.results.rows.find(row=>row.examId==='review-september-exam').score,13);
- const ranked=await call('getStudentMonthlyReportAdmin',{studentCode:code,monthKey:'2026-09',includeRanking:true});assert.equal(ranked.motivation.rank,1);assert.equal(ranked.motivation.totalStudents,1);assert.equal(ranked.motivation.level,'يحتاج متابعة');
+ const ranked=await call('getStudentMonthlyReportAdmin',{studentCode:code,monthKey:'2026-09',includeRanking:true});assert.equal(ranked.motivation.rank,1);assert.equal(ranked.motivation.totalStudents,1);// REVIEW_REPORT_AR documents monthly academic/commitment weights; the label follows the monthly score, not the independently weighted leaderboard score.
+ assert.equal(first.academicScore,68);assert.equal(first.commitmentScore,63);assert.equal(first.overallScore,66);assert.equal(second.academicScore,88);assert.equal(second.commitmentScore,63);assert.equal(second.overallScore,78);assert.equal(ranked.motivation.score,69);
+ assert.equal(ranked.motivation.level,'جيد جدًا');
 });
 
 test('dashboard pages the complete 1201-student and 610-summary period on Firestore',async()=>{

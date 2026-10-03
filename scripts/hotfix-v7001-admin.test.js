@@ -13,6 +13,7 @@ function adminHarness(){
     adminWorkspaceContext:()=>({academicYear:'2026/2027',month}),adminReportMonthKey:()=>month==='سبتمبر'?'2026-09':'2026-10',
     stCode:st=>st.studentCode,aToast:()=>{},adminActionErrorMessage:error=>error.message,
     normalizeStudent:st=>st,adminPaymentStatus:()=>null,safe:value=>String(value),Promise};
+  vm.createContext(context);require('./testing/render-actions')(context);
   vm.runInNewContext(admin.slice(admin.indexOf('const adminStudentMetrics='),admin.indexOf('function badgeStatus(')),context);
   vm.runInNewContext(admin.slice(admin.indexOf('function studentMobileCards('),admin.indexOf('function renderStudents(')),context);
   return {context,setMonth:value=>{month=value;},calls:()=>calls,refreshes:()=>refreshes,resolve:value=>resolveRequest(value),metrics:st=>context.calcStudentAdmin(st),card:st=>context.studentMobileCards([st])};

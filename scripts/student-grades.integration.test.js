@@ -18,10 +18,10 @@ test('actual homework correction and grade revision reach the student profile wi
  await db.doc('users/'+auth.uid).set({role:'admin',active:true});const studentCode='GRADECORRECT01';
  await db.doc('students/'+studentCode).set({studentCode,studentName:'اختبار التصحيح',active:true,grade:'أساسيات برمجة',academicYear:'2026/2027'});
  await db.doc('homework_submissions/grade-correction').set({studentCode,assignmentId:'grade-lesson',homeworkTitle:'واجب الشروط',score:null,maxScore:10,needsManualReview:true,answers:[{question:'فسر',answer:'مثال',mark:10}],submittedAt:'2026-09-13',attemptNumber:1});
- const before=await call('getStudentAdminProfile',{studentCode});const pending=before.results.find(row=>row.activityId==='grade-lesson');assert.equal(pending.score,null);
+ const before=await call('getStudentAdminProfile',{studentCode,academicYear:'2026/2027',month:'سبتمبر'});const pending=before.homeworks.find(row=>row.assignment.id==='grade-lesson').submission;assert.equal(pending.score,null);
  await call('reviewHomeworkSubmission',{submissionId:'grade-correction',awarded:{0:8}});
- const first=await call('getStudentAdminProfile',{studentCode});assert.equal(first.results.filter(row=>row.activityId==='grade-lesson').length,1);assert.equal(first.results.find(row=>row.activityId==='grade-lesson').percentage,80);
+ const first=await call('getStudentAdminProfile',{studentCode,academicYear:'2026/2027',month:'سبتمبر'});assert.equal(first.homeworks.filter(row=>row.assignment.id==='grade-lesson').length,1);assert.equal(first.homeworks.find(row=>row.assignment.id==='grade-lesson').submission.percentage,80);
  await call('reviewHomeworkSubmission',{submissionId:'grade-correction',awarded:{0:10}});
- const updated=await call('getStudentAdminProfile',{studentCode});assert.equal(updated.results.filter(row=>row.activityId==='grade-lesson').length,1);assert.equal(updated.results.find(row=>row.activityId==='grade-lesson').percentage,100);
+ const updated=await call('getStudentAdminProfile',{studentCode,academicYear:'2026/2027',month:'سبتمبر'});assert.equal(updated.homeworks.filter(row=>row.assignment.id==='grade-lesson').length,1);assert.equal(updated.homeworks.find(row=>row.assignment.id==='grade-lesson').submission.percentage,100);
  const history=await db.collection('homework_review_history').where('submissionId','==','grade-correction').get();assert.equal(history.size,2);assert(history.docs.some(doc=>doc.data().oldGrade===null));
 });

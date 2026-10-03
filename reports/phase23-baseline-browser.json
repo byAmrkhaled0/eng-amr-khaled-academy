@@ -1,0 +1,25 @@
+{
+  "browser": "154.0.8037.92",
+  "cases": [
+    {
+      "withCSP": true,
+      "apiOutput": "Error:\nEvalError: Evaluating a string as JavaScript violates the following Content Security Policy directive because 'unsafe-eval' is not an allowed source of script: script-src 'self' https://www.gstatic.com https://apis.google.com https://vercel.live\".\n\n    at eval (<anonymous>)\n    at blob:http://127.0.0.1:19823/c8133247-bca4-4efa-adb2-f0c19dc37203:1:413\n\nتم التشغيل محليًا لأن خادم التشغيل غير متاح.",
+      "leakOutput": "Error:\nEvalError: Evaluating a string as JavaScript violates the following Content Security Policy directive because 'unsafe-eval' is not an allowed source of script: script-src 'self' https://www.gstatic.com https://apis.google.com https://vercel.live\".\n\n    at eval (<anonymous>)\n    at blob:http://127.0.0.1:19823/62ebda4b-840e-4424-9716-8e01ac1bf2f5:1:413\n\nتم التشغيل محليًا لأن خادم التشغيل غير متاح.",
+      "cacheOutput": "Error:\nEvalError: Evaluating a string as JavaScript violates the following Content Security Policy directive because 'unsafe-eval' is not an allowed source of script: script-src 'self' https://www.gstatic.com https://apis.google.com https://vercel.live\".\n\n    at eval (<anonymous>)\n    at blob:http://127.0.0.1:19823/6f32ed97-c391-49f8-be54-16379378e993:1:413\n\nتم التشغيل محليًا لأن خادم التشغيل غير متاح.",
+      "outbound": [],
+      "timeoutOutput": "CSP prevents eval before loop",
+      "workers": 3
+    },
+    {
+      "withCSP": false,
+      "apiOutput": "{\"indexedDB\":\"object\",\"caches\":\"object\",\"BroadcastChannel\":\"function\",\"EventSource\":\"function\",\"SharedWorker\":\"undefined\",\"Worker\":\"function\",\"WebTransport\":\"function\",\"RTCPeerConnection\":\"undefined\",\"navigator\":\"object\",\"crypto\":\"object\",\"window\":\"undefined\",\"document\":\"undefined\",\"fetch\":\"function\",\"XMLHttpRequest\":\"undefined\",\"WebSocket\":\"undefined\",\"importScripts\":\"function\"}\n\nتم التشغيل محليًا لأن خادم التشغيل غير متاح.",
+      "leakOutput": "PHASE23_SECRET\nprobe-done\n\nتم التشغيل محليًا لأن خادم التشغيل غير متاح.",
+      "cacheOutput": "PHASE23_CACHE_SECRET\n\nتم التشغيل محليًا لأن خادم التشغيل غير متاح.",
+      "outbound": [
+        "PHASE23_SECRET"
+      ],
+      "timeoutOutput": "تعذر الوصول لخادم تشغيل الأكواد مؤقتًا. حاول مرة أخرى بعد لحظات.",
+      "workers": 4
+    }
+  ]
+}

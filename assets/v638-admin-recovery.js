@@ -94,12 +94,10 @@
   };
 
   function replaceInlineArchiveButtons(root,collection,title){
-    root.querySelectorAll('button[onclick]').forEach(button=>{
-      const handler=button.getAttribute('onclick')||'';
-      const pattern=new RegExp(`deleteItem\\('${collection}','([^']+)'\\)`),match=handler.match(pattern);
-      if(!match)return;
-      button.textContent='حذف من المنصة';button.title=title;
-      button.setAttribute('onclick',`removeLearningContent('${collection}','${match[1]}')`);
+    root.querySelectorAll('button[data-tm-action="deleteItem"]').forEach(button=>{
+      let args;try{args=JSON.parse(button.dataset.tmArgs||'[]');}catch(_){return;}
+      if(!Array.isArray(args)||args[0]!==collection||typeof args[1]!=='string')return;
+      button.textContent='حذف من المنصة';button.title=title;button.dataset.tmAction='removeLearningContent';
     });
   }
 
@@ -114,14 +112,14 @@
     root.querySelector('[data-archived-exams-v638]')?.remove();
     const grid=root.querySelector('.admin-exam-grid');if(!grid||!archived.length)return;
     const section=document.createElement('details');section.className='card admin-collapsible';section.dataset.archivedExamsV638='true';
-    section.innerHTML=`<summary>المحذوفة من المنصة <span class="badge warn">${archived.length}</span></summary><div class="admin-detail-body">${archived.slice().reverse().map(exam=>`<div class="admin-content-row"><div><b>${safe(exam.title||'اختبار')}</b><small>${safe(exam.grade||'كل المسارات')} · المحاولات والدرجات محفوظة</small></div><button class="small-btn primary" type="button" onclick="restoreArchivedContent('exams','${safe(exam.id)}')">استعادة للمنصة</button></div>`).join('')}</div>`;
+    section.innerHTML=`<summary>المحذوفة من المنصة <span class="badge warn">${archived.length}</span></summary><div class="admin-detail-body">${archived.slice().reverse().map(exam=>`<div class="admin-content-row"><div><b>${safe(exam.title||'اختبار')}</b><small>${safe(exam.grade||'كل المسارات')} · المحاولات والدرجات محفوظة</small></div><button class="small-btn primary" type="button" ${renderActionAttrs("restoreArchivedContent",["exams",String((exam.id)??'')])}>استعادة للمنصة</button></div>`).join('')}</div>`;
     grid.insertAdjacentElement('afterend',section);
   }
 
   function replaceHomeworkFileArchiveButton(root,assignment){
     const original=root.querySelector('[data-homework-archive]');
     if(!original||!assignment||original.dataset.v638Bound==='true')return;
-    const button=original.cloneNode(true);button.dataset.v638Bound='true';button.textContent='حذف من المنصة';button.title='يختفي من الطلاب مع الاحتفاظ بالتسليمات والدرجات وإمكانية الاستعادة';button.onclick=()=>window.removeLearningContent('assignments',assignment.id);original.replaceWith(button);
+    const button=original.cloneNode(true);button.dataset.v638Bound='true';button.textContent='حذف من المنصة';button.title='يختفي من الطلاب مع الاحتفاظ بالتسليمات والدرجات وإمكانية الاستعادة';button.removeAttribute('onclick');button.dataset.tmAction='removeLearningContent';button.dataset.tmArgs=JSON.stringify(['assignments',String(assignment.id)]);original.replaceWith(button);
   }
 
   function enhanceHomework(){
@@ -132,7 +130,7 @@
     const lists=root.querySelector('.admin-content-lists,.homework-workspace-list');
     if(lists&&archived.length){
       const section=document.createElement('details');section.className='card admin-content-full admin-collapsible';section.dataset.archivedHomeworkV638='true';
-      section.innerHTML=`<summary>الواجبات المحذوفة من المنصة <span class="badge warn">${archived.length}</span></summary><div class="admin-detail-body">${archived.slice().reverse().map(item=>`<div class="admin-content-row"><div><b>${safe(item.title||'واجب')}</b><small>${safe(item.lessonTitle||'')} · التسليمات والدرجات محفوظة</small></div><button class="small-btn primary" type="button" onclick="restoreArchivedContent('assignments','${safe(item.id)}')">استعادة للمنصة</button></div>`).join('')}</div>`;
+      section.innerHTML=`<summary>الواجبات المحذوفة من المنصة <span class="badge warn">${archived.length}</span></summary><div class="admin-detail-body">${archived.slice().reverse().map(item=>`<div class="admin-content-row"><div><b>${safe(item.title||'واجب')}</b><small>${safe(item.lessonTitle||'')} · التسليمات والدرجات محفوظة</small></div><button class="small-btn primary" type="button" ${renderActionAttrs("restoreArchivedContent",["assignments",String((item.id)??'')])}>استعادة للمنصة</button></div>`).join('')}</div>`;
       lists.appendChild(section);
     }
     const selected=document.getElementById('homeworkAttendanceAssignment')?.value||'';

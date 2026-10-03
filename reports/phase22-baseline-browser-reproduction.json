@@ -1,0 +1,16 @@
+{
+  "browser": "154.0.8037.92",
+  "payload": "');globalThis.__tmXss=1;//",
+  "baselineInline": [
+    {
+      "withCurrentCSP": false,
+      "decodedHandler": "editSchedule('');globalThis.__tmXss=1;//')",
+      "sentinel": 1
+    },
+    {
+      "withCurrentCSP": true,
+      "decodedHandler": "editSchedule('');globalThis.__tmXss=1;//')",
+      "sentinel": 1
+    }
+  ]
+}

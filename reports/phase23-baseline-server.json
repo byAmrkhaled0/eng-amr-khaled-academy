@@ -1,0 +1,29 @@
+{
+  "rate": {
+    "differentClassroomVisitorBlockedAfterSixTotalRuns": true
+  },
+  "redirect": {
+    "followed": true,
+    "keyForwarded": true,
+    "sourceForwarded": true
+  },
+  "ownership": {
+    "sameIpDifferentVisitorRead": true,
+    "expiredResultReadable": true
+  },
+  "output": {
+    "requestedBytes": 32768,
+    "returnedBytes": 65575
+  },
+  "limits": {
+    "baseUrl": "http://127.0.0.1:42285",
+    "apiKeyHeader": "X-Auth-Token",
+    "rapidHost": "",
+    "codeMax": 65536,
+    "stdinMax": 16384,
+    "outputMax": 32768,
+    "cpuSeconds": 5,
+    "wallSeconds": 10,
+    "memoryKb": 131072
+  }
+}

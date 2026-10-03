@@ -47,6 +47,7 @@ function studentRecordIsRejected(record = {}) {
 }
 
 module.exports = {
+  normalizeDigits,
   normalizeStudentName,
   studentNameKey,
   recordNameKey,

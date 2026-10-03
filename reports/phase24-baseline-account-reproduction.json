@@ -1,0 +1,10 @@
+{
+  "baseline": "Exact Phase 2.3 source ZIP",
+  "account": {
+    "active": false,
+    "approvalStatus": "rejected"
+  },
+  "saveExamProgressAccepted": true,
+  "submittedResultReturned": true,
+  "noPlaintextTokenSavedInEvidence": true
+}

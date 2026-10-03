@@ -1,0 +1,84 @@
+{
+  "storage": [
+    {
+      "key": "tm-offline-staff-profile-v1",
+      "location": "localStorage",
+      "classification": "CACHE / offline capability hint",
+      "policy": "Not Firebase authentication; requires owner-matched unexpired preparations; lifetime bounded by preparation."
+    },
+    {
+      "key": "tm-portal-session-v64:{mode}:{studentCode}",
+      "location": "sessionStorage",
+      "classification": "BEARER TOKEN",
+      "policy": "256-bit token; mode+code keys; absolute server expiry; no URL use."
+    },
+    {
+      "key": "mf_last_student_code / mf_last_exam_code",
+      "location": "sessionStorage",
+      "classification": "LOGIN SECRET / identifier",
+      "policy": "The access code authenticates login; not equivalent to random 256-bit session capability."
+    },
+    {
+      "key": "Firebase Auth persistence",
+      "location": "SDK-managed IndexedDB/localStorage",
+      "classification": "SECRET: ID/refresh tokens",
+      "policy": "Firebase SDK 10.12.5; application does not manually copy JWTs."
+    },
+    {
+      "key": "exam drafts",
+      "location": "sessionStorage",
+      "classification": "CACHE: sensitive answers",
+      "policy": "Scoped by exam and student; not authentication."
+    },
+    {
+      "key": "homework drafts",
+      "location": "localStorage",
+      "classification": "CACHE: sensitive answers",
+      "policy": "Scoped by assignment/student; expiration policy unchanged; not authorization."
+    },
+    {
+      "key": "tm-staff-fcm-token",
+      "location": "localStorage",
+      "classification": "IDENTIFIER: push delivery token",
+      "policy": "Not session auth; unregister owner checked; current profile checked at delivery."
+    },
+    {
+      "key": "technominds-offline-attendance-v1",
+      "location": "IndexedDB",
+      "classification": "CACHE / prepared capability",
+      "policy": "Owner, preparationId, sessionId, scheduleId, date, expiry; server authenticates sync."
+    },
+    {
+      "key": "technominds_academy_v60_data",
+      "location": "sessionStorage",
+      "classification": "CACHE: private staff dataset",
+      "policy": "Removed on logout; offline restore discards general dataset, copies only prepared attendance fields."
+    },
+    {
+      "key": "Judge0 resultToken",
+      "location": "response / transient memory",
+      "classification": "BEARER CAPABILITY",
+      "policy": "Phase2.3 unchanged; hash-only stored; never navigation URL."
+    }
+  ],
+  "portalScope": "student+mode, bearer replay across IP/UA intentional",
+  "rotation": "fresh on each login, multi-session",
+  "expiryMs": 1800000,
+  "revocation": "current canonical account approval on every protected request; bounded old-ID lookup; projection-only legacy fallback",
+  "tokenLeakageReview": {
+    "applicationIntentionalUrlLoggingFirestorePlaintext": "NONE FOUND",
+    "scope": "Reviewed portal token issuance, payload, storage and error paths; no exhaustive infrastructure/logging proof"
+  },
+  "codeLogin": {
+    "generation": "randomNumericCode uses crypto.randomInt; first nonzero, 8 decimal digits",
+    "space": 90000000,
+    "entropyBitsApprox": 26.42,
+    "perCodePerModePerMinute": 20,
+    "sharedShards": 32,
+    "perShardPerModePerMinute": 94,
+    "aggregateSharedUpperBoundPerModePerMinute": 3008,
+    "clientVisitorIdAuthFactor": false,
+    "defaultIpSource": "socket peer, unknown bucket when absent; trusted proxy opt-in unchanged"
+  },
+  "offlineThreatModel": "An offline capability is a local UI/storage boundary, not tamper-proof against local origin compromise; online sync must reauthorize Firebase staff and server preparation."
+}

@@ -1,0 +1,144 @@
+{
+  "changed": [
+    "404.html",
+    "about.html",
+    "assets/admin.js",
+    "assets/app.js",
+    "assets/curriculum-student.js",
+    "assets/v53-upgrades.js",
+    "assets/v55-admin.js",
+    "assets/v56-fixes.js",
+    "assets/v60-admin-workflow.js",
+    "assets/v60-payments.js",
+    "assets/v638-admin-recovery.js",
+    "assets/v64-admin-operations.js",
+    "exams.html",
+    "index.html",
+    "learning-path.html",
+    "materials.html",
+    "offline.html",
+    "package.json",
+    "parent.html",
+    "practical.html",
+    "privacy.html",
+    "questions.html",
+    "reviews.html",
+    "scripts/admin-attention-v690.test.js",
+    "scripts/admin-experience-v636.test.js",
+    "scripts/admin-ui.behavior.test.js",
+    "scripts/final-regression-v634.test.js",
+    "scripts/hotfix-v7001-admin.test.js",
+    "scripts/platform-v641.test.js",
+    "scripts/run-reliability-integration.js",
+    "scripts/v7003-paper-admin-renderer.test.js",
+    "scripts/v7004-platform-audit.test.js",
+    "scripts/verify.js",
+    "student.html",
+    "teacher-login.html",
+    "terms.html",
+    "theory-lectures.html"
+  ],
+  "new": [
+    "PHASE_2_2_XSS_REPORT_AR.md",
+    "reports/phase22-action-migration.json",
+    "reports/phase22-baseline-browser-reproduction.json",
+    "reports/phase22-file-audit.json",
+    "reports/phase22-test-results.json",
+    "reports/phase22-xss-sink-inventory.json",
+    "scripts/testing/render-actions.js",
+    "scripts/testing/xss-payloads.js",
+    "scripts/xss-baseline-repro.js",
+    "scripts/xss-browser.security.js",
+    "scripts/xss-dom.security.test.js",
+    "scripts/xss-sink-inventory.js",
+    "scripts/xss-storage.security.integration.test.js"
+  ],
+  "protected": {
+    "functions/index.js": {
+      "unchanged": true,
+      "sha256": "3a9468edb8bfa18b984489bb2b0856040c02cfb11af36daf2299b31d703782f6"
+    },
+    "functions/entry.js": {
+      "unchanged": true,
+      "sha256": "7b13b4ab725cacba48f2e1d7de54d976c0718522095a74236387404fc2ade134"
+    },
+    "firestore.rules": {
+      "unchanged": true,
+      "sha256": "ebcf80d9727fd1b57808e183cc08ccf14c0d7c122e20543b9e4213013ffb751d"
+    },
+    "storage.rules": {
+      "unchanged": true,
+      "sha256": "b46e686fd568644c1cae6a89430d9e1c512a66d49b59a222aac0a210f3bb6206"
+    },
+    "service-worker.js": {
+      "unchanged": true,
+      "sha256": "ada44328be857528e9f6b5d38099ad81d4e64a87fb6799077bc23b0a50a13c59"
+    },
+    "assets/admin-entry.js": {
+      "unchanged": true,
+      "sha256": "621cec3ce627b8b1c89f7a597a6b8906a0bbc2d38cc6ecdb219ba81f88e9f660"
+    },
+    "assets/firebase-sync.js": {
+      "unchanged": true,
+      "sha256": "0b5e6c9e33810f9d85cef1dd05bfb3c2f8b86384144f72eb752f8b2fb09b3519"
+    },
+    "assets/offline-attendance.js": {
+      "unchanged": true,
+      "sha256": "786dcc90281f4c878e0e05bf073fbca5d7e822f2e52cd071ef71d6b64a88c796"
+    },
+    "assets/practical.js": {
+      "unchanged": true,
+      "sha256": "2ed03d2b98749155760894ed205121b1bafe9e176093ef8e5cbf9e4447d5190f"
+    },
+    "scripts/build.js": {
+      "unchanged": true,
+      "sha256": "11c88ba3cc827bb4333ca780d6d81645756e93edce7efe5550766d91047bbc00"
+    },
+    "package-lock.json": {
+      "unchanged": true,
+      "sha256": "d6a1118b7f61c1e592de8c2df6b7293d737dafb989072c13e5f7507efc6f2493"
+    },
+    "functions/package-lock.json": {
+      "unchanged": true,
+      "sha256": "15b9885ddd8c09d47f892d9dba24690436c226fc228b1aeec6d58c6686ade327"
+    },
+    "vercel.json": {
+      "unchanged": true,
+      "sha256": "d98f50a8c120651335740b91c53aa111dea23f4eaeaeae93a37c2401eb9ad782"
+    }
+  },
+  "attendanceAndBootstrapFunctions": {
+    "mergeOfflineAttendanceQueue": {
+      "unchanged": true,
+      "sha256": "cd30dabc82718abc9332dd6a508cebab231275e24d47c62f11bdc451402cef0b"
+    },
+    "findAttendance": {
+      "unchanged": true,
+      "sha256": "86bfc594db544b799414bd61c15911f185dde50338adc633be93a28c1aeb5961"
+    },
+    "todayAttendanceRows": {
+      "unchanged": true,
+      "sha256": "4721d0e84f9cff76d1dcc8dd8e40ace8b600124e5a392eb66c3d5a30c1cfbec2"
+    },
+    "attendanceDayAllowed": {
+      "unchanged": true,
+      "sha256": "d0fca1b98a3774096f1f52210f61fd7588f597a6d7f54d1c4d5330730bba6642"
+    },
+    "isoDateAdmin": {
+      "unchanged": true,
+      "sha256": "5cbdb0909a1fd28aa1946f009d019b9435635c530e0a49287bbd5e0342f9e068"
+    },
+    "reloadFromCloud": {
+      "unchanged": true,
+      "sha256": "ba6e7371c61e8c1f57a9b06dd1efe80495cfc28b6fff14422528aa7fb66d8cdb"
+    },
+    "ensureAttendanceCloudDay": {
+      "unchanged": true,
+      "sha256": "bdf8aa64a6b38b5336be103926a30ed9e5724749522115fbbb02b7e6ee4b054a"
+    },
+    "window.setAttendanceStatus": {
+      "unchanged": true,
+      "sha256": "2a1234db5718855eb5cb97c30a8c571df208c7851b3e7c66b286e7b46143c145"
+    }
+  }
+}

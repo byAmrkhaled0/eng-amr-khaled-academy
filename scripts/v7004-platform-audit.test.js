@@ -16,7 +16,7 @@ test('live booking listener updates the final attention renderer without a secon
     GRADES:['أساسيات برمجة'],MONTHS:['سبتمبر'],hydrateIcons(){},saveData(){},console,setTimeout,
     navigator:{onLine:true},Intl,Notification:undefined};
   context.window=context;
-  vm.createContext(context);
+  vm.createContext(context);require('./testing/render-actions')(context);
   vm.runInContext(read('assets/admin.js'),context,{filename:'assets/admin.js'});
   vm.runInContext(read('assets/v64-admin-operations.js'),context,{filename:'assets/v64-admin-operations.js'});
   let subscription,reads=0,bookingsPage=0;
@@ -33,9 +33,7 @@ test('live booking listener updates the final attention renderer without a secon
   assert.match(body.innerHTML,/أساسيات برمجة.*السبت/);
   assert.equal(node('adminAttentionCount').textContent,'2');
   assert.equal(reads,1,'no extra Firebase callable on booking arrival');
-  const action=body.innerHTML.match(/onclick="([^"]+)"[^>]*><span class="admin-attention-avatar-v69">م/);
-  assert.ok(action);
-  vm.runInContext(action[1],context);
+  const {JSDOM}=require('jsdom'),dom=new JSDOM(body.innerHTML);const action=[...dom.window.document.querySelectorAll('[data-tm-action]')].find(button=>button.textContent.includes('محمد اختبار'));assert.ok(action);context.invokeRenderAction(action);dom.window.close();
   assert.equal(bookingsPage,1);
   node('adminAttentionPanel').hidden=false;
   subscription([{...booking,status:'مرفوض'}],[]);

@@ -113,7 +113,7 @@ test('logout reports server sign-out failures instead of claiming success',async
   assert.ok(start>0&&end>start);
   let reloaded=false,feedback='';
   const window={OfflineAttendance:{counts:async()=>({total:0})},MFCloud:{signOut:async()=>{throw Error('offline');}}};
-  const context={window,console,confirm:()=>true,OFFLINE_STAFF_PROFILE_KEY:'profile',localStorage:{removeItem(){}},location:{reload(){reloaded=true;}},aToast:value=>{feedback=value;},adminActionErrorMessage:(error)=>error.message};
+  const context={currentStaff:{uid:'test-admin'},window,console,confirm:()=>true,OFFLINE_STAFF_PROFILE_KEY:'profile',localStorage:{removeItem(){}},location:{reload(){reloaded=true;}},aToast:value=>{feedback=value;},adminActionErrorMessage:(error)=>error.message};
   vm.runInNewContext(admin.slice(start,end),context);
   await context.window.adminLogout();
   assert.equal(reloaded,false);
@@ -133,7 +133,7 @@ test('offline attendance keeps the cached verified staff path after auth refresh
   const dom=new JSDOM(read('teacher-login.html'),{url:'https://example.test/teacher-login.html',runScripts:'outside-only'});
   const {window}=dom,{document}=window;
   Object.defineProperty(window.navigator,'onLine',{value:false,configurable:true});
-  window.localStorage.setItem('tm-offline-staff-profile-v1',JSON.stringify({allowed:true,uid:'admin',expiresAt:Date.now()+60000}));
+  window.localStorage.setItem('tm-offline-staff-profile-v1',JSON.stringify({allowed:true,role:'admin',uid:'admin',expiresAt:Date.now()+60000}));
   let observer,loads=0;
   window.MFCloud={ready:true,auth:{onIdTokenChanged(fn){observer=fn;}},getCurrentStaffProfile:async()=>{throw Error('offline');}};
   document.body.appendChild=node=>{if(node.tagName==='SCRIPT'){loads++;if(node.src.includes('v638-admin-recovery'))window.__tmAdminRenderReady=Promise.resolve();queueMicrotask(()=>node.onload?.());return node;}throw Error('unexpected append');};

@@ -1,0 +1,48 @@
+{
+  "provider": "https://ce.judge0.com",
+  "safeOutboundTCPProbeOnly": true,
+  "destination": "1.1.1.1:80",
+  "controlledPositiveProviderProbe": false,
+  "limits": {
+    "processes": 128,
+    "memoryKb": 131072
+  },
+  "results": [
+    {
+      "language": "javascript",
+      "status": {
+        "id": 3,
+        "description": "Accepted"
+      },
+      "stdout": "NETWORK_BLOCKED:ENETUNREACH\n",
+      "stderr": null,
+      "compile_output": null,
+      "memory": 7596,
+      "pass": true
+    },
+    {
+      "language": "python",
+      "status": {
+        "id": 3,
+        "description": "Accepted"
+      },
+      "stdout": "NETWORK_BLOCKED:OSError:101\n",
+      "stderr": null,
+      "compile_output": null,
+      "memory": 4068,
+      "pass": true
+    },
+    {
+      "language": "c",
+      "status": {
+        "id": 3,
+        "description": "Accepted"
+      },
+      "stdout": "NETWORK_BLOCKED:101\n",
+      "stderr": null,
+      "compile_output": null,
+      "memory": 1152,
+      "pass": true
+    }
+  ]
+}

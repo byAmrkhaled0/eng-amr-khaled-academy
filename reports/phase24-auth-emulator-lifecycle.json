@@ -1,0 +1,23 @@
+{
+  "scope": "Disposable Auth Emulator; not production fidelity proof",
+  "evidence": [
+    {
+      "action": "revokeRefreshTokens",
+      "existingIdTokenWithoutRevocationCheck": "auth/id-token-revoked",
+      "withRevocationCheck": "auth/id-token-revoked",
+      "newToken": "DENY"
+    },
+    {
+      "action": "passwordChange",
+      "existingIdTokenWithoutRevocationCheck": "auth/id-token-revoked",
+      "withRevocationCheck": "auth/id-token-revoked",
+      "newToken": "DENY"
+    },
+    {
+      "action": "disable",
+      "existingIdTokenWithoutRevocationCheck": "auth/user-disabled",
+      "withRevocationCheck": "auth/user-disabled",
+      "newToken": "DENY"
+    }
+  ]
+}

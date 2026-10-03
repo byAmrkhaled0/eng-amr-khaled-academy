@@ -1,0 +1,111 @@
+{
+  "npm": {
+    "tests": 435,
+    "pass": 435,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "logSha256": "202dd0f84ee7238d2175f58cffc6c31766efe5d71adfabd7eab253de818a3560"
+  },
+  "node": {
+    "tests": 505,
+    "pass": 505,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "logSha256": "9e0e2778f242f561f83b0ca982eea27509d025f8e4b663f6597895958c0631fe"
+  },
+  "integration-final": {
+    "tests": 462,
+    "pass": 462,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "logSha256": "91df926b996f36c76d25a1ddd169f7320707226b1bec654cff957f8aa96be339"
+  },
+  "rules": {
+    "tests": 14,
+    "pass": 14,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "logSha256": "8e1967530f6b806ed555e25e160b5634e2c245b4fe6cfd71c30836facee455a7"
+  },
+  "browser": {
+    "tests": 22,
+    "pass": 22,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "logSha256": "88c973862727f73e92ef87612aaed13a21af444b01cfd70b994cd365a3ee4272",
+    "groups": {
+      "existingXss": 17,
+      "newRunner": 5
+    }
+  },
+  "date": {
+    "tests": 5,
+    "pass": 5,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "logSha256": "28707b4e8af93d39f4076ca081b6c42bb0c3f53df476a3d2d860268aa44f975a"
+  },
+  "xss-dom": {
+    "tests": 26,
+    "pass": 26,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "logSha256": "22a03fc968e00b80317539f3cbc9e198c0b4b90da11a94043c79343ffd9227f2"
+  },
+  "runner-final": {
+    "tests": 89,
+    "pass": 89,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "logSha256": "2949a108479726eaec0c218a9120e4a0100330e38795132b5dd25444aa2e0d17"
+  },
+  "build": {
+    "tests": 3,
+    "pass": 3,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "logSha256": "c26d2e3ff25e97d50312610a6e23510a79478013393220d7fed96ae5f995c6d8"
+  },
+  "phase23-provider-compatibility.json": {
+    "pass": 12,
+    "fail": 0,
+    "evidenceFile": "phase23-provider-compatibility.json",
+    "limitation": "Safe hello compatibility / negative TCP probes; not hard sandbox stress enforcement"
+  },
+  "phase23-provider-network-probes.json": {
+    "pass": 3,
+    "fail": 0,
+    "evidenceFile": "phase23-provider-network-probes.json",
+    "limitation": "Safe hello compatibility / negative TCP probes; not hard sandbox stress enforcement"
+  },
+  "overlappingSuitesDoNotSum": true,
+  "versions": {
+    "node": "22.23.3",
+    "npm": "10.9.9",
+    "java": "21.0.12.1+1",
+    "firebaseTools": "15.29.0",
+    "chromium": "154.0.8037.92"
+  },
+  "static": {
+    "pages": 16,
+    "originalHandlersRetained": 125,
+    "checkedActions": 127,
+    "missingActions": 0
+  },
+  "providerHardResourceStress": "NOT VERIFIED",
+  "productionActions": {
+    "deploy": false,
+    "push": false,
+    "dataModification": false
+  },
+  "buildExecutedIndirectly": true
+}

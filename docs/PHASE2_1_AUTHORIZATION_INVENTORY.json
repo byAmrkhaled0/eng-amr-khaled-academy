@@ -1,0 +1,909 @@
+{
+  "schemaVersion": 1,
+  "endpoints": [
+    {
+      "name": "activateOwnerAccount",
+      "file": "functions/index.js",
+      "line": 375,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim bootstrap + existing profile revocation"
+    },
+    {
+      "name": "addStudentMotivationPoints",
+      "file": "functions/index.js",
+      "line": 778,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "approveBooking",
+      "file": "functions/index.js",
+      "line": 3457,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "archiveContentItem",
+      "file": "functions/index.js",
+      "line": 1901,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "bulkMarkAttendance",
+      "file": "functions/index.js",
+      "line": 3873,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "cancelPaymentTransaction",
+      "file": "functions/index.js",
+      "line": 709,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "cleanupArchivedStorage",
+      "file": "functions/index.js",
+      "line": 4495,
+      "kind": "onSchedule",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "createBackupNow",
+      "file": "functions/index.js",
+      "line": 4524,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "createBooking",
+      "file": "functions/index.js",
+      "line": 3320,
+      "kind": "onCall",
+      "category": "PUBLIC",
+      "guard": "public contract / endpoint-specific limits"
+    },
+    {
+      "name": "createMonthlyExamPlan",
+      "file": "functions/index.js",
+      "line": 5124,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "createPaymentTransaction",
+      "file": "functions/index.js",
+      "line": 563,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "createReview",
+      "file": "functions/index.js",
+      "line": 3570,
+      "kind": "onCall",
+      "category": "PUBLIC",
+      "guard": "public contract / endpoint-specific limits"
+    },
+    {
+      "name": "createStudentAccess",
+      "file": "functions/index.js",
+      "line": 3095,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "createStudentTransferRequest",
+      "file": "functions/index.js",
+      "line": 1597,
+      "kind": "onCall",
+      "category": "PORTAL-STUDENT",
+      "guard": "server portal session owner + mode + expiry"
+    },
+    {
+      "name": "deleteCurriculumEntity",
+      "file": "functions/index.js",
+      "line": 5111,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "deleteStudentSafely",
+      "file": "functions/index.js",
+      "line": 4697,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "editPaymentTransaction",
+      "file": "functions/index.js",
+      "line": 658,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "finalizeExamAbsences",
+      "file": "functions/index.js",
+      "line": 4076,
+      "kind": "onSchedule",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "finalizeExamAbsencesAdmin",
+      "file": "functions/index.js",
+      "line": 4075,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "freezeLeaderboardMonthAdmin",
+      "file": "functions/index.js",
+      "line": 921,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "freezeMonthlyLeaderboard",
+      "file": "functions/index.js",
+      "line": 922,
+      "kind": "onSchedule",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "getAdminCollectionPage",
+      "file": "functions/index.js",
+      "line": 1926,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "getAdminOperationsDashboard",
+      "file": "functions/index.js",
+      "line": 2325,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "getAdminStudentMetricsBatch",
+      "file": "functions/index.js",
+      "line": 3026,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "getBackupDownloadUrl",
+      "file": "functions/index.js",
+      "line": 4638,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "getBookingStatus",
+      "file": "functions/index.js",
+      "line": 3518,
+      "kind": "onCall",
+      "category": "PUBLIC",
+      "guard": "public contract / endpoint-specific limits"
+    },
+    {
+      "name": "getClassSessionWorkspace",
+      "file": "functions/index.js",
+      "line": 2378,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "getCodeExecutionResult",
+      "file": "functions/index.js",
+      "line": 4949,
+      "kind": "onCall",
+      "category": "PUBLIC",
+      "guard": "public contract / endpoint-specific limits"
+    },
+    {
+      "name": "getCodeLanguages",
+      "file": "functions/index.js",
+      "line": 4777,
+      "kind": "onCall",
+      "category": "PUBLIC",
+      "guard": "public contract / endpoint-specific limits"
+    },
+    {
+      "name": "getCurriculumFileUrl",
+      "file": "functions/index.js",
+      "line": 5290,
+      "kind": "onCall",
+      "category": "PORTAL-STUDENT",
+      "guard": "server portal session owner + mode + expiry"
+    },
+    {
+      "name": "getExamDashboard",
+      "file": "functions/index.js",
+      "line": 4020,
+      "kind": "onCall",
+      "category": "PORTAL-STUDENT",
+      "guard": "server portal session owner + mode + expiry"
+    },
+    {
+      "name": "getHomeworkAdminWorkspace",
+      "file": "functions/index.js",
+      "line": 1874,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "getLectureContent",
+      "file": "functions/index.js",
+      "line": 5222,
+      "kind": "onCall",
+      "category": "PORTAL-STUDENT",
+      "guard": "server portal session owner + mode + expiry"
+    },
+    {
+      "name": "getMotivationLeaderboardAdmin",
+      "file": "functions/index.js",
+      "line": 880,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "getMotivationSettingsAdmin",
+      "file": "functions/index.js",
+      "line": 893,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "getParentMonthlyReport",
+      "file": "functions/index.js",
+      "line": 2290,
+      "kind": "onCall",
+      "category": "PORTAL-PARENT",
+      "guard": "server portal session owner + mode + expiry"
+    },
+    {
+      "name": "getPaymentDashboard",
+      "file": "functions/index.js",
+      "line": 537,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "getPaymentHistory",
+      "file": "functions/index.js",
+      "line": 554,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "getPlatformHealth",
+      "file": "functions/index.js",
+      "line": 4827,
+      "kind": "onCall",
+      "category": "PUBLIC",
+      "guard": "public contract / endpoint-specific limits"
+    },
+    {
+      "name": "getPlatformHealthHttp",
+      "file": "functions/index.js",
+      "line": 4831,
+      "kind": "onRequest",
+      "category": "PUBLIC",
+      "guard": "public contract / endpoint-specific limits"
+    },
+    {
+      "name": "getPortalStudent",
+      "file": "functions/index.js",
+      "line": 1525,
+      "kind": "onCall",
+      "category": "PUBLIC",
+      "guard": "public contract / endpoint-specific limits"
+    },
+    {
+      "name": "getPublicLeaderboard",
+      "file": "functions/index.js",
+      "line": 3071,
+      "kind": "onCall",
+      "category": "PUBLIC",
+      "guard": "public contract / endpoint-specific limits"
+    },
+    {
+      "name": "getStudentAdminProfile",
+      "file": "functions/index.js",
+      "line": 1968,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "getStudentCurriculum",
+      "file": "functions/index.js",
+      "line": 5201,
+      "kind": "onCall",
+      "category": "PORTAL-STUDENT",
+      "guard": "server portal session owner + mode + expiry"
+    },
+    {
+      "name": "getStudentLeaderboardPosition",
+      "file": "functions/index.js",
+      "line": 3081,
+      "kind": "onCall",
+      "category": "PORTAL-STUDENT",
+      "guard": "server portal session owner + mode + expiry"
+    },
+    {
+      "name": "getStudentMonthlyReportAdmin",
+      "file": "functions/index.js",
+      "line": 2278,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "getStudentMotivationAdmin",
+      "file": "functions/index.js",
+      "line": 825,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "getStudentResources",
+      "file": "functions/index.js",
+      "line": 2435,
+      "kind": "onCall",
+      "category": "PORTAL-STUDENT",
+      "guard": "server portal session owner + mode + expiry"
+    },
+    {
+      "name": "getTheoryLectureAnalytics",
+      "file": "functions/index.js",
+      "line": 5275,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "grantHomeworkRetake",
+      "file": "functions/index.js",
+      "line": 2757,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "invalidateReport_assignments",
+      "file": "functions/index.js",
+      "line": 2023,
+      "kind": "onDocumentWritten",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "invalidateReport_attendance",
+      "file": "functions/index.js",
+      "line": 2017,
+      "kind": "onDocumentWritten",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "invalidateReport_class_sessions",
+      "file": "functions/index.js",
+      "line": 2023,
+      "kind": "onDocumentWritten",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "invalidateReport_exam_attempts",
+      "file": "functions/index.js",
+      "line": 2017,
+      "kind": "onDocumentWritten",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "invalidateReport_exam_sessions",
+      "file": "functions/index.js",
+      "line": 2017,
+      "kind": "onDocumentWritten",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "invalidateReport_exams",
+      "file": "functions/index.js",
+      "line": 2023,
+      "kind": "onDocumentWritten",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "invalidateReport_grades",
+      "file": "functions/index.js",
+      "line": 2017,
+      "kind": "onDocumentWritten",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "invalidateReport_groups",
+      "file": "functions/index.js",
+      "line": 2023,
+      "kind": "onDocumentWritten",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "invalidateReport_homework_submissions",
+      "file": "functions/index.js",
+      "line": 2017,
+      "kind": "onDocumentWritten",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "invalidateReport_materials",
+      "file": "functions/index.js",
+      "line": 2023,
+      "kind": "onDocumentWritten",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "invalidateReport_monthly_payments",
+      "file": "functions/index.js",
+      "line": 2017,
+      "kind": "onDocumentWritten",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "invalidateReport_motivation_monthly",
+      "file": "functions/index.js",
+      "line": 2017,
+      "kind": "onDocumentWritten",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "invalidateReport_motivation_transactions",
+      "file": "functions/index.js",
+      "line": 2017,
+      "kind": "onDocumentWritten",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "invalidateReport_recitations",
+      "file": "functions/index.js",
+      "line": 2017,
+      "kind": "onDocumentWritten",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "invalidateReport_student_transfer_requests",
+      "file": "functions/index.js",
+      "line": 2017,
+      "kind": "onDocumentWritten",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "invalidateReport_students",
+      "file": "functions/index.js",
+      "line": 2017,
+      "kind": "onDocumentWritten",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "listAutomaticBackups",
+      "file": "functions/index.js",
+      "line": 4630,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "listCurriculumAdmin",
+      "file": "functions/index.js",
+      "line": 5087,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "logStaffActivity",
+      "file": "functions/index.js",
+      "line": 5038,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "migrateCurriculumV61",
+      "file": "functions/index.js",
+      "line": 5305,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "migrateLegacyPayments",
+      "file": "functions/index.js",
+      "line": 4531,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "migratePlatformV63",
+      "file": "functions/index.js",
+      "line": 2798,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "migrateStudentCodeSafely",
+      "file": "functions/index.js",
+      "line": 3191,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "notifyStaffOnBookingCreated",
+      "file": "functions/index.js",
+      "line": 453,
+      "kind": "onDocumentCreated",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "prepareHomeworkUpload",
+      "file": "functions/index.js",
+      "line": 4373,
+      "kind": "onCall",
+      "category": "PORTAL-STUDENT",
+      "guard": "server portal session owner + mode + expiry"
+    },
+    {
+      "name": "prepareMonthlyParentReports",
+      "file": "functions/index.js",
+      "line": 2298,
+      "kind": "onSchedule",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "prepareOfflineAttendance",
+      "file": "functions/index.js",
+      "line": 3801,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "previewAutomaticBackup",
+      "file": "functions/index.js",
+      "line": 4647,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "recordAttendance",
+      "file": "functions/index.js",
+      "line": 3752,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "recordClassProgress",
+      "file": "functions/index.js",
+      "line": 3591,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "recordLectureProgress",
+      "file": "functions/index.js",
+      "line": 5248,
+      "kind": "onCall",
+      "category": "PORTAL-STUDENT",
+      "guard": "server portal session owner + mode + expiry"
+    },
+    {
+      "name": "recordParentReportDeliveryAdmin",
+      "file": "functions/index.js",
+      "line": 2004,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "regenerateParentAccessCode",
+      "file": "functions/index.js",
+      "line": 3235,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "registerHomeworkSubmission",
+      "file": "functions/index.js",
+      "line": 4399,
+      "kind": "onCall",
+      "category": "PORTAL-STUDENT",
+      "guard": "server portal session owner + mode + expiry"
+    },
+    {
+      "name": "registerTeacherPushToken",
+      "file": "functions/index.js",
+      "line": 428,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "rejectBooking",
+      "file": "functions/index.js",
+      "line": 3542,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "repairLegacyExamFormats",
+      "file": "functions/entry.js",
+      "line": 52,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "reportClientError",
+      "file": "functions/index.js",
+      "line": 4465,
+      "kind": "onCall",
+      "category": "PUBLIC",
+      "guard": "public contract / endpoint-specific limits"
+    },
+    {
+      "name": "restoreAutomaticBackup",
+      "file": "functions/index.js",
+      "line": 4653,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "restoreContentItem",
+      "file": "functions/entry.js",
+      "line": 42,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "reverseStudentMotivationTransaction",
+      "file": "functions/index.js",
+      "line": 839,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "reviewExamAttempt",
+      "file": "functions/index.js",
+      "line": 2683,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "reviewHomeworkSubmission",
+      "file": "functions/index.js",
+      "line": 2649,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "reviewStudentTransferRequest",
+      "file": "functions/index.js",
+      "line": 1647,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "saveExamProgress",
+      "file": "functions/index.js",
+      "line": 4183,
+      "kind": "onCall",
+      "category": "PORTAL-STUDENT",
+      "guard": "server portal session owner + mode + expiry"
+    },
+    {
+      "name": "saveMotivationSettingsAdmin",
+      "file": "functions/index.js",
+      "line": 899,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "savePaperExamGradesAdmin",
+      "file": "functions/index.js",
+      "line": 3932,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "saveStudentPrivateNote",
+      "file": "functions/index.js",
+      "line": 2312,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "scheduledPlatformBackup",
+      "file": "functions/index.js",
+      "line": 4488,
+      "kind": "onSchedule",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "searchStudentsAdmin",
+      "file": "functions/index.js",
+      "line": 1953,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "startExam",
+      "file": "functions/index.js",
+      "line": 4078,
+      "kind": "onCall",
+      "category": "PORTAL-STUDENT",
+      "guard": "server portal session owner + mode + expiry"
+    },
+    {
+      "name": "submitAssignmentAnswer",
+      "file": "functions/index.js",
+      "line": 2475,
+      "kind": "onCall",
+      "category": "PORTAL-STUDENT",
+      "guard": "server portal session owner + mode + expiry"
+    },
+    {
+      "name": "submitCodeExecution",
+      "file": "functions/index.js",
+      "line": 4839,
+      "kind": "onCall",
+      "category": "PUBLIC",
+      "guard": "public contract / endpoint-specific limits"
+    },
+    {
+      "name": "submitExam",
+      "file": "functions/index.js",
+      "line": 4206,
+      "kind": "onCall",
+      "category": "PORTAL-STUDENT",
+      "guard": "server portal session owner + mode + expiry"
+    },
+    {
+      "name": "syncOfflineAttendance",
+      "file": "functions/index.js",
+      "line": 3837,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "unifyLegacyStudentAccess",
+      "file": "functions/index.js",
+      "line": 3304,
+      "kind": "onSchedule",
+      "category": "INTERNAL/TRIGGER/SCHEDULED",
+      "guard": "platform event identity"
+    },
+    {
+      "name": "unifyStudentAccessCodes",
+      "file": "functions/index.js",
+      "line": 3289,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "unregisterTeacherPushToken",
+      "file": "functions/index.js",
+      "line": 437,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "updateStudentSafely",
+      "file": "functions/index.js",
+      "line": 4676,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "upsertClassSession",
+      "file": "functions/index.js",
+      "line": 2366,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "upsertCurriculumEntity",
+      "file": "functions/index.js",
+      "line": 5045,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "upsertGroupSchedule",
+      "file": "functions/index.js",
+      "line": 1722,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    },
+    {
+      "name": "upsertVersionedContent",
+      "file": "functions/index.js",
+      "line": 1806,
+      "kind": "onCall",
+      "category": "ADMIN",
+      "guard": "verified admin claim + users role/active"
+    }
+  ]
+}

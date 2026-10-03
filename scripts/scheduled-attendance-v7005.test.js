@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const root=path.resolve(__dirname,'..'),read=name=>fs.readFileSync(path.join(root,name),'utf8');
 const {actualSessionsForStudent,calculateMonthlyReport,membershipAt}=require('../functions/lib/monthly-report');
-const {attendanceDayDecision}=require('../functions/lib/attendance-domain');
+const {attendanceDayDecision,attendanceDateInWindow}=require('../functions/lib/attendance-domain');
 const backend=read('functions/index.js'),group=new Map([['old',{days:'الثلاثاء والجمعة'}],['new',{days:'الاثنين والخميس'}]]);
 const student={studentCode:'ST1',studentName:'طالب',scheduleId:'old',group:'قديمة',createdAt:'2026-09-15'};
 const session=(id,scheduleId,date,extra={})=>({id,scheduleId,date,...extra});
@@ -44,13 +44,15 @@ test('transfer uses the previous group before effectiveAt and the new group afte
 });
 
 test('server rejects invalid day for manual, QR, bulk, session creation, and offline preparation/sync',async()=>{
+  class FixedDate extends Date {constructor(...args){super(...(args.length?args:['2026-09-23T10:00:00Z']));}static now(){return Date.parse('2026-09-23T10:00:00Z');}}
   const ctx={exports:{},CALLABLE_OPTIONS:{},onCall:(_opts,handler)=>handler,attendanceDayDecision,membershipAt,
     HttpsError:class HttpsError extends Error{constructor(code,message){super(message);this.code=code;}},
     requireStaff:async()=>({uid:'staff',email:'staff@example.com'}),rateLimit:async()=>{},
     text:value=>String(value||''),cleanDocId:value=>String(value||''),canonicalAcademicLabel:value=>value,sameAcademicValue:()=>true,
     normalizeCode:value=>String(value||''),validLegacyOrStrongCode:()=>true,cairoDateKey:value=>typeof value==='string'?value.slice(0,10):'2026-09-23',
     configuredScheduleDays:require('../functions/lib/attendance-domain').configuredScheduleDays,firestoreMillis:()=>Date.now()+100000,
-    FieldValue:{serverTimestamp:()=>''},crypto:{randomUUID:()=> 'request-1'},Date,console};
+    attendanceDateInWindow:(date)=>attendanceDateInWindow(date,new Date('2026-09-23T10:00:00Z')),
+    FieldValue:{serverTimestamp:()=>''},crypto:{randomUUID:()=> 'request-1'},Date:FixedDate,console};
   const user={studentCode:'ST1',name:'طالب',scheduleId:'old',group:'قديمة',grade:'برمجة',attendanceCode:'QR1',active:true};
   const snap=(id,data)=>({id,exists:true,data:()=>data});
   const groupDoc=snap('old',{days:'الثلاثاء والجمعة',name:'قديمة'}),studentDoc=snap('ST1',user);

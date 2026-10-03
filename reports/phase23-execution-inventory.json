@@ -1,0 +1,1083 @@
+{
+  "generatedFrom": "D:\\Users\\amrk7\\Downloads\\eng-amr-khaled-academy-release",
+  "rows": [
+    {
+      "file": "assets/vendor/html5-qrcode-2.3.8.min.js",
+      "line": 1,
+      "category": "VENDOR",
+      "sink": "new Function(",
+      "userControlledProductionPath": "NOT DEMONSTRATED"
+    },
+    {
+      "file": "scripts/admin-dashboard-v674.test.js",
+      "line": 54,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(path.join(root, 'package.json'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/admin-dashboard-v674.test.js",
+      "line": 55,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(path.join(root, 'functions/package.json'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/admin-experience-v636.test.js",
+      "line": 155,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(path.join(root,'package.json'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/admin-redesign-v673.test.js",
+      "line": 66,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(path.join(root, 'package.json'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/admin-redesign-v673.test.js",
+      "line": 67,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(path.join(root, 'functions/package.json'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/assessment-ux-v672.test.js",
+      "line": 69,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(path.join(root, 'package.json'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/assessment-ux-v672.test.js",
+      "line": 70,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(path.join(root, 'functions/package.json'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/attendance-transfer-v7005.test.js",
+      "line": 2,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/attendance-transfer-v7005.test.js",
+      "line": 28,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext([\n    slice('async function attendanceTransferHistory(', 'async function findAttendanceStudentSnapshot('),\n    slice('function attendanceServerP",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/attendance-transfer-v7005.test.js",
+      "line": 72,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(`${snippet}\\nthis.decide=attendanceDayAllowed;`,ctx)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/audit-invalid-attendance.js",
+      "line": 4,
+      "category": "BUILD / LOCAL ADMIN TOOL",
+      "sink": "require",
+      "context": "require(require.resolve('firebase-admin',{paths:[require('node:path').join(__dirname,'../functions')]}))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/backend-compatibility-v6781.test.js",
+      "line": 44,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(path.join(root, 'package.json'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/backend-compatibility-v6781.test.js",
+      "line": 45,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(path.join(root, 'functions/package.json'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/build.js",
+      "line": 7,
+      "category": "BUILD / LOCAL ADMIN TOOL",
+      "sink": "require",
+      "context": "require(path.join(root, 'package.json'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/code-runner-baseline.browser.js",
+      "line": 3,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(process.env.TM_PLAYWRIGHT_MODULE||'playwright-core')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/code-runner-browser.security.js",
+      "line": 3,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(process.env.TM_PLAYWRIGHT_MODULE||'playwright-core')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/code-runner.security.test.js",
+      "line": 33,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:child_process')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/code-runner.security.test.js",
+      "line": 33,
+      "category": "TEST",
+      "sink": "execFileSync",
+      "context": "execFileSync(process.execPath,[path.join(__dirname,'code-execution-inventory.js')],{encoding:'utf8'})",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/exam-phase5.test.js",
+      "line": 7,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/exam-phase5.test.js",
+      "line": 23,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(`${code}\\nthis.input=monthlyReportInput;this.available=reportAvailableMonths;`,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/exam-phase5.test.js",
+      "line": 30,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(`${code}\\nthis.published=examIsPublished;this.open=examIsOpen;`,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/exam-phase5.test.js",
+      "line": 68,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(`${code}\\nthis.get=attemptSummaries;`,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/exam-phase5.test.js",
+      "line": 129,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(`${code}\\nthis.finalize=finalizeExamAbsenceRecords;`,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/exam-phase5.test.js",
+      "line": 150,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(`${code}\\nthis.visible=contentAvailableAfterStudentJoined;`,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/final-student-flow.test.js",
+      "line": 5,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/final-student-flow.test.js",
+      "line": 15,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(`${code}\\nthis.monthlyReportInput=monthlyReportInput;`,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/homework-phase4.test.js",
+      "line": 7,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/homework-phase4.test.js",
+      "line": 61,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(`${code}\\nthis.monthlyReportInput=monthlyReportInput;this.availableMonths=reportAvailableMonths;`,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/homework-phase4.test.js",
+      "line": 77,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(`${code}\\nthis.visible=contentAvailableAfterStudentJoined;`,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/hotfix-v7001-admin.test.js",
+      "line": 5,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/hotfix-v7001-admin.test.js",
+      "line": 17,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(admin.slice(admin.indexOf('const adminStudentMetrics='),admin.indexOf('function badgeStatus(')),context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/hotfix-v7001-admin.test.js",
+      "line": 18,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(admin.slice(admin.indexOf('function studentMobileCards('),admin.indexOf('function renderStudents(')),context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/learning-hub-v670.test.js",
+      "line": 55,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(path.join(root,'package.json'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/lecture-drive-v677.test.js",
+      "line": 54,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(path.join(root, 'package.json'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/lecture-drive-v677.test.js",
+      "line": 55,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(path.join(root, 'functions/package.json'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/mobile-refactor-v671.test.js",
+      "line": 60,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(path.join(root, 'functions/package.json'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/motivation-phase7.test.js",
+      "line": 5,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/motivation-phase7.test.js",
+      "line": 93,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(code,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/motivation-phase7.test.js",
+      "line": 167,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(`${code}\\nthis.getRows=leaderboardRowsForPeriod;`,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/motivation-phase7.test.js",
+      "line": 220,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(callable,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/motivation-phase7.test.js",
+      "line": 263,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(`${code}\\nthis.warningRows=warningRows;this.loadWarnings=loadWarningLeaderboardRows;`,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/payment-lifecycle.test.js",
+      "line": 5,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/payment-lifecycle.test.js",
+      "line": 42,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(`${code}\\nthis.paymentPeriodId=paymentPeriodId;`,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/payment-lifecycle.test.js",
+      "line": 134,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(code,ctx)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/phase1-reliability.test.js",
+      "line": 2,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/phase1-reliability.test.js",
+      "line": 24,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(source.slice(start,end)+'\\nthis.load=loadBundles;',context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/phase1-reliability.test.js",
+      "line": 33,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(source.slice(start,end)+'\\nthis.load=loadStaffCoreCollections;',context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/phase1-reliability.test.js",
+      "line": 42,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(source.slice(start,end)+'\\nthis.load=getAttendanceForDate;',context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/phase1-reliability.test.js",
+      "line": 135,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(source.slice(start,end),context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/report-hotfix.test.js",
+      "line": 5,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/report-hotfix.test.js",
+      "line": 40,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(`${source}\\nthis.compatibleMonthlyReport=compatibleMonthlyReport;this.monthlyReportTitle=monthlyReportTitle;`,scope)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/report-hotfix.test.js",
+      "line": 58,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(`${code}\\nthis.calculate=calcStudentAdmin;`,scope)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/report-hotfix.test.js",
+      "line": 61,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(\"adminStudentMetrics.monthKey='2026-09';adminStudentMetrics.rows={'ST-HOTFIX':{attendancePercentage:0,homeworkCompletionPercentage:0,resultsA",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/report-hotfix.test.js",
+      "line": 63,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(\"adminStudentMetrics.rows['ST-HOTFIX']={attendancePercentage:87.5,homeworkCompletionPercentage:75,resultsAverage:80};\",scope)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/report-hotfix.test.js",
+      "line": 80,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(`${intro}\\n${delivery}`,scope)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/resilience-routes-v6782.test.js",
+      "line": 19,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(path.join(root, 'package.json'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/resilience-routes-v6782.test.js",
+      "line": 20,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(path.join(root, 'functions/package.json'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/review.performance.js",
+      "line": 6,
+      "category": "BUILD / LOCAL ADMIN TOOL",
+      "sink": "require",
+      "context": "require(path.join(root,'functions/node_modules/firebase-admin'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/review.performance.js",
+      "line": 6,
+      "category": "BUILD / LOCAL ADMIN TOOL",
+      "sink": "require",
+      "context": "require(path.join(root,'functions/entry'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/review.service-worker.test.js",
+      "line": 2,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/review.service-worker.test.js",
+      "line": 6,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(source,{URL,Request,self:{location:{origin:'https://demo.test'},addEventListener:(name,fn)=>listeners[name]=fn},caches:{open:async()=>cache,m",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/review.service-worker.test.js",
+      "line": 18,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:child_process')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/review.service-worker.test.js",
+      "line": 31,
+      "category": "TEST",
+      "sink": "execFileSync",
+      "context": "execFileSync(process.execPath,[path.join(root,'scripts/build.js')])",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/review.service-worker.test.js",
+      "line": 40,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(worker,{Request:LocalRequest,self:{addEventListener:(name,fn)=>listeners[name]=fn},caches:{open:async()=>({add:async request=>added.push(requ",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/review.service-worker.test.js",
+      "line": 50,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(source.slice(start,end)+';registerServiceWorker();',context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/run-node-regression.js",
+      "line": 3,
+      "category": "BUILD / LOCAL ADMIN TOOL",
+      "sink": "require",
+      "context": "require('node:child_process')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/run-node-regression.js",
+      "line": 7,
+      "category": "BUILD / LOCAL ADMIN TOOL",
+      "sink": "spawnSync",
+      "context": "spawnSync(process.execPath,['--test',...files],{cwd:root,stdio:'inherit',env:process.env})",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/run-reliability-integration.js",
+      "line": 3,
+      "category": "BUILD / LOCAL ADMIN TOOL",
+      "sink": "require",
+      "context": "require('node:child_process')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/run-reliability-integration.js",
+      "line": 12,
+      "category": "BUILD / LOCAL ADMIN TOOL",
+      "sink": "spawnSync",
+      "context": "spawnSync(process.execPath,['--test',`scripts/${file}`],{stdio:'inherit',env:process.env})",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/scheduled-attendance-v7005.test.js",
+      "line": 2,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/scheduled-attendance-v7005.test.js",
+      "line": 63,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(parts.map(([start,end])=>backend.slice(backend.indexOf(start),backend.indexOf(end,backend.indexOf(start)))).join('\\n'),ctx)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/scheduled-attendance-v7005.test.js",
+      "line": 70,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(offline,ctx)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/scheduled-attendance-v7005.test.js",
+      "line": 72,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(backend.slice(backend.indexOf('exports.syncOfflineAttendance ='),backend.indexOf('exports.bulkMarkAttendance =')),ctx)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/scheduled-attendance-v7005.test.js",
+      "line": 80,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(`${snippet}\\nthis.allowed=attendanceDayAllowed;`,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/scheduled-attendance-v7005.test.js",
+      "line": 96,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(`${rowsSource}\\nthis.rows=getAttendanceRows;`,portal)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/session-auth-baseline.reproduce.js",
+      "line": 1,
+      "category": "BUILD / LOCAL ADMIN TOOL",
+      "sink": "require",
+      "context": "require(path.join(baseline,'functions/entry'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/session-auth-baseline.reproduce.js",
+      "line": 1,
+      "category": "BUILD / LOCAL ADMIN TOOL",
+      "sink": "require",
+      "context": "require(path.join(baseline,'functions/node_modules/firebase-admin'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/session-auth-browser.security.js",
+      "line": 2,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(process.env.TM_PLAYWRIGHT_MODULE||'playwright-core')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/session-auth-emulator.browser.js",
+      "line": 4,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(process.env.TM_PLAYWRIGHT_MODULE||'playwright-core')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/session-auth.security.test.js",
+      "line": 2,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/session-auth.security.test.js",
+      "line": 5,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(source.slice(source.indexOf('async function createPortalSession('),source.indexOf('\\nfunction publicStudentName')),context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/session-auth.security.test.js",
+      "line": 24,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(code,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/session-auth.security.test.js",
+      "line": 25,
+      "category": "TEST",
+      "sink": "d.window.eval",
+      "context": "d.window.eval(entry)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/session-auth.security.test.js",
+      "line": 27,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(src,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/stabilization-v7005.test.js",
+      "line": 95,
+      "category": "TEST",
+      "sink": "window.eval",
+      "context": "window.eval(read('assets/admin-entry.js'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/stabilization-v7005.test.js",
+      "line": 111,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/stabilization-v7005.test.js",
+      "line": 117,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(admin.slice(start,end),context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/stabilization-v7005.test.js",
+      "line": 140,
+      "category": "TEST",
+      "sink": "window.eval",
+      "context": "window.eval(read('assets/admin-entry.js'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/testing/admin-dom.js",
+      "line": 2,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/testing/admin-dom.js",
+      "line": 22,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(fs.readFileSync(path.join(root,source),'utf8'),context,{filename:source})",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/testing/admin-dom.js",
+      "line": 24,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(fs.readFileSync(path.join(root,'scripts/browser/attendance-fixture.js'),'utf8'),context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/testing/admin-dom.js",
+      "line": 29,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(source,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/testing/code-runner-harness.js",
+      "line": 3,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/testing/code-runner-harness.js",
+      "line": 13,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(path.join(root,'functions/lib/code-runner-policy'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/testing/code-runner-harness.js",
+      "line": 13,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(n)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/testing/code-runner-harness.js",
+      "line": 14,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(source.slice(start,end),context,{filename:'actual-runner-handler.js'})",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/testing/render-actions.js",
+      "line": 2,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/testing/render-actions.js",
+      "line": 3,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(nodes.map(n=>source.slice(n.start,n.end)).join('\\n'),context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/unified-student-profile-regression.test.js",
+      "line": 7,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/unified-student-profile-regression.test.js",
+      "line": 101,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(`${code}\\nthis.getInput=monthlyReportInput;this.available=reportAvailableMonths;`,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/unified-student-profile-regression.test.js",
+      "line": 131,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(`${code}\\nthis.input=monthlyReportInput;`,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/unified-student-profile-regression.test.js",
+      "line": 177,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(`${code}\\nthis.build=buildStudentMonthlyReport;`,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7002-parent-paper-hotfix.test.js",
+      "line": 2,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7002-parent-paper-hotfix.test.js",
+      "line": 12,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(app.slice(app.indexOf('function parentReportFeedback('),app.indexOf('let parentReportLogoPromise=')),context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7002-parent-paper-hotfix.test.js",
+      "line": 13,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(app.slice(app.indexOf('window.reserveParentWhatsAppWindow='),app.indexOf('let parentReportSharePending=')),context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7002-parent-paper-hotfix.test.js",
+      "line": 27,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(source,context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7002-parent-paper-hotfix.test.js",
+      "line": 36,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(backend.slice(backend.indexOf('exports.savePaperExamGradesAdmin ='),backend.indexOf('exports.getExamDashboard =')),context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7002-parent-paper-hotfix.test.js",
+      "line": 62,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(backend.slice(backend.indexOf('exports.getExamDashboard ='),backend.indexOf('async function finalizeExamAbsenceRecords()')),ctx)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7002-parent-paper-hotfix.test.js",
+      "line": 63,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(backend.slice(backend.indexOf('exports.startExam ='),backend.indexOf('exports.saveExamProgress =')),ctx)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7002-parent-paper-hotfix.test.js",
+      "line": 102,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(backend.slice(backend.indexOf('exports.getStudentMonthlyReportAdmin ='),backend.indexOf('exports.getParentMonthlyReport =')),ctx)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7003-paper-admin-renderer.test.js",
+      "line": 6,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7003-paper-admin-renderer.test.js",
+      "line": 29,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(fs.readFileSync(path.join(__dirname,'..',script),'utf8'),context,{filename:script})",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7003-paper-admin-renderer.test.js",
+      "line": 31,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(\"adminData.exams=[]; adminData.settings={}; adminWorkspaceContext=()=>({academicYear:'2026/2027',term:'الترم الأول'}); examGradeRows=()=>[];\",co",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7003-paper-admin-renderer.test.js",
+      "line": 39,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(paperButton[1],context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7003-paper-admin-renderer.test.js",
+      "line": 42,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(\"adminData.exams=[{id:'paper-1',assessmentMode:'paper',title:'السنتر',totalScore:20},{id:'online-1',title:'الوحدة',duration:20,questionCount:5}]",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7004-manifest-homework-hotfix.test.js",
+      "line": 3,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7004-manifest-homework-hotfix.test.js",
+      "line": 3,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:child_process')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7004-manifest-homework-hotfix.test.js",
+      "line": 25,
+      "category": "TEST",
+      "sink": "spawnSync",
+      "context": "spawnSync(process.execPath,[path.join(root,'scripts/build.js')],{cwd:root,encoding:'utf8'})",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7004-manifest-homework-hotfix.test.js",
+      "line": 51,
+      "category": "TEST",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(app.slice(start,end),context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7004-platform-audit.test.js",
+      "line": 3,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require('node:vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7004-platform-audit.test.js",
+      "line": 20,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(read('assets/admin.js'),context,{filename:'assets/admin.js'})",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7004-platform-audit.test.js",
+      "line": 21,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext(read('assets/v64-admin-operations.js'),context,{filename:'assets/v64-admin-operations.js'})",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/v7004-platform-audit.test.js",
+      "line": 25,
+      "category": "TEST",
+      "sink": "vm.runInContext",
+      "context": "vm.runInContext('startBookingNotifications()',context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/verify-dist.js",
+      "line": 8,
+      "category": "BUILD / LOCAL ADMIN TOOL",
+      "sink": "require",
+      "context": "require(path.join(root, 'package.json'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/verify.js",
+      "line": 5,
+      "category": "BUILD / LOCAL ADMIN TOOL",
+      "sink": "require",
+      "context": "require('vm')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/verify.js",
+      "line": 6,
+      "category": "BUILD / LOCAL ADMIN TOOL",
+      "sink": "require",
+      "context": "require('child_process')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/verify.js",
+      "line": 36,
+      "category": "BUILD / LOCAL ADMIN TOOL",
+      "sink": "spawnSync",
+      "context": "spawnSync(process.execPath, ['--check', path.join(root, relative)], { encoding: 'utf8' })",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/verify.js",
+      "line": 179,
+      "category": "BUILD / LOCAL ADMIN TOOL",
+      "sink": "vm.runInNewContext",
+      "context": "vm.runInNewContext(read('assets/vendor/html5-qrcode-2.3.8.min.js'), qrSandbox)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/xss-baseline-repro.js",
+      "line": 3,
+      "category": "BUILD / LOCAL ADMIN TOOL",
+      "sink": "require",
+      "context": "require(process.env.TM_PLAYWRIGHT_MODULE||'playwright-core')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/xss-baseline-repro.js",
+      "line": 5,
+      "category": "BUILD / LOCAL ADMIN TOOL",
+      "sink": "eval",
+      "context": "(0,eval)(code)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/xss-browser.security.js",
+      "line": 3,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(process.env.TM_PLAYWRIGHT_MODULE||'playwright-core')",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/xss-dom.security.test.js",
+      "line": 30,
+      "category": "TEST",
+      "sink": "w.eval",
+      "context": "w.eval(fs.readFileSync(path.join(__dirname,'../assets/practical.js'),'utf8'))",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/judge0-provider-probes.py",
+      "line": 21,
+      "category": "LOCAL ADMIN TOOL",
+      "sink": "subprocess.run(curl argv), shell=false",
+      "attackerControl": "none: mode enum, fixed provider and fixed synthetic programs",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    }
+  ],
+  "productionExecutionSinks": [],
+  "categories": {
+    "VENDOR": 1,
+    "TEST": 115,
+    "BUILD / LOCAL ADMIN TOOL": 17,
+    "LOCAL ADMIN TOOL": 1
+  }
+}

@@ -72,7 +72,7 @@ test('parent report delivery is fresh, student-bound and protected from duplicat
   assert.match(admin,/parentReportDeliveryPending\.has\(code\)/);
   assert.match(admin,/report\?\.student\?\.studentCode!==code/);
   assert.match(backend,/studentReportRanking\(found\.data,monthKey\)/);
-  assert.match(studentList,/onclick="editStudent\('\$\{safe\(student\.studentCode\)\}'\)">الملف/);
+  assert.match(studentList,/renderActionAttrs\("editStudent",\[String\(\(student\.studentCode\)\?\?''\)\]\)/);
 });
 
 test('content targeting previews exact active audience before save',()=>{

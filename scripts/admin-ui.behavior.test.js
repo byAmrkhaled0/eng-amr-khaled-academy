@@ -34,7 +34,7 @@ test('zero-price payment action immediately opens and focuses the matching price
   Object.assign(ui.window.MFCloud,{getPaymentDashboard:async()=>({rows:[{key:'payment-test',student,summary:null,month,academicYear:year,expected:0,paid:0,remaining:0,status:'unpaid'}],totals:{expected:0,collected:0,remaining:0,today:0,paid:0,partial:0,unpaid:1},courses:{},nextCursor:null,generatedAt:new Date().toISOString()})});
   ui.window.renderPayments();await tick(20);
   const button=ui.document.querySelector('.quick-paid-button');assert(button);assert.equal(button.disabled,false);assert.match(button.textContent,/حدد السعر/);
-  ui.run(button.getAttribute('onclick'));
+  ui.window.invokeRenderAction(button);
   const editor=ui.document.querySelector('.course-price-editor'),input=editor.querySelector('[data-course-price]');
   assert.equal(editor.open,true);assert.equal(ui.document.activeElement,input);assert.match(ui.document.querySelector('#toast').textContent,/حدد سعر الصف/);
  }finally{ui.close();}
@@ -48,8 +48,8 @@ test('paid button shows feedback immediately and blocks a duplicate request whil
    getPaymentDashboard:async()=>({rows:[{key:'payment-test',student,summary:null,month,academicYear:year,expected:300,paid:0,remaining:300,status:'unpaid'}],totals:{expected:300,collected:0,remaining:300,today:0,paid:0,partial:0,unpaid:1},courses:{},nextCursor:null,generatedAt:new Date().toISOString()}),
    createPaymentTransaction:async()=>{calls++;return new Promise(resolve=>{resolvePayment=resolve;});}
   });
-  ui.window.renderPayments();await tick(20);const button=ui.document.querySelector('.quick-paid-button'),handler=button.getAttribute('onclick'),started=Date.now();
-  const pending=ui.run(handler);ui.run(handler);await tick();
+  ui.window.renderPayments();await tick(20);const button=ui.document.querySelector('.quick-paid-button'),started=Date.now();
+  const pending=ui.window.invokeRenderAction(button);ui.window.invokeRenderAction(button);await tick();
   assert.equal(calls,1);assert.equal(ui.document.querySelector('.quick-paid-button').disabled,true);assert.match(ui.document.querySelector('.quick-paid-button').textContent,/جارٍ الحفظ/);assert.ok(Date.now()-started<1000);
   resolvePayment({transactionStatus:'active',expectedAmount:300,paidAmount:300,remainingAmount:0,status:'paid'});await pending;
   assert.equal(ui.document.querySelector('.quick-paid-button').disabled,true);assert.match(ui.document.querySelector('.quick-paid-button').textContent,/تم الدفع/);
@@ -81,7 +81,7 @@ test('parent report button requests fresh matching data once and restores its st
   assert.equal(reportCalls,1);assert.equal(button.disabled,true);assert.equal(payload.force,undefined);
   assert.equal(payload.includeRanking,true);
   assert.equal(payload.includeDeliveryState,true);
-  resolveReport({schemaVersion:11,policyVersion:'monthly-v12-scheduled-session-attendance',monthKey:'2026-09',student:{studentCode:'DEMO1',name:'طالب تجريبي 1'},monthlyTitle:'بيانات غير كافية',level:'بيانات غير كافية',overallScore:null,attendance:{percentage:null},homework:{completionPercentage:null},results:{average:null},deliveryState:{firstDelivery:true}});await first;
+  resolveReport({schemaVersion:11,policyVersion:'monthly-v12-scheduled-session-attendance',monthKey:payload.monthKey,student:{studentCode:'DEMO1',name:'طالب تجريبي 1'},monthlyTitle:'بيانات غير كافية',level:'بيانات غير كافية',overallScore:null,attendance:{percentage:null},homework:{completionPercentage:null},results:{average:null},deliveryState:{firstDelivery:true}});await first;
   assert.equal(deliveries,1);assert.equal(button.disabled,false);assert.equal(button.classList.contains('is-loading'),false);
  }finally{ui.close();}
 });
@@ -101,9 +101,9 @@ test('student file button opens the unified server profile instead of the legacy
  try{
   let profileCalls=0,popupCalls=0;
   ui.window.open=()=>{popupCalls++;return null;};
-  ui.window.MFCloud.getStudentAdminProfile=async input=>{profileCalls++;return {student:{studentCode:input.studentCode,name:'طالب تجريبي',grade:'الصف الأول الثانوي',group:'أ'},period:{month:'سبتمبر 2026'},monthlyReport:{schemaVersion:11,policyVersion:'monthly-v12-scheduled-session-attendance',monthKey:'2026-09',student:{studentCode:input.studentCode},monthlyTitle:'بيانات غير كافية',level:'بيانات غير كافية',overallScore:null,attendance:{percentage:null},homework:{completionPercentage:null},results:{average:null}},attendance:[],homeworks:[],results:[],monthlyPayments:[],motivationSummaries:[],motivationTransactions:[],privateNotes:[]};};
+  ui.window.MFCloud.getStudentAdminProfile=async input=>{profileCalls++;return {student:{studentCode:input.studentCode,name:'طالب تجريبي',grade:'الصف الأول الثانوي',group:'أ'},period:{month:'سبتمبر 2026'},monthlyReport:{schemaVersion:11,policyVersion:'monthly-v12-scheduled-session-attendance',monthKey:ui.run('adminReportMonthKey()'),student:{studentCode:input.studentCode},monthlyTitle:'بيانات غير كافية',level:'بيانات غير كافية',overallScore:null,attendance:{percentage:null},homework:{completionPercentage:null},results:{average:null}},attendance:[],homeworks:[],results:[],monthlyPayments:[],motivationSummaries:[],motivationTransactions:[],privateNotes:[]};};
   ui.window.renderStudents();await tick();
-  const fileButton=[...ui.document.querySelectorAll('button')].find(button=>button.textContent.trim()==='الملف');assert(fileButton);ui.run(fileButton.getAttribute('onclick'));await tick();
+  const fileButton=[...ui.document.querySelectorAll('button')].find(button=>button.textContent.trim()==='الملف');assert(fileButton);ui.window.invokeRenderAction(fileButton);await tick();
   assert.equal(profileCalls,1);assert.equal(popupCalls,0);assert(ui.document.querySelector('#unifiedStudentProfile'));assert.match(ui.document.querySelector('#unifiedProfileBody').textContent,/ملف الطالب الموحد/);
  }finally{ui.close();}
 });
