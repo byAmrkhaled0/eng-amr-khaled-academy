@@ -1,0 +1,16 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),crypto=require('node:crypto');
+const s=require('./testing/security-emulator');
+const period=(course=s.grade,month='سبتمبر')=>crypto.createHash('sha256').update([s.code,'2026/2027',month,course].join('|')).digest('hex').slice(0,48);
+const pay=(requestId,amount=500,extra={})=>s.call('createPaymentTransaction',{studentCode:s.code,academicYear:'2026/2027',month:'سبتمبر',course:s.grade,expectedAmount:500,amount,paymentDate:'2026-09-25',paymentMethod:'cash',requestId,...extra},s.auth);
+const summary=()=>s.db.doc('monthly_payments/'+period());
+async function reset(price=500){await summary().delete();const docs=await s.db.collection('payment_transactions').get();for(const d of docs.docs)await d.ref.delete();await s.db.doc('settings/platform').set({coursePrices:{[s.grade]:price}});}
+test.before(async()=>{await s.seed();});
+test('A: no summary initializes a configured 500 course',async()=>{await reset();assert.equal((await pay('A')).expectedAmount,500);});
+test('B: legacy zero summary pays without a second price save',async()=>{await reset();await summary().set({studentCode:s.code,course:s.grade,month:'سبتمبر',academicYear:'2026/2027',expectedAmount:0,paidAmount:0});assert.equal((await pay('B')).paidAmount,500);});
+test('C: a valid monthly summary stays locked when configured price changes',async()=>{await reset(600);await summary().set({expectedAmount:500,paidAmount:0});assert.equal((await pay('C')).expectedAmount,500);});
+test('D: explicit free course cannot be charged using fabricated browser amount',async()=>{await reset(0);await assert.rejects(pay('D'),e=>e.code==='failed-precondition');assert.equal((await s.db.collection('payment_transactions').get()).size,0);});
+test('E: partial payment resolves remaining amount correctly',async()=>{await reset();const r=await pay('E',200);assert.equal(r.remainingAmount,300);assert.equal(r.status,'partial');});
+test('F: fully paid period denies a new charge; existing request is idempotent',async()=>{await reset();await pay('F');assert.equal((await pay('F')).duplicate,true);await assert.rejects(pay('F-again'),e=>e.code==='failed-precondition');assert.equal((await s.db.collection('payment_transactions').get()).size,1);});
+test('G: transaction-level rapid double requests persist one ledger row',async()=>{await reset();const r=await Promise.all([pay('G'),pay('G')]);assert.equal(r.filter(x=>x.duplicate).length,1);assert.equal((await s.db.collection('payment_transactions').get()).size,1);assert.equal((await summary().get()).data().paidAmount,500);});
+test('H: transfer and month scopes keep separate prices and balances',async()=>{await reset();await pay('H-old');const next='أولى ثانوي بكالوريا';await s.db.doc('students/'+s.code).update({grade:next});await s.db.doc('settings/platform').set({coursePrices:{[s.grade]:500,[next]:700}});const r=await pay('H-new',700,{course:next,month:'أكتوبر',expectedAmount:700,paymentDate:'2026-10-01'});assert.equal(r.expectedAmount,700);assert.equal(r.paidAmount,700);assert.equal((await summary().get()).data().paidAmount,500);assert.equal((await s.db.doc('monthly_payments/'+period(next,'سبتمبر')).get()).exists,false);});

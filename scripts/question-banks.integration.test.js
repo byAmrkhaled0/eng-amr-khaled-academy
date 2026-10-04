@@ -1,7 +1,9 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),crypto=require('node:crypto');
 if(!process.env.FIRESTORE_EMULATOR_HOST||!process.env.FIREBASE_STORAGE_EMULATOR_HOST||process.env.GCLOUD_PROJECT!=='demo-technominds')throw new Error('Disposable demo emulators required.');
-const admin=require('../functions/node_modules/firebase-admin'),functions=require('../functions/entry'),db=admin.firestore();
+// Synthetic offline signing credentials: newly allowed historical parent access
+// now exercises signed URL issuance, never a production signing request.
+const {admin,functions,db}=require('./testing/security-emulator');
 const auth={uid:'banks-test-admin',token:{admin:true,email_verified:true,email:'bank@example.test'}};
 const call=(name,data,identity=auth)=>functions[name].run({auth:identity,data,rawRequest:{headers:{},socket:{remoteAddress:'127.0.0.1'}}});
 const code='BANKTEST001',grade='أساسيات برمجة',lessonId='test-theory-lesson',token=crypto.randomBytes(32).toString('base64url');
@@ -36,8 +38,8 @@ test('bank save, retry and audience are server-owned; hidden or archived lessons
  await assert.rejects(call('getStudentResources',{...portal,portalSessionToken:'expired'.padEnd(48,'0')},null),/دخول|جلسة/);
  await db.doc('students/'+code).update({createdAt:'2026-09-13',contentAccessMode:'from_joining'});
  await db.doc('materials/'+lessonId).update({createdAt:'2026-09-01'});
- const newStudent=await call('getStudentResources',portal,null);assert(!newStudent.materials.some(item=>item.id===lessonId));assert(!newStudent.questions.some(item=>item.id==='test-bank'));
- await assert.rejects(call('getCurriculumFileUrl',{...portal,collection:'question_banks',id:'test-bank'},null),/الدرس المرتبط/);
+ const newStudent=await call('getStudentResources',portal,null);assert(newStudent.materials.some(item=>item.id===lessonId));assert(newStudent.questions.some(item=>item.id==='test-bank'));
+ assert((await call('getCurriculumFileUrl',{...portal,collection:'question_banks',id:'test-bank'},null)).url);
  await db.doc('students/'+code).update({contentAccessMode:'full',scheduleId:'other-group',group:'أخرى'});
  const otherGroup=await call('getStudentResources',portal,null);assert(!otherGroup.questions.some(item=>item.id==='test-bank'));
  await assert.rejects(call('getCurriculumFileUrl',{...portal,collection:'question_banks',id:'test-bank'},null),/متاح/);

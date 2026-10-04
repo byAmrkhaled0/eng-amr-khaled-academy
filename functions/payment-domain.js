@@ -31,4 +31,11 @@ function paymentPeriodStatus(rows, academicYear, month) {
     current.reduce((total, row) => total + money(row.paidAmount), 0));
 }
 
-module.exports = { money, paymentStatus, paymentTotals, paymentPeriodStatus };
+// A positive monthly price is locked. A zero with recorded financial activity
+// is not a blank legacy summary. A configured zero is an intentional free price.
+function resolveExpectedAmount(summary, configuredPrice) {
+  if (summary && (money(summary.expectedAmount) > 0 || money(summary.paidAmount) > 0 || Number(summary.transactionCount || 0) > 0 || Number(summary.activeTransactionCount || 0) > 0)) return money(summary.expectedAmount);
+  return configuredPrice === undefined ? money(summary?.expectedAmount) : money(configuredPrice);
+}
+
+module.exports = { money, paymentStatus, paymentTotals, paymentPeriodStatus, resolveExpectedAmount };

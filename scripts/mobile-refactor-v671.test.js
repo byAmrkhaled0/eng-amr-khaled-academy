@@ -52,14 +52,14 @@ test('release build normalizes immutable asset versions and keeps heavy QR code 
   assert.match(build, /html\.replace\(/);
   assert.doesNotMatch(appShell, /html5-qrcode/);
   assert.ok(worker.includes("if(cached&&url.searchParams.get('v')===ASSET_VERSION)return cached"));
-  assert.match(worker, /technominds-v70-0-5-complete-report/);
+  assert.match(worker, /technominds-v70-0-6-complete-report/);
 });
 
 test('health status reflects the usable default code runner without claiming a live probe', () => {
   const backend = read('functions/index.js');
   const functionsPackage = require(path.join(root, 'functions/package.json'));
 
-  assert.equal(functionsPackage.version, '70.0.5');
+  assert.equal(functionsPackage.version, '70.0.6');
   assert.match(backend, /runner = codeRunnerConfig\(\)/);
   assert.equal(require('../functions/lib/code-runner-policy').codeRunnerConfig({}).baseUrl, 'https://ce.judge0.com');
   assert.match(backend, /default-provider-configured/);

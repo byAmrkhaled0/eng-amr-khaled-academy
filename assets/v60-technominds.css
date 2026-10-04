@@ -269,11 +269,13 @@ body:not(.admin-dashboard-active){padding-top:74px}
 .resource-access-message.loading{background:#eef6ff;color:#155eef}
 .resource-access-message.error{background:#fff1f0;color:#a12620;border:1px solid #ffc5c0}
 .student-track-content{min-height:360px}
-.student-resource-summary{display:flex;align-items:center;gap:14px;margin-bottom:24px;padding:18px 20px;border:1px solid rgba(21,94,239,.18);border-radius:20px;background:linear-gradient(135deg,#f5f9ff,#fff);box-shadow:0 12px 34px rgba(17,53,91,.08)}
+.student-resource-summary{display:flex;align-items:center;gap:14px;margin-bottom:24px;padding:18px 20px;border:1px solid var(--tm-line);border-radius:20px;background:var(--tm-surface);color:var(--tm-text);box-shadow:0 12px 34px rgba(17,53,91,.08)}
 .student-resource-summary .student-avatar{flex:0 0 auto}
 .student-resource-summary>div{min-width:0;flex:1}
 .student-resource-summary h2,.student-resource-summary p{margin:2px 0}
-.student-resource-summary code{display:inline-block;margin-top:5px;padding:4px 9px;border-radius:8px;background:#e6efff;color:#164fae;font-weight:900}
+.student-resource-summary h2{color:var(--tm-text)}
+.student-resource-summary p,.student-resource-summary .kicker{color:var(--tm-muted)}
+.student-resource-summary code{display:inline-block;margin-top:5px;padding:4px 9px;border-radius:8px;background:var(--tm-surface-soft);color:var(--tm-text);font-weight:900}
 .resource-meta-badges{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
 .badge.soft{background:#f2f5fb;color:#4b617b}
 .student-track-resource{display:flex;flex-direction:column;gap:10px;min-height:240px}

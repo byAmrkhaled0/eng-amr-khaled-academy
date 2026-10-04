@@ -1,5 +1,5 @@
 {
-  "generatedFrom": "D:\\Users\\amrk7\\Downloads\\eng-amr-khaled-academy-release",
+  "generatedFrom": "D:\\Users\\amrk7\\Downloads\\technominds-v70.0.6-production-hotfix\\technominds-v70.0.6-production-hotfix",
   "rows": [
     {
       "file": "assets/vendor/html5-qrcode-2.3.8.min.js",
@@ -398,6 +398,14 @@
       "category": "TEST",
       "sink": "vm.runInContext",
       "context": "vm.runInContext(source.slice(start,end),context)",
+      "userControlledProductionPath": "NOT A WEB ENDPOINT"
+    },
+    {
+      "file": "scripts/production-hotfix-v7006.browser.js",
+      "line": 3,
+      "category": "TEST",
+      "sink": "require",
+      "context": "require(process.env.TM_PLAYWRIGHT_MODULE||'playwright-core')",
       "userControlledProductionPath": "NOT A WEB ENDPOINT"
     },
     {
@@ -1076,7 +1084,7 @@
   "productionExecutionSinks": [],
   "categories": {
     "VENDOR": 1,
-    "TEST": 115,
+    "TEST": 116,
     "BUILD / LOCAL ADMIN TOOL": 17,
     "LOCAL ADMIN TOOL": 1
   }

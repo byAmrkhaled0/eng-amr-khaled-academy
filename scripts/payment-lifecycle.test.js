@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const crypto=require('node:crypto');
-const {paymentStatus,paymentPeriodStatus,paymentTotals,money}=require('../functions/payment-domain');
+const {paymentStatus,paymentPeriodStatus,paymentTotals,money,resolveExpectedAmount}=require('../functions/payment-domain');
 const {buildPaymentDashboard}=require('../functions/lib/payment-dashboard');
 const {calculateMonthlyReport}=require('../functions/lib/monthly-report');
 
@@ -35,7 +35,7 @@ function paymentFunctions(){
     text:(value,length)=>String(value??'').slice(0,length||1000),normalizeDigits:value=>String(value??''),normalizeCode:value=>String(value??''),cleanDocId:value=>value,validLegacyOrStrongCode:value=>!!value,
     hash:value=>crypto.createHash('sha256').update(value).digest('hex'),cairoDateKey:()=> '2026-10-04',
     sameAcademicValue:(a,b)=>a===b,canonicalAcademicLabel:value=>value,
-    paymentStatus,paymentPeriodStatus,paymentTotals,money,
+    paymentStatus,paymentPeriodStatus,paymentTotals,money,resolveExpectedAmount,
     leaderboardPeriod:(year,month)=>({monthKey:`${year.slice(0,4)}-${String(context.PAYMENT_MONTH_NAMES.indexOf(month)+1).padStart(2,'0')}`}),
     buildPaymentDashboard,fetchAllCollectionDocuments:async()=>({docs:[]}),admin:{firestore:{FieldPath:{documentId:()=> 'id'}}},
     require:path=>{if(path==='./lib/payment-dashboard')return {buildPaymentDashboard};throw Error(path);}};
@@ -149,4 +149,22 @@ test('the paid button waits for Firebase, blocks a second click and keeps the re
   release({transactionStatus:'active',remainingAmount:0,status:'paid',duplicate:true});
   await retry;
   assert.equal(state.intents.size,0);
+});
+
+test('v7006: configured price pays an empty legacy zero summary once, with concurrent requests and next-month separation',async()=>{
+ const flow=paymentFunctions();
+ const first=await flow.create('initialize','سبتمبر',40);
+ const summaryKey='monthly_payments/'+first.periodId;
+ flow.documents.set(summaryKey,{...flow.summary(),expectedAmount:0,paidAmount:0,transactionCount:0,activeTransactionCount:0});
+ flow.documents.delete('payment_transactions/'+first.id);
+ assert.equal(flow.dashboard('سبتمبر').expected,100);
+ const [a,b]=await Promise.all([flow.create('legacy-paid'),flow.create('legacy-paid')]);
+ assert.equal([a,b].filter(x=>x.duplicate).length,1);assert.equal(flow.summary().paidAmount,100);
+ await assert.rejects(flow.create('second-full'),e=>e.code==='failed-precondition');
+ assert.equal(flow.dashboard('أكتوبر').paid,0);
+});
+test('v7006: explicitly configured free course rejects a fabricated positive browser amount',async()=>{
+ const flow=paymentFunctions();flow.documents.set('settings/platform',{coursePrices:{'برمجة':0}});
+ await assert.rejects(flow.create('free-request'),e=>e.code==='failed-precondition');
+ assert.equal([...flow.documents.keys()].filter(k=>k.startsWith('payment_transactions/')).length,0);
 });

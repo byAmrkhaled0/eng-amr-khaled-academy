@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const zlib = require('zlib');
 const admin = require('firebase-admin');
 const { version: PLATFORM_VERSION } = require('./package.json');
-const { money, paymentStatus, paymentTotals, paymentPeriodStatus } = require('./payment-domain');
+const { money, paymentStatus, paymentTotals, paymentPeriodStatus, resolveExpectedAmount } = require('./payment-domain');
 const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { onDocumentCreated, onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
@@ -21,7 +21,7 @@ const {
   academicAudienceKeysForItem
 } = require('./lib/academic-targeting');
 const { studentCanOpenPortal, studentIsApproved } = require('./lib/student-access');
-const { reusableLearningContentIsVisible, reusableContentAccessAllowed } = require('./lib/content-visibility');
+const { reusableLearningContentIsVisible, reusableContentAccessAllowed, learningContentAccessAllowed } = require('./lib/content-visibility');
 const {
   homeworkLockId,
   submissionIdForAttempt,
@@ -607,8 +607,8 @@ exports.createPaymentTransaction = onCall(CALLABLE_OPTIONS, async request => {
   const savedPrices = settingsSnap?.data()?.coursePrices || {};
   const configuredPriceKey = Object.keys(savedPrices).find(key => sameAcademicValue(key, course));
   const configuredPrice = money(savedPrices[configuredPriceKey]);
-  const expectedAmount = configuredPrice || money(body.expectedAmount);
-  if (!validPaymentAcademicYear(academicYear) || !PAYMENT_MONTH_NAMES.includes(month) || !course || expectedAmount <= 0) throw new HttpsError('failed-precondition', 'حدد الشهر والعام الدراسي وسعر الكورس أولًا.');
+  const expectedAmount = configuredPriceKey === undefined ? money(body.expectedAmount) : configuredPrice;
+  if (!validPaymentAcademicYear(academicYear) || !PAYMENT_MONTH_NAMES.includes(month) || !course) throw new HttpsError('failed-precondition', 'حدد الشهر والعام الدراسي وسعر الكورس أولًا.');
   const paidOn = validPaymentDate(body.paymentDate);
   const paymentMethod = validPaymentMethod(body.paymentMethod);
   if (!paidOn || !paymentMethod) throw new HttpsError('invalid-argument', 'تاريخ الدفع أو طريقة الدفع غير صالحين.');
@@ -629,7 +629,8 @@ exports.createPaymentTransaction = onCall(CALLABLE_OPTIONS, async request => {
       return;
     }
     const current = summarySnap.exists ? summarySnap.data() : {};
-    const periodExpected = money(current.expectedAmount) || expectedAmount;
+    const periodExpected = resolveExpectedAmount(current, expectedAmount);
+    if (periodExpected <= 0) throw new HttpsError('failed-precondition', 'لا توجد قيمة موجبة مستحقة لهذا الكورس والشهر.');
     const totals = paymentTotals(current, amount, periodExpected);
     if (totals.paidAmount > periodExpected) throw new HttpsError('failed-precondition', `المبلغ أكبر من المتبقي (${money(periodExpected - money(current.paidAmount))}).`);
     const transaction = {
@@ -1452,7 +1453,7 @@ async function materialsForStudent(student = {}) {
   ]);
   const progress = new Map((progressSnap?.docs || []).map(doc => [doc.id, doc.data() || {}]));
   return docs
-    .filter(doc => reusableLearningContentIsVisible(doc.data() || {}) && learningTargetMatchesStudent(doc.data() || {}, student) && reusableContentAccessAllowed(doc.data() || {}, student))
+    .filter(doc => reusableLearningContentIsVisible(doc.data() || {}) && learningTargetMatchesStudent(doc.data() || {}, student) && learningContentAccessAllowed(doc.data() || {}, student, 'materials'))
     .map(doc => studentResourcePayload(doc, 'material', progress.get(doc.id)))
     .sort((a, b) => Number(a.order || 0) - Number(b.order || 0) || String(a.title || '').localeCompare(String(b.title || ''), 'ar', { numeric:true }))
     .slice(0, 120);
@@ -2476,8 +2477,8 @@ exports.getStudentResources = onCall(CALLABLE_OPTIONS, async request => {
     db.collection('student_progress').doc(studentCode).collection('lectures').limit(500).get().catch(() => null)
   ]);
   const progress = new Map((progressSnap?.docs || []).map(doc => [doc.id, doc.data() || {}]));
-  // The same server enrolment decision governs lists and direct object access.
-  const visible = doc => reusableLearningContentIsVisible(doc.data() || {}) && reusableContentAccessAllowed(doc.data() || {}, found.data);
+  // Lists and direct access share a kind-specific policy; assessments retain enrolment checks.
+  const visible = (doc, kind) => reusableLearningContentIsVisible(doc.data() || {}) && learningContentAccessAllowed(doc.data() || {}, found.data, kind);
   const banks = await visibleQuestionBanks(questionBankDocs, found.data, materialDocs);
   return {
     ...apiMetadata(),
@@ -2488,10 +2489,10 @@ exports.getStudentResources = onCall(CALLABLE_OPTIONS, async request => {
       group: text(found.data.group, 100),
       scheduleId: text(found.data.scheduleId || found.data.groupId, 100)
     },
-    materials: materialDocs.filter(visible).filter(doc => learningTargetMatchesStudent(doc.data() || {}, found.data)).map(doc => studentResourcePayload(doc, 'material', progress.get(doc.id))),
+    materials: materialDocs.filter(doc => visible(doc, 'materials')).filter(doc => learningTargetMatchesStudent(doc.data() || {}, found.data)).map(doc => studentResourcePayload(doc, 'material', progress.get(doc.id))),
     questions: [
       ...banks.map(doc => studentResourcePayload(doc, 'question')),
-      ...questionDocs.filter(visible).filter(doc => learningTargetMatchesStudent(doc.data() || {}, found.data)).map(doc => studentResourcePayload(doc, 'question'))
+      ...questionDocs.filter(doc => visible(doc, 'questions')).filter(doc => learningTargetMatchesStudent(doc.data() || {}, found.data)).map(doc => studentResourcePayload(doc, 'question'))
     ],
     assignments: assignments.map(row => publicAssignmentPayload(row, row.id)),
     exams: examDocs.map(doc => ({ id:doc.id,...doc.data() })).filter(exam => examIsPublished(exam) && learningTargetMatchesStudent(exam, found.data) && contentAvailableAfterStudentJoined(exam, found.data, scheduledTimeMillis(exam.closeAt)?scheduledTimeMillis(exam.closeAt)-1:Date.now())).map(exam => ({ id:text(exam.id,120),title:text(exam.title,200),scheduleState:examScheduleState(exam),openAt:text(exam.openAt,60),closeAt:text(exam.closeAt,60) }))
@@ -5195,13 +5196,13 @@ function contentIsOpen(data, now = Timestamp.now()) {
 }
 
 function bankLessonVisible(lesson, source, student) {
-  if (!lesson || !learningTargetMatchesStudent(lesson, student) || !reusableContentAccessAllowed(lesson, student)) return false;
+  if (!lesson || !learningTargetMatchesStudent(lesson, student) || !learningContentAccessAllowed(lesson, student, source === 'materials' ? 'materials' : 'lectures')) return false;
   if (source !== 'materials') return contentIsOpen(lesson);
   return reusableLearningContentIsVisible(lesson);
 }
 
-async function visibleQuestionBanks(documents, student, materialDocs = []) {
-  const candidates = documents.filter(doc => contentIsOpen(doc.data() || {}) && learningTargetMatchesStudent(doc.data() || {}, student) && reusableContentAccessAllowed(doc.data() || {}, student));
+async function visibleQuestionBanks(documents, student, materialDocs = [], kind = 'question_banks') {
+  const candidates = documents.filter(doc => contentIsOpen(doc.data() || {}) && learningTargetMatchesStudent(doc.data() || {}, student) && learningContentAccessAllowed(doc.data() || {}, student, kind));
   const parents = new Map(materialDocs.map(doc => [`materials/${doc.id}`, doc.data()]));
   const missing = new Map();
   const keyOf = row => `${row.lectureSource === 'materials' ? 'materials' : 'lectures'}/${curriculumId(row.lectureId)}`;
@@ -5247,8 +5248,8 @@ exports.getStudentCurriculum = onCall(CALLABLE_OPTIONS, async request => {
   ]);
   const progress = new Map(progressSnap.docs.map(doc => [doc.id, doc.data()]));
   const now = Timestamp.now();
-  const lectures = lectureDocs.filter(doc => learningTargetMatchesStudent(doc.data(), student) && contentIsOpen(doc.data(), now) && reusableContentAccessAllowed(doc.data(), student)).map(doc => publicLecture(doc.data(), doc.id, progress.get(doc.id))).sort((a,b)=>a.order-b.order);
-  const units = unitDocs.filter(doc => learningTargetMatchesStudent(doc.data(), student) && contentIsOpen(doc.data(), now) && reusableContentAccessAllowed(doc.data(), student)).map(doc => ({ id: doc.id, title: text(doc.data().title, 220), term: text(doc.data().term, 40), order: Number(doc.data().order || 0) })).sort((a,b)=>a.order-b.order);
+  const lectures = lectureDocs.filter(doc => learningTargetMatchesStudent(doc.data(), student) && contentIsOpen(doc.data(), now) && learningContentAccessAllowed(doc.data(), student, 'lectures')).map(doc => publicLecture(doc.data(), doc.id, progress.get(doc.id))).sort((a,b)=>a.order-b.order);
+  const units = unitDocs.filter(doc => learningTargetMatchesStudent(doc.data(), student) && contentIsOpen(doc.data(), now) && learningContentAccessAllowed(doc.data(), student, 'units')).map(doc => ({ id: doc.id, title: text(doc.data().title, 220), term: text(doc.data().term, 40), order: Number(doc.data().order || 0) })).sort((a,b)=>a.order-b.order);
   const completed = lectures.filter(item => item.progress >= 100).length;
   return { student: { code, name: text(student.name || student.studentName, 100), grade, term: text(student.term, 40) }, units, lectures, overallProgress: lectures.length ? Math.round(completed / lectures.length * 100) : 0 };
 });
@@ -5262,10 +5263,10 @@ exports.getLectureContent = onCall(CALLABLE_OPTIONS, async request => {
   if (!lectureSnap.exists || !contentIsOpen(lectureSnap.data())) throw new HttpsError('not-found', 'المحاضرة غير متاحة.');
   const student = found.data || {}, lecture = lectureSnap.data();
   requireApprovedStudent(student);
-  if (!learningTargetMatchesStudent(lecture, student) || !reusableContentAccessAllowed(lecture, student)) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الطالب.');
+  if (!learningTargetMatchesStudent(lecture, student) || !learningContentAccessAllowed(lecture, student, 'lectures')) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الطالب.');
   const queryVisible = async collection => {
     const snap = await db.collection(collection).where('lectureId', '==', lectureId).orderBy('order', 'asc').limit(50).get();
-    return snap.docs.filter(doc => contentIsOpen(doc.data()) && learningTargetMatchesStudent(doc.data(), student) && reusableContentAccessAllowed(doc.data(), student) && (collection !== 'question_banks' || doc.data().lectureSource !== 'materials')).map(doc => {
+    return snap.docs.filter(doc => contentIsOpen(doc.data()) && learningTargetMatchesStudent(doc.data(), student) && learningContentAccessAllowed(doc.data(), student, collection) && (collection !== 'question_banks' || doc.data().lectureSource !== 'materials')).map(doc => {
       const data = doc.data();
       const safe = { id: doc.id, sourceCollection: collection, title: text(data.title, 220), description: text(data.description, 4000), questionType: text(data.questionType, 60), points: Number(data.points || 0), filePath: text(data.filePath, 500) };
       if (collection === 'question_banks') safe.content = text(data.content, 50000);
@@ -5288,7 +5289,7 @@ exports.recordLectureProgress = onCall(CALLABLE_OPTIONS, async request => {
   requireApprovedStudent(found.data);
   let sourceCollection=requestedSource,lectureSnap=requestedSnap;
   if(!lectureSnap.exists&&requestedSource==='lectures'){sourceCollection='materials';lectureSnap=await db.collection('materials').doc(lectureId).get();}
-  const lecture=lectureSnap.exists?lectureSnap.data()||{}:{},visible=(sourceCollection==='lectures'?contentIsOpen(lecture):reusableLearningContentIsVisible(lecture))&&reusableContentAccessAllowed(lecture,found.data);
+  const lecture=lectureSnap.exists?lectureSnap.data()||{}:{},visible=(sourceCollection==='lectures'?contentIsOpen(lecture):reusableLearningContentIsVisible(lecture))&&learningContentAccessAllowed(lecture,found.data,sourceCollection);
   if (!lectureSnap.exists || !visible || !learningTargetMatchesStudent(lecture, found.data)) throw new HttpsError('permission-denied', 'المحاضرة غير متاحة لهذا الطالب.');
   const percent = Math.max(0, Math.min(100, Number(request.data?.percent || 0)));
   const progressRef = db.collection('student_progress').doc(code),lectureProgressRef=progressRef.collection('lectures').doc(lectureId),monthKey=cairoDateKey(new Date()).slice(0,7),monthlyEventRef=progressRef.collection('monthly_events').doc(cleanDocId(`${monthKey}_${lectureId}`)),analyticsRef=db.collection('theory_lecture_progress').doc(hash(`${lectureId}|${code}`).slice(0,48));
@@ -5328,8 +5329,8 @@ exports.getCurriculumFileUrl = onCall(CALLABLE_OPTIONS, async request => {
   if (!['lectures','lecture_materials','assignments_v2','question_banks','bank_questions','monthly_exams'].includes(collection)) throw new HttpsError('invalid-argument', 'نوع الملف غير صالح.');
   const [found, snap] = await Promise.all([getStudentPortalByCode(code), db.collection(collection).doc(id).get()]);
   requireApprovedStudent(found.data);
-  if (!snap.exists || !contentIsOpen(snap.data()) || !learningTargetMatchesStudent(snap.data(), found.data) || !reusableContentAccessAllowed(snap.data(), found.data)) throw new HttpsError('permission-denied', 'الملف غير متاح لهذا الطالب.');
-  if (['lecture_materials','assignments_v2','question_banks','bank_questions','monthly_exams'].includes(collection) && !(await visibleQuestionBanks([snap], found.data)).length) throw new HttpsError('permission-denied', 'الدرس المرتبط بالملف غير متاح لهذا الطالب.');
+  if (!snap.exists || !contentIsOpen(snap.data()) || !learningTargetMatchesStudent(snap.data(), found.data) || !learningContentAccessAllowed(snap.data(), found.data, collection)) throw new HttpsError('permission-denied', 'الملف غير متاح لهذا الطالب.');
+  if (['lecture_materials','assignments_v2','question_banks','bank_questions','monthly_exams'].includes(collection) && !(await visibleQuestionBanks([snap], found.data, [], collection)).length) throw new HttpsError('permission-denied', 'الدرس المرتبط بالملف غير متاح لهذا الطالب.');
   const path = text(snap.data().filePath, 500);
   if (!path) throw new HttpsError('not-found', 'لا يوجد ملف مرتبط.');
   const [url] = await admin.storage().bucket().file(path).getSignedUrl({ action: 'read', expires: Date.now() + 10 * 60 * 1000 });

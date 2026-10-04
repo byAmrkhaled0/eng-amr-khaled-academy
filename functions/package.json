@@ -1,6 +1,6 @@
 {
   "name": "technominds-platform-functions",
-  "version": "70.0.5",
+  "version": "70.0.6",
   "private": true,
   "main": "entry.js",
   "engines": {

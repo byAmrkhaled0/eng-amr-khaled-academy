@@ -40,4 +40,13 @@ function reusableContentAccessAllowed(item = {}, student = {}, now = Date.now())
   return millis(joined) <= now && millis(published) >= millis(joined) - 5 * 60 * 1000;
 }
 
-module.exports = { reusableLearningContentIsVisible, reusableContentAccessAllowed };
+// Only ordinary learning delivery ignores enrolment age. Unknown kinds retain
+// the assessment policy; callers still enforce publication and academic scope.
+function learningContentAccessAllowed(item, student, kind, now = Date.now()) {
+  if (['materials', 'lectures', 'units', 'lecture_materials'].includes(kind)) {
+    return item.hidden !== true && !['archived', 'unpublished', 'مؤرشف', 'غير منشور'].includes(String(item.status || '').trim().toLowerCase());
+  }
+  return reusableContentAccessAllowed(item, student, now);
+}
+
+module.exports = { reusableLearningContentIsVisible, reusableContentAccessAllowed, learningContentAccessAllowed };

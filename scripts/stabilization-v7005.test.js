@@ -3,16 +3,16 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const root=path.resolve(__dirname,'..'),read=file=>fs.readFileSync(path.join(root,file),'utf8');
 
 test('release, frontend, backend, lockfiles and worker agree without changing API schema',()=>{
-  const version='70.0.5';
+  const version='70.0.6';
   for(const file of ['package.json','functions/package.json','package-lock.json','functions/package-lock.json']){
     const value=JSON.parse(read(file));assert.equal(value.version,version,file);
     if(value.packages)assert.equal(value.packages[''].version,version,file);
   }
-  assert.match(read('assets/firebase-sync.js'),/FRONTEND_VERSION='70\.0\.5'/);
+  assert.match(read('assets/firebase-sync.js'),/FRONTEND_VERSION='70\.0\.6'/);
   assert.match(read('assets/firebase-sync.js'),/API_SCHEMA_VERSION='portal-v64\.0\.0'/);
-  assert.match(read('assets/app.js'),/MF_ASSET_VERSION = '70\.0\.5'/);
-  assert.match(read('service-worker.js'),/technominds-v70-0-5-complete-report/);
-  assert.match(read('service-worker.js'),/ASSET_VERSION = "70\.0\.5"/);
+  assert.match(read('assets/app.js'),/MF_ASSET_VERSION = '70\.0\.6'/);
+  assert.match(read('service-worker.js'),/technominds-v70-0-6-complete-report/);
+  assert.match(read('service-worker.js'),/ASSET_VERSION = "70\.0\.6"/);
 });
 
 test('deployment is selective and Vercel only; smoke check gets each published route',()=>{
@@ -69,13 +69,13 @@ test('deployment normalizes PowerShell and CMD function lists and README uses cu
   assert.doesNotMatch(readme,/^\s*\.?\\?DEPLOY-WINDOWS\.cmd -Resume\s*$/m);
   assert.doesNotMatch(readme,/^\s*\.\\DEPLOY-HOSTING-ONLY\.cmd\s*$/m);
   assert.doesNotMatch(production+launcher+readme,/firebase deploy --only hosting|"deploy", "--only", "hosting"|--force/i);
-  assert.equal(JSON.parse(read('package.json')).version,'70.0.5');
+  assert.equal(JSON.parse(read('package.json')).version,'70.0.6');
 });
 
 test('teacher page keeps admin bundles inert and preserves final renderer order',()=>{
   const html=read('teacher-login.html');
   const login=html.split('<template id="adminBundles">')[0];
-  assert.match(login,/assets\/admin-entry\.js\?v=70\.0\.5/);
+  assert.match(login,/assets\/admin-entry\.js\?v=70\.0\.6/);
   for(const name of ['admin.js','app.js','v60-admin-workflow.js','v64-admin-operations.js'])assert.doesNotMatch(login,new RegExp('src="assets/'+name.replace('.','\\.')+'\\?'));
   assert.ok(html.indexOf('assets/admin.js?')<html.indexOf('assets/v60-admin-workflow.js?'));
   assert.ok(html.indexOf('assets/v60-admin-workflow.js?')<html.indexOf('assets/v64-admin-operations.js?'));

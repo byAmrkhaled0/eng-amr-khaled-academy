@@ -34,11 +34,11 @@ test('draft, hidden, archived and explicitly unpublished resources stay hidden',
   }
 });
 
-test('student resource lists combine publication and server enrolment policy; assessments retain their policy', () => {
+test('student resource lists combine publication and kind-specific policy; assessments retain their policy', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'functions', 'index.js'), 'utf8');
 
   assert.equal(
-    source.includes('const visible = doc => reusableLearningContentIsVisible(doc.data() || {}) && reusableContentAccessAllowed(doc.data() || {}, found.data);'),
+    source.includes('const visible = (doc, kind) => reusableLearningContentIsVisible(doc.data() || {}) && learningContentAccessAllowed(doc.data() || {}, found.data, kind);'),
     true
   );
   assert.equal(source.includes('assignmentsForStudent(found.data)'), true);

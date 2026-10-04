@@ -38,13 +38,13 @@ test('payment confirmation is immediate, idempotent and does not wait for a seco
   assert.match(payments,/adminSameAcademic\(r\.summary\?\.course\|\|r\.student\.grade,course\)/);
   assert.match(backend,/sameAcademicValue\(requestedCourse, student\.grade\)/);
   assert.match(backend,/invalidateStudentReportInTransaction\(tx, studentCode, summary\.academicYear, summary\.month, 'payment-updated'\)/);
-  assert.match(login,/v60-payments\.js\?v=70\.0\.5/);
+  assert.match(login,/v60-payments\.js\?v=70\.0\.6/);
 });
 
 test('payment cards explain zero prices and never leave the primary action silently disabled',()=>{
   const payments=read('assets/v60-payments.js'),backend=read('functions/index.js');
   assert.match(payments,/missingPrice\?'حدد السعر أولًا'/);
-  assert.match(payments,/if\(number\(row\.expected\)<=0\)return focusCoursePrice/);
+  assert.match(payments,/if\(number\(row\.expected\)<=0\)\{[\s\S]{0,180}return focusCoursePrice/);
   assert.match(payments,/editor\.open=true/);
   assert.match(payments,/applySavedCoursePrices\(\)/);
   assert.doesNotMatch(payments,/saveSettings\(adminData\.settings\)[\s\S]{0,300}await loadDashboard/);
@@ -150,7 +150,7 @@ test('student and parent portals refresh in place and expose monthly alerts',()=
 });
 
 test('admin preview asset and cache use the current release',()=>{
-  assert.match(read('teacher-login.html'),/v63-admin-experience\.js\?v=70\.0\.5&rev=[a-f0-9]+/);
-  assert.match(read('service-worker.js'),/technominds-v70-0-5-complete-report/);
-  assert.equal(require(path.join(root,'package.json')).version,'70.0.5');
+  assert.match(read('teacher-login.html'),/v63-admin-experience\.js\?v=70\.0\.6&rev=[a-f0-9]+/);
+  assert.match(read('service-worker.js'),/technominds-v70-0-6-complete-report/);
+  assert.equal(require(path.join(root,'package.json')).version,'70.0.6');
 });

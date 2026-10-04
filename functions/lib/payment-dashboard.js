@@ -1,5 +1,5 @@
 'use strict';
-const {money,paymentStatus} = require('../payment-domain');
+const {money,paymentStatus,resolveExpectedAmount} = require('../payment-domain');
 
 function buildPaymentDashboard({students,summaries,todayTransactions,prices,filters,canonical=value=>value}) {
   const code = row => String(row.studentCode||row.code||row.id||'');
@@ -8,10 +8,11 @@ function buildPaymentDashboard({students,summaries,todayTransactions,prices,filt
   const eligible = students.filter(row=>row.active!==false && (filters.grade==='all'||same(row.grade,filters.grade)) &&
     (!query || `${row.studentName||row.name} ${code(row)}`.toLocaleLowerCase('ar').includes(query)));
   const studentMap = new Map(eligible.map(row=>[code(row),row]));
-  const price = student => money(prices[Object.keys(prices).find(key=>same(key,student.grade))]);
+  const price = course => {const key=Object.keys(prices).find(key=>same(key,course));return key===undefined?undefined:money(prices[key]);};
   function makeRow(student,summary,month,academicYear) {
-    const expected=money(summary?.expectedAmount??price(student)),paid=money(summary?.paidAmount);
-    return {key:`${code(student)}|${academicYear}|${month}|${summary?.course||student.grade}`,student:{studentCode:code(student),name:student.studentName||student.name||'',grade:student.grade,group:student.group||''},summary:summary||null,month,academicYear,expected,paid,remaining:money(Math.max(0,expected-paid)),status:paymentStatus(expected,paid)};
+    const configured=price(summary?.course||student.grade),expected=resolveExpectedAmount(summary,configured),paid=money(summary?.paidAmount);
+    const priceConfigured=configured!==undefined || money(summary?.expectedAmount)>0;
+    return {key:`${code(student)}|${academicYear}|${month}|${summary?.course||student.grade}`,student:{studentCode:code(student),name:student.studentName||student.name||'',grade:student.grade,group:student.group||''},summary:summary||null,month,academicYear,expected,priceConfigured,paid,remaining:money(Math.max(0,expected-paid)),status:paymentStatus(expected,paid)};
   }
   let rows;
   if(filters.month==='all'||filters.academicYear==='all') {
