@@ -109,7 +109,7 @@
         </form>
       </section>
       <div class="admin-workflow-title admin-list-title"><div><h3>ملفات الامتحانات</h3><p>افتح امتحانًا واحدًا لعرض بياناته وطلابه ومحاولاته فقط.</p></div></div><div class="admin-exam-grid">${examCards||empty('لا توجد اختبارات محفوظة.')}</div>
-      ${currentExam?`<section class="admin-selected-exam" id="adminSelectedExam"><div class="admin-selected-exam-head card"><div><span class="kicker">الامتحان المفتوح الآن</span><h2>${safe(currentExam.title)}</h2><p>${safe(currentExam.grade||'كل المسارات')} · ${safe(currentExam.group||'كل المجموعات')} · ${safe(currentExam.questionCount||0)} سؤال · ${safe(currentExam.duration||20)} دقيقة</p></div><button class="btn ghost" type="button" onclick="openAdminExamDetails('')">إغلاق الملف</button></div>
+      ${currentExam?`<section class="admin-selected-exam" id="adminSelectedExam"><div class="admin-selected-exam-head card"><div><span class="kicker">الامتحان المفتوح الآن</span><h2>${safe(currentExam.title)}</h2><p>${safe(currentExam.grade||'كل المسارات')} · ${safe(currentExam.group||'كل المجموعات')} · ${safe(currentExam.questionCount||0)} سؤال · ${safe(currentExam.duration||20)} دقيقة</p></div><div><button class="btn ghost" type="button" ${renderActionAttrs("recoverExpiredExamSessions",[String(currentExam.id)])}>استعادة جلسات منتهية</button><button class="btn ghost" type="button" onclick="openAdminExamDetails('')">إغلاق الملف</button></div></div>
       <details class="card admin-collapsible" data-pending-exam-corrections ${pending.length?'open':''}><summary>يحتاج تصحيحًا <span class="badge warn">${pending.length}</span></summary><div class="admin-detail-body">${pending.map(examAttemptRowHTML).join('')||empty('لا توجد محاولات معلقة لهذا الامتحان.')}</div></details>
       <details class="card admin-collapsible" open><summary>مين امتحن ومين لسه</summary><div class="admin-detail-body"><div class="exam-attendance-filters"><input id="examAttendanceExam" type="hidden" value="${safe(currentExam.id)}"><label>الصف<select id="examAttendanceGrade"><option value="">كل الصفوف</option>${grades()}</select></label><label>المجموعة<select id="examAttendanceGroup"><option value="">كل المجموعات</option>${(adminData.groups||[]).map(group=>`<option>${safe(group.name||group.group||'')}</option>`).join('')}</select></label></div><div id="examAttendanceRows"></div></div></details>
       <details class="card admin-collapsible" open><summary>محاولات ${safe(currentExam.title)} <span class="badge">${currentAttempts.length}</span></summary><div class="admin-detail-body">${currentAttempts.map(examAttemptRowHTML).join('')||empty('لا توجد محاولات لهذا الامتحان حتى الآن.')}</div></details>
@@ -169,6 +169,17 @@
     }catch(error){aToast(adminActionErrorMessage(error,error?.message||'تعذر حفظ الاختبار.'));}
     finally{button.disabled=false;button.classList.remove('is-loading');}
   }
+
+  window.recoverExpiredExamSessions=async function(id){
+    const exam=adminData.exams.find(row=>String(row.id)===String(id));if(!exam)return;
+    const entered=prompt('أكواد الطلاب المطلوب تفويض محاولة جديدة لهم في هذا الامتحان فقط (حتى 25 كودًا، مفصولة بمسافات أو فواصل). الجلسات النشطة والنتائج المسلّمة لن تتغير.');
+    if(!entered)return;
+    const codes=[...new Set(entered.trim().split(/[\s,،]+/).filter(Boolean))];
+    if(!codes.length||codes.length>25)return aToast('حدد من 1 إلى 25 كود طالب');
+    if(!confirm('تفويض محاولة جديدة للجلسات المنتهية فقط؟ سيُحفظ تاريخ المحاولات والإجابات السابقة.'))return;
+    if(window.__tmExamRecoveryPending)return;window.__tmExamRecoveryPending=true;
+    try{const result=await window.MFCloud.saveContent('exams',{id:exam.id},codes);aToast(`تم تفويض الاستعادة لـ ${result.recoveryAuthorized} طالب. يفتح الطالب الامتحان من جديد.`);}catch(error){aToast(adminActionErrorMessage(error,'تعذر تفويض الاستعادة.'));}finally{window.__tmExamRecoveryPending=false;}
+  };
 
   window.toggleLiveExam=async function(id){const exam=adminData.exams.find(row=>String(row.id)===String(id));if(!exam)return;const previous=exam.active;exam.active=exam.active===false;try{await window.MFCloud?.saveContent?.('exams',exam);saveData(adminData);aToast(exam.active?'تم تفعيل الامتحان':'تم إيقاف الامتحان');renderExamsV6061();}catch(error){exam.active=previous;aToast(adminActionErrorMessage(error,'تعذر تحديث حالة الامتحان.'));}};
   window.editLiveExam=function(id){

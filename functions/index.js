@@ -1844,6 +1844,36 @@ exports.upsertVersionedContent = onCall(CALLABLE_OPTIONS, async request => {
   if (!id) throw new HttpsError('invalid-argument', 'رقم المحتوى غير صالح.');
   if (jsonByteSize(input) > 900 * 1024) throw new HttpsError('invalid-argument', 'حجم بيانات المحتوى أكبر من الحد المسموح.');
   const ref = db.collection(collection).doc(id);
+  // Explicit teacher recovery is exam/student/attempt scoped; no invented schedule history.
+  if (request.data?.examRecoveryOnly === true) {
+    const codes = request.data.reopenExpiredStudentCodes;
+    if (collection !== 'exams' || !Array.isArray(codes) || !codes.length || codes.length > 25) throw new HttpsError('invalid-argument', 'حدد من 1 إلى 25 كود طالب لاستعادة جلساتهم المنتهية.');
+    const studentCodes = [...new Set(codes.map(normalizeCode))];
+    if (studentCodes.some(code => !validLegacyOrStrongCode(code))) throw new HttpsError('invalid-argument', 'أحد أكواد الطلاب غير صالح.');
+    const recovered = await db.runTransaction(async tx => {
+      const examSnap = await tx.get(ref);
+      if (!examSnap.exists || examSnap.data().assessmentMode === 'paper' || !examIsOpen(examSnap.data())) throw new HttpsError('failed-precondition', 'يجب أن يكون الامتحان الإلكتروني متاحًا قبل تفويض الاستعادة.');
+      const roots = studentCodes.map(code => db.collection('exam_sessions').doc(cleanDocId(`${id}_${code}`)));
+      const rootSnaps = await Promise.all(roots.map(root => tx.get(root)));
+      const activeRefs = rootSnaps.map((snap, i) => snap.exists && snap.data().activeSessionId ? db.collection('exam_sessions').doc(snap.data().activeSessionId) : roots[i]);
+      const activeSnaps = await Promise.all(activeRefs.map(active => tx.get(active)));
+      const locks = await Promise.all(roots.map(root => tx.get(db.collection('exam_locks').doc(root.id))));
+      const grants = { ...(examSnap.data().examRecoveryGrants || {}) };
+      for (let i = 0; i < studentCodes.length; i += 1) {
+        const session = activeSnaps[i].exists ? activeSnaps[i].data() : null;
+        const expiresAt = session?.expiresAt?.toMillis?.() || 0;
+        if (locks[i].exists || !session || session.status !== 'started' || session.supersededBy || session.examId !== id || normalizeCode(session.studentCode) !== studentCodes[i] || !expiresAt || expiresAt >= Date.now()) throw new HttpsError('failed-precondition', 'الاستعادة متاحة فقط لجلسات منتهية لم يتم تسليمها. لم يُطبق أي تفويض.');
+        grants[studentCodes[i]] = { sessionId: activeRefs[i].id, authorizedAt: FieldValue.serverTimestamp(), authorizedBy: staff.uid };
+      }
+      tx.set(ref, { examRecoveryGrants: grants, updatedAt: FieldValue.serverTimestamp(), updatedBy: staff.uid }, { merge: true });
+      return { id, collection, recoveryAuthorized: studentCodes.length };
+    });
+    console.info('exam-recovery-authorized', { count: recovered.recoveryAuthorized });
+    return recovered;
+  }
+  // Recovery grants may only be written by the dedicated authorized branch above.
+  input = { ...input };
+  delete input.examRecoveryGrants;
   const activitySnap = collection === 'assignments'
     ? await db.collection('homework_submissions').where('assignmentId', '==', id).limit(1).get().catch(() => null)
     : collection === 'exams' ? await db.collection('exam_attempts').where('examId', '==', id).limit(1).get().catch(() => null) : null;
@@ -1856,6 +1886,29 @@ exports.upsertVersionedContent = onCall(CALLABLE_OPTIONS, async request => {
     const questionChanged = currentSnap.exists && oldFingerprint !== newFingerprint;
     const currentVersion = Math.max(1, Number(current.version || 1));
     const nextVersion = questionChanged ? currentVersion + 1 : currentVersion;
+
+    const nextOpenAt = Object.prototype.hasOwnProperty.call(input, 'openAt')
+      ? input.openAt
+      : current.openAt;
+    const nextCloseAt = Object.prototype.hasOwnProperty.call(input, 'closeAt')
+      ? input.closeAt
+      : current.closeAt;
+
+    const scheduleChanged = collection === 'exams'
+      && currentSnap.exists
+      && (
+        scheduledTimeMillis(current.openAt) !== scheduledTimeMillis(nextOpenAt)
+        || scheduledTimeMillis(current.closeAt) !== scheduledTimeMillis(nextCloseAt)
+      );
+
+    const currentScheduleRevision = Math.max(
+      0,
+      Number(current.scheduleRevision || 0)
+    );
+
+    const nextScheduleRevision = collection === 'exams'
+      ? currentScheduleRevision + (scheduleChanged ? 1 : 0)
+      : currentScheduleRevision;
     if (currentSnap.exists && questionChanged) {
       const versionRef = db.collection('assessment_versions').doc(cleanDocId(`${collection}_${id}_v${currentVersion}`));
       tx.set(versionRef, {
@@ -1877,6 +1930,14 @@ exports.upsertVersionedContent = onCall(CALLABLE_OPTIONS, async request => {
     const payload = {
       ...input,
       id,
+      ...(collection === 'exams'
+        ? {
+            scheduleRevision: nextScheduleRevision,
+            scheduleChangedAt: scheduleChanged
+              ? FieldValue.serverTimestamp()
+              : (current.scheduleChangedAt || FieldValue.delete())
+          }
+        : {}),
       grade: input.grade ? canonicalAcademicLabel(input.grade) : '',
       groupId: scheduleId,
       scheduleId,
@@ -4112,25 +4173,35 @@ exports.startExam = onCall(EXAM_ENTRY_OPTIONS, async request => {
   if (!examSnap.exists) throw new HttpsError('not-found', 'الامتحان غير موجود.');
   const exam = { id: examSnap.id, ...examSnap.data() };
   if(exam.assessmentMode==='paper')throw new HttpsError('failed-precondition','الامتحان الورقي لا يبدأ من بوابة الطالب.');
-  if (!examIsOpen(exam)) throw new HttpsError('failed-precondition', 'الامتحان غير متاح في الوقت الحالي.');
   if (!examMatchesStudent(exam, found.data) || !contentAvailableAfterStudentJoined(exam, found.data)) {
     throw new HttpsError('permission-denied', 'هذا الامتحان غير مخصص لمسارك أو مجموعتك أو عامك الدراسي.');
   }
   const questions = parseExamQuestions(exam.text || exam.questionsText || '');
   if (!questions.length) throw new HttpsError('failed-precondition', 'الامتحان لا يحتوي على أسئلة صالحة.');
   if (questions.length > 200) throw new HttpsError('failed-precondition', 'عدد أسئلة الامتحان أكبر من الحد المسموح.');
+const durationMinutes = Math.max(1, Math.min(240, Number(exam.duration || 20)));
+const now = Date.now();
 
-  const durationMinutes = Math.max(1, Math.min(240, Number(exam.duration || 20)));
-  const now = Date.now();
-  const sessionId = cleanDocId(`${examId}_${studentCode}`);
-  const sessionRef = db.collection('exam_sessions').doc(sessionId);
-  const lockRef = db.collection('exam_locks').doc(sessionId);
+const examScheduleRevision = Math.max(
+  0,
+  Number(exam.scheduleRevision || 0)
+);
 
-  // Reopening a live session is a resume, not a new attempt. A weak connection
-  // may repeat this idempotent request, so do not let retries lock the student
-  // out before the transaction can return the existing session.
+const examScheduleChangedAt = exam.scheduleChangedAt?.toMillis
+  ? exam.scheduleChangedAt.toMillis()
+  : 0;
+
+const sessionId = cleanDocId(`${examId}_${studentCode}`);
+const sessionRef = db.collection('exam_sessions').doc(sessionId);
+const lockRef = db.collection('exam_locks').doc(sessionId);
+
+// Reopening a live session is a resume, not a new attempt. A weak connection
+// may repeat this idempotent request, so do not let retries lock the student
+// out before the transaction can return the existing session.
   const resumableSessionSnap = await sessionRef.get();
-  const resumableSession = resumableSessionSnap.exists ? resumableSessionSnap.data() : null;
+  const resumeRoot = resumableSessionSnap.exists ? resumableSessionSnap.data() : null;
+  const resumeSnap = resumeRoot?.activeSessionId ? await db.collection('exam_sessions').doc(resumeRoot.activeSessionId).get() : resumableSessionSnap;
+  const resumableSession = resumeSnap.exists ? resumeSnap.data() : null;
   const resumableExpiresAt = resumableSession?.expiresAt?.toMillis ? resumableSession.expiresAt.toMillis() : 0;
   const isActiveResume = resumableSession?.status === 'started' && resumableExpiresAt > now;
   if (!isActiveResume) {
@@ -4138,7 +4209,13 @@ exports.startExam = onCall(EXAM_ENTRY_OPTIONS, async request => {
   }
 
   const sessionData = await db.runTransaction(async tx => {
-    const [existingSessionSnap, lockSnap] = await Promise.all([tx.get(sessionRef), tx.get(lockRef)]);
+    const [rootSnap, lockSnap, currentExamSnap] = await Promise.all([tx.get(sessionRef), tx.get(lockRef), tx.get(examSnap.ref || db.collection('exams').doc(examId))]);
+    if (!currentExamSnap.exists) throw new HttpsError('failed-precondition', 'الامتحان غير متاح في الوقت الحالي.');
+    const transactionNow = Date.now();
+    if (Number(currentExamSnap.data().scheduleRevision || 0) !== examScheduleRevision) throw new HttpsError('aborted', 'تم تعديل موعد الامتحان. حاول مرة أخرى.');
+    const activeRef = rootSnap.exists && rootSnap.data().activeSessionId ? db.collection('exam_sessions').doc(rootSnap.data().activeSessionId) : sessionRef;
+    const existingSessionSnap = activeRef === sessionRef ? rootSnap : await tx.get(activeRef);
+    if (activeRef !== sessionRef && !existingSessionSnap.exists) throw new HttpsError('failed-precondition', 'تعذر استعادة سجل المحاولة. راجع المدرس.');
     if (lockSnap.exists && exam.allowRetake !== true) {
       throw new HttpsError('already-exists', 'تم تسليم الامتحان بالفعل.');
     }
@@ -4148,19 +4225,30 @@ exports.startExam = onCall(EXAM_ENTRY_OPTIONS, async request => {
       if (existing.status === 'submitted' && exam.allowRetake !== true) {
         throw new HttpsError('already-exists', 'تم تسليم الامتحان بالفعل.');
       }
-      if (existing.status === 'started' && existingExpiresAt > now) {
+      if (existing.status === 'started' && existingExpiresAt > transactionNow) {
         return existing;
       }
-      if (existing.status === 'started' && existingExpiresAt <= now && exam.allowRetake !== true) {
+      const scheduleReopenedAfterExpiry = existingExpiresAt > 0
+        && examScheduleRevision > Math.max(0, Number(existing.scheduleRevision || 0))
+        && examScheduleChangedAt > existingExpiresAt;
+      const recoveryGrant = currentExamSnap.data().examRecoveryGrants?.[studentCode];
+      const teacherAuthorizedRecovery = recoveryGrant?.sessionId === activeRef.id
+        && (recoveryGrant.authorizedAt?.toMillis?.() || 0) > existingExpiresAt;
+      if (existing.status === 'started' && existingExpiresAt <= transactionNow && exam.allowRetake !== true && !scheduleReopenedAfterExpiry && !teacherAuthorizedRecovery) {
         throw new HttpsError('deadline-exceeded', 'انتهى وقت الامتحان ولا يمكن بدء الوقت من جديد. راجع المدرس.');
       }
     }
 
+    if (!examIsOpen(currentExamSnap.data())) throw new HttpsError('failed-precondition', 'الامتحان غير متاح في الوقت الحالي.');
+    if (currentExamSnap.data().allowRetake !== exam.allowRetake || Number(currentExamSnap.data().version || 1) !== Number(exam.version || 1)) throw new HttpsError('aborted', 'تم تعديل الامتحان. حاول مرة أخرى.');
     const attemptSequence = existingSessionSnap.exists
       ? Number(existingSessionSnap.data().attemptSequence || 0) + 1
       : 1;
+    // Keep the original document and every attempt immutable in identity.
+    const freshRef = rootSnap.exists ? db.collection('exam_sessions').doc() : sessionRef;
     const fresh = {
-      sessionId,
+      sessionId: freshRef.id,
+      scheduleRevision: examScheduleRevision,
       examId,
       studentCode,
       studentName: text(found.data.studentName || found.data.name, 100),
@@ -4179,13 +4267,14 @@ exports.startExam = onCall(EXAM_ENTRY_OPTIONS, async request => {
       attemptSequence,
       status: 'started',
       questions,
-      startedAt: Timestamp.fromMillis(now),
-      expiresAt: Timestamp.fromMillis(now + durationMinutes * 60 * 1000),
-      deleteAt: Timestamp.fromMillis(now + 30 * 24 * 60 * 60 * 1000),
+      startedAt: Timestamp.fromMillis(transactionNow),
+      expiresAt: Timestamp.fromMillis(transactionNow + durationMinutes * 60 * 1000),
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp()
     };
-    tx.set(sessionRef, fresh);
+    if (existingSessionSnap.exists) tx.update(activeRef, { supersededBy: freshRef.id, supersededAt: FieldValue.serverTimestamp(), deleteAt: FieldValue.delete() });
+    if (rootSnap.exists) tx.update(sessionRef, { activeSessionId: freshRef.id });
+    tx.set(freshRef, fresh);
     return fresh;
   });
 
@@ -4196,7 +4285,7 @@ exports.startExam = onCall(EXAM_ENTRY_OPTIONS, async request => {
   const snapshotQuestions = Array.isArray(sessionData.questions) && sessionData.questions.length
     ? sessionData.questions
     : questions;
-  return publicExamSession(sessionId, {
+  return publicExamSession(sessionData.sessionId || sessionId, {
     id: examId,
     title: sessionData.examTitle || exam.title,
     instructions: sessionData.instructions || exam.instructions,
@@ -4218,6 +4307,7 @@ exports.saveExamProgress = onCall(CALLABLE_OPTIONS, async request => {
   const result=await db.runTransaction(async tx=>{
     const snap=await tx.get(ref);if(!snap.exists)throw new HttpsError('not-found','جلسة الامتحان غير موجودة.');
     const session=snap.data()||{};if(normalizeCode(session.studentCode)!==studentCode)throw new HttpsError('permission-denied','الجلسة لا تخص هذا الطالب.');
+    if(session.supersededBy)throw new HttpsError('failed-precondition','هذه محاولة قديمة. أعد فتح الامتحان.');
     if(session.status==='submitted')return {saved:false,submitted:true,revision:Number(session.draftRevision||0)};
     const questions=Array.isArray(session.questions)?session.questions:[],expiresAt=session.expiresAt?.toMillis?.()||0;
     if(expiresAt&&Date.now()>expiresAt+120000)throw new HttpsError('deadline-exceeded','انتهى وقت الامتحان.');
@@ -4231,6 +4321,9 @@ exports.saveExamProgress = onCall(CALLABLE_OPTIONS, async request => {
 });
 
 exports.submitExam = onCall(EXAM_ENTRY_OPTIONS, async request => {
+  const incidentRef = crypto.randomBytes(8).toString('hex');
+  let stage = 'authentication';
+  try {
   const body = request.data || {};
   const sessionId = cleanDocId(body.sessionId);
   const studentCode = normalizeCode(body.studentCode);
@@ -4238,25 +4331,36 @@ exports.submitExam = onCall(EXAM_ENTRY_OPTIONS, async request => {
   const clientAnswers = body.answers && typeof body.answers === 'object' && !Array.isArray(body.answers) ? body.answers : {};
   if (jsonByteSize(clientAnswers) > 64 * 1024) throw new HttpsError('invalid-argument', 'حجم الإجابات أكبر من الحد المسموح.');
   if (!sessionId || !validLegacyOrStrongCode(studentCode)) throw new HttpsError('invalid-argument', 'بيانات المحاولة غير مكتملة.');
+  stage = 'session-validation';
   const sessionRef = db.collection('exam_sessions').doc(sessionId);
   const sessionSnap = await sessionRef.get();
   if (!sessionSnap.exists) throw new HttpsError('not-found', 'جلسة الامتحان غير موجودة.');
-  const session = sessionSnap.data();
+  let session = sessionSnap.data();
   if (session.studentCode !== studentCode) throw new HttpsError('permission-denied', 'كود الطالب لا يطابق جلسة الامتحان.');
   if (session.status === 'submitted' && session.result) return session.result;
+  if (session.supersededBy) throw new HttpsError('failed-precondition', 'هذه محاولة قديمة. أعد فتح الامتحان.');
   // If the browser lost the success response, a repeated submit immediately
   // returns above. Only a genuinely pending submission consumes the limiter.
   await rateLimitStudentAction('exam-submit', `${studentCode}:${sessionId}`, request, 60, 10000, 10 * 60 * 1000);
-  const rawAnswers={...(session.draftAnswers&&typeof session.draftAnswers==='object'?session.draftAnswers:{}),...clientAnswers};
-  if(jsonByteSize(rawAnswers)>64*1024)throw new HttpsError('invalid-argument','حجم الإجابات أكبر من الحد المسموح.');
-  const expiresAt = session.expiresAt && session.expiresAt.toMillis ? session.expiresAt.toMillis() : 0;
-  if (expiresAt && Date.now() > expiresAt + 120 * 1000) throw new HttpsError('deadline-exceeded', 'انتهى وقت الامتحان.');
   const examSnap = await db.collection('exams').doc(session.examId).get();
   const exam = examSnap.exists ? { id: examSnap.id, ...examSnap.data() } : {
     id: session.examId,
     title: session.examTitle || 'امتحان',
     allowRetake: session.allowRetake === true
   };
+  stage = 'transaction';
+  const committedResult = await db.runTransaction(async tx => {
+    const latestSession = await tx.get(sessionRef);
+    if (!latestSession.exists) throw new HttpsError('not-found', 'جلسة الامتحان غير موجودة.');
+    const latestData = latestSession.data();
+    session = latestData;
+    if (session.studentCode !== studentCode) throw new HttpsError('permission-denied', 'الجلسة لا تخص هذا الطالب.');
+    if (latestData.status === 'submitted' && latestData.result) return latestData.result;
+    if (session.supersededBy) throw new HttpsError('failed-precondition', 'هذه محاولة قديمة. أعد فتح الامتحان.');
+    const expiresAt = session.expiresAt?.toMillis?.() || 0;
+    if (expiresAt && Date.now() > expiresAt + 120000) throw new HttpsError('deadline-exceeded', 'انتهى وقت الامتحان. الإجابات محفوظة للمراجعة مع المدرس.');
+    const rawAnswers = { ...(session.draftAnswers || {}), ...clientAnswers };
+    if (jsonByteSize(rawAnswers) > 64 * 1024) throw new HttpsError('invalid-argument', 'حجم الإجابات أكبر من الحد المسموح.');
   const questions = Array.isArray(session.questions) && session.questions.length
     ? session.questions
     : parseExamQuestions(exam.text || exam.questionsText || '');
@@ -4368,11 +4472,6 @@ exports.submitExam = onCall(EXAM_ENTRY_OPTIONS, async request => {
   const absenceRef = db.collection('exam_absences').doc(cleanDocId(`${session.examId}_${studentCode}`));
   const studentAttemptsRef = db.collection('student_attempts').doc(cleanDocId(studentCode));
   const summaryRef = studentAttemptsRef.collection('attempts').doc(attemptRef.id);
-  const committedResult = await db.runTransaction(async tx => {
-    const latestSession = await tx.get(sessionRef);
-    if (!latestSession.exists) throw new HttpsError('not-found', 'جلسة الامتحان غير موجودة.');
-    const latestData = latestSession.data();
-    if (latestData.status === 'submitted' && latestData.result) return latestData.result;
     if (session.allowRetake !== true) {
       const existingLock = await tx.get(lockRef);
       if (existingLock.exists) throw new HttpsError('already-exists', 'تم تسليم الامتحان بالفعل.');
@@ -4383,18 +4482,27 @@ exports.submitExam = onCall(EXAM_ENTRY_OPTIONS, async request => {
     tx.set(summaryRef, summary);
     tx.set(studentAttemptsRef, { studentCode, lastAttempt:summary, count:FieldValue.increment(1), updatedAt:FieldValue.serverTimestamp() }, { merge: true });
     if (session.allowRetake !== true) tx.set(lockRef, { examId: session.examId, studentCode, attemptId: attemptRef.id, submittedAt: FieldValue.serverTimestamp() });
-    tx.update(sessionRef, { status: 'submitted', result: summary, submittedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), deleteAt: Timestamp.fromMillis(Date.now() + 30 * 24 * 60 * 60 * 1000) });
+    tx.update(sessionRef, { status: 'submitted', result: summary, submittedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), deleteAt: FieldValue.delete() });
     return summary;
   });
   // Exam grades are part of the monthly motivation score. Invalidate the
   // leaderboard cache immediately so the new grade is reflected at once.
+  try {
   const examOpeningDate=exam.openAt||exam.createdAt,examOpeningMonth=cairoDateKey(examOpeningDate).slice(0,7);
   await Promise.all([
     markLeaderboardDirty('exam-submitted'),
-    markStudentMonthlyReportDirty(studentCode,submittedAt,'exam-submitted'),
-    ...(examOpeningMonth&&examOpeningMonth!==cairoDateKey(submittedAt).slice(0,7)?[markStudentMonthlyReportDirty(studentCode,examOpeningDate,'exam-submitted-after-opening-month')]:[])
+    markStudentMonthlyReportDirty(studentCode,committedResult.submittedAt,'exam-submitted'),
+    ...(examOpeningMonth&&examOpeningMonth!==cairoDateKey(committedResult.submittedAt).slice(0,7)?[markStudentMonthlyReportDirty(studentCode,examOpeningDate,'exam-submitted-after-opening-month')]:[])
   ]);
+  } catch (error) {
+    console.warn('exam-submit-post-commit-failed', { incidentRef, code: text(error?.code || 'internal', 60), committed: true });
+  }
   return committedResult;
+  } catch (error) {
+    console.warn('exam-submit-failed', { incidentRef, stage, code: text(error?.code || 'internal', 60) });
+    if (error instanceof HttpsError) { error.details = { incidentRef, stage }; throw error; }
+    throw new HttpsError('internal', 'تعذر تأكيد التسليم. إجاباتك محفوظة؛ أعد المحاولة.', { incidentRef, stage });
+  }
 });
 
 exports.prepareHomeworkUpload = onCall(CALLABLE_OPTIONS, async request => {

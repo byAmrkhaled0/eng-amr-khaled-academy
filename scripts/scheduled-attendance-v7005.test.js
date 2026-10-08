@@ -97,7 +97,7 @@ test('admin eligibility, shared report projections, bounded read-only audit and 
   assert.equal(portal.rows({studentCode:'ST1',attendance:[{date:'2026-09-23',status:'present'}]}).length,0);
   assert.equal(portal.rows({studentCode:'ST1',attendance:[{date:'2026-09-23',status:'present'}],monthlyReport:{attendance:{rows:[{date:'2026-09-22',status:'present'}]}}})[0].date,'2026-09-22');
   for(const file of ['functions/index.js','functions/lib/monthly-report.js','assets/app.js'])assert.match(read(file),/monthly-v12-scheduled-session-attendance/);
-  assert.match(read('service-worker.js'),/technominds-v70-0-6-complete-report-attendance-v12/);
+  assert.match(read('service-worker.js'),/technominds-v70-0-7-complete-report-attendance-v12/);
   const audit=read('scripts/audit-invalid-attendance.js');assert.doesNotMatch(audit,/\.set\(|\.delete\(|\.update\(|\.commit\(/);
   assert.match(audit,/\.limit\(limit\+1\)/);assert.doesNotMatch(read('scripts/build.js'),/audit-invalid-attendance/);
 });
