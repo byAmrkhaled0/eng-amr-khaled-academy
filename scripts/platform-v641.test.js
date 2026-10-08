@@ -153,7 +153,8 @@ test('exam timer uses Cairo time and locks answers after expiry with safe retry'
   assert.match(app,/function examCairoDateTime/);assert.match(app,/timeZone:'Africa\/Cairo'/);
   assert.match(app,/role="timer" aria-label="الوقت المتبقي"/);assert.doesNotMatch(app,/role="timer"[^>]+aria-live/);assert.match(app,/const lockExpiredExam=/);
   assert.match(app,/form\.querySelectorAll\('input,textarea'\).*disabled=true/);
-  assert.match(app,/autoSubmitRetryTimer=setTimeout\(\(\)=>finish\(true\),8000\)/);
+  assert.doesNotMatch(app,/autoSubmitRetryTimer=setTimeout/);
+  assert.match(app,/form\.addEventListener\('submit'.*finish\(timeExpired\)/);
   assert.match(css,/\.exam-timer\.warn/);assert.match(css,/\.exam-timer\.danger/);
 });
 

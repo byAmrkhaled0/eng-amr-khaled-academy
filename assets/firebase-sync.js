@@ -327,7 +327,7 @@
       return [`grade:${academicScopeKey(canonicalGrade(item.grade))}`];
     }
 
-    async function saveContentDocument(collection,item){
+    async function saveContentDocument(collection,item,examRecovery=null){
       const allowed=new Set(['materials','questions','exams','reviews','assignments']);
       if(!allowed.has(String(collection||'')))throw new Error('Invalid content collection');
       const id=cleanDocId(item?.id||'');if(!id)throw new Error('Invalid content item');
@@ -338,7 +338,7 @@
       if(collection!=='reviews')payload.audienceKeys=contentAudienceKeys(payload);
       if(['assignments','exams','materials'].includes(collection)){
         if(!calls.upsertVersionedContent)throw new Error('Versioned content service unavailable');
-        const saved=await calls.upsertVersionedContent({collection,item:payload});
+        const saved=await calls.upsertVersionedContent({collection,item:payload,...(examRecovery?{examRecoveryOnly:true,reopenExpiredStudentCodes:examRecovery}: {})});
         seedFingerprint(collection,id,saved);
         return saved;
       }
