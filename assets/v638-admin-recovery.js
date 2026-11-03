@@ -151,8 +151,9 @@
     if(document.getElementById('homeworkAttendanceAssignment'))enhanceHomework();
   }
 
+  window.__tmAdminInstallRenderEnhancers=installRenderEnhancers;
   installDataRecovery();
   window.__tmAdminRenderReady=new Promise(resolve=>{
-    document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{installDataRecovery();installRenderEnhancers();resolve();},60),{once:true});
+    document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{installDataRecovery();installRenderEnhancers();resolve();},0),{once:true});
   });
 })();

@@ -24,17 +24,23 @@
     if(toast){toast.setAttribute('role','status');toast.setAttribute('aria-live','polite');}
   }
 
-  function closePublicMenu(){document.body.classList.remove('v56-public-menu-open');document.documentElement.classList.remove('v56-public-menu-open');const drawer=document.querySelector('.v56-public-menu');if(drawer){drawer.inert=true;drawer.setAttribute('aria-hidden','true');}const button=document.querySelector('.v56-site-menu-button');button?.setAttribute('aria-expanded','false');button?.focus();}
+  function closePublicMenu(){document.body.classList.remove('v56-public-menu-open');document.documentElement.classList.remove('v56-public-menu-open');const drawer=document.querySelector('.v56-public-menu');if(drawer){drawer.__tmRestoreLogin?.();drawer.inert=true;drawer.setAttribute('aria-hidden','true');}const button=document.querySelector('.v56-site-menu-button');button?.setAttribute('aria-expanded','false');button?.focus();}
+
   function installPublicMobileMenu(){
-    const navbar=document.querySelector('.site-header .navbar'),nav=document.querySelector('.site-header .navlinks');
+    if(document.body.classList.contains('tm-portal'))return;
+    const navbar=document.querySelector('.site-header .navbar'),nav=navbar?.querySelector('.navlinks');
     if(!navbar||!nav||document.querySelector('.v56-site-menu-button'))return;
-    const links=[...nav.querySelectorAll('a')].map(link=>`<a href="${esc(internalRouteUrl(link.getAttribute('href')||'#'))}">${esc(link.textContent.trim())}</a>`).join('');
+    const home=document.createComment('public navigation home');nav.before(home);
+    const booking=navbar.querySelector('.tm-header-booking'),bookingHome=document.createComment('booking action home');booking?.before(bookingHome);
     navbar.insertAdjacentHTML('beforeend','<button class="v56-site-menu-button" type="button" aria-label="فتح قائمة الموقع" aria-expanded="false"><span></span><span></span><span></span></button>');
-    document.body.insertAdjacentHTML('beforeend',`<div class="v56-public-menu-backdrop" aria-hidden="true"></div><aside class="v56-public-menu" role="dialog" aria-modal="true" aria-hidden="true" inert aria-label="قائمة الموقع"><div class="v56-public-menu-head"><div><small>Techno Minds</small><b>م. عمرو خالد</b></div><button type="button" aria-label="إغلاق القائمة">×</button></div><nav>${links}</nav><a class="btn primary" href="index.html#booking">احجز مكانك الآن</a></aside>`);
-    const button=document.querySelector('.v56-site-menu-button'),backdrop=document.querySelector('.v56-public-menu-backdrop'),drawer=document.querySelector('.v56-public-menu');
-    button.addEventListener('click',()=>{const open=!document.body.classList.contains('v56-public-menu-open');if(!open){closePublicMenu();return;}document.body.classList.add('v56-public-menu-open');document.documentElement.classList.add('v56-public-menu-open');drawer.inert=false;drawer.setAttribute('aria-hidden','false');button.setAttribute('aria-expanded','true');drawer.querySelector('button').focus();});
-    drawer.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();closePublicMenu();}if(event.key==='Tab'){const items=[...drawer.querySelectorAll('button,a[href]')],first=items[0],last=items.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}});
-    backdrop.addEventListener('click',closePublicMenu);drawer.querySelector('.v56-public-menu-head button').addEventListener('click',closePublicMenu);drawer.querySelectorAll('a').forEach(link=>link.addEventListener('click',closePublicMenu));
+    document.body.insertAdjacentHTML('beforeend','<div class="v56-public-menu-backdrop" aria-hidden="true"></div><aside class="v56-public-menu" role="dialog" aria-modal="true" aria-hidden="true" inert aria-label="قائمة الموقع"><div class="v56-public-menu-head"><div><small>TECHNO MINDS</small><b>تعلّم وطبّق</b></div><button type="button" aria-label="إغلاق القائمة">×</button></div></aside>');
+    const button=navbar.querySelector('.v56-site-menu-button'),drawer=document.querySelector('.v56-public-menu'),backdrop=document.querySelector('.v56-public-menu-backdrop');
+    const login=navbar.querySelector('.tm-header-login'),loginHome=document.createComment('student login action home');login?.before(loginHome);drawer.__tmRestoreLogin=()=>{if(login&&login.parentElement===nav)loginHome.after(login);};
+    const place=()=>{if(document.body.classList.contains('tm-resource-account-active')){if(nav.parentElement!==navbar)navbar.insertBefore(nav,navbar.querySelector('.header-actions'));return;}if(matchMedia('(max-width:1100px)').matches){if(nav.parentElement!==drawer)drawer.append(nav);if(booking&&booking.parentElement!==nav)nav.append(booking);}else{if(nav.parentElement===drawer)home.after(nav);if(booking&&booking.parentElement===nav)bookingHome.after(booking);if(document.body.classList.contains('v56-public-menu-open'))closePublicMenu();}};
+    place();window.addEventListener('resize',place,{passive:true});
+    button.addEventListener('click',()=>{if(document.body.classList.contains('v56-public-menu-open')){closePublicMenu();return;}place();document.body.classList.add('v56-public-menu-open');document.documentElement.classList.add('v56-public-menu-open');if(login&&!nav.querySelector('a[href="student.html"]'))nav.insertBefore(login,booking?.parentElement===nav?booking:null);drawer.inert=false;drawer.setAttribute('aria-hidden','false');button.setAttribute('aria-expanded','true');drawer.querySelector('button').focus();});
+    drawer.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();closePublicMenu();}if(event.key==='Tab'){const items=[...drawer.querySelectorAll('button,a[href],summary')].filter(n=>n.getClientRects().length),first=items[0],last=items.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}});
+    backdrop.addEventListener('click',closePublicMenu);drawer.querySelector('.v56-public-menu-head button').addEventListener('click',closePublicMenu);drawer.addEventListener('click',event=>{if(event.target.closest('a[href]'))closePublicMenu();});
   }
 
   function removeLegacyFloatingTools(){
@@ -45,9 +51,9 @@
     if(document.getElementById('v56ScrollTop'))return;
     document.body.insertAdjacentHTML('beforeend','<button id="v56ScrollTop" class="v56-scroll-top" type="button" aria-label="الرجوع لأول الصفحة"><span aria-hidden="true">↑</span></button>');
     const button=document.getElementById('v56ScrollTop');
-    const update=()=>button.classList.toggle('show',window.scrollY>320);
+    const update=()=>{const student=document.body.dataset.account==='student',page=document.scrollingElement;button.classList.toggle('show',student?window.scrollY>80&&page.scrollHeight-window.innerHeight-window.scrollY<=160:window.scrollY>320);};
     button.addEventListener('click',()=>window.scrollTo({top:0,behavior:'smooth'}));
-    window.addEventListener('scroll',update,{passive:true});update();
+    window.addEventListener('scroll',update,{passive:true});update();window.__tmPlaceMobileTools?.();
   }
 
   function installAdminDrawerActions(){
@@ -69,13 +75,13 @@
       const practical=result.practicalCompleted==null||result.practicalCount==null?'\u2014':`${result.practicalCompleted}/${result.practicalCount}`;
       const initial=String(student.name||'ط').trim().charAt(0)||'ط';
       return `<article class="v56-student-row">
-        <div class="v56-student-identity"><span class="student-avatar">${safe(initial)}</span><div><b>${safe(student.name)}</b><small>${safe(student.studentCode)} · ${safe(student.grade||'-')} · ${safe(student.group||'-')}</small></div></div>
-        <div class="v56-student-kpis"><span class="badge ${student.paid?'good':'warn'}">${student.paid?'مشترك':'غير مشترك'}</span><span><small>الحضور</small><b>${metric(result.attendancePct)}</b></span><span><small>الدرجات</small><b title="متوسط نسب الامتحانات والواجبات المصححة؛ أحدث محاولة لكل نشاط">${result.gradeState==='loading'?'جارٍ التحميل':result.gradeState==='error'?'تعذر التحميل':metric(result.avg)}</b></span><span><small>التطبيق العملي</small><b>${practical}</b></span><span><small>الواجب</small><b>${metric(result.homeworkPct)}</b></span></div>
-        <div class="v56-student-actions"><button class="small-btn primary" type="button" ${renderActionAttrs("editStudent",[String((student.studentCode)??'')])}>تعديل</button><button class="small-btn" type="button" ${renderActionAttrs("editStudent",[String((student.studentCode)??'')])}>الملف</button><details><summary class="small-btn" aria-label="إجراءات الطالب">إجراءات</summary><div class="v56-action-menu"><button type="button" ${renderActionAttrs("openStudentGroupManager",[String((student.studentCode)??'')])}>نقل أو إضافة لمجموعة</button><button type="button" ${renderActionAttrs("quickPresent",[String((student.studentCode)??'')])}>تسجيل حضور</button><button type="button" ${renderActionAttrs("sendParentMonthlyReport",[String((student.studentCode)??'')],true)}>إرسال واتساب</button><button type="button" ${renderActionAttrs("copyStudentCodes",[String((student.studentCode)??'')])}>نسخ الكود الموحّد</button>${manager?`<button type="button" ${renderActionAttrs("regenerateStudentCode",[String((student.studentCode)??'')])}>تغيير الكود الموحّد</button><button class="danger" type="button" ${renderActionAttrs("deleteStudent",[String((student.studentCode)??'')])}>حذف الطالب</button>`:''}</div></details></div>
+        <div class="v56-student-identity"><span class="student-avatar">${safe(initial)}</span><div><b>${safe(student.name)}</b><small>${safe(student.group||'-')}</small></div></div>
+        <div class="reference-student-code">${safe(student.studentCode)}</div><div class="reference-student-grade">${safe(student.grade||'-')}</div><div class="v56-student-kpis"><span class="badge ${student.paid?'good':'warn'}">${student.paid?'مشترك':'غير مشترك'}</span><span><small>الحضور</small><b>${metric(result.attendancePct)}</b></span><span><small>الدرجات</small><b title="متوسط نسب الامتحانات والواجبات المصححة؛ أحدث محاولة لكل نشاط">${result.gradeState==='loading'?'جارٍ التحميل':result.gradeState==='error'?'تعذر التحميل':metric(result.avg)}</b></span><span><small>التطبيق العملي</small><b>${practical}</b></span><span><small>الواجب</small><b>${metric(result.homeworkPct)}</b></span></div>
+        <div class="v56-student-actions"><button class="small-btn primary" type="button" ${renderActionAttrs("editStudent",[String((student.studentCode)??'')])}>تعديل</button><button class="small-btn" type="button" ${renderActionAttrs("editStudent",[String((student.studentCode)??'')])}>الملف</button><details><summary class="small-btn" aria-label="إجراءات الطالب" title="إجراءات الطالب">•••</summary><div class="v56-action-menu"><button type="button" ${renderActionAttrs("editStudent",[String((student.studentCode)??'')])}>تعديل / الملف</button><button type="button" ${renderActionAttrs("openStudentGroupManager",[String((student.studentCode)??'')])}>نقل أو إضافة لمجموعة</button><button type="button" ${renderActionAttrs("quickPresent",[String((student.studentCode)??'')])}>تسجيل حضور</button><button type="button" ${renderActionAttrs("sendParentMonthlyReport",[String((student.studentCode)??'')],true)}>إرسال واتساب</button><button type="button" ${renderActionAttrs("copyStudentCodes",[String((student.studentCode)??'')])}>نسخ الكود الموحّد</button>${manager?`<button type="button" ${renderActionAttrs("regenerateStudentCode",[String((student.studentCode)??'')])}>تغيير الكود الموحّد</button><button class="danger" type="button" ${renderActionAttrs("deleteStudent",[String((student.studentCode)??'')])}>حذف الطالب</button>`:''}</div></details></div>
       </article>`;
     }).join('');
     const more=adminStudentVisible<normalized.length?`<button class="btn ghost full-width" type="button" onclick="showMoreAdminStudents()">عرض ${Math.min(60,normalized.length-adminStudentVisible)} طالب إضافي</button>`:'';
-    return `<p class="section-desc">الدرجات تشمل الامتحانات والواجبات المصححة. تُحتسب أحدث محاولة لكل نشاط، ولا يدخل ما ينتظر التصحيح في المتوسط.</p><div class="v56-student-summary"><span><b>${normalized.length}</b><small>طالب مطابق</small></span><span><b>${paid}</b><small>مشترك</small></span><span><b>${normalized.length-paid}</b><small>غير مشترك</small></span></div><div class="v56-student-list">${cards||'<div class="empty-state"><h3>لا يوجد طلاب مطابقون</h3><p>غيّر البحث أو أضف طالبًا جديدًا.</p></div>'}${more}</div>`;
+    return `<p class="section-desc">الدرجات تشمل الامتحانات والواجبات المصححة. تُحتسب أحدث محاولة لكل نشاط، ولا يدخل ما ينتظر التصحيح في المتوسط.</p><div class="v56-student-summary"><span><b>${normalized.length}</b><small>طالب مطابق</small></span><span><b>${paid}</b><small>مشترك</small></span><span><b>${normalized.length-paid}</b><small>غير مشترك</small></span></div><div class="v56-student-list"><div class="reference-students-head" aria-hidden="true"><b>الطالب</b><b>الكود</b><b>المسار</b><b>الدرجات / الاشتراك</b><b>إجراءات</b></div>${cards||'<div class="empty-state"><h3>لا يوجد طلاب مطابقون</h3><p>غيّر البحث أو أضف طالبًا جديدًا.</p></div>'}${more}</div>`;
   }
   window.showMoreAdminStudents=function(){adminStudentVisible+=60;const box=document.getElementById('studentsTableBox');if(box)box.innerHTML=renderAdminStudentRows();if(typeof hydrateIcons==='function')hydrateIcons();};
   function applyAdminStudentList(){
@@ -121,7 +127,8 @@
     const reportPanel=section.querySelector('.monthly-report-help-v38');
     const importPanel=document.getElementById('studentImportTools');
     const legacyButton=[...(head?.querySelectorAll('button')||[])].find(button=>/ترقية الأكواد|توحيد الأكواد/.test(button.textContent));
-    head?.querySelectorAll('button').forEach(button=>button.hidden=true);
+    // Preserve every original header action; only the remapped code action moves into tools.
+    if(legacyButton)legacyButton.hidden=true;
     [addPanel,reportPanel,importPanel].forEach(panel=>{if(panel){panel.hidden=true;panel.classList.add('v56-tool-panel');}});
     toolbar.classList.add('v56-student-filterbar');
     toolbar.insertAdjacentHTML('afterbegin','<div class="v56-filter-title"><span data-icon="search"></span><div><b>ابحث وصفّي الطلاب</b><small>اكتب الكود أو رقم ولي الأمر، ثم حدّد المسار والدفع والعام والترم.</small></div></div>');
@@ -164,8 +171,8 @@
     installCleanScrollTop();
     installPublicMobileMenu();
     setTimeout(()=>{applyAdminStudentList();installStudentPageEnhancement();installAdminDrawerActions();},30);
-    const adminMenuObserver=new MutationObserver(()=>{removeLegacyFloatingTools();installAdminDrawerActions();if(document.querySelector('.admin-command-header'))adminMenuObserver.disconnect();});
-    adminMenuObserver.observe(document.body,{childList:true,subtree:true});
+    if(document.getElementById('adminRoot')){const adminMenuObserver=new MutationObserver(()=>{removeLegacyFloatingTools();installAdminDrawerActions();if(document.querySelector('.admin-command-header'))adminMenuObserver.disconnect();});
+    adminMenuObserver.observe(document.getElementById('adminRoot'),{childList:true,subtree:true});}
     document.addEventListener('click',closeOpenMenus);
   });
 })();

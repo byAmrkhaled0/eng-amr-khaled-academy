@@ -51,12 +51,6 @@
       return result;
     };
   }
-  if(typeof publicDataOnly==='function'){
-    publicDataOnly=function(data){
-      const d=mergeData(data),settings=d.settings||{};
-      return {...defaultData(),materials:d.materials,questions:d.questions,reviews:d.reviews.filter(r=>r.approved===true),groups:d.groups,assignments:d.assignments,settings:{siteUrl:settings.siteUrl||DEFAULT_SITE_URL,teacherPhone:settings.teacherPhone||TEACHER_WHATSAPP,teacherName:settings.teacherName||'م. عمرو خالد',homeNotice:settings.homeNotice||'',academicYear:settings.academicYear||calculatedAcademicYear(),term:settings.term||'الترم الأول'}};
-    };
-  }
   if(typeof appData!=='undefined') appData=mergeData(appData);
 
   function populateAcademicSelects(){
@@ -178,11 +172,11 @@
     const allowedSections=()=>currentStaff?.role==='assistant'?new Set(['overview','students','bookings','attendance','payments']):new Set(adminSections.map(x=>x[0]));
 
     const renderOverviewV53=renderOverview;
-    renderOverview=function(){renderOverviewV53();const section=document.getElementById('adminContent');if(!section||document.querySelector('.admin-action-kpis')||document.getElementById('teacherQuickHub'))return;section.insertAdjacentHTML('beforeend',`<div class="card teacher-quick-hub" id="teacherQuickHub"><h3>إدارة سريعة</h3><p class="section-desc">أهم الأدوات اليومية في مكان واحد.</p><div class="admin-task-grid-v37"><button type="button" class="btn primary" onclick="goAdminSection('schedules')"><span data-icon="calendar"></span> إضافة أو تعديل موعد</button><button type="button" class="btn ghost" onclick="goAdminSection('students')"><span data-icon="users"></span> إضافة طالب</button><button type="button" class="btn ghost" onclick="goAdminSection('attendance')"><span data-icon="qr"></span> تسجيل الحضور</button><button type="button" class="btn ghost" onclick="goAdminSection('payments')"><span data-icon="clipboard"></span> تسجيل الدفع</button><button type="button" class="btn ghost teacher-only" onclick="goAdminSection('exams')"><span data-icon="clipboard"></span> إضافة امتحان</button><button type="button" class="btn ghost teacher-only" onclick="goAdminSection('materials')"><span data-icon="book-open"></span> إضافة مراجعة أو سؤال</button></div></div>`);hydrateIcons();};
+    renderOverview=function(){renderOverviewV53();const section=document.getElementById('adminContent');if(!section||document.querySelector('.admin-action-kpis')||document.getElementById('teacherQuickHub'))return;(section.querySelector('.admin-status-reveal-v69')||section).insertAdjacentHTML('beforeend',`<div class="teacher-quick-hub" id="teacherQuickHub"><h3>أدوات التنظيم والمتابعة</h3><p class="section-desc">أهم الأدوات اليومية في مكان واحد.</p><div class="admin-task-grid-v37"><button type="button" class="btn primary" onclick="goAdminSection('schedules')"><span data-icon="calendar"></span> إضافة أو تعديل موعد</button><button type="button" class="btn ghost" onclick="goAdminSection('students')"><span data-icon="users"></span> إضافة طالب</button><button type="button" class="btn ghost" onclick="goAdminSection('attendance')"><span data-icon="qr"></span> تسجيل الحضور</button><button type="button" class="btn ghost" onclick="goAdminSection('payments')"><span data-icon="clipboard"></span> تسجيل الدفع</button><button type="button" class="btn ghost teacher-only" onclick="goAdminSection('exams')"><span data-icon="clipboard"></span> إضافة امتحان</button><button type="button" class="btn ghost teacher-only" onclick="goAdminSection('materials')"><span data-icon="book-open"></span> إضافة مراجعة أو سؤال</button></div></div>`);const hub=document.getElementById('teacherQuickHub'),grid=section.querySelector('.reference-six-actions'),buttons=[...hub.querySelectorAll('button')];if(grid){const importAction=grid.querySelector('button:has([data-icon="upload"])'),motivation=grid.querySelector('button:has([data-icon="star"])');if(importAction)section.querySelector('#homeContentActions').append(importAction);if(motivation)section.querySelector('#homeCommunicationActions').append(motivation);for(const button of buttons.slice(0,2)){button.classList.remove('btn','primary','ghost');button.classList.add('admin-task-button');grid.prepend(button);}section.querySelector('#homeContentActions').append(hub);const payment=[...hub.querySelectorAll('button')].find(b=>b.getAttribute('onclick')==="goAdminSection('payments')"),schedule=[...grid.children].find(b=>b.getAttribute('onclick')==="goAdminSection('schedules')");if(payment&&schedule){schedule.classList.remove('admin-task-button');schedule.classList.add('btn','ghost');hub.querySelector('.admin-task-grid-v37').append(schedule);payment.classList.remove('btn','ghost');payment.classList.add('admin-task-button');grid.append(payment);}const reportBox=section.querySelector('#homeReportActions'),studentEntry=section.querySelector('.home-student-reports-entry');if(studentEntry){studentEntry.classList.remove('admin-task-button');studentEntry.classList.add('small-btn');studentEntry.querySelector('b').textContent='تقارير الطلاب';reportBox.append(studentEntry);}for(const id of ['attendance','exams']){const button=[...hub.querySelectorAll('button')].find(b=>b.getAttribute('onclick')==="goAdminSection('"+id+"')");if(button){button.classList.add('small-btn');button.lastChild.textContent=id==='attendance'?' الحضور والتصدير':' نتائج الاختبارات';reportBox.append(button);}}const order=['students','attendance','exams','assignments','materials','payments'];for(const id of order){const button=[...grid.children].find(button=>button.getAttribute('onclick')==="goAdminSection('"+id+"')");if(button){if(!button.querySelector('b')){const text=[...button.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join('').trim();[...button.childNodes].filter(n=>n.nodeType===3).forEach(n=>n.remove());const label=document.createElement('b');label.textContent=text;button.append(label);}grid.append(button);}}}hydrateIcons();};
 
     function scheduleCard(item){const active=item.active!==false;return `<article class="card schedule-admin-card ${active?'':'is-inactive'}"><div class="profile-top"><div><span class="badge ${active?'good':'warn'}">${active?'متاح للحجز':'متوقف'}</span><h3>${safe(item.name||'مجموعة بدون اسم')}</h3><p class="section-desc">${safe(item.grade||'كل المسارات')} · ${safe(item.days||'لم تُحدد الأيام')}</p></div><span class="schedule-time-badge">${safe(typeof formatTime12==='function'?formatTime12(item.startTime):(item.startTime||'--:--'))}</span></div><div class="mobile-actions"><button type="button" class="small-btn primary" ${renderActionAttrs("editSchedule",[String((item.id)??'')])}>تعديل الموعد</button><button type="button" class="small-btn" ${renderActionAttrs("toggleSchedule",[String((item.id)??'')])}>${active?'إيقاف مؤقت':'إتاحته للحجز'}</button><button type="button" class="small-btn danger teacher-only" ${renderActionAttrs("deleteSchedule",[String((item.id)??'')])}>حذف</button></div></article>`;}
     function renderSchedules(){fresh();content(`<div class="section-head"><div><span class="kicker"><span data-icon="calendar"></span> المواعيد والمجموعات</span><h2 class="section-title">إدارة مواعيد الحصص</h2><p class="section-desc">أضف الموعد أو غيّر الأيام والوقت والمكان، وسيظهر اسم المجموعة في الحجز وملف الطالب.</p></div></div><form id="scheduleForm" class="card grid grid-3 schedule-form"><input type="hidden" name="id"><div class="field"><label>اسم المجموعة</label><input name="name" placeholder="مثال: مجموعة السبت والثلاثاء" required></div><div class="field"><label>المسار</label><select name="grade"><option>كل المسارات</option>${GRADES.map(g=>`<option>${safe(g)}</option>`).join('')}</select></div><div class="field"><label>الأيام</label><input name="days" placeholder="مثال: السبت والثلاثاء" required></div><div class="field"><label>وقت البداية</label><input name="startTime" type="time" required></div><div class="field"><label>وقت النهاية</label><input name="endTime" type="time"></div><div class="field"><label>المكان</label><input name="location" placeholder="اسم الأكاديمية أو القاعة" required></div><div class="field"><label>الحد الأقصى للطلاب</label><input name="capacity" type="number" min="1" max="500" placeholder="مثال: 30"></div><div class="field grid-span-full"><label>ملاحظة للطلاب</label><textarea name="note" placeholder="أي تعليمات خاصة بالموعد"></textarea></div><label class="remember-code grid-span-full"><input name="active" type="checkbox" checked> <span>الموعد متاح للحجز والظهور للطلاب</span></label><div class="mobile-actions grid-span-full"><button class="btn primary" type="submit"><span data-icon="calendar"></span> حفظ الموعد</button><button class="btn ghost" type="reset" onclick="resetScheduleForm()">موعد جديد</button></div></form><div class="schedule-admin-grid" style="margin-top:16px">${(adminData.groups||[]).map(scheduleCard).join('')||'<div class="empty-state"><h3>لا توجد مواعيد مضافة</h3><p>ابدأ بإضافة أول مجموعة من النموذج.</p></div>'}</div>`);const form=document.getElementById('scheduleForm');form.onsubmit=async event=>{event.preventDefault();const values=Object.fromEntries(new FormData(form).entries());if(values.endTime&&values.endTime<=values.startTime)return aToast('وقت النهاية يجب أن يكون بعد وقت البداية');values.active=form.active.checked;values.id=values.id||`grp-${Date.now()}`;const index=adminData.groups.findIndex(group=>String(group.id)===String(values.id));if(index>=0)adminData.groups[index]={...adminData.groups[index],...values};else adminData.groups.push(values);saveData(adminData);try{await window.MFCloud?.saveSiteData?.(adminData);aToast(index>=0?'تم تعديل الموعد وظهر على الموقع':'تم إضافة الموعد وظهر على الموقع');}catch(error){aToast('تم حفظ الموعد على الجهاز، لكن تعذر تحديث الموقع. تحقق من الإنترنت.');}renderSchedules();};hydrateIcons();}
-    window.editSchedule=function(id){const item=adminData.groups.find(group=>String(group.id)===String(id));if(!item)return;const form=document.getElementById('scheduleForm');Object.entries(item).forEach(([key,value])=>{if(form.elements[key]&&key!=='active')form.elements[key].value=value??'';});form.active.checked=item.active!==false;form.scrollIntoView({behavior:'smooth',block:'start'});form.name.focus();};
+    window.editSchedule=function(id){const item=adminData.groups.find(group=>String(group.id)===String(id));if(!item)return;const form=document.getElementById('scheduleForm');if(!form)return;form.hidden=false;form.closest('details')?.setAttribute('open','');Object.entries(item).forEach(([key,value])=>{if(form.elements[key]&&key!=='active')form.elements[key].value=value??'';});form.active.checked=item.active!==false;form.scrollIntoView({behavior:'smooth',block:'start'});form.elements.namedItem('name')?.focus();};
     window.resetScheduleForm=function(){setTimeout(()=>{const form=document.getElementById('scheduleForm');if(form){form.elements.id.value='';form.active.checked=true;}},0);};
     window.toggleSchedule=async function(id){const item=adminData.groups.find(group=>String(group.id)===String(id));if(!item)return;const previous=item.active;item.active=item.active===false;try{if(!window.MFCloud?.saveGroup)throw new Error('Schedule service unavailable');await window.MFCloud.saveGroup(item);saveData(adminData);aToast(item.active?'تم تفعيل الموعد':'تم إيقاف الموعد مؤقتًا');renderSchedules();}catch(error){item.active=previous;saveData(adminData);aToast(adminActionErrorMessage(error,'تعذر تحديث حالة الموعد.'));}};
     window.deleteSchedule=async function(id){if(!isTeacherManager())return aToast('الحذف متاح للمدرس أو المدير فقط');const item=adminData.groups.find(group=>String(group.id)===String(id));if(!item||!confirm(`حذف موعد ${item.name||''}؟ سيختفي من نموذج الحجز فورًا.`))return;try{if(!window.MFCloud?.deleteDocument)throw new Error('Delete service unavailable');await window.MFCloud.deleteDocument('groups',id);adminData.groups=adminData.groups.filter(group=>String(group.id)!==String(id));saveData(adminData);aToast('تم حذف الموعد من الموقع ونموذج الحجز');renderSchedules();}catch(error){aToast(adminActionErrorMessage(error,'تعذر حذف الموعد، ولم يتم حذفه من القائمة.'));}};
@@ -204,7 +198,7 @@
     };
 
     const contentV52=content;
-    content=function(html){contentV52(html);setTimeout(applyAdminRoleGuards,0);};
+    content=function(html){contentV52(html);const root=document.getElementById('adminContent');if(root){usePaymentWording(root);simplifyScheduleEditor(root);}setTimeout(applyAdminRoleGuards,0);};
 
     function applyAdminRoleGuards(){
       const allowed=allowedSections();
@@ -416,7 +410,7 @@
 
     const renderSectionV52=renderSection;
     renderSection=function(){
-      if(window.__adminOfflineMode)return renderSectionV52();
+      if(window.__adminOfflineMode||window.__tmAdminHydrating)return renderSectionV52();
       if(!allowedSections().has(currentSection)){currentSection='overview';}
       if(currentSection==='errors')return renderClientErrors();
       if(currentSection==='schedules')return renderSchedules();
@@ -469,7 +463,8 @@
     button.onclick=()=>toggle(panel.hidden);document.getElementById('studentHelpClose').onclick=()=>toggle(false);
     panel.querySelectorAll('[data-help-index]').forEach(el=>el.onclick=()=>show(Number(el.dataset.helpIndex)));
     document.getElementById('studentHelpSearch').onsubmit=event=>{event.preventDefault();const query=normalizeHelpText(event.target.question.value);if(!query)return;let best=-1,score=0;studentHelpItems.forEach((item,index)=>{const words=normalizeHelpText(item.q+' '+item.keys).split(' ');const current=words.filter(word=>word.length>2&&query.includes(word)).length;if(current>score){score=current;best=index;}});answer.innerHTML=best>=0?helpAnswerCard(studentHelpItems[best]):`<div class="student-help-answer"><b>محتاج مساعدة إضافية؟</b><p>مش لاقي إجابة دقيقة للسؤال ده. تواصل مع المدرس واكتب سؤالك بالتفصيل.</p><a href="index.html#contact" class="small-btn primary">التواصل مع المدرس</a></div>`;};
-    if(typeof hydrateIcons==='function')hydrateIcons();
+    panel.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();toggle(false);button.focus({preventScroll:true});}});
+    if(typeof hydrateIcons==='function')hydrateIcons();window.__tmPlaceMobileTools?.();
   }
 
   function usePaymentWording(root=document){
@@ -477,16 +472,66 @@
     const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);nodes.forEach(node=>{if(node.parentElement?.closest('script,style'))return;let text=node.nodeValue;replacements.forEach(([from,to])=>{text=text.replaceAll(from,to);});node.nodeValue=text;});
   }
 
-  function simplifyScheduleEditor(root=document){const form=(root.id==='scheduleForm'?root:root.querySelector?.('#scheduleForm'));if(!form||form.dataset.simplified)return;form.dataset.simplified='true';['endTime','location','capacity','note'].forEach(name=>form.elements[name]?.closest('.field')?.remove());const time=form.elements.startTime;if(time){const label=time.closest('.field')?.querySelector('label');if(label)label.textContent='ميعاد الحصة';}const days=form.elements.days;if(days&&!document.getElementById('commonScheduleDays')){days.setAttribute('list','commonScheduleDays');days.placeholder='اختار أو اكتب الأيام';days.insertAdjacentHTML('afterend','<datalist id="commonScheduleDays"><option value="السبت والثلاثاء"><option value="الأحد والأربعاء"><option value="الإثنين والخميس"><option value="الجمعة"><option value="يوميًا"></datalist>');}const description=form.previousElementSibling?.querySelector?.('.section-desc');if(description)description.textContent='اسم المجموعة، المسار، الأيام وميعاد الحصة فقط.';form.onsubmit=async event=>{event.preventDefault();const button=form.querySelector('button[type="submit"]');const values=Object.fromEntries(new FormData(form).entries()),context=window.adminWorkspaceContext?.()||currentAcademicContext();values.academicYear=context.academicYear||'';values.term=context.term||'';values.endTime='';values.active=form.active.checked;values.id=values.id||`grp-${Date.now()}`;const current=adminData.groups.find(group=>String(group.id)===String(values.id));values.previousName=current?.name||'';button.disabled=true;button.classList.add('is-loading');try{if(!window.MFCloud?.saveGroup)throw new Error('Schedule service unavailable');const saved=await window.MFCloud.saveGroup(values);if(!saved?.id)throw new Error('save failed');const index=adminData.groups.findIndex(group=>String(group.id)===String(saved.id));if(index>=0)adminData.groups[index]={...adminData.groups[index],...saved};else adminData.groups.push(saved);saveData(adminData);aToast(index>=0?'تم تعديل الموعد وتحديث الطلاب والمحتوى':'تمت إضافة المجموعة إلى صفحة الحجز');renderSection();}catch(error){aToast(adminActionErrorMessage(error,'تعذر حفظ المجموعة.'));}finally{button.disabled=false;button.classList.remove('is-loading');}};}
+  function simplifyScheduleEditor(root=document){const form=(root.id==='scheduleForm'?root:root.querySelector?.('#scheduleForm'));if(!form||form.dataset.simplified)return;form.dataset.simplified='true';/* Keep end time, venue, capacity and notes editable. */const time=form.elements.startTime;if(time){const label=time.closest('.field')?.querySelector('label');if(label)label.textContent='ميعاد الحصة';}const days=form.elements.days;if(days&&!document.getElementById('commonScheduleDays')){days.setAttribute('list','commonScheduleDays');days.placeholder='اختار أو اكتب الأيام';days.insertAdjacentHTML('afterend','<datalist id="commonScheduleDays"><option value="السبت والثلاثاء"><option value="الأحد والأربعاء"><option value="الإثنين والخميس"><option value="الجمعة"><option value="يوميًا"></datalist>');}const description=form.previousElementSibling?.querySelector?.('.section-desc');if(description)description.textContent='بيانات المجموعة، المواعيد، المكان، السعة والملاحظات.';form.onsubmit=async event=>{event.preventDefault();const button=form.querySelector('button[type="submit"]');const values=Object.fromEntries(new FormData(form).entries()),context=window.adminWorkspaceContext?.()||currentAcademicContext();if(values.endTime&&values.endTime<=values.startTime)return aToast('وقت النهاية يجب أن يكون بعد وقت البداية');values.academicYear=context.academicYear||'';values.term=context.term||'';values.active=form.active.checked;values.id=values.id||`grp-${Date.now()}`;const current=adminData.groups.find(group=>String(group.id)===String(values.id));values.previousName=current?.name||'';button.disabled=true;button.classList.add('is-loading');try{if(!window.MFCloud?.saveGroup)throw new Error('Schedule service unavailable');const saved=await window.MFCloud.saveGroup(values);if(!saved?.id)throw new Error('save failed');const index=adminData.groups.findIndex(group=>String(group.id)===String(saved.id));if(index>=0)adminData.groups[index]={...adminData.groups[index],...saved};else adminData.groups.push(saved);saveData(adminData);aToast(index>=0?'تم تعديل الموعد وتحديث الطلاب والمحتوى':'تمت إضافة المجموعة إلى صفحة الحجز');renderSection();}catch(error){aToast(adminActionErrorMessage(error,'تعذر حفظ المجموعة.'));}finally{button.disabled=false;button.classList.remove('is-loading');}};}
 
+  let initialized=false;
   document.addEventListener('DOMContentLoaded',()=>{
+    if(initialized)return;initialized=true;
     populateAcademicSelects();
     addPasswordReset();
     initAdminUpgrades();
     initStudentHelp();
     usePaymentWording();
     simplifyScheduleEditor();
-    new MutationObserver(records=>records.forEach(record=>record.addedNodes.forEach(node=>{if(node.nodeType===1){usePaymentWording(node);simplifyScheduleEditor(node);}}))).observe(document.body,{childList:true,subtree:true});
+    // Compatibility wording/editor work now follows the existing content commit.
     // Admin's original init may render after auth restoration; role guards are re-applied by wrappers.
   });
 })();
+
+/* Phase 5 presentation only: retain every original navigation node and handler. */
+(function(){
+ 'use strict';
+ const layouts=new WeakMap();
+ function compactNavigation(nav,primary,moreLabel){
+  if(!nav)return;
+  let state=layouts.get(nav);
+  const compact=window.matchMedia('(max-width:700px)').matches;
+  if(compact&&!state){
+   const nodes=Array.from(nav.children).filter(el=>el.matches('a,[data-student-tab],[data-parent-section]'));
+   const secondary=nodes.filter(el=>!primary(el));if(!secondary.length)return;
+   const more=document.createElement('details');more.className='tm-nav-more';
+   const summary=document.createElement('summary');summary.textContent=moreLabel;summary.setAttribute('aria-label',moreLabel);summary.setAttribute('aria-expanded','false');more.append(summary);
+   const list=document.createElement('div');list.className='tm-nav-more-list';more.append(list);
+   const homes=secondary.map(node=>{const marker=document.createComment('navigation home');node.before(marker);list.append(node);return {node,marker};});
+   nav.append(more);nav.classList.add('tm-compact-tabs');layouts.set(nav,{more,homes});
+   more.addEventListener('toggle',()=>summary.setAttribute('aria-expanded',String(more.open)));
+   more.addEventListener('keydown',event=>{if(event.key==='Escape'){event.stopPropagation();more.open=false;summary.focus();}});
+   list.addEventListener('click',event=>{if(event.target.closest('a,[data-student-tab],[data-parent-section]')){more.open=false;summary.focus({preventScroll:true});}});
+  }else if(!compact&&state){
+   state.homes.forEach(({node,marker})=>marker.replaceWith(node));state.more.remove();nav.classList.remove('tm-compact-tabs');layouts.delete(nav);
+  }
+ }
+ const mobileTools=new Map();
+ function polishNavigation(){
+  // Student navigation stays in the document: every original section is visible.
+  compactNavigation(document.querySelector('#studentResult .student-tabbar'),()=>true,'المزيد');
+  compactNavigation(document.querySelector('#parentResult .parent-tabbar'),el=>['overview','attendance','report'].includes(el.dataset.parentSection),'المزيد');
+  const compact=window.matchMedia('(max-width:700px)').matches,target=document.querySelector('#parentResult .tm-nav-more-list')||document.querySelector('.tm-public-more-list');
+  for(const id of ['studentHelpButton','v56ScrollTop','accountAccessButton']){
+   let state=mobileTools.get(id);const button=document.getElementById(id)||state?.button;if(!button)continue;
+   if(state&&state.button!==button){state.marker.remove();mobileTools.delete(id);state=null;}
+   if(id!=='accountAccessButton'){let label=button.querySelector(':scope>.tm-public-tool-label');if(compact&&target?.matches('.tm-public-more-list')){if(!label){label=document.createElement('span');label.className='tm-public-tool-label';label.setAttribute('aria-hidden','true');button.append(label);}label.textContent=button.title||button.getAttribute('aria-label')||'';}else label?.remove();}
+   if(document.body.dataset.account==='student'){if(state){state.marker.replaceWith(button);button.classList.remove('tm-menu-tool');mobileTools.delete(id);}continue;}
+   if(compact&&target){if(!state){const marker=document.createComment('mobile tool home');button.before(marker);state={button,marker};mobileTools.set(id,state);}if(button.parentElement!==target)target.append(button);button.classList.add('tm-menu-tool');if(!button.__tmMenuCloseBound){button.addEventListener('click',()=>{const menu=button.closest('details');if(menu)menu.open=false;});button.__tmMenuCloseBound=true;}}
+   else if(state){state.marker.replaceWith(button);button.classList.remove('tm-menu-tool');mobileTools.delete(id);}
+  }
+ }
+ window.__tmPlaceMobileTools=polishNavigation;
+ const init=()=>{
+  polishNavigation();window.addEventListener('resize',polishNavigation);
+  const result=document.getElementById('studentResult')||document.getElementById('parentResult');
+  if(result){const observer=new MutationObserver(polishNavigation);observer.observe(result,{childList:true});}
+ };
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+})();
+

@@ -1,0 +1,23 @@
+
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict');
+const domain=require('../functions/lib/account-domain');
+const base={studentCode:'123456',grade:'أساسيات برمجة',scheduleId:'group-a'};
+test('an intentionally empty managed track list never resurrects legacy defaults',()=>{assert.equal(domain.activeTracks({learningTracks:[]}).length,0);assert.equal(domain.activeTracks({}).length,4);});
+test('only active tracks are public and order is stable',()=>{const rows=domain.activeTracks({learningTracks:[{id:'b',order:2},{id:'a',order:1},{id:'hidden',order:0,active:false}]});assert.deepEqual(rows.map(r=>r.id),['a','b']);});
+test('track editor preserves safe local navigation and removes unrelated fields',()=>{const v=domain.normalizeTrack({...domain.DEFAULT_TRACKS[0],studentCodes:['secret']});assert.equal(v.destination,'practical.html');assert(!('studentCodes'in v));});
+for(const destination of ['javascript:alert(1)','https://evil.test','//evil.test','student.html?code=private','index.html#<script>'])test('track rejects unsafe destination '+destination,()=>assert.throws(()=>domain.normalizeTrack({...domain.DEFAULT_TRACKS[0],destination})));
+for(const type of domain.TYPES)test(type+' has a safe existing account destination',()=>{assert(domain.TABS.includes(domain.normalizeNotification({type,title:'عنوان',body:'رسالة'}).actionTab));});
+test('notification rejects external action routes and HTML is kept as literal content',()=>{assert.throws(()=>domain.normalizeNotification({type:'GENERAL',title:'عنوان',body:'رسالة',actionTab:'javascript:alert(1)'}));assert.equal(domain.normalizeNotification({type:'GENERAL',title:'<script>',body:'<img src=x>'}).title,'<script>');});
+test('student targeting never falls through to all',()=>{assert(domain.visibleTo({target:{scope:'students',studentCodes:['123456']}},base));assert(!domain.visibleTo({target:{scope:'students',studentCodes:['999999']}},base));assert(!domain.visibleTo({target:{scope:'unsupported'}},base));});
+test('group and grade targeting use the current account membership',()=>{assert(domain.visibleTo({target:{scope:'group',scheduleId:'group-a'}},base));assert(!domain.visibleTo({target:{scope:'group',scheduleId:'group-b'}},base));assert(domain.visibleTo({target:{scope:'grade',grade:base.grade}},base));assert(!domain.visibleTo({target:{scope:'grade',grade:'أولى ثانوي بكالوريا'}},base));});
+test('expired and archived notifications are unavailable even if audience keys match',()=>{assert(!domain.visibleTo({active:false,target:{scope:'all'}},base));assert(!domain.visibleTo({expiresAt:100,target:{scope:'all'}},base,101));});
+const monthKey='2026-10',unpaid={monthKey,payment:{status:'unpaid',expectedAmount:300,paidAmount:0}};
+test('Cairo remains due through the last moment of day 10',()=>{const row=domain.paymentAlert(base,unpaid,new Date('2026-10-10T20:59:59Z'));assert(row.id.endsWith(':due'));assert.match(row.body,/مستحق حتى يوم 10/);});
+test('Cairo turns overdue at midnight starting day 11',()=>{const row=domain.paymentAlert(base,unpaid,new Date('2026-10-10T21:00:00Z'));assert(row.id.endsWith(':overdue'));assert.match(row.body,/متأخر في الدفع/);});
+test('stable payment identity prevents a second alert on refresh',()=>{const now=new Date('2026-10-15T12:00:00Z');assert.equal(domain.paymentAlert(base,unpaid,now).id,domain.paymentAlert(base,unpaid,now).id);});
+for(const status of ['paid','exempt','waived','free'])test('no payment alert for '+status,()=>{assert.equal(domain.paymentAlert(base,{monthKey,payment:{status,expectedAmount:300,paidAmount:0}},new Date('2026-10-15')),null);});
+test('intentional zero price and missing price never produce a false payment demand',()=>{assert.equal(domain.paymentAlert(base,{monthKey,payment:{expectedAmount:0,paidAmount:0}},new Date('2026-10-15')),null);assert.equal(domain.paymentAlert(base,{monthKey,payment:null},new Date('2026-10-15')),null);});
+test('partial payment warns only for the remaining balance',()=>{assert.match(domain.paymentAlert(base,{monthKey,payment:{status:'partial',expectedAmount:300,paidAmount:150}},new Date('2026-10-15')).body,/150/);});
+test('a server-derived account balance covers a student with no payment document',()=>{const student={...base,paymentAccountState:{monthKey,status:'unpaid',expectedAmount:400,paidAmount:0}};assert.match(domain.paymentAlert(student,{monthKey,payment:null},new Date('2026-10-15')).body,/400/);});
+test('old month reports cannot create a current payment alert',()=>{assert.equal(domain.paymentAlert(base,{...unpaid,monthKey:'2026-09'},new Date('2026-10-15')),null);});

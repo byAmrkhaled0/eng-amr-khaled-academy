@@ -16,9 +16,17 @@ let adminExamAttemptsUnsubscribe = null;
 let adminMotivationUnsubscribe = null;
 let adminAcademicListenersReady = false;
 let bookingListenerReady = false;
+// Keep the existing listener ownership and singleton guards. An unsubscribe
+// also invalidates queued callbacks, including callbacks from a previous login.
+function adminLiveSubscription(subscribe,callback){
+  let active=true;
+  const unsubscribe=subscribe((...args)=>{if(active)callback(...args);});
+  return ()=>{if(!active)return;active=false;unsubscribe?.();};
+}
 let adminRecordsLoadToken = 0;
 let adminRecordsPromise=null,adminRecordsReady=false;
 let adminContentPromise=null,adminContentReady=true;
+const adminContentLoadedCollections=new Set();
 let attendanceCloudDate='',attendanceCloudPending=null,attendanceCloudError=null;
 const attendanceCloudSnapshots=new Map();
 let offlineAttendanceSyncTimer = null;
@@ -61,11 +69,14 @@ const adminSectionDescriptions = {
   curriculum:'الوحدات ومحتوى المنهج',reviews:'مراجعة آراء الطلاب',backup:'النسخ والاستعادة',settings:'إعدادات المنصة العامة'
 };
 const adminSectionGroups = [
-  ['المتابعة', ['overview','classroom','warnings','motivation']],
-  ['إدارة الطلاب', ['students','attendance','schedules','payments']],
-  ['التعليم والتقييم', ['theoryLectures','materials','assignments','exams','questionBanks','curriculum']],
-  ['الطلبات والتواصل', ['bookings','studentRequests','reviews']],
-  ['النظام والبيانات', ['backup','settings']]
+  ['الرئيسية', ['overview']],
+  ['الطلاب', ['students','studentRequests','bookings']],
+  ['الحصص والمتابعة', ['classroom','attendance','schedules','warnings']],
+  ['التقييمات', ['exams','assignments','questionBanks']],
+  ['المالية', ['payments']],
+  ['المحتوى التعليمي', ['curriculum','theoryLectures','materials']],
+  ['التقارير والتواصل', ['motivation','reviews']],
+  ['الإعدادات', ['settings','backup']]
 ];
 const adminGroupIcons = {
   'المتابعة':'bar-chart',
@@ -275,7 +286,7 @@ async function loadAdminStudentMetricsBatch(force=false){
   finally{if(adminStudentMetrics.pending===pending)adminStudentMetrics.pending=null;}
 }
 function badgeStatus(v){return v===true||v==='present'||v==='حاضر'||v==='تم الدفع'?'good':v===false||v==='absent'||v==='غائب'||v==='لم يدفع'?'danger':'warn';}
-function content(html){const el=document.getElementById('adminContent'); if(el) el.innerHTML=`<section class="admin-section active">${html}</section>`; hydrateIcons();}
+function content(html){const el=document.getElementById('adminContent'); if(el) el.innerHTML=`<section class="admin-section active">${html}</section>`; hydrateIcons(el||document);window.TMSiteMediaAdmin?.mount();}
 function selectedGrade(){return document.getElementById('attendanceGrade')?.value || sessionStorage.getItem('attGrade') || 'all';}
 function selectedGroup(){return document.getElementById('attendanceGroup')?.value || sessionStorage.getItem('attGroup') || 'all';}
 function filterStudents(grade='all', group='all'){return (adminData.students||[]).map(normalizeStudent).filter(s=>(grade==='all'||adminSameAcademic(s.grade,grade))&&(group==='all'||adminSameAcademic(s.group,group)));}
@@ -288,7 +299,7 @@ async function reloadFromCloud(){
   const data = await window.MFCloud.loadSiteData({fast:true,shell:true});
   if(data){ adminData = mergeData(data); saveData(adminData);cacheOfflineStaffProfile();await cacheOfflineAttendanceRoster(); }
   ++adminRecordsLoadToken;adminRecordsReady=false;adminRecordsPromise=null;
-  adminContentReady=false;adminContentPromise=null;
+  adminContentReady=false;adminContentPromise=null;adminContentLoadedCollections.clear();
   attendanceCloudDate='';attendanceCloudPending=null;attendanceCloudError=null;attendanceCloudSnapshots.clear();
 }
 
@@ -355,13 +366,40 @@ function adminNavButtonHtml(id,label){
   return `<button type="button" data-admin-nav="${id}" data-admin-nav-search="${safe(searchValue)}" class="${id===currentSection?'active':''}"><span class="admin-nav-icon" data-icon="${icon}"></span><span class="admin-nav-copy"><b>${safe(name)}</b><em>${safe(description)}</em></span></button>`;
 }
 function adminNavigationHtml(){
-  const primary=`<div class="admin-nav-primary"><span class="admin-nav-section-label">المهام الأساسية</span>${adminPrimarySections.map(id=>adminNavButtonHtml(id,'المهام الأساسية')).join('')}</div>`;
-  const secondaryGroups=adminSectionGroups.map(([label,ids])=>{
-    const secondaryIds=ids.filter(id=>!adminPrimarySections.includes(id));if(!secondaryIds.length)return '';
-    return `<details class="admin-nav-group" data-admin-nav-group="${safe(label)}" ${secondaryIds.includes(currentSection)?'open':''}><summary><span class="admin-nav-group-title"><i data-icon="${adminGroupIcons[label]||'database'}"></i><span>${safe(label)}</span></span><b>${secondaryIds.length}</b></summary><div class="admin-nav-group-items">${secondaryIds.map(id=>adminNavButtonHtml(id,label)).join('')}</div></details>`;
-  }).join('');
-  const secondaryCount=adminSections.length-adminPrimarySections.length;
-  return `${primary}<details class="admin-all-tools" id="adminAllTools" ${adminPrimarySections.includes(currentSection)?'':'open'}><summary><span><i data-icon="menu"></i><b>كل أدوات الإدارة</b></span><em>${secondaryCount}</em></summary><div class="admin-all-tools-body">${secondaryGroups}</div></details>`;
+  const selected=adminSectionGroupName(currentSection);
+  const switcher=adminSectionGroups.map(([label,ids])=>`<button type="button" data-admin-workspace="${safe(label)}" aria-expanded="${label===selected}" aria-controls="adminWorkspaceSections${adminSectionGroups.findIndex(group=>group[0]===label)}"><span><i data-icon="${adminSectionIcon(ids[0])}" aria-hidden="true"></i>${safe(label)}</span><small>${ids.length}</small></button>`).join('');
+  const sections=adminSectionGroups.map(([label,ids],index)=>`<div class="admin-nav-group" id="adminWorkspaceSections${index}" data-admin-nav-group="${safe(label)}" ${label===selected?'':'hidden'}><span class="admin-nav-section-label">${safe(label)}</span><div class="admin-nav-group-items">${ids.map(id=>adminNavButtonHtml(id,label)).join('')}${label==='التقييمات'?`<details class="admin-review-shortcuts"><summary>التصحيح</summary><button class="small-btn" type="button" ${renderActionAttrs("goAdminSection",["exams"])}>نتائج وتصحيح الامتحانات</button><button class="small-btn" type="button" ${renderActionAttrs("goAdminSection",["assignments"])}>مراجعة تسليمات الواجب</button></details>`:''}</div></div>`).join('');
+  return `<div class="admin-workspace-switcher" role="group" aria-label="مساحات لوحة الإدارة">${switcher}</div><div class="admin-workspace-sections">${sections}</div>`;
+}
+function showAdminWorkspace(label){
+  if(!adminSectionGroups.some(group=>group[0]===label))return;
+  document.querySelectorAll('[data-admin-workspace]').forEach(button=>button.setAttribute('aria-expanded',String(button.dataset.adminWorkspace===label)));
+  document.querySelectorAll('#adminNavList [data-admin-nav-group]').forEach(group=>{group.hidden=group.dataset.adminNavGroup!==label;});
+  const box=document.getElementById('adminContent');
+  if(box&&document.getElementById('adminRoot')?.classList.contains('admin-workspace-e')){
+    const preview=label!==adminSectionGroupName(currentSection);
+    box.hidden=preview;
+    let prompt=document.getElementById('adminWorkspacePrompt');
+    if(!prompt){prompt=document.createElement('div');prompt.id='adminWorkspacePrompt';prompt.className='admin-workspace-prompt';prompt.setAttribute('role','status');box.before(prompt);}
+    prompt.hidden=!preview;prompt.textContent=preview?`اختر تبويبًا من مساحة ${label} لبدء العمل.`:'';
+    const reportForm=document.getElementById('adminReportsContext');if(reportForm&&preview)reportForm.hidden=true;
+  }
+}
+// Keep the original navigation nodes/handlers; only their presentation owner changes.
+function syncAdminDrawerSearchPlacement(){
+  const nav=document.getElementById('adminNavList'),sidebar=document.getElementById('adminSidebar');
+  if(!nav||!sidebar||!document.getElementById('adminRoot')?.classList.contains('admin-workspace-e'))return;
+  const query=document.getElementById('adminNavSearch')?.value.trim();
+  const searching=!!query&&window.matchMedia('(max-width:980px)').matches&&document.body.classList.contains('admin-drawer-open');
+  if(searching){
+    if(!nav.__workspaceHome){nav.__workspaceHome=document.createComment('workspace navigation home');nav.before(nav.__workspaceHome);}
+    let results=document.getElementById('adminDrawerSearchResults');
+    if(!results){results=document.createElement('div');results.id='adminDrawerSearchResults';results.setAttribute('aria-label','نتائج البحث في الأقسام');document.getElementById('adminNavSearchStatus').after(results);}
+    results.hidden=false;results.append(nav);
+  }else{
+    if(nav.__workspaceHome){nav.__workspaceHome.replaceWith(nav);delete nav.__workspaceHome;}
+    const results=document.getElementById('adminDrawerSearchResults');if(results)results.hidden=true;
+  }
 }
 function setAdminDrawer(open){
   const shouldOpen=!!open;
@@ -371,6 +409,8 @@ function setAdminDrawer(open){
   const sidebar=document.getElementById('adminSidebar');
   if(!sidebar)return;
   const shouldHide=!!mobile&&!shouldOpen;
+  if(!shouldOpen){const search=document.getElementById('adminNavSearch');if(search?.value){search.value='';search.dispatchEvent(new Event('input'));}}
+  syncAdminDrawerSearchPlacement();
   if(shouldOpen&&mobile&&document.activeElement instanceof HTMLElement&&!sidebar.contains(document.activeElement)){
     adminDrawerReturnFocus=document.activeElement;
   }
@@ -388,19 +428,37 @@ function setAdminDrawer(open){
 window.toggleAdminDrawer=function(open){setAdminDrawer(open ?? !document.body.classList.contains('admin-drawer-open'));};
 function syncAdminChrome(){
   document.querySelectorAll('[data-admin-nav]').forEach(btn=>btn.classList.toggle('active',btn.dataset.adminNav===currentSection));
+  const search=document.getElementById('adminNavSearch');
+  if(search)search.value='';
+  document.querySelectorAll('#adminNavList [data-admin-nav]').forEach(button=>{button.hidden=false;button.setAttribute('aria-current',button.dataset.adminNav===currentSection?'page':'false');});
+  showAdminWorkspace(adminSectionGroupName(currentSection));
+  const status=document.getElementById('adminNavSearchStatus');if(status)status.textContent=`${adminSections.length} قسمًا متاحًا`;
   const activeNavigation=document.querySelector(`[data-admin-nav="${currentSection}"]`);
   activeNavigation?.closest('.admin-nav-group')?.setAttribute('open','');
   activeNavigation?.closest('.admin-all-tools')?.setAttribute('open','');
   const label=document.getElementById('adminCurrentSectionLabel');
-  if(label) label.textContent=adminSectionName(currentSection);
+  if(label) label.textContent=adminSectionGroupName(currentSection);
   const desktopLabel=document.getElementById('adminDesktopSectionLabel');
-  if(desktopLabel)desktopLabel.textContent=adminSectionName(currentSection);
+  if(desktopLabel)desktopLabel.textContent=adminSectionGroupName(currentSection);
   const breadcrumb=document.getElementById('adminDesktopSectionBreadcrumb');
-  if(breadcrumb)breadcrumb.textContent=adminSectionGroupName(currentSection);
+  if(breadcrumb)breadcrumb.textContent=adminSectionName(currentSection);
   const description=document.getElementById('adminDesktopSectionDescription');
   if(description)description.textContent=adminSectionDescriptions[currentSection]||'';
   const pageIcon=document.getElementById('adminDesktopSectionIcon');
   if(pageIcon){pageIcon.dataset.icon=adminSectionIcon(currentSection);pageIcon.innerHTML='';hydrateIcons();}
+  let reports=document.getElementById('adminReportsContext');
+  if(!reports){
+    reports=document.createElement('form');reports.id='adminReportsContext';reports.className='admin-report-context';
+    document.getElementById('adminNavList')?.after(reports);
+    reports.addEventListener('submit',event=>{event.preventDefault();const code=reports.elements.studentCode.value;if(code)window.editStudent(code,'reports');});
+  }
+  if(reports){
+    reports.hidden=adminSectionGroupName(currentSection)!=='التقارير والتواصل';
+    if(!reports.hidden){
+      const selected=reports.elements.studentCode?.value||'';
+      reports.innerHTML=`<label for="adminReportStudent">تقرير الطالب للفترة المحددة</label><select name="studentCode" id="adminReportStudent" required><option value="">اختر طالبًا</option>${(adminData.students||[]).map(student=>`<option value="${safe(stCode(student))}" ${stCode(student)===selected?'selected':''}>${safe(student.name||student.studentName||stCode(student))}</option>`).join('')}</select><button class="btn primary" type="submit">معاينة التقرير والمتابعة</button>`;
+    }
+  }
   updateAdminBookingBadge();
 }
 function pendingBookingCount(){return pendingBookings().length;}
@@ -441,13 +499,20 @@ function renderAdmin(){
   document.querySelector('.v56-public-menu-backdrop')?.remove();
   document.body.classList.add('admin-dashboard-active');
   const root=document.getElementById('adminRoot');
-  root.className='admin-page admin-page-v37 admin-page-v38';
+  root.className='admin-page admin-page-v37 admin-page-v38 admin-workspace-b admin-workspace-e phase53-admin';
+  // Fill missing entries in the existing icon catalog; no additional bundle or requests.
+  if(typeof icons==='object'){
+    icons.bell||='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z"></path><path d="M10 21h4"></path></svg>';
+    icons.userPlus||='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="7" r="4"></circle><path d="M2 21v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v2M20 6v6M17 9h6"></path></svg>';
+    icons.activity||='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12h5l3-8 4 16 3-8h5"></path></svg>';
+  }
+
   root.innerHTML=`
     <div class="admin-drawer-backdrop" id="adminDrawerBackdrop" onclick="toggleAdminDrawer(false)"></div>
     <div class="admin-attention-backdrop-v69" id="adminAttentionBackdrop" hidden onclick="toggleAdminAttentionPanel(false)"></div>
     <aside class="admin-sidebar" id="adminSidebar" aria-label="أقسام لوحة التحكم">
       <div class="admin-sidebar-head">
-        <div class="logo admin-brand"><img class="admin-brand-logo" src="assets/technominds-logo.webp" alt="Techno Minds"><span>لوحة Techno Minds <small>حساب ${safe(currentStaff?.role||'staff')}</small></span></div>
+        <div class="logo admin-brand"><img class="admin-brand-logo" width="48" height="48" src="assets/technominds-logo.webp" alt="Techno Minds"><span>Techno Minds <small>Programming &amp; AI</small></span></div>
         <button class="admin-sidebar-close" type="button" aria-label="إغلاق القائمة" onclick="toggleAdminDrawer(false)">×</button>
       </div>
       <label class="admin-nav-search" for="adminNavSearch">
@@ -464,12 +529,11 @@ function renderAdmin(){
       </div>
     </aside>
     <main class="admin-main">
-      <header class="admin-mobile-header">
+      <header class="admin-command-header admin-command-header-v68" aria-label="أوامر لوحة الإدارة"><div class="admin-mobile-header">
         <button class="admin-menu-button" type="button" aria-label="فتح قائمة لوحة التحكم" onclick="toggleAdminDrawer(true)"><span aria-hidden="true">☰</span></button>
-        <div class="admin-mobile-brand"><img class="admin-mobile-logo" src="assets/technominds-logo.webp" alt="Techno Minds"><span><small>Techno Minds <i class="admin-mobile-live-dot" aria-label="متصل"></i></small><strong id="adminCurrentSectionLabel">${safe(adminSectionName(currentSection))}</strong></span></div>
+        <div class="admin-mobile-brand"><img class="admin-mobile-logo" width="48" height="48" src="assets/technominds-logo.webp" alt="Techno Minds"><span><small>Techno Minds <i class="admin-mobile-live-dot" aria-label="متصل"></i></small><strong id="adminCurrentSectionLabel">${safe(adminSectionName(currentSection))}</strong></span></div>
         <button class="admin-mobile-home admin-mobile-alert-v69" id="adminAttentionMobileButton" type="button" aria-label="فتح تنبيهات المتابعة" onclick="toggleAdminAttentionPanel()"><span data-icon="bell"></span><b id="adminAttentionMobileCount" hidden>0</b></button>
-      </header>
-      <header class="admin-command-header admin-command-header-v68" aria-label="أوامر لوحة الإدارة">
+      </div>
         <div class="admin-heading-cluster-v68">
           <span class="admin-page-icon-v68" id="adminDesktopSectionIcon" data-icon="${adminSectionIcon(currentSection)}" aria-hidden="true"></span>
           <div class="admin-welcome-v68">
@@ -478,11 +542,13 @@ function renderAdmin(){
             <p id="adminDesktopSectionDescription">${safe(adminSectionDescriptions[currentSection]||'')}</p>
           </div>
         </div>
-        <div class="header-actions admin-command-actions">
+        <details class="admin-command-more" open><summary aria-label="المزيد من أوامر الإدارة">⋯</summary><div class="header-actions admin-command-actions">
+          <button class="btn ghost admin-global-search phase5-icon-action" title="البحث في الإدارة" type="button" aria-label="البحث في أقسام الإدارة" onclick="toggleAdminDrawer(true);document.getElementById('adminNavSearch')?.focus()"><span data-icon="search"></span><span class="admin-search-label">ابحث عن قسم أو وظيفة...</span></button>
+          <button class="btn ghost phase5-icon-action admin-account-action" type="button" aria-label="الحساب الحالي" title="الحساب الحالي" onclick="toggleAdminDrawer(true);document.querySelector('.admin-staff-card')?.scrollIntoView({block:'nearest'})"><span data-icon="user"></span><span class="admin-account-initial">${safe(String(currentStaff?.name||'ع').trim().charAt(0))}</span><span class="admin-account-name">${safe(currentStaff?.name||'م. عمرو خالد')}</span><span class="tm-screen-reader">الحساب الحالي</span></button>
           <button class="admin-hero-theme-icon" id="themeToggleAdmin" type="button" aria-label="تغيير الوضع" title="تغيير الوضع"></button>
-          <button class="btn ghost admin-attention-button-v69" id="adminAttentionButton" type="button" onclick="toggleAdminAttentionPanel()"><span data-icon="bell"></span><span>تنبيهات المتابعة</span><b id="adminAttentionCount" class="admin-alert-count" hidden>0</b></button>
-          <button class="btn primary" id="adminSaveButton" type="button" onclick="forceFirestoreSync()"><span data-icon="refresh-cw"></span><span class="admin-save-label">تحديث البيانات</span></button>
-          <button class="btn ghost" type="button" onclick="location.href='index.html'"><span data-icon="external-link"></span><span>معاينة الموقع</span></button>
+          <button class="btn ghost admin-attention-button-v69 phase5-icon-action" id="adminAttentionButton" aria-label="تنبيهات المتابعة" title="تنبيهات المتابعة" aria-controls="adminAttentionPanel" aria-expanded="false" type="button" onclick="toggleAdminAttentionPanel()"><span data-icon="bell"></span><span class="tm-screen-reader">تنبيهات المتابعة</span><b id="adminAttentionCount" class="admin-alert-count" hidden>0</b></button>
+          <button class="btn primary phase5-icon-action" id="adminSaveButton" aria-label="تحديث البيانات" title="تحديث البيانات" type="button" onclick="forceFirestoreSync()"><span data-icon="refresh-cw"></span><span class="admin-save-label tm-screen-reader" aria-live="polite">تحديث البيانات</span></button>
+          <button class="btn ghost phase5-icon-action" type="button" aria-label="معاينة الموقع" title="معاينة الموقع" onclick="location.href='index.html'"><span data-icon="external-link"></span><span class="tm-screen-reader">معاينة الموقع</span></button>
         </div>
       </header>
       ${window.__adminOfflineMode?'<div class="admin-offline-banner"><b>وضع الحضور دون إنترنت</b><span>سيتم رفع عمليات المسح تلقائيًا عند عودة الاتصال.</span></div>':''}
@@ -491,9 +557,21 @@ function renderAdmin(){
     </main>
     <aside class="admin-attention-panel-v69" id="adminAttentionPanel" hidden aria-label="تنبيهات متابعة الطلاب" aria-live="polite"><div class="admin-attention-head-v69"><div><span>متابعة تحتاج تدخلك</span><h2>تنبيهات الطلاب</h2></div><button type="button" aria-label="إغلاق" onclick="toggleAdminAttentionPanel(false)">×</button></div><div id="adminAttentionPanelBody" class="admin-attention-body-v69"><div class="portal-loading"><span></span><b>جارٍ تجهيز التنبيهات…</b></div></div><div class="admin-attention-footer-v69"><button type="button" class="small-btn" onclick="refreshAdminAttentionAlerts(true)">تحديث التنبيهات</button><button type="button" class="small-btn ghost" onclick="enableBookingNotifications()">تفعيل إشعارات الحجز</button></div></aside>
     <nav class="admin-mobile-bottom" aria-label="التنقل السريع في لوحة التحكم">
-      ${[['overview','bar-chart','الرئيسية'],['students','users','الطلاب'],['attendance','qr','الحضور'],['assignments','file-text','الواجبات']].map(([id,ic,name])=>`<button type="button" data-admin-nav="${id}" class="${id===currentSection?'active':''}"><span data-icon="${ic}"></span><span>${name}</span></button>`).join('')}
-      <button type="button" onclick="toggleAdminDrawer(true)"><span aria-hidden="true">☰</span><span>المزيد</span></button>
-    </nav>`;
+      ${[['overview','bar-chart','الرئيسية'],['students','users','الطلاب'],['attendance','calendar','الحضور'],['payments','database','المالية']].map(([id,ic,name])=>`<button type="button" data-admin-nav="${id}" class="${id===currentSection?'active':''}"><span data-icon="${ic}"></span><span>${name}</span></button>`).join('')}
+      <details class="admin-mobile-more"><summary aria-label="المزيد"><span aria-hidden="true">⋯</span><span>المزيد</span></summary><div class="admin-mobile-more-list"><button type="button" data-admin-nav="exams"><span data-icon="clipboard"></span><span>التقييمات</span></button><button type="button" data-admin-nav="curriculum"><span data-icon="book-open"></span><span>المحتوى</span></button><button type="button" data-admin-nav="motivation"><span data-icon="bar-chart"></span><span>التقارير</span></button><button type="button" data-admin-nav="settings"><span data-icon="settings"></span><span>الإعدادات</span></button><button type="button" onclick="openStudentNotificationCenter()"><span data-icon="bell"></span><span>إشعارات الطلاب</span></button><button type="button" onclick="toggleAdminDrawer(true)"><span aria-hidden="true">☰</span><span>كل الأقسام</span></button></div></details></nav>`;
+  const brand=document.querySelector('#adminRoot .admin-brand'),brandSlot=document.querySelector('#adminRoot .admin-mobile-brand');
+  if(brand&&brandSlot){const label=brandSlot.querySelector('#adminCurrentSectionLabel');brandSlot.replaceChildren(brand);if(label)brand.querySelector('span')?.append(label);}
+  const navigation=document.getElementById('adminNavList');
+  const switcher=navigation?.querySelector('.admin-workspace-switcher');
+  const main=document.querySelector('#adminRoot .admin-main');
+  if(navigation&&switcher&&main){
+    navigation.before(switcher);
+    const contentBox=document.getElementById('adminContent');
+    contentBox.before(navigation);
+    navigation.setAttribute('aria-label','تبويبات مساحة العمل');
+    navigation.classList.add('admin-workspace-tabs');
+  }
+  syncAdminCommandMenu();
   setupTheme();
   bindNav();
   bindAdminNavigationTools();
@@ -502,17 +580,16 @@ function renderAdmin(){
   renderSection();
   syncAdminChrome();
   hydrateIcons();
+  if(window.__tmAdminHydrating)return;
   setTimeout(()=>window.refreshAdminAttentionAlerts?.(),0);
   if(navigator.onLine!==false&&!window.__adminOfflineMode){startBookingNotifications();startAdminLiveData();}
   setTimeout(()=>{mergeOfflineAttendanceQueue().then(()=>renderOfflineAttendanceStatus()).catch(()=>renderOfflineAttendanceStatus());if(navigator.onLine!==false)syncOfflineAttendanceNow(true);},0);
-  if(navigator.onLine!==false&&!window.__adminQrOfflinePrepared){
-    window.__adminQrOfflinePrepared=true;
-    setTimeout(()=>window.MFAssets?.loadQrScanner?.().catch(()=>{window.__adminQrOfflinePrepared=false;}),2000);
-  }
+  // QR camera library is loaded by the existing scanner action when needed.
+
 }
 
 window.enableBookingNotifications=async function(){if(!('Notification' in window))return aToast('المتصفح لا يدعم إشعارات الهاتف');if(!confirm('سيطلب المتصفح إذنًا لإظهار تنبيه عند وصول حجز جديد، حتى لو كانت اللوحة مغلقة. متابعة؟'))return;const permission=await Notification.requestPermission();if(permission!=='granted')return aToast('لم يتم منح إذن الإشعارات. يمكنك تغييره من إعدادات الموقع');localStorage.setItem('mf-booking-notifications','1');startBookingNotifications();try{await window.MFCloud?.registerTeacherPushToken?.();aToast('تم تفعيل تنبيهات الحجز في الخلفية');}catch(error){const raw=`${error?.code||''} ${error?.message||''}`;aToast(/VAPID_KEY_REQUIRED/.test(raw)?'يلزم إضافة مفتاح Web Push العام في firebase-config.js أولًا':'التنبيهات داخل اللوحة تعمل، وتعذر تفعيل Push في الخلفية');}};
-function startBookingNotifications(){if(bookingNotificationUnsubscribe||!window.MFCloud?.subscribeToBookings)return;bookingNotificationUnsubscribe=window.MFCloud.subscribeToBookings((rows,changes)=>{adminData.bookings=rows.filter(row=>{const code=String(row.code||row.id||'');return !bookingActionPending.has(code)&&!acceptedBookingCodes.has(code);});saveData(adminData);updateAdminBookingBadge();window.refreshAdminAttentionFromBookings?.();if(bookingListenerReady){changes.filter(change=>change.type==='added').forEach(change=>{const b=change.doc.data();const code=String(b.code||change.doc.id||'');if(bookingActionPending.has(code)||acceptedBookingCodes.has(code))return;aToast(`حجز جديد: ${b.name||b.studentName||'طالب جديد'}`);if('Notification' in window&&Notification.permission==='granted'&&localStorage.getItem('mf-booking-notifications')==='1'){const n=new Notification('حجز طالب جديد',{body:`${b.name||b.studentName||''} · ${b.grade||''} · ${b.group||''}`,icon:'assets/technominds-logo.png',tag:`booking-${code}`});n.onclick=()=>{window.focus();goAdminSection('bookings');};}});}bookingListenerReady=true;if(currentSection==='bookings'&&!bookingActionPending.size)renderBookings();});}
+function startBookingNotifications(){if(bookingNotificationUnsubscribe||!window.MFCloud?.subscribeToBookings)return;bookingNotificationUnsubscribe=adminLiveSubscription(callback=>window.MFCloud.subscribeToBookings(callback),(rows,changes)=>{adminData.bookings=rows.filter(row=>{const code=String(row.code||row.id||'');return !bookingActionPending.has(code)&&!acceptedBookingCodes.has(code);});saveData(adminData);updateAdminBookingBadge();window.refreshAdminAttentionFromBookings?.();if(bookingListenerReady){changes.filter(change=>change.type==='added').forEach(change=>{const b=change.doc.data();const code=String(b.code||change.doc.id||'');if(bookingActionPending.has(code)||acceptedBookingCodes.has(code))return;aToast(`حجز جديد: ${b.name||b.studentName||'طالب جديد'}`);if('Notification' in window&&Notification.permission==='granted'&&localStorage.getItem('mf-booking-notifications')==='1'){const n=new Notification('حجز طالب جديد',{body:`${b.name||b.studentName||''} · ${b.grade||''} · ${b.group||''}`,icon:'assets/technominds-logo.png',tag:`booking-${code}`});n.onclick=()=>{window.focus();goAdminSection('bookings');};}});}bookingListenerReady=true;if(currentSection==='bookings'&&!bookingActionPending.size)renderBookings();});}
 
 function adminCanRefreshLiveSection(){const active=document.activeElement;return !(active instanceof HTMLElement&&active.closest('form,.admin-action-modal,.issued-codes-modal'));}
 function stopAdminSectionLiveData(section){
@@ -522,17 +599,18 @@ function stopAdminSectionLiveData(section){
   if(section!=='motivation'&&adminMotivationUnsubscribe){adminMotivationUnsubscribe();adminMotivationUnsubscribe=null;}
 }
 function startAdminLiveData(section=currentSection){
+  if(window.__tmAdminHydrating)return;
   stopAdminSectionLiveData(section);
   const needsGroups=['schedules','attendance','assignments','exams','materials','theoryLectures','curriculum'].includes(section);
   const needsStudents=['overview','students','motivation','attendance','warnings','payments'].includes(section);
   if(needsGroups&&!adminGroupsUnsubscribe&&window.MFCloud?.subscribeToGroups){
-    adminGroupsUnsubscribe=window.MFCloud.subscribeToGroups(rows=>{
+    adminGroupsUnsubscribe=adminLiveSubscription(callback=>window.MFCloud.subscribeToGroups(callback),rows=>{
       adminData.groups=Array.isArray(rows)?rows:[];saveData(adminData);
       if(currentSection==='schedules'&&adminCanRefreshLiveSection())renderSchedules();
     });
   }
   if(needsStudents&&!adminStudentsUnsubscribe&&window.MFCloud?.subscribeToStudents){
-    adminStudentsUnsubscribe=window.MFCloud.subscribeToStudents(rows=>{
+    adminStudentsUnsubscribe=adminLiveSubscription(callback=>window.MFCloud.subscribeToStudents(callback),rows=>{
       const previous=new Map((adminData.students||[]).map(student=>[stCode(student),student]));
       if((rows||[]).some(row=>{const old=previous.get(stCode(row));return old&&(old.paymentAmount!==row.paymentAmount||old.paymentMonth!==row.paymentMonth||old.paymentAcademicYear!==row.paymentAcademicYear||old.paid!==row.paid);}))adminPaymentPeriods.key='';
       adminData.students=(rows||[]).map(row=>{const old=previous.get(stCode(row))||{};return {...old,...row,gradeRecordsLoaded:old.gradeRecordsLoaded===true,gradeRecordsError:old.gradeRecordsError===true,attendance:old.attendance||[],grades:old.grades||[],homeworks:old.homeworks||[],recitations:old.recitations||[]};});
@@ -541,23 +619,57 @@ function startAdminLiveData(section=currentSection){
     });
   }
   if(section==='studentRequests'&&!adminTransferRequestsUnsubscribe&&window.MFCloud?.subscribeToStudentTransferRequests){
-    adminTransferRequestsUnsubscribe=window.MFCloud.subscribeToStudentTransferRequests(rows=>{
+    adminTransferRequestsUnsubscribe=adminLiveSubscription(callback=>window.MFCloud.subscribeToStudentTransferRequests(callback),rows=>{
       adminData.studentTransferRequests=Array.isArray(rows)?rows:[];adminAttendanceTransfersLoaded=true;saveData(adminData);
       if(currentSection==='studentRequests'&&adminCanRefreshLiveSection())renderStudentRequests();
     });
   }
   const activityNotice=(type,row)=>{adminData.adminNotifications=adminData.adminNotifications||[];const id=`${type}:${row.id||row.studentCode||Date.now()}`;if(adminData.adminNotifications.some(item=>item.id===id))return;const title=type==='homework'?'تسليم واجب جديد':type==='exam'?'محاولة امتحان جديدة':'حركة تحفيز جديدة';adminData.adminNotifications.unshift({id,type,title,studentCode:row.studentCode||'',studentName:row.studentName||'',createdAt:new Date().toISOString(),read:false});adminData.adminNotifications=adminData.adminNotifications.slice(0,100);saveData(adminData);aToast(`${title}: ${row.studentName||row.studentCode||'طالب'}`);};
-  if(section==='assignments'&&!adminHomeworkSubmissionsUnsubscribe&&window.MFCloud?.subscribeToHomeworkSubmissions){adminHomeworkSubmissionsUnsubscribe=window.MFCloud.subscribeToHomeworkSubmissions((rows,changes,error)=>{if(error)return console.warn('homework-live',error);adminData.homeworkSubmissions=rows||[];for(const row of rows||[]){const student=(adminData.students||[]).find(st=>stCode(st)===row.studentCode);if(student){student.homeworks=student.homeworks||[];const i=student.homeworks.findIndex(item=>item.id===row.id);if(i<0)student.homeworks.push(row);else student.homeworks[i]=row;}}(adminAcademicListenersReady?changes:[]).filter(change=>change.type==='added').forEach(change=>activityNotice('homework',{id:change.doc.id,...change.doc.data()}));saveData(adminData);if(currentSection==='assignments'&&adminCanRefreshLiveSection())renderAssignments();});}
-  if(section==='exams'&&!adminExamAttemptsUnsubscribe&&window.MFCloud?.subscribeToExamAttempts){adminExamAttemptsUnsubscribe=window.MFCloud.subscribeToExamAttempts((rows,changes,error)=>{if(error)return console.warn('exam-live',error);adminData.examAttempts=rows||[];(adminAcademicListenersReady?changes:[]).filter(change=>change.type==='added').forEach(change=>activityNotice('exam',{id:change.doc.id,...change.doc.data()}));saveData(adminData);if(currentSection==='exams'&&adminCanRefreshLiveSection())renderExams();});}
-  if(section==='motivation'&&!adminMotivationUnsubscribe&&window.MFCloud?.subscribeToMotivationTransactions){adminMotivationUnsubscribe=window.MFCloud.subscribeToMotivationTransactions((rows,changes,error)=>{if(error)return console.warn('motivation-live',error);adminData.motivationTransactions=rows||[];(adminAcademicListenersReady?changes:[]).filter(change=>change.type==='added').forEach(change=>activityNotice('motivation',{id:change.doc.id,...change.doc.data()}));saveData(adminData);});}
+  if(section==='assignments'&&!adminHomeworkSubmissionsUnsubscribe&&window.MFCloud?.subscribeToHomeworkSubmissions){adminHomeworkSubmissionsUnsubscribe=adminLiveSubscription(callback=>window.MFCloud.subscribeToHomeworkSubmissions(callback),(rows,changes,error)=>{if(error)return console.warn('homework-live',error);adminData.homeworkSubmissions=rows||[];for(const row of rows||[]){const student=(adminData.students||[]).find(st=>stCode(st)===row.studentCode);if(student){student.homeworks=student.homeworks||[];const i=student.homeworks.findIndex(item=>item.id===row.id);if(i<0)student.homeworks.push(row);else student.homeworks[i]=row;}}(adminAcademicListenersReady?changes:[]).filter(change=>change.type==='added').forEach(change=>activityNotice('homework',{id:change.doc.id,...change.doc.data()}));saveData(adminData);if(currentSection==='assignments'&&adminCanRefreshLiveSection())renderAssignments();});}
+  if(section==='exams'&&!adminExamAttemptsUnsubscribe&&window.MFCloud?.subscribeToExamAttempts){adminExamAttemptsUnsubscribe=adminLiveSubscription(callback=>window.MFCloud.subscribeToExamAttempts(callback),(rows,changes,error)=>{if(error)return console.warn('exam-live',error);adminData.examAttempts=rows||[];(adminAcademicListenersReady?changes:[]).filter(change=>change.type==='added').forEach(change=>activityNotice('exam',{id:change.doc.id,...change.doc.data()}));saveData(adminData);if(currentSection==='exams'&&adminCanRefreshLiveSection())renderExams();});}
+  if(section==='motivation'&&!adminMotivationUnsubscribe&&window.MFCloud?.subscribeToMotivationTransactions){adminMotivationUnsubscribe=adminLiveSubscription(callback=>window.MFCloud.subscribeToMotivationTransactions(callback),(rows,changes,error)=>{if(error)return console.warn('motivation-live',error);adminData.motivationTransactions=rows||[];(adminAcademicListenersReady?changes:[]).filter(change=>change.type==='added').forEach(change=>activityNotice('motivation',{id:change.doc.id,...change.doc.data()}));saveData(adminData);});}
   setTimeout(()=>{adminAcademicListenersReady=true;},0);
 }
 
+function syncAdminCommandMenu(){
+  const menu=document.querySelector('#adminRoot .admin-command-more'),mobile=document.querySelector('#adminRoot .admin-mobile-header'),actions=menu?.querySelector('.admin-command-actions'),account=document.querySelector('#adminRoot .admin-account-action');
+  if(!menu||!mobile||!actions||!account)return;
+  const compact=window.matchMedia('(max-width:980px)').matches;
+  if(menu.dataset.compact!==String(compact)){menu.open=!compact;menu.dataset.compact=String(compact);}
+  if(compact&&account.parentElement!==mobile)mobile.append(account);
+  else if(!compact&&account.parentElement!==actions)actions.append(account);
+  const context=document.querySelector('#adminRoot .admin-workspace-bar'),header=menu.closest('.admin-command-header');
+  if(context&&header){if(compact&&context.parentElement!==header.parentElement)header.after(context);else if(!compact&&context.parentElement!==actions)actions.insertBefore(context,account);}
+}
+let adminReleaseReviewPending=false;
+function confirmAdminContentRelease(item,options={}){
+  if(adminReleaseReviewPending)return Promise.resolve(false);
+  const when=value=>{if(!value)return 'غير محدد';if(/^\d{4}-\d{2}-\d{2}$/.test(value))return value;const date=new Date(value);return Number.isFinite(date.getTime())?new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',dateStyle:'medium',timeStyle:'short'}).format(date):String(value);};
+  const files=options.fileNames||[item.fileName].filter(Boolean),targets=Array.isArray(item.targetStudentCodes)?item.targetStudentCodes:[],visible=item.published!==false&&item.active!==false&&!['draft','hidden','archived'].includes(item.status),rows=[
+    ['المحتوى',item.title||'بدون عنوان'],['النوع',options.kind||'محتوى تعليمي'],['الصف',item.grade||'كل الصفوف'],['المجموعة',targets.length?'طلاب محددون: '+targets.length:item.group||'كل المجموعات'],['الفترة',[item.academicYear,item.term].filter(Boolean).join(' · ')||'الفترة الحالية'],['الحالة',options.stateLabel||(visible?'منشور للطلاب':'غير منشور للطلاب')],
+    ...(item.questionCount?[['عدد الأسئلة',item.questionCount]]:[]),...(item.duration?[['مدة الامتحان',item.duration+' دقيقة']]:[]),['الإتاحة بتوقيت القاهرة',when(item.openAt||item.publishAt)],['آخر موعد',when(item.closeAt||item.dueDate)],['الملفات',files.length?files.join('، '):'بدون ملف'],['رابط Drive',item.linkUrl||'بدون رابط']
+  ];
+  const dialog=document.createElement('dialog');dialog.id='adminPublishReview';dialog.className='account-admin-dialog admin-publish-review';dialog.setAttribute('aria-labelledby','adminPublishReviewTitle');
+  dialog.innerHTML='<h2 id="adminPublishReviewTitle">راجع قبل '+(visible?'النشر':'الحفظ')+'</h2><p>تأكد من الصف والمجموعة والمواعيد والمرفقات. الرجوع للتعديل لا يحفظ أو يرفع أي ملف.</p><dl>'+rows.map(([label,value])=>'<div><dt>'+safe(label)+'</dt><dd>'+safe(String(value))+'</dd></div>').join('')+'</dl><div class="mobile-actions"><button type="button" class="btn ghost" data-release-cancel autofocus>الرجوع للتعديل</button><button type="button" class="btn primary" data-release-confirm>تأكيد الحفظ</button></div>';
+  if(typeof dialog.showModal!=='function')return Promise.resolve(window.confirm(rows.map(row=>row.join(': ')).join('\n')));
+  const previous=document.activeElement,originForm=options.form,submitLock=originForm?.dataset.tmSubmitLockedUntil;adminReleaseReviewPending=true;document.body.append(dialog);
+  return new Promise(resolve=>{
+    let done=false;const cancel=()=>{if(dialog.open)dialog.close('cancel');};
+    const finish=()=>{if(done)return;done=true;options.signal?.removeEventListener('abort',cancel);const confirmed=dialog.returnValue==='publish'&&!options.signal?.aborted;dialog.remove();adminReleaseReviewPending=false;if(!confirmed&&originForm?.isConnected&&originForm.dataset.tmSubmitLockedUntil===submitLock)delete originForm.dataset.tmSubmitLockedUntil;if(previous?.isConnected)previous.focus({preventScroll:true});resolve(confirmed);};
+    dialog.querySelector('[data-release-cancel]').onclick=cancel;dialog.querySelector('[data-release-confirm]').onclick=()=>dialog.close('publish');dialog.addEventListener('close',finish,{once:true});options.signal?.addEventListener('abort',cancel,{once:true});
+    if(options.signal?.aborted){finish();return;}
+    try{dialog.showModal();}catch(error){dialog.remove();adminReleaseReviewPending=false;resolve(false);}
+  });
+}
+function openStudentNotificationCenter(){window.__tmOpenNotificationCenter=true;goAdminSection('warnings');}
 function bindNav(){
+  const more=document.querySelector('#adminRoot .admin-mobile-more');if(more&&!more.__bound){more.addEventListener('click',event=>{if(event.target.closest('button'))more.open=false;});more.__bound=true;}
   document.querySelectorAll('[data-admin-nav]').forEach(btn=>{btn.onclick=()=>goAdminSection(btn.dataset.adminNav);});
+  document.querySelectorAll('[data-admin-workspace]').forEach(btn=>{btn.onclick=()=>{const input=document.getElementById('adminNavSearch');if(input){input.value='';input.dispatchEvent(new Event('input'));}showAdminWorkspace(btn.dataset.adminWorkspace);setAdminDrawer(false);};});
   if(!window.__adminEscapeBound){
-    document.addEventListener('keydown',event=>{if(event.key==='Escape')setAdminDrawer(false);});
-    window.addEventListener('resize',()=>{if(!window.matchMedia('(max-width:980px)').matches)setAdminDrawer(false);});
+    document.addEventListener('keydown',event=>{if(event.key==='Escape'){setAdminDrawer(false);document.querySelectorAll('.admin-review-shortcuts[open],.admin-mobile-more[open],.admin-command-more[open]').forEach(menu=>menu.open=false);}});
+    document.addEventListener('click',event=>{if(!window.matchMedia('(max-width:980px)').matches)return;for(const menu of document.querySelectorAll('.admin-command-more[open],.admin-mobile-more[open]'))if(!menu.contains(event.target))menu.open=false;});
+    window.addEventListener('resize',()=>{if(!window.matchMedia('(max-width:980px)').matches)setAdminDrawer(false);syncAdminDrawerSearchPlacement();syncAdminCommandMenu();});
     window.__adminEscapeBound=true;
   }
 }
@@ -566,6 +678,7 @@ function bindAdminNavigationTools(){
   if(!input)return;
   const normalize=value=>typeof normalizeText==='function'?normalizeText(value):String(value||'').trim().toLocaleLowerCase('ar');
   const filter=()=>{
+    syncAdminDrawerSearchPlacement();
     const query=normalize(input.value),buttons=[...document.querySelectorAll('#adminNavList [data-admin-nav]')];
     let visible=0;
     buttons.forEach(button=>{const match=!query||normalize(button.dataset.adminNavSearch).includes(query);button.hidden=!match;if(match)visible+=1;});
@@ -573,8 +686,8 @@ function bindAdminNavigationTools(){
     if(primary)primary.hidden=!!query&&![...primary.querySelectorAll('[data-admin-nav]')].some(button=>!button.hidden);
     document.querySelectorAll('#adminNavList [data-admin-nav-group]').forEach(group=>{
       const hasVisible=[...group.querySelectorAll('[data-admin-nav]')].some(button=>!button.hidden);
-      group.hidden=!hasVisible;
-      if(query&&hasVisible)group.open=true;
+      const selected=document.querySelector('[data-admin-workspace][aria-expanded="true"]')?.dataset.adminWorkspace||adminSectionGroupName(currentSection);
+      group.hidden=query?!hasVisible:group.dataset.adminNavGroup!==selected;
     });
     const allTools=document.getElementById('adminAllTools');
     if(allTools&&query){const hasVisible=[...allTools.querySelectorAll('[data-admin-nav]')].some(button=>!button.hidden);allTools.hidden=!hasVisible;allTools.open=hasVisible;}
@@ -603,12 +716,12 @@ window.adminLogout=async function(){
   if(!counts?.total)await window.OfflineAttendance?.clearRoster().catch(error=>console.warn('offline-roster-clear',error));
   localStorage.removeItem(OFFLINE_STAFF_PROFILE_KEY);
   currentStaff=null;window.__adminOfflineCapability=null;window.__adminOfflineMode=false;clearTimeout(typeof staffCacheTimer==='undefined'?null:staffCacheTimer);sessionStorage.removeItem(typeof STORAGE_KEY==='undefined'?'technominds_academy_v60_data':STORAGE_KEY);
-  bookingNotificationUnsubscribe?.();adminGroupsUnsubscribe?.();adminStudentsUnsubscribe?.();adminTransferRequestsUnsubscribe?.();adminHomeworkSubmissionsUnsubscribe?.();adminExamAttemptsUnsubscribe?.();adminMotivationUnsubscribe?.();window.stopMonthlyPaymentListeners?.();
+  stopAdminLiveData();
   location.reload();
 };
 window.forceFirestoreSync=async function(){const button=document.getElementById('adminSaveButton'),label=button?.querySelector('.admin-save-label');if(button?.disabled)return;try{if(!window.MFCloud?.saveSiteData)throw new Error('Sync service unavailable');if(button)button.disabled=true;if(label)label.textContent='جارٍ الحفظ…';await window.MFCloud.saveSiteData(adminData);saveData(adminData);if(label)label.textContent='تم الحفظ';aToast('تم حفظ جميع التغييرات');setTimeout(()=>{if(label)label.textContent='حفظ التغييرات';},1600);}catch(error){if(label)label.textContent='إعادة المحاولة';aToast(adminActionErrorMessage(error,'تعذر حفظ التغييرات.'));}finally{if(button)button.disabled=false;}};
 
-const adminPaymentPeriods={key:'',statuses:new Map(),pending:null,updatedAt:0};
+const adminPaymentPeriods={key:'',statuses:new Map(),rows:new Map(),pending:null,updatedAt:0};
 function adminPaymentStatus(student){
   const context=adminWorkspaceContext(),key=`${context.academicYear}|${context.month}`;
   return adminPaymentPeriods.key===key?adminPaymentPeriods.statuses.get(stCode(student))||'unpaid':null;
@@ -624,11 +737,11 @@ async function loadAdminPaymentStatuses(){
       const result=await window.MFCloud.getPaymentDashboard({academicYear:context.academicYear,month:context.month,grade:'all',status:'all',cursor});
       for(const row of result.rows||[]){
         const code=row.student?.studentCode;
-        if(code){const value=totals.get(code)||{expected:0,paid:0};value.expected+=Number(row.expected||0);value.paid+=Number(row.paid||0);totals.set(code,value);}
+        if(code){const value=totals.get(code)||{student:row.student,month:row.month,academicYear:row.academicYear,expected:0,paid:0,priceConfigured:row.priceConfigured};value.expected+=Number(row.expected||0);value.paid+=Number(row.paid||0);value.remaining=Math.max(0,value.expected-value.paid);totals.set(code,value);}
       }
       cursor=result.nextCursor;
     }while(cursor);
-    adminPaymentPeriods.key=key;adminPaymentPeriods.statuses=new Map([...totals].map(([code,value])=>[code,value.paid<=0?'unpaid':value.expected>value.paid?'partial':'paid']));adminPaymentPeriods.updatedAt=Date.now();
+    adminPaymentPeriods.key=key;adminPaymentPeriods.rows=totals;adminPaymentPeriods.statuses=new Map([...totals].map(([code,value])=>[code,value.paid<=0?'unpaid':value.expected>value.paid?'partial':'paid']));adminPaymentPeriods.updatedAt=Date.now();
     if(currentSection==='students'&&document.getElementById('studentsTableBox'))window.refreshStudentsTable();
     if(currentSection==='overview')renderOverview();
   })().catch(()=>{adminPaymentPeriods.key='';}).finally(()=>{adminPaymentPeriods.pending=null;});
@@ -639,7 +752,38 @@ function renderOverview(){
   const s=stats(),pendingExam=(adminData.examAttempts||[]).filter(row=>window.TMResults.isExamGradePending(row)).length,pendingTransfers=(adminData.studentTransferRequests||[]).filter(row=>!row.status||row.status==='pending').length;
   const activeGroups=(adminData.groups||[]).filter(group=>group.active!==false).length,urgent=s.bookings+pendingExam+pendingTransfers;
   const today=new Intl.DateTimeFormat('ar-EG',{weekday:'long',day:'numeric',month:'long'}).format(new Date());
-  content(`<section class="admin-overview-hero admin-overview-hero-v69"><div><span class="admin-overview-eyebrow"><i></i> ${safe(today)}</span><h2>أهلًا، ${safe(currentStaff?.name||'م. عمرو خالد')}</h2><p>المهم فقط أمامك، وباقي الأدوات تظهر عندما تحتاجها.</p><div class="admin-hero-actions-v69"><button type="button" class="btn primary" onclick="goAdminSection('attendance')"><span data-icon="qr"></span> تسجيل الحضور</button><button type="button" class="btn ghost" onclick="toggleAdminAttentionPanel(true)"><span data-icon="bell"></span> مراجعة التنبيهات</button></div></div><div class="admin-overview-hero-meta"><small>إجراءات معلقة</small><strong>${adminRecordsReady?urgent:'—'}</strong><span>تسجيل وتصحيح ونقل</span></div></section><div class="admin-glance-grid-v69"><button type="button" onclick="goAdminSection('students')"><span data-icon="users"></span><small>الطلاب النشطون</small><b>${s.students}</b></button><button type="button" onclick="goAdminSection('attendance')"><span data-icon="user-check"></span><small>حضور اليوم</small><b>${attendanceCloudDate===isoDateAdmin()?s.att:'—'}</b></button><button type="button" onclick="goAdminSection('exams')"><span data-icon="clipboard"></span><small>ينتظر التصحيح</small><b>${adminRecordsReady?pendingExam:'—'}</b></button><button type="button" onclick="goAdminSection('bookings')"><span data-icon="user-plus"></span><small>طلبات التسجيل</small><b>${s.bookings}</b></button></div><details class="card admin-reveal-card-v69"><summary><span data-icon="sparkles"></span><span><b>إجراءات سريعة</b><small>الحضور والمحتوى والتقييم والتحفيز</small></span><em>عرض</em></summary><div class="admin-task-grid-v37"><button type="button" class="admin-task-button primary-task" onclick="goAdminSection('attendance')"><span data-icon="qr"></span><b>تسجيل الحضور</b><small>QR أو كود الطالب</small></button><button type="button" class="admin-task-button" onclick="goAdminSection('assignments')"><span data-icon="file-text"></span><b>إنشاء واجب</b><small>الأسئلة وموعد التسليم</small></button><button type="button" class="admin-task-button" onclick="goAdminSection('exams')"><span data-icon="clipboard"></span><b>إنشاء امتحان</b><small>إعداد ونشر الاختبار</small></button><button type="button" class="admin-task-button" onclick="goAdminSection('materials')"><span data-icon="book-open"></span><b>إضافة محاضرة</b><small>ملف أو رابط جديد</small></button><button type="button" class="admin-task-button" onclick="goAdminSection('motivation')"><span data-icon="star"></span><b>تحفيز طالب</b><small>النقاط والترتيب</small></button></div></details><details class="card admin-reveal-card-v69 admin-status-reveal-v69"><summary><span data-icon="bar-chart"></span><span><b>تفاصيل حالة الأكاديمية</b><small>${activeGroups} مجموعة نشطة · ${s.unpaid} لم يسددوا · ${adminAttendanceTransfersLoaded?pendingTransfers:'—'} طلب نقل</small></span><em>عرض</em></summary><div class="admin-pulse-list"><button type="button" onclick="goAdminSection('schedules')"><span class="admin-pulse-icon" data-icon="calendar"></span><span><small>المجموعات النشطة</small><b>${activeGroups}</b></span></button><button type="button" onclick="goAdminSection('payments')"><span class="admin-pulse-icon" data-icon="database"></span><span><small>لم يسدد هذا الشهر</small><b>${s.unpaid}</b></span></button><button type="button" onclick="goAdminSection('studentRequests')"><span class="admin-pulse-icon" data-icon="users"></span><span><small>طلبات النقل</small><b>${adminAttendanceTransfersLoaded?pendingTransfers:'—'}</b></span></button></div><div class="admin-system-note"><i></i><span><b>النظام متصل</b><small>التحديثات الناجحة تظهر للطلاب مباشرة</small></span></div></details>`);
+  // Chart uses only already loaded attendance, never synthetic percentages or extra reads.
+  const loadedMonth=isoDateAdmin().slice(0,7),weekRows=Array.from({length:4},()=>({present:0,total:0}));
+  for(const student of adminData.students||[])for(const row of student.attendance||[]){const date=String(row.date||'');if(!date.startsWith(loadedMonth)||!['present','absent','late'].includes(row.status))continue;const index=Math.min(3,Math.floor((Number(date.slice(8,10))-1)/7));if(index<0||!Number.isFinite(index))continue;weekRows[index].total++;if(row.status==='present'||row.status==='late')weekRows[index].present++;}
+  const loadedAttendanceChart=weekRows.some(row=>row.total)?`<figure class="reference-attendance-chart" aria-label="نسب الحضور في السجلات المحمّلة لهذا الشهر">${weekRows.map((row,index)=>{const value=row.total?Math.round(row.present/row.total*100):null;return `<div><b>${value===null?'—':value+'%'}</b><i style="--attendance-height:${value??0}%"></i><small>أسبوع ${index+1}</small></div>`;}).join('')}</figure><p class="reference-chart-note">${safe(loadedMonth)} · السجلات المحمّلة في الجلسة فقط</p>`:'<p class="admin-activity-empty">لا توجد سجلات حضور محمّلة لهذا الشهر.</p>';
+
+  // Visual summaries reuse loaded state only; opening Home never fetches for a chart.
+  const activeStudents=(adminData.students||[]).filter(student=>student.active!==false).length;
+  const paymentReady=typeof s.unpaid==='number',paidCount=paymentReady?Math.max(0,activeStudents-s.unpaid):null;
+  const attendanceReady=attendanceCloudDate===isoDateAdmin(),attCount=attendanceReady?s.att:null;
+  const homeRing=(count,total,title,note)=>`<div class="admin-mini-ring"><strong style="--ring-progress:${count===null||!total?0:Math.round(Math.min(1,count/total)*100)}%"><span>${count===null?'—':count}<small> / ${total}</small></span></strong><b>${safe(title)}</b><small>${safe(count===null?'البيانات غير محمّلة بعد':note)}</small></div>`;
+
+  // Derive recent activity from records already in memory; never fetch for presentation.
+  const activity=[...(adminData.examAttempts||[]).map(row=>({title:row.examTitle||row.exam||'محاولة امتحان',date:row.submittedAt||row.startedAt||row.date,icon:'clipboard'})),...(adminData.bookings||[]).map(row=>({title:`طلب تسجيل · ${row.name||row.studentName||'طالب'}`,date:row.createdAt||row.date,icon:'user-plus'}))].filter(row=>row.date).sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,5);
+  const followup=(adminData.students||[]).filter(student=>{const row=adminPaymentPeriods.rows.get(stCode(student));return paymentReady&&student.active!==false&&row&&row.priceConfigured!==false&&Number(row.remaining)>0;}).slice(0,5);
+  const upcoming=(adminData.exams||[]).filter(exam=>exam.active!==false&&!exam.archived).slice(0,4);
+  const secondary=`<div class="admin-home-secondary"><section class="card"><div class="admin-widget-heading"><div><h3>الطلاب المحتاجون متابعة</h3><p>حالات الاشتراك المتاحة في الجلسة</p></div></div><div class="admin-home-followup-list">${followup.map(student=>{const metrics=calcStudentAdmin(normalizeStudent(student)),status=adminPaymentStatus(student);return `<article class="admin-followup-row"><div><span class="student-avatar">${safe(String(stName(student)).charAt(0))}</span><span><b>${safe(stName(student))}</b><small>${safe(student.grade||'')} · ${safe(stCode(student))}</small></span></div><span class="badge ${status==='partial'?'warn':'danger'}">${status==='partial'?'دفع جزئي':'لم يسدد'}</span><span class="followup-performance">${metrics.avg==null?'—':metrics.avg+'%'}</span><button type="button" class="small-btn" ${renderActionAttrs('printStudentReport',[String(stCode(student))])} aria-label="تفاصيل الطالب">⋯</button></article>`;}).join('')||'<p class="admin-activity-empty">لا توجد حالات متابعة في البيانات المحمّلة.</p>'}</div></section><section class="card"><div class="admin-widget-heading"><div><h3>الاختبارات القادمة</h3><p>الاختبارات المتاحة في الجلسة</p></div></div><div class="admin-home-exam-list">${upcoming.map(exam=>`<article><span data-icon="clipboard"></span><div><b>${safe(exam.title||'اختبار')}</b><small>${safe(exam.grade||'')} · ${safe(exam.duration||exam.durationMinutes||'—')} دقيقة</small></div><time>${safe(String(exam.date||exam.startDate||exam.createdAt||'').slice(0,10))}</time></article>`).join('')||'<p class="admin-activity-empty">افتح الاختبارات لعرض بياناتها؛ لا يتم تحميلها لمجرد عرض الرئيسية.</p>'}</div></section></div><div class="admin-home-utilities"><section class="card"><h3>النظام والمنصة</h3><div class="utility-actions" id="homeSystemActions"></div></section><section class="card"><h3>التواصل والمتابعة</h3><div class="utility-actions" id="homeCommunicationActions"></div></section><section class="card"><h3>التقارير</h3><div class="utility-actions" id="homeReportActions"></div></section><section class="card"><h3>إحصاءات المحتوى</h3><small>من المحتوى المتاح في الجلسة</small><p>${(adminData.materials||[]).length} محاضرة عملية · ${(adminData.theoryLectures||[]).length} محاضرة نظرية</p><div class="utility-actions" id="homeContentActions"></div></section></div>`;
+  content(`<section class="admin-overview-hero admin-overview-hero-v69"><div><span class="admin-overview-eyebrow"><i></i> ${safe(today)}</span><h2>مرحبًا، ${safe(currentStaff?.name||'م. عمرو خالد')} <span aria-hidden="true">👋</span></h2><p>نظرة سريعة على أداء المنصة والمهام المطلوبة اليوم</p></div><span class="admin-home-context">${safe(adminWorkspaceContext().term)} · ${safe(adminWorkspaceContext().academicYear)}</span></section><div class="admin-glance-grid-v69"><button type="button" onclick="goAdminSection('students')"><span data-icon="users"></span><small>طالب مسجل</small><b>${s.students}</b></button><button type="button" onclick="goAdminSection('attendance')"><span data-icon="user-check"></span><small>حضور اليوم</small><b>${attendanceCloudDate===isoDateAdmin()?s.att:'—'}</b></button><button type="button" onclick="goAdminSection('exams')"><span data-icon="clipboard"></span><small>ينتظر التصحيح</small><b>${adminRecordsReady?pendingExam:'—'}</b></button><button type="button" onclick="goAdminSection('bookings')"><span data-icon="user-plus"></span><small>طلبات التسجيل</small><b>${s.bookings}</b></button></div><details class="card admin-reveal-card-v69" open><summary><span data-icon="sparkles"></span><span><b>إجراءات سريعة</b><small>أدوات يومك الدراسي</small></span><em>طي</em></summary><div class="admin-task-grid-v37 reference-six-actions"><button type="button" class="admin-task-button" onclick="goAdminSection('students')"><span data-icon="upload"></span><b>استيراد وتصدير</b><small>من أدوات الطلاب</small></button><button type="button" class="admin-task-button primary-task" onclick="goAdminSection('attendance')"><span data-icon="qr"></span><b>تسجيل الحضور</b><small>QR أو كود الطالب</small></button><button type="button" class="admin-task-button" onclick="goAdminSection('assignments')"><span data-icon="file-text"></span><b>إنشاء واجب</b><small>الأسئلة وموعد التسليم</small></button><button type="button" class="admin-task-button" onclick="goAdminSection('exams')"><span data-icon="clipboard"></span><b>إنشاء امتحان</b><small>إعداد ونشر الاختبار</small></button><button type="button" class="admin-task-button" onclick="goAdminSection('materials')"><span data-icon="book-open"></span><b>إضافة محاضرة</b><small>ملف أو رابط جديد</small></button><button type="button" class="admin-task-button" onclick="goAdminSection('motivation')"><span data-icon="star"></span><b>تحفيز طالب</b><small>النقاط والترتيب</small></button></div></details><div class="admin-home-widgets"><section class="card admin-home-activity"><div class="admin-widget-heading"><span data-icon="activity"></span><div><h3>النشاط الأخير</h3><p>آخر السجلات المتاحة في هذه الجلسة</p></div></div><div class="admin-activity-list">${activity.map(row=>`<article><span data-icon="${row.icon}"></span><div><b>${safe(row.title)}</b><small>${safe(String(row.date).slice(0,10))}</small></div></article>`).join('')||'<p class="admin-activity-empty">لا توجد تحديثات مسجلة في البيانات المحمّلة الآن.</p>'}</div></section><section class="card admin-home-attention"><div class="admin-widget-heading"><span data-icon="bell"></span><div><h3>حالات الدفع والمتابعة</h3><p>من البيانات المحمّلة لهذه الجلسة</p></div></div>${homeRing(paidCount,activeStudents,'اشتراك مكتمل','من الطلاب النشطين هذا الشهر')}<div class="admin-overview-hero-meta reference-pending-note"><small>إجراءات معلقة</small><strong>${adminRecordsReady?urgent:'—'}</strong><span>تسجيل وتصحيح ونقل</span></div><div class="admin-hero-actions-v69"><button type="button" class="btn primary" onclick="goAdminSection('attendance')"><span data-icon="qr"></span> تسجيل الحضور</button><button type="button" class="btn ghost" onclick="toggleAdminAttentionPanel(true)"><span data-icon="bell"></span> مراجعة التنبيهات</button></div></section><section class="card admin-home-summary"><div class="admin-widget-heading"><span data-icon="bar-chart"></span><div><h3>الحضور الشهري</h3><p>ملخص البيانات المتاحة في الجلسة الحالية</p></div></div><div class="admin-payment-overview">${loadedAttendanceChart}${homeRing(attCount,s.students,'حضور اليوم','من الطلاب المسجلين')}</div></section></div><details class="card admin-reveal-card-v69 admin-status-reveal-v69" open><summary><span data-icon="bar-chart"></span><span><b>ملخص العمل</b><small>${activeGroups} مجموعة نشطة · ${s.unpaid} لم يسددوا · ${adminAttendanceTransfersLoaded?pendingTransfers:'—'} طلب نقل</small></span><em>طي</em></summary><div class="admin-pulse-list"><button type="button" onclick="goAdminSection('schedules')"><span class="admin-pulse-icon" data-icon="calendar"></span><span><small>المجموعات النشطة</small><b>${activeGroups}</b></span></button><button type="button" onclick="openOverduePayments()"><span class="admin-pulse-icon" data-icon="database"></span><span><small>متأخرون في الدفع</small><b>${window.getLoadedOverduePaymentCount?.()??'—'}</b></span></button><button type="button" onclick="goAdminSection('studentRequests')"><span class="admin-pulse-icon" data-icon="users"></span><span><small>طلبات النقل</small><b>${adminAttendanceTransfersLoaded?pendingTransfers:'—'}</b></span></button></div><div class="admin-system-note"><i></i><span><b>حالة الاتصال</b><small>${navigator.onLine===false?'تعمل محليًا دون إنترنت':'بيانات الجلسة الحالية · التحديث من شريط الأدوات'}</small></span></div></details>`);
+  const root=document.getElementById('adminContent');
+  root.querySelector('.admin-home-widgets').append(root.querySelector('.admin-home-activity'));
+  const widgets=root.querySelector('.admin-home-widgets');widgets.prepend(root.querySelector('.admin-home-summary'));
+  widgets.insertAdjacentHTML('afterend',secondary);
+  root.querySelector('#homeSystemActions').append(root.querySelector('.admin-system-note'));
+  root.querySelector('#homeSystemActions').append(root.querySelector('.admin-pulse-list')); const importAction=root.querySelector('.reference-six-actions button:has([data-icon="upload"])');if(importAction){importAction.classList.add('home-student-reports-entry');}
+  root.querySelector('#homeCommunicationActions').append(root.querySelector('.admin-hero-actions-v69'));
+  root.querySelector('#homeSystemActions').append(root.querySelector('.admin-overview-hero-meta'));
+  const bookingKpi=root.querySelector('.admin-glance-grid-v69>button:last-child');
+  const overdue=document.createElement('button');overdue.type='button';overdue.setAttribute('onclick','openOverduePayments()');overdue.innerHTML='<span data-icon="file-text"></span><small>متأخر في الدفع</small><b>'+safe(window.getLoadedOverduePaymentCount?.()??'—')+'</b>';
+  root.querySelector('.admin-glance-grid-v69').insertBefore(overdue,bookingKpi.previousElementSibling);
+  bookingKpi.classList.add('small-btn');root.querySelector('#homeSystemActions').append(bookingKpi);
+  const paymentPanel=root.querySelector('.admin-home-attention'),ring=paymentPanel.querySelector('.admin-mini-ring');
+  if(paymentReady){const partial=(adminData.students||[]).filter(student=>student.active!==false&&adminPaymentStatus(student)==='partial').length,unpaid=Math.max(0,s.unpaid-partial),paidPct=activeStudents?Math.round(paidCount/activeStudents*100):0,partialPct=activeStudents?Math.round(partial/activeStudents*100):0;ring.querySelector('strong').style.background='conic-gradient(#167bff '+paidPct+'%,#ffbf32 '+paidPct+'% '+(paidPct+partialPct)+'%,#fd6172 '+(paidPct+partialPct)+'% 100%)';ring.insertAdjacentHTML('afterend','<div class="admin-home-payment-legend"><span><i></i>اشتراك مكتمل <b>'+paidCount+'</b></span><span><i></i>لم يسدد <b>'+unpaid+'</b></span><span><i></i>دفع جزئي <b>'+partial+'</b></span></div>');const row=document.createElement('div');row.className='admin-home-payment-content';ring.before(row);row.append(ring,paymentPanel.querySelector('.admin-home-payment-legend'));}
+  hydrateIcons(root);
 }
 
 function studentRow(st){const s=normalizeStudent(st), c=calcStudentAdmin(s),payment=adminPaymentStatus(s),paymentLabel=payment==='paid'?'تم الدفع':payment==='partial'?'دفع جزئي':payment===null?'جارٍ التحميل':'لم يتم الدفع'; return `<tr><td><b>${safe(s.studentCode)}</b><small style="display:block">موحّد للطالب وولي الأمر</small></td><td>${safe(s.name)}</td><td>${safe(s.grade)}</td><td>${safe(s.group||'بدون مجموعة')}</td><td><span class="badge ${payment==='paid'?'good':payment==='partial'?'warn':'danger'}">${paymentLabel}</span></td><td>${c.attendancePct==null?'—':`${c.attendancePct}%`}</td><td>${c.avg==null?'—':`${c.avg}%`}</td><td><div class="pay-row"><button type="button" class="small-btn primary" ${renderActionAttrs("moveStudentToGroup",[String((s.studentCode)??'')])}>نقل لمجموعة</button><button type="button" class="small-btn" ${renderActionAttrs("editStudent",[String((s.studentCode)??'')])}>تعديل</button><button type="button" class="small-btn" ${renderActionAttrs("copyStudentCodes",[String((s.studentCode)??'')])}>نسخ الكود</button><button type="button" class="small-btn danger" ${renderActionAttrs("regenerateStudentCode",[String((s.studentCode)??'')])}>تغيير الكود الموحّد</button><button type="button" class="small-btn" ${renderActionAttrs("quickPresent",[String((s.studentCode)??'')])}>حضور</button><button type="button" class="small-btn" ${renderActionAttrs("printStudentReport",[String((s.studentCode)??'')])}>تفاصيل</button><button type="button" class="small-btn whatsapp-report-btn" ${renderActionAttrs("sendParentMonthlyReport",[String((s.studentCode)??'')],true)}>واتساب</button><button type="button" class="small-btn danger" ${renderActionAttrs("deleteStudent",[String((s.studentCode)??'')])}>حذف</button></div></td></tr>`;}
@@ -705,7 +849,7 @@ function renderBookings(){fresh();const rows=pendingBookings();content(`<div cla
 function scheduleCard(g){return `<article class="mobile-row schedule-admin-row"><div><b>${safe(g.name||'مجموعة بدون اسم')}</b><small>${safe(g.grade||'كل المسارات')} · ${safe(g.days||'-')} · ${safe(formatTime12(g.startTime)||'-')} ${g.endTime?`— ${safe(formatTime12(g.endTime))}`:''}</small></div><span class="badge ${g.active===false?'danger':'good'}">${g.active===false?'متوقفة':'متاحة للحجز'}</span><div class="mobile-actions"><button class="small-btn" type="button" ${renderActionAttrs("editSchedule",[String((g.id)??'')])}>تعديل</button><button class="small-btn ${g.active===false?'primary':'danger'}" type="button" ${renderActionAttrs("toggleSchedule",[String((g.id)??'')])}>${g.active===false?'تفعيل':'إيقاف'}</button></div></article>`;}
 function renderSchedules(){fresh();content(`<div class="section-head"><div><span class="kicker"><span data-icon="calendar"></span> المواعيد والمجموعات</span><h2 class="section-title">إدارة المواعيد بسهولة</h2><p class="section-desc">كل موعد مرتبط بصف واحد، والمواعيد المفعلة فقط تظهر لطلاب هذا المسار في الحجز.</p></div></div><div class="grid grid-2 schedule-admin-layout"><form id="scheduleForm" class="card grid"><h3 id="scheduleFormTitle">إضافة مجموعة جديدة</h3><input name="id" type="hidden"><div class="field"><label>اسم المجموعة</label><input name="name" required placeholder="مثال: مجموعة السبت والثلاثاء"></div><div class="field"><label>المسار</label><select name="grade" required>${GRADES.map(g=>`<option>${safe(g)}</option>`).join('')}</select></div><div class="field"><label>الأيام</label><input name="days" required placeholder="السبت والثلاثاء"></div><div class="grid grid-2"><div class="field"><label>من</label><input name="startTime" type="time" required></div><div class="field"><label>إلى</label><input name="endTime" type="time" required></div></div><label class="option-card"><input name="active" type="checkbox" checked> متاح للحجز الآن</label><button class="btn primary" type="submit"><span data-icon="calendar"></span> حفظ الموعد</button><button class="btn ghost" type="reset" onclick="resetScheduleForm()">إلغاء التعديل</button></form><div class="card"><h3>المواعيد الحالية</h3><div class="schedule-admin-list">${(adminData.groups||[]).map(scheduleCard).join('')||'<p class="section-desc">لا توجد مواعيد بعد. أضف أول مجموعة من النموذج.</p>'}</div></div></div>`);document.getElementById('scheduleForm').onsubmit=saveSchedule;}
 window.resetScheduleForm=function(){const form=document.getElementById('scheduleForm');if(form){form.reset();form.elements.id.value='';form.elements.active.checked=true;}const title=document.getElementById('scheduleFormTitle');if(title)title.textContent='إضافة مجموعة جديدة';};
-window.editSchedule=function(id){const g=(adminData.groups||[]).find(x=>String(x.id)===String(id)),form=document.getElementById('scheduleForm');if(!g||!form)return;['id','name','grade','days','startTime','endTime'].forEach(k=>{if(form.elements[k])form.elements[k].value=g[k]||'';});form.active.checked=g.active!==false;document.getElementById('scheduleFormTitle').textContent='تعديل الموعد';form.scrollIntoView({behavior:'smooth',block:'start'});};
+window.editSchedule=function(id){const g=(adminData.groups||[]).find(x=>String(x.id)===String(id)),form=document.getElementById('scheduleForm');if(!g||!form)return;form.hidden=false;form.closest('details')?.setAttribute('open','');['id','name','grade','days','startTime','endTime','location','capacity','note'].forEach(k=>{if(form.elements[k])form.elements[k].value=g[k]||'';});form.active.checked=g.active!==false;const title=document.getElementById('scheduleFormTitle');if(title)title.textContent='تعديل الموعد';form.scrollIntoView({behavior:'smooth',block:'start'});};
 window.toggleSchedule=async function(id){const g=(adminData.groups||[]).find(x=>String(x.id)===String(id));if(!g)return;g.active=g.active===false;persist(g.active?'تم تفعيل الموعد':'تم إيقاف الموعد');try{await window.MFCloud?.saveGroup?.(g);}catch(e){}renderSchedules();};
 async function saveSchedule(event){event.preventDefault();const form=event.currentTarget,data=Object.fromEntries(new FormData(form).entries());data.id=data.id||`group-${Date.now()}`;data.active=form.active.checked;const index=(adminData.groups||[]).findIndex(x=>String(x.id)===String(data.id));if(index>=0)data.previousName=adminData.groups[index].name||'';try{const saved=await window.MFCloud?.saveGroup?.(data);if(!saved?.id)throw new Error('Schedule save failed');if(index>=0)adminData.groups[index]={...adminData.groups[index],...saved};else adminData.groups.push(saved);saveData(adminData);aToast('تم حفظ الموعد وتحديث الطلاب والمحتوى المرتبط');renderSchedules();}catch(error){aToast(adminActionErrorMessage(error,'تعذر حفظ الموعد.'));}}
 window.refreshBookingsTable=function(){let rows=pendingBookings();const query=(document.getElementById('bookingSearchAdmin')?.value||'').trim().toLowerCase(),grade=document.getElementById('bookingGradeAdmin')?.value||'all';if(query)rows=rows.filter(b=>[b.code,b.name,b.studentName,b.parentPhone,b.studentPhone].some(value=>String(value||'').toLowerCase().includes(query)));if(grade!=='all')rows=rows.filter(b=>adminSameAcademic(b.grade,grade));const box=document.getElementById('bookingRowsAdmin');if(box)box.innerHTML=rows.map(bookingCard).join('')||'<div class="empty-state"><h3>لا توجد نتائج</h3><p>غيّر البحث أو المسار.</p></div>';};
@@ -1145,14 +1289,14 @@ function renderAttendance(){
   if(gr)gr.onchange=()=>{sessionStorage.setItem('attGroup',gr.value);renderAttendance();};
   renderOfflineAttendanceStatus();hydrateIcons();
 }
-function examBuilderCard(index){return `<article class="exam-builder-question" data-exam-question><div class="exam-question-head"><b>السؤال <span data-question-number>${index+1}</span></b><button class="small-btn danger" type="button" onclick="removeExamQuestion(this)">حذف</button></div><div class="exam-meta-grid"><div class="field"><label>نوع السؤال</label><select data-question-type onchange="updateExamQuestionType(this)"><option value="mcq">اختياري</option><option value="truefalse">صح أو غلط</option><option value="essay">مقالي</option><option value="code">كتابة كود</option></select></div><div class="field"><label>درجة السؤال</label><input data-question-mark type="number" min="0.25" step="0.25" value="1" required oninput="updateExamTotal()"></div></div><div class="field"><label>نص السؤال</label><textarea data-question-text rows="2" required placeholder="اكتب السؤال هنا"></textarea></div><div data-auto-answer><div class="exam-options-grid">${['أ','ب','ج','د'].map((label,i)=>`<label><span>${label}</span><input data-question-option="${i}" required placeholder="الإجابة ${label}"></label>`).join('')}</div><div class="field correct-answer-field"><label>الإجابة الصحيحة</label><select data-correct-answer required><option value="">اختار الإجابة الصحيحة</option>${['أ','ب','ج','د'].map(label=>`<option value="${label}">${label}</option>`).join('')}</select></div></div><div class="field" data-model-answer hidden><label>إجابة نموذجية اختيارية للمدرس</label><textarea data-question-model rows="2"></textarea></div><button class="btn ghost add-question-under" type="button" onclick="addExamQuestionAfter(this)">+ إضافة سؤال تحت ده</button></article>`;}
+function examBuilderCard(index){return `<article class="exam-builder-question" data-exam-question><div class="exam-question-head"><b>السؤال <span data-question-number>${index+1}</span></b><button class="small-btn danger" type="button" onclick="removeExamQuestion(this)">حذف</button></div><div class="exam-meta-grid"><div class="field"><label>نوع السؤال</label><select data-question-type onchange="updateExamQuestionType(this)"><option value="mcq">اختياري</option><option value="truefalse">صح أو غلط</option><option value="fill">أكمل</option><option value="essay">مقالي</option><option value="code">كتابة كود</option></select></div><div class="field"><label>درجة السؤال</label><input data-question-mark type="number" min="0.25" step="0.25" value="1" required oninput="updateExamTotal()"></div></div><div class="field"><label>نص السؤال</label><textarea data-question-text rows="2" required placeholder="اكتب السؤال هنا"></textarea></div><div data-auto-answer><div class="exam-options-grid">${['أ','ب','ج','د'].map((label,i)=>`<label><span>${label}</span><input data-question-option="${i}" required placeholder="الإجابة ${label}"></label>`).join('')}</div><div class="field correct-answer-field"><label>الإجابة الصحيحة</label><select data-correct-answer required><option value="">اختار الإجابة الصحيحة</option>${['أ','ب','ج','د'].map(label=>`<option value="${label}">${label}</option>`).join('')}</select></div></div><div class="field" data-model-answer hidden><label>إجابة نموذجية اختيارية للمدرس</label><textarea data-question-model rows="2"></textarea></div><button class="btn ghost add-question-under" type="button" onclick="addExamQuestionAfter(this)">+ إضافة سؤال تحت ده</button></article>`;}
 function renumberExamQuestions(){document.querySelectorAll('[data-exam-question]').forEach((card,index)=>{const number=card.querySelector('[data-question-number]');if(number)number.textContent=index+1;});}
 window.addExamQuestion=function(){const list=document.getElementById('examQuestionsBuilder');if(!list)return;list.insertAdjacentHTML('beforeend',examBuilderCard(list.children.length));renumberExamQuestions();list.lastElementChild?.scrollIntoView({behavior:'smooth',block:'center'});};
 window.addExamQuestionAfter=function(button){const card=button.closest('[data-exam-question]');card?.insertAdjacentHTML('afterend',examBuilderCard(0));renumberExamQuestions();card?.nextElementSibling?.scrollIntoView({behavior:'smooth',block:'center'});};
-window.updateExamQuestionType=function(select){const card=select.closest('[data-exam-question]'),type=select.value,auto=card.querySelector('[data-auto-answer]'),model=card.querySelector('[data-model-answer]'),inputs=[...card.querySelectorAll('[data-question-option]')],answer=card.querySelector('[data-correct-answer]');auto.hidden=type==='essay'||type==='code';model.hidden=!auto.hidden;inputs.forEach((input,index)=>{const hidden=type==='truefalse'&&index>1;input.closest('label').hidden=hidden;input.required=!auto.hidden&&!hidden;if(type==='truefalse')input.value=index===0?'صح':index===1?'غلط':'';});answer.required=!auto.hidden;if(type==='truefalse'){answer.innerHTML='<option value="">حدد الإجابة</option><option value="أ">صح</option><option value="ب">غلط</option>';}else answer.innerHTML='<option value="">اختار الإجابة الصحيحة</option>'+['أ','ب','ج','د'].map(label=>`<option value="${label}">${label}</option>`).join('');};
+window.updateExamQuestionType=function(select){const card=select.closest('[data-exam-question]'),type=select.value,auto=card.querySelector('[data-auto-answer]'),model=card.querySelector('[data-model-answer]'),inputs=[...card.querySelectorAll('[data-question-option]')],answer=card.querySelector('[data-correct-answer]');auto.hidden=type==='essay'||type==='code'||type==='fill';const modelInput=card.querySelector('[data-question-model]');modelInput.required=type==='fill';modelInput.maxLength=2000;model.querySelector('label').textContent=type==='fill'?'الإجابات المقبولة (كل بديل في سطر أو افصل بـ |) — فراغ واحد لكل سؤال':'إجابة نموذجية اختيارية للمدرس';model.hidden=!auto.hidden;inputs.forEach((input,index)=>{const hidden=type==='truefalse'&&index>1;input.closest('label').hidden=hidden;input.required=!auto.hidden&&!hidden;if(type==='truefalse')input.value=index===0?'صح':index===1?'غلط':'';});answer.required=!auto.hidden;if(type==='truefalse'){answer.innerHTML='<option value="">حدد الإجابة</option><option value="أ">صح</option><option value="ب">غلط</option>';}else answer.innerHTML='<option value="">اختار الإجابة الصحيحة</option>'+['أ','ب','ج','د'].map(label=>`<option value="${label}">${label}</option>`).join('');};
 window.updateExamTotal=function(){const total=[...document.querySelectorAll('[data-question-mark]')].reduce((sum,input)=>sum+(Number(input.value)||0),0),output=document.getElementById('examCalculatedTotal');if(output)output.textContent=total;return total;};
 window.removeExamQuestion=function(button){const list=document.getElementById('examQuestionsBuilder');if(!list)return;if(list.children.length===1)return aToast('لازم الامتحان يحتوي على سؤال واحد على الأقل');button.closest('[data-exam-question]')?.remove();renumberExamQuestions();};
-function serializeExamQuestions(){const cards=[...document.querySelectorAll('[data-exam-question]')];return cards.map(card=>{const question=card.querySelector('[data-question-text]')?.value.trim(),type=card.querySelector('[data-question-type]')?.value||'mcq',mark=Number(card.querySelector('[data-question-mark]')?.value||1),options=[...card.querySelectorAll('[data-question-option]')].filter(input=>!input.closest('label').hidden).map(input=>input.value.trim()),answer=card.querySelector('[data-correct-answer]')?.value,model=card.querySelector('[data-question-model]')?.value.trim();if(!question||!mark)return null;if(type==='mcq'||type==='truefalse'){if(options.length<2||options.some(value=>!value)||!answer)return null;return `${question}\nالنوع: ${type}\nالدرجة: ${mark}\n${options.map((value,i)=>`${['أ','ب','ج','د'][i]}) ${value}`).join('\n')}\nالإجابة: ${answer}`;}return `${question}\nالنوع: ${type}\nالدرجة: ${mark}${model?`\nالنموذج: ${model}`:''}`;}).filter(Boolean).join('\n\n');}
+function serializeExamQuestions(){const cards=[...document.querySelectorAll('[data-exam-question]')];return cards.map(card=>{const question=card.querySelector('[data-question-text]')?.value.trim(),type=card.querySelector('[data-question-type]')?.value||'mcq',mark=Number(card.querySelector('[data-question-mark]')?.value||1),options=[...card.querySelectorAll('[data-question-option]')].filter(input=>!input.closest('label').hidden).map(input=>input.value.trim()),answer=card.querySelector('[data-correct-answer]')?.value,model=card.querySelector('[data-question-model]')?.value.trim();if(!question||!mark||type==='fill'&&(!model||model.length>2000||!model.split(/[\n|]+/).some(value=>value.trim())))return null;if(type==='mcq'||type==='truefalse'){if(options.length<2||options.some(value=>!value)||!answer)return null;return `${question}\nالنوع: ${type}\nالدرجة: ${mark}\n${options.map((value,i)=>`${['أ','ب','ج','د'][i]}) ${value}`).join('\n')}\nالإجابة: ${answer}`;}return `${question}\nالنوع: ${type}\nالدرجة: ${mark}${model?`\nالنموذج: ${type==='fill'?model.split(/[\n|]+/).map(value=>value.trim()).filter(Boolean).join(' | '):model}`:''}`;}).filter(Boolean).join('\n\n');}
 const paperExamState={open:false,examId:'',exam:null,saving:false};
 function paperExamAudience(form){
   const grade=form.elements.grade.value,group=form.elements.group.value,academicYear=form.elements.academicYear.value,term=form.elements.term.value;
@@ -1192,12 +1336,29 @@ function bindAdminGradeGroupPicker(){
   };
   grade.addEventListener('change',refresh);refresh();
 }
+let motivationRankingEpoch=0;
+const motivationCongratulations=new Map();
 async function refreshMotivationAdminRanking(){
   const box=document.getElementById('motivationAdminRanking');if(!box)return;
+  const epoch=++motivationRankingEpoch;motivationCongratulations.clear();
   const context=adminWorkspaceContext(),grade=document.getElementById('motivationAdminGrade')?.value||GRADES[0];
+  box.onclick=event=>{const button=event.target.closest('[data-motivation-congratulate]');if(button)openMotivationCongratulations(button.dataset.motivationCongratulate);};
   box.innerHTML='<div class="portal-loading"><span></span><b>جارٍ تحميل ترتيب الشهر…</b></div>';
-  try{const rows=await window.MFCloud.getMotivationLeaderboardAdmin({academicYear:context.academicYear,month:context.month,grade}),improved=rows.filter(row=>Number(row.scoreDelta)>0).length,follow=rows.filter(row=>row.level!=='بيانات غير كافية'&&Number(row.score)<60).length;box.innerHTML=rows.length?`<div class="motivation-dashboard-grid"><article><small>طلاب نشطون</small><b>${rows.length}</b></article><article><small>تحسنوا</small><b>${improved}</b></article><article><small>يحتاجون متابعة</small><b>${follow}</b></article><article><small>متوسط التقييم</small><b>${rows.some(row=>row.level!=='بيانات غير كافية')?`${Math.round(rows.filter(row=>row.level!=='بيانات غير كافية').reduce((sum,row)=>sum+Number(row.score||0),0)/rows.filter(row=>row.level!=='بيانات غير كافية').length)}%`:'—'}</b></article></div>`+rows.map(row=>`<article><span class="leaderboard-rank">${safe(row.rank)}</span><div><b>${safe(row.studentName)}</b><small>${safe(row.grade)} · ${safe(row.group||'بدون مجموعة')} · ${safe(row.level||'')}</small><div class="motivation-achievements">${(row.achievements||[]).slice(0,2).map(item=>`<span class="badge good">${safe(item)}</span>`).join('')}${row.scoreDelta!==null&&row.scoreDelta!==undefined?`<span class="badge ${Number(row.scoreDelta)>=0?'good':'danger'}">تغير ${Number(row.scoreDelta)>=0?'+':''}${safe(row.scoreDelta)}</span>`:''}</div></div><strong>${safe(row.score)}% <small>بونص ${Number(row.motivationBonus||0)>=0?'+':''}${safe(row.motivationBonus||0)}</small></strong><button class="small-btn ghost" type="button" ${renderActionAttrs("editStudent",[String((row.studentCode)??'')])}>السجل</button></article>`).join(''):'<div class="portal-empty"><h3>لا يوجد ترتيب لهذا الصف في الفترة المختارة</h3><p>يظهر الطلاب بعد تسجيل حضور أو درجة أو واجب أو عملي.</p></div>';}
-  catch(error){box.innerHTML=`<div class="portal-empty"><h3>تعذر تحميل الترتيب</h3><p>${safe(adminActionErrorMessage(error,'حاول مرة أخرى.'))}</p></div>`;}
+  try{const rows=await window.MFCloud.getMotivationLeaderboardAdmin({academicYear:context.academicYear,month:context.month,grade}),improved=rows.filter(row=>Number(row.scoreDelta)>0).length,follow=rows.filter(row=>row.level!=='بيانات غير كافية'&&Number(row.score)<60).length;if(epoch!==motivationRankingEpoch||!box.isConnected)return;for(const row of rows)if(Number(row.rank)<=3&&row.level!=='بيانات غير كافية')motivationCongratulations.set(String(row.studentCode),{...row,academicYear:context.academicYear,month:context.month,grade});box.innerHTML=rows.length?`<div class="motivation-dashboard-grid"><article><small>طلاب نشطون</small><b>${rows.length}</b></article><article><small>تحسنوا</small><b>${improved}</b></article><article><small>يحتاجون متابعة</small><b>${follow}</b></article><article><small>متوسط التقييم</small><b>${rows.some(row=>row.level!=='بيانات غير كافية')?`${Math.round(rows.filter(row=>row.level!=='بيانات غير كافية').reduce((sum,row)=>sum+Number(row.score||0),0)/rows.filter(row=>row.level!=='بيانات غير كافية').length)}%`:'—'}</b></article></div>`+rows.map(row=>`<article><span class="leaderboard-rank">${safe(row.rank)}</span><div><b>${safe(row.studentName)}</b><small>${safe(row.grade)} · ${safe(row.group||'بدون مجموعة')} · ${safe(row.level||'')}</small><div class="motivation-achievements">${(row.achievements||[]).slice(0,2).map(item=>`<span class="badge good">${safe(item)}</span>`).join('')}${row.scoreDelta!==null&&row.scoreDelta!==undefined?`<span class="badge ${Number(row.scoreDelta)>=0?'good':'danger'}">تغير ${Number(row.scoreDelta)>=0?'+':''}${safe(row.scoreDelta)}</span>`:''}</div></div><strong>${safe(row.score)}% <small>بونص ${Number(row.motivationBonus||0)>=0?'+':''}${safe(row.motivationBonus||0)}</small></strong><button class="small-btn ghost" type="button" ${renderActionAttrs("editStudent",[String((row.studentCode)??'')])}>السجل</button>${Number(row.rank)<=3&&row.level!=='بيانات غير كافية'?`<button class="small-btn primary" type="button" data-motivation-congratulate="${safe(row.studentCode)}"><span data-icon="send"></span> تهنئة واتساب</button>`:''}</article>`).join(''):'<div class="portal-empty"><h3>لا يوجد ترتيب لهذا الصف في الفترة المختارة</h3><p>يظهر الطلاب بعد تسجيل حضور أو درجة أو واجب أو عملي.</p></div>';}
+  catch(error){if(epoch!==motivationRankingEpoch||!box.isConnected)return;box.innerHTML=`<div class="portal-empty"><h3>تعذر تحميل الترتيب</h3><p>${safe(adminActionErrorMessage(error,'حاول مرة أخرى.'))}</p></div>`;}
+}
+function openMotivationCongratulations(code){
+  const row=motivationCongratulations.get(String(code)),context=adminWorkspaceContext(),grade=document.getElementById('motivationAdminGrade')?.value;
+  if(!row||row.academicYear!==context.academicYear||row.month!==context.month||row.grade!==grade)return aToast('الترتيب اتغير؛ حدّث ترتيب الشهر أولًا.');
+  const student=adminData.students.find(item=>String(stCode(item))===String(code));
+  const phone=adminWhatsAppPhone(student?.studentPhone||student?.phone||'');
+  if(!/^[1-9][0-9]{9,14}$/.test(phone))return aToast('رقم واتساب الطالب غير متاح أو غير صحيح. عدّله من ملف الطالب.');
+  const message=`مبروك يا ${row.studentName||student?.name||'بطل'} 🎉
+حصلت على المركز ${row.rank} في التحفيز الشهري داخل صف ${row.grade} عن ${row.month} ${row.academicYear}، بتقييم ${row.score}%.
+فخورين باجتهادك، وكمل تقدمك مع TECHNO MINDS — م. عمرو خالد.`;
+  if(!confirm(`فتح واتساب لتهنئة ${row.studentName||'الطالب'} بالمركز ${row.rank}؟ الرسالة لن تُرسل إلا لما تضغط إرسال داخل واتساب.`))return;
+  const opened=window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(message),'_blank','noopener,noreferrer');
+  aToast('تم طلب فتح واتساب؛ راجع الرسالة واضغط إرسال بنفسك.');
 }
 function renderMotivationAdmin(){
   const context=adminWorkspaceContext(),students=(adminData.students||[]).filter(student=>student.active!==false).map(normalizeStudent).sort((a,b)=>a.name.localeCompare(b.name,'ar'));
@@ -1210,26 +1371,50 @@ function renderMotivationAdmin(){
   document.getElementById('freezeMotivationMonth').onclick=async event=>{event.currentTarget.disabled=true;try{await window.MFCloud.freezeLeaderboardMonthAdmin({academicYear:context.academicYear,month:context.month});aToast('تم تثبيت وأرشفة ترتيب الشهر.');}catch(error){aToast(adminActionErrorMessage(error,'تعذر أرشفة الشهر.'));}finally{event.currentTarget.disabled=false;}};
   document.getElementById('motivationAdminGrade').onchange=refreshMotivationAdminRanking;refreshMotivationAdminRanking();hydrateIcons();
 }
+const adminSectionAssetRequests=new Map();
 function renderSection(){
+  if(window.__tmAdminHydrating){content('<div class="card" role="status"><b>جارٍ تحميل بيانات مساحة العمل…</b><p class="section-desc">القائمة والأوامر متاحة، وسيظهر القسم عند اكتمال البيانات.</p></div>');return;}
+  if(window.__tmLoadAdminSectionAssets&&!window.__tmAdminSectionAssetsReady(currentSection)){
+    const section=currentSection;content('<div class="card" role="status" data-admin-assets-loading>جارٍ تجهيز أدوات هذا القسم…</div>');
+    if(!adminSectionAssetRequests.has(section)){
+      const request=window.__tmLoadAdminSectionAssets(section).then(()=>{adminSectionAssetRequests.delete(section);if(currentSection===section)renderSection();}).catch(()=>{adminSectionAssetRequests.delete(section);if(currentSection===section)content('<div class="card" role="alert">تعذر تحميل أدوات القسم. أعد فتحه للمحاولة.</div>');});
+      adminSectionAssetRequests.set(section,request);
+    }
+    return;
+  }
+  // Warm the existing QR asset only inside attendance workflows; keep offline support.
+  if(['attendance','classroom'].includes(currentSection)&&navigator.onLine!==false&&!window.__adminQrOfflinePrepared){
+    window.__adminQrOfflinePrepared=true;
+    setTimeout(()=>window.MFAssets?.loadQrScanner?.().catch(()=>{window.__adminQrOfflinePrepared=false;}),2000);
+  }
   if(window.__adminOfflineMode){if(!offlineCapabilityValid()){renderOfflineAdmin();return;}currentSection='attendance';renderAttendance();return;}
-  const contentSections=['materials','theoryLectures','curriculum','questions','questionBanks','exams','reviews','assignments','backup'];
+  const sectionCollections={materials:['materials'],theoryLectures:['materials'],questions:['questions'],exams:['exams','questions'],reviews:['reviews'],assignments:['assignments'],backup:['materials','questions','exams','reviews','assignments']};
   const recordSections=['students','exams','assignments','warnings','backup'];
   if(window.MFCloud?.ready&&navigator.onLine!==false){
-    if(contentSections.includes(currentSection)&&!adminContentReady){
-      content('<div class="card" role="status" data-admin-content-loading>جاري تحميل محتوى القسم…</div>');
-      if(!adminContentPromise)adminContentPromise=window.MFCloud.loadStaffContent().then(data=>{for(const key of ['materials','questions','exams','reviews','assignments'])adminData[key]=data[key]||[];adminContentReady=true;saveData(adminData);}).catch(error=>{console.warn('admin-content-load',error);if(document.querySelector('[data-admin-content-loading]'))content('<div class="card">تعذر تحميل المحتوى. أعد فتح القسم للمحاولة.</div>');}).finally(()=>{adminContentPromise=null;if(adminContentReady&&document.querySelector('[data-admin-content-loading]'))renderSection();});
+    const missing=(sectionCollections[currentSection]||[]).filter(key=>!adminContentLoadedCollections.has(key));
+    if(missing.length){
+      adminContentReady=false;content('<div class="card" role="status" data-admin-content-loading>جاري تحميل محتوى القسم…</div>');
+      if(!adminContentPromise)adminContentPromise=window.MFCloud.loadStaffContent({collections:missing}).then(data=>{for(const key of missing){adminData[key]=data[key]||[];adminContentLoadedCollections.add(key);}adminContentReady=true;saveData(adminData);}).catch(error=>{console.warn('admin-content-load',error);if(document.querySelector('[data-admin-content-loading]'))content('<div class="card">تعذر تحميل المحتوى. أعد فتح القسم للمحاولة.</div>');}).finally(()=>{adminContentPromise=null;if(adminContentReady&&document.querySelector('[data-admin-content-loading]'))renderSection();});
       return;
     }
+  } 
+  if(window.MFCloud?.ready&&navigator.onLine!==false){
     if(recordSections.includes(currentSection)&&!adminRecordsReady){
-      content('<div class="card" role="status" data-admin-records-loading>جاري تحميل سجلات الطلاب…</div>');
-      if(!adminRecordsPromise)adminRecordsPromise=hydrateAdminRecords(adminRecordsLoadToken).finally(()=>{adminRecordsPromise=null;if(!document.querySelector('[data-admin-records-loading]'))return;if(adminRecordsReady)renderSection();else content('<div class="card">تعذر تحميل السجلات. أعد فتح القسم للمحاولة.</div>');});
-      return;
+      if(currentSection!=='students')content('<div class="card" role="status" data-admin-records-loading>جاري تحميل سجلات الطلاب…</div>');
+      if(!adminRecordsPromise)adminRecordsPromise=hydrateAdminRecords(adminRecordsLoadToken).finally(()=>{adminRecordsPromise=null;if(currentSection==='students'&&adminRecordsReady&&adminCanRefreshLiveSection()){renderSection();return;}if(!document.querySelector('[data-admin-records-loading]'))return;if(adminRecordsReady)renderSection();else content('<div class="card">تعذر تحميل السجلات. أعد فتح القسم للمحاولة.</div>');});
+      if(currentSection!=='students')return;
     }
   }
-  ({overview:renderOverview,classroom:()=>window.renderClassroom?.(),operations:()=>window.renderClassroom?.(),students:renderStudents,motivation:renderMotivationAdmin,bookings:renderBookings,schedules:renderSchedules,attendance:renderAttendance,warnings:renderWarnings,studentRequests:renderStudentRequests,assignments:renderAssignments,payments:renderPayments,exams:renderExams,questionBanks:()=>window.renderQuestionBanksAdmin?.(),materials:renderMaterials,theoryLectures:()=>window.renderTheoryLectures?.(),curriculum:()=>window.renderCurriculumAdmin?.(),reviews:renderReviewsAdmin,backup:renderBackup,settings:renderSettings}[currentSection]||renderOverview)();if(currentSection==='students')bindAdminGradeGroupPicker();}
+  ({overview:renderOverview,classroom:()=>window.renderClassroom?.(),operations:()=>window.renderClassroom?.(),students:renderStudents,motivation:renderMotivationAdmin,bookings:renderBookings,schedules:renderSchedules,attendance:renderAttendance,warnings:renderWarnings,studentRequests:renderStudentRequests,assignments:renderAssignments,payments:renderPayments,exams:renderExams,questionBanks:()=>window.renderQuestionBanksAdmin?.(),materials:renderMaterials,theoryLectures:()=>window.renderTheoryLectures?.(),curriculum:()=>window.renderCurriculumAdmin?.(),reviews:renderReviewsAdmin,backup:renderBackup,settings:renderSettings}[currentSection]||renderOverview)();window.TMAccountAdmin?.mount(currentSection);if(currentSection==='students')bindAdminGradeGroupPicker();}
 function exportCSV(name, rows){const csv=rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'})); a.download=name; a.click();}
 window.exportBookingsCSV=function(){exportCSV('bookings.csv',[['code','name','grade','month','group','parentPhone','status'],...adminData.bookings.map(b=>[b.code,b.name,b.grade,b.month,b.group,b.parentPhone,b.status])]);};
 
 function initAdmin(){const requested=new URLSearchParams(location.search).get('section'),resolvedSection=adminLegacySectionAliases[requested]||requested;if(adminSections.some(([id])=>id===resolvedSection))currentSection=resolvedSection;setupTheme();hydrateIcons();tryOfflineStaffWorkspace();if(!window.__offlineAttendanceEventsBound){window.addEventListener('online',()=>{if(window.__adminOfflineMode){location.reload();return;}attendanceCloudDate='';attendanceCloudError=null;if(currentSection==='attendance')renderAttendance();syncOfflineAttendanceNow();window.refreshAdminAttentionAlerts?.(true);});window.addEventListener('offline',()=>{tryOfflineStaffWorkspace();});navigator.serviceWorker?.addEventListener?.('message',event=>{if(event.data?.type==='SYNC_OFFLINE_ATTENDANCE')syncOfflineAttendanceNow(true);});window.__offlineAttendanceEventsBound=true;}}
-window.__tmAdminBootstrapStart=async function(profile){if(window.__tmAdminBundleState&&window.__tmAdminBundleState!=='ready')throw new Error('ملفات الإدارة غير مكتملة؛ حدّث الصفحة.');currentStaff=profile;window.__adminOfflineMode=false;window.__adminOfflineCapability=null;await cacheOfflineStaffProfile();await reloadFromCloud();if(window.MFCloud?.auth?.currentUser?.uid!==profile.uid)throw new Error('انتهت جلسة الإدارة قبل فتح اللوحة.');renderAdmin();};
+window.__tmAdminBootstrapStart=async function(profile){if(window.__tmAdminBundleState&&window.__tmAdminBundleState!=='ready')throw new Error('ملفات الإدارة غير مكتملة؛ حدّث الصفحة.');currentStaff=profile;window.__adminOfflineMode=false;window.__adminOfflineCapability=null;if(window.MFCloud?.auth?.currentUser?.uid!==profile.uid)throw new Error('انتهت جلسة الإدارة قبل فتح اللوحة.');
+  window.__tmAdminHydrating=true;renderAdmin();
+  try{await reloadFromCloud();if(window.MFCloud?.auth?.currentUser?.uid!==profile.uid)throw new Error('انتهت جلسة الإدارة قبل فتح اللوحة.');}
+  catch(error){document.getElementById('adminContent').textContent='تعذر تحميل بيانات الإدارة. حدّث الصفحة وحاول مرة أخرى.';throw error;}
+  finally{window.__tmAdminHydrating=false;}
+  renderSection();syncAdminChrome();startBookingNotifications();startAdminLiveData();
+  window.refreshAdminAttentionAlerts?.();mergeOfflineAttendanceQueue().then(()=>renderOfflineAttendanceStatus()).catch(()=>renderOfflineAttendanceStatus());if(navigator.onLine!==false)syncOfflineAttendanceNow(true);};
 document.addEventListener('DOMContentLoaded',initAdmin);

@@ -1,0 +1,10 @@
+'use strict';
+const {spawn,spawnSync}=require('node:child_process'),path=require('node:path');
+const project='demo-technominds',root=path.resolve(__dirname,'..'),port=Number(process.env.TM_LOCAL_REVIEW_PORT);
+if(process.env.GCLOUD_PROJECT!==project||process.env.GOOGLE_CLOUD_PROJECT!==project||!Number.isInteger(port)||port<1024||port>65535)throw Error('Only the disposable demo project is allowed.');
+for(const name of ['FIRESTORE_EMULATOR_HOST','FIREBASE_AUTH_EMULATOR_HOST','FIREBASE_STORAGE_EMULATOR_HOST'])if(!/^127\.0\.0\.1:\d+$/.test(process.env[name]||''))throw Error('Missing loopback emulator: '+name);
+const seeded=spawnSync(process.execPath,['scripts/seed-local-demo.js'],{cwd:root,env:process.env,stdio:'inherit'});if(seeded.error)throw seeded.error;if(seeded.status!==0)process.exit(seeded.status||1);
+console.log('\nLOCAL DEMO: http://127.0.0.1:'+port+'\nOwner: phase6-owner@example.test / Local-Review-Only-6349\nStudent / Parent CODE: 123456\nNo production data. Code execution provider is disabled in this demo.\n');
+const server=spawn(process.execPath,['local-server.js','--emulators','--port',String(port)],{cwd:root,env:process.env,stdio:'inherit'});
+server.once('error',error=>{console.error(error.message);process.exitCode=1;});server.once('exit',code=>{process.exitCode=code??1;});
+process.once('SIGINT',()=>server.kill('SIGINT'));process.once('SIGTERM',()=>server.kill('SIGTERM'));

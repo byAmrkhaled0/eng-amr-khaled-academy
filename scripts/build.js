@@ -34,6 +34,9 @@ const entriesToCopy = [
   '404.html'
 ];
 
+// Fail before copying any public asset; diagnostics never include secret values.
+require('./secret-control').assertPublicSecrets(root, entriesToCopy);
+
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(dist, { recursive: true });
 
@@ -57,7 +60,7 @@ for (const entry of entriesToCopy) {
 
 // Every changed script or stylesheet gets a fresh immutable URL.
 const assetRevisions = Object.fromEntries(fs.readdirSync(path.join(dist, 'assets'))
-  .filter(name => /\.(css|js)$/.test(name)).map(name => [
+  .filter(name => /\.(css|js)$/.test(name)).sort().map(name => [
     `/assets/${name}`,
     crypto.createHash('sha256').update(fs.readFileSync(path.join(dist, 'assets', name))).digest('hex').slice(0, 12)
   ]));
@@ -78,10 +81,11 @@ for (const name of fs.readdirSync(dist).filter(file => file.endsWith('.html'))) 
   fs.writeFileSync(file, versioned);
 }
 
+const releaseFingerprint = crypto.createHash('sha256').update(JSON.stringify(assetRevisions)).digest('hex').slice(0, 12);
 const workerFile = path.join(dist, 'service-worker.js');
 if (fs.existsSync(workerFile)) {
   const worker = fs.readFileSync(workerFile, 'utf8')
-    .replace(/const CACHE_NAME = "[^"]+";/, `const CACHE_NAME = "${releaseCacheName}";`)
+    .replace(/const CACHE_NAME = "[^"]+";/, `const CACHE_NAME = "${releaseCacheName}-${releaseFingerprint}";`)
     .replace('const ASSET_REVISIONS = {};', `const ASSET_REVISIONS = ${JSON.stringify(assetRevisions)};`)
     .replace(/const ASSET_VERSION = "[^"]+";/, `const ASSET_VERSION = "${releaseVersion}";`);
   fs.writeFileSync(workerFile, worker);

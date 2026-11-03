@@ -57,7 +57,7 @@ test('homework correction is server-only and cannot bypass audit rules', () => {
 });
 
 test('duplicate recovery and homework correction are touch friendly', () => {
-  const css = read('assets/v61-design.css');
+  const css = (read('assets/v61-design.css')+read('assets/v674-admin.css'));
   assert.match(css, /@media\(max-width:1024px\)/);
   assert.match(css, /@media\(max-width:600px\)/);
   assert.match(css, /\.booking-form-compact input[\s\S]{0,180}font-size:16px/);

@@ -6,8 +6,7 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const base = require('./index');
 
 const db = admin.firestore();
-const FieldValue = admin.firestore.FieldValue;
-const Timestamp = admin.firestore.Timestamp;
+const { FieldValue, Timestamp, FieldPath } = require('firebase-admin/firestore');
 const CALLABLE = { region:'europe-west1', timeoutSeconds:30, invoker:'public' };
 function cleanDocId(value){return String(value||'').trim().replace(/[\\/#?\[\]]/g,'-');}
 function text(value,max=500){return String(value||'').trim().slice(0,max);}

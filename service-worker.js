@@ -1,5 +1,5 @@
-const CACHE_NAME = "technominds-v70-0-7-complete-report-attendance-v12";
-const ASSET_VERSION = "70.0.7";
+const CACHE_NAME = "technominds-v70-0-11-complete-report-attendance-v12-unified-push-v13-mobile-qr-v14-release-review-v15-service-parity-v16-parent-report-v17-bulk-questions-v18-fill-v19-individual-v20-product-v21";
+const ASSET_VERSION = "70.0.11";
 // Build fills these hashes; source previews continue to use the release URLs.
 const ASSET_REVISIONS = {};
 const APP_SHELL = [
@@ -15,30 +15,32 @@ const SENSITIVE_NAVIGATION=new Set(['/student.html','/parent.html','/exams.html'
 
 // Background FCM uses the browser's standard Push API with no external worker
 // imports, so a third-party CDN/CORS failure cannot break the PWA worker.
-self.addEventListener('push', event => {
-  let payload={};
-  try{payload=event.data?event.data.json():{};}catch(_){payload={data:{body:event.data?.text?.()||''}};}
-  const data=payload.data||{},notification=payload.notification||payload.webpush?.notification||{};
-  const title=notification.title||data.title||'Techno Minds';
-  const options={
-    body:notification.body||data.body||'يوجد تحديث جديد في لوحة الإدارة.',
-    icon:notification.icon||'/assets/technominds-logo.png',
-    badge:notification.badge||'/assets/technominds-logo.png',
-    tag:notification.tag||`technominds-${data.type||'update'}-${data.bookingCode||''}`,
-    renotify:false,
-    data:{url:notification.data?.url||data.url||'/teacher-login.html?section=bookings'}
-  };
-  event.waitUntil(self.registration.showNotification(title,options));
+const STUDENT_PUSH_STATE='tm-student-push-state';
+async function studentPushBinding(){try{const cache=await caches.open(STUDENT_PUSH_STATE),value=await cache.match('/__student_push_binding');return value?(await value.json()).studentCode:null;}catch(_){return null;}}
+self.addEventListener('message',event=>{
+ if(event.data?.type!=='TM_STUDENT_PUSH_ACCOUNT')return;
+ const code=event.data.studentCode;if(code!==null&&!/^[A-Z0-9_-]{6,40}$/.test(String(code||'')))return;
+ if(event.source?.url&&new URL(event.source.url).origin!==self.location.origin)return;
+ event.waitUntil((async()=>{const cache=await caches.open(STUDENT_PUSH_STATE);await cache.put('/__student_push_binding',new Response(JSON.stringify({studentCode:code}),{headers:{'Content-Type':'application/json'}}));if(code===null){const rows=await self.registration.getNotifications();rows.filter(n=>n.data?.audience==='student').forEach(n=>n.close());}})());
 });
-
+self.addEventListener('push', event => {
+ let payload={};try{payload=event.data?event.data.json():{};}catch(_){payload={data:{body:event.data?.text?.()||''}};}
+ const data=payload.data||{},notification=payload.notification||payload.webpush?.notification||{};
+ event.waitUntil((async()=>{
+  const student=data.audience==='student';if(student&&(await studentPushBinding()!==data.studentCode||Number(data.expiresAt||0)>0&&Number(data.expiresAt)<=Date.now()))return;
+  if(student){const windows=await clients.matchAll({type:'window',includeUncontrolled:true});windows.forEach(client=>client.postMessage({type:'TM_STUDENT_CONTENT_NEW',studentCode:data.studentCode,notificationId:data.notificationId}));if(windows.some(client=>new URL(client.url).pathname==='/student.html'&&client.visibilityState==='visible'))return;}
+  const title=notification.title||data.title||'Techno Minds';
+  const options={body:notification.body||data.body||(student?'يوجد جديد في حسابك الدراسي.':'يوجد تحديث جديد في لوحة الإدارة.'),icon:notification.icon||'/assets/technominds-logo.png',badge:notification.badge||'/assets/technominds-logo.png',tag:student?'technominds-student-'+data.notificationId:notification.tag||`technominds-${data.type||'update'}-${data.bookingCode||''}`,renotify:false,data:{url:student?'/student.html#'+(['overview','lectures','homework','exams','grades','attendance','motivation','recitation','payments','transfer','notifications'].includes(data.actionTab)?data.actionTab:'notifications'):notification.data?.url||data.url||'/teacher-login.html?section=bookings',audience:student?'student':'staff',studentCode:student?data.studentCode:null,notificationId:data.notificationId}};
+  await self.registration.showNotification(title,options);
+ })());
+});
 self.addEventListener('notificationclick', event => {
-  event.notification.close();
-  const target=new URL(event.notification.data?.url||'/teacher-login.html?section=bookings',self.location.origin).href;
-  event.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(windows=>{
-    const existing=windows.find(client=>client.url.startsWith(self.location.origin));
-    if(existing){existing.navigate(target);return existing.focus();}
-    return clients.openWindow(target);
-  }));
+ event.notification.close();const data=event.notification.data||{};let target=new URL(data.url||'/teacher-login.html?section=bookings',self.location.origin);if(target.origin!==self.location.origin)target=new URL('/',self.location.origin);
+ event.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(windows=>{
+  const existing=windows.find(client=>new URL(client.url).origin===self.location.origin&&new URL(client.url).pathname===target.pathname);
+  if(existing){if(data.audience==='student')existing.postMessage({type:'TM_STUDENT_NOTIFICATION_OPEN',studentCode:data.studentCode,notificationId:data.notificationId,actionTab:target.hash.slice(1)});else existing.navigate(target.href);return existing.focus();}
+  return clients.openWindow(target.href);
+ }));
 });
 
 self.addEventListener("install", event => {

@@ -1,0 +1,503 @@
+/* Student/Parent-only presentation owner. No scripts, data or shared-page rules. */
+.tm-portal,.tm-portal *{transition:none!important}
+.tm-portal .student-tab-panel{animation:none!important}
+.tm-portal,html[data-theme="light"] body.tm-visual-system.tm-portal{--bg:#f4f7fb;--surface:#fff;--surface-2:#edf3f9;--text:#142f46;--muted:#4d647a;--border:#cfdeea;--primary:#006bb3;--tm-text:var(--text);--tm-muted:var(--muted);--tm-card:var(--surface);--tm-surface:var(--surface);--tm-surface-soft:var(--surface-2);--tm-line:var(--border);--tm-blue:var(--primary);--tm-primary:var(--primary);--card:var(--surface);--v65-line:var(--border);--tm-shadow:0 3px 14px #19364d09;--portal-good:#14613c;--portal-good-bg:#e5f5ec;--portal-warn:#77500b;--portal-warn-bg:#fff1d6;--portal-danger:#9d2438;--portal-danger-bg:#fce9ed;--portal-info:#085e87;--portal-info-bg:#e5f3ff;background:var(--bg)!important;color:var(--text)}
+html[data-theme="dark"] body.tm-visual-system.tm-portal{--bg:#0c1926;--surface:#162b3d;--surface-2:#1c3449;--text:#edf4fc;--muted:#b8cada;--border:#3b566d;--primary:#83cfff;--portal-good:#a0e7bf;--portal-good-bg:#1b3d32;--portal-warn:#ffdda0;--portal-warn-bg:#44371e;--portal-danger:#ffb7c4;--portal-danger-bg:#472a36;--portal-info:#a0ddff;--portal-info-bg:#1a3a52;--tm-shadow:none}
+.tm-portal .kicker{background:var(--portal-info-bg);color:var(--portal-info)!important;border-color:var(--border)}
+.tm-portal .parent-report-sheet-v72>footer :is(span,b,a){color:var(--muted)}
+.tm-portal .parent-report-followup-v71 b{color:inherit}
+.tm-portal .whatsapp-report-btn{background:#087442;color:#fff;border-color:#087442}
+.tm-portal .navlinks a.active{background:#0066a8!important;color:#fff!important}
+.tm-portal :is(input,textarea)::placeholder,.tm-portal .portal-code-field input::placeholder{color:var(--muted)!important;opacity:1!important}
+.tm-portal :is(input,select,textarea){background:var(--surface);color:var(--text);border-color:var(--border);max-width:100%}
+.tm-portal :is(.btn,.small-btn){min-height:40px;white-space:normal;line-height:1.55}
+.tm-portal :is(.btn.primary,.small-btn.primary){background:#0066a8;color:#fff;border-color:#0066a8}
+.tm-portal :is(.btn.ghost,.small-btn:not(.primary)){background:var(--surface-2);color:var(--text);border-color:var(--border)}
+.tm-portal :is(button,a,input,select,textarea,summary):focus-visible{outline:3px solid var(--primary);outline-offset:3px}
+.tm-portal button:disabled{opacity:1;filter:none;color:var(--muted);background:var(--surface-2);border-color:var(--border)}
+.tm-portal :is(.badge,.score-pill){background:var(--surface-2);color:var(--text);border-color:var(--border)}
+.tm-portal :is(.badge.good,.score-pill.good){background:var(--portal-good-bg);color:var(--portal-good)}
+.tm-portal :is(.badge.warn,.score-pill.warn){background:var(--portal-warn-bg);color:var(--portal-warn)}
+.tm-portal :is(.badge.danger,.score-pill.danger){background:var(--portal-danger-bg);color:var(--portal-danger)}
+.tm-portal :is(.parent-report-section-v29,.student-report-section-v32){padding:10px 0 20px!important}
+.tm-portal :is(#studentResult,#parentResult){min-height:0;background:transparent;border:0!important;box-shadow:none!important;padding:0!important;overflow:visible;color:var(--text)}
+.tm-portal .parent-hero-v29{padding:20px 0;background:var(--bg)}
+.tm-portal .parent-hero-grid-v29{min-height:0;max-width:920px;padding:22px;gap:10px 22px;background:var(--surface);border-color:var(--border)}
+.tm-portal .portal-learning-visual{height:290px;min-height:0;object-fit:contain}
+.tm-portal .reference-code-entry .card{background:var(--surface);color:var(--text);box-shadow:none!important;border-color:var(--border)!important}
+.tm-portal .parent-search-v29 :is(p,small),.tm-portal .portal-entry-identity>p{color:var(--muted)}
+.tm-portal .portal-access-switch>summary{min-height:40px;padding:8px 12px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:9px;font-size:.76rem}
+.tm-portal .student-app-header{padding:12px;gap:12px;min-height:0;background:var(--surface);border-color:var(--border);box-shadow:none}
+.tm-portal .student-identity{min-width:0;gap:8px}.tm-portal .student-identity>div{min-width:0}
+.tm-portal .student-identity h2{font-size:1.08rem;line-height:1.6;margin:1px 0;color:var(--text);overflow-wrap:anywhere}
+.tm-portal .student-identity p{font-size:.74rem;line-height:1.65;color:var(--muted);margin:2px 0}
+.tm-portal .student-identity code{font-size:.72rem;color:var(--muted)}
+.tm-portal .student-dashboard-logo{width:36px;height:36px}.tm-portal .student-avatar{width:30px;height:30px;font-size:.7rem;background:var(--portal-info-bg);color:var(--portal-info)}
+.tm-portal .student-qr-details{margin:0}.tm-portal .student-qr-details summary{min-height:40px;padding:8px;font-size:.72rem;color:var(--text);background:var(--surface-2)}
+.tm-portal .student-kpi-grid{margin:0;gap:8px;grid-template-columns:repeat(4,minmax(0,1fr))}
+.tm-portal .student-kpi-grid article{min-height:72px;padding:10px;gap:4px;background:var(--surface);border-color:var(--border);box-shadow:none!important}
+.tm-portal .student-kpi-grid article>b{font-size:1.18rem;line-height:1.5;color:var(--text)}
+.tm-portal .student-kpi-grid article>small{font-size:.68rem;line-height:1.55;color:var(--muted)}
+.tm-portal .student-kpi-grid article>[data-icon]{width:28px;height:28px;color:var(--primary);background:var(--surface-2)}
+.tm-portal .student-kpi-grid article svg{width:18px;height:18px}
+.tm-portal .student-secondary-kpis{padding:0 10px;background:var(--surface);border-color:var(--border)}
+.tm-portal .student-secondary-kpis>summary{min-height:40px;padding:9px 0;color:var(--muted);font-size:.73rem;cursor:pointer}
+.tm-portal .student-secondary-kpis>div:last-child{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 0;font-size:.72rem;line-height:1.8}
+.tm-portal .student-tab-panel.show[data-student-panel="overview"]{display:grid;gap:10px}
+.tm-portal .student-dashboard-widgets{margin:0;gap:10px}
+.tm-portal :is(.student-dashboard-widget,.student-highlight-card,.teacher-note-card){padding:10px;min-height:0!important;border-radius:10px;background:var(--surface);color:var(--text);border-color:var(--border);box-shadow:none!important}
+.tm-portal .student-dashboard-widget{align-content:start}
+.tm-portal .student-section-heading{gap:8px;margin:0 0 8px}.tm-portal .student-section-heading h3{font-size:.88rem;color:var(--text)}
+.tm-portal .student-section-heading span,.tm-portal .student-widget-empty{font-size:.7rem;color:var(--muted)}
+.tm-portal .student-record-list{gap:7px}
+.tm-portal .student-record-card{display:flex!important;flex-direction:row!important;align-items:center!important;gap:8px!important;padding:9px 10px!important;min-height:0!important;background:var(--surface);color:var(--text);border-color:var(--border)!important;border-radius:9px!important;box-shadow:none!important}
+.tm-portal .student-record-card>div{min-width:0;flex:1}
+.tm-portal .student-record-card h4{font-size:.84rem;line-height:1.65;margin:3px 0;color:var(--text);overflow-wrap:anywhere}
+.tm-portal .student-record-card :is(small,.record-eyebrow){color:var(--muted)!important;font-size:.7rem!important;line-height:1.65!important}
+.tm-portal .student-record-card>[data-icon]{width:24px;height:24px;color:var(--primary);flex:none}.tm-portal .student-record-card svg{width:19px;height:19px}
+.tm-portal .student-record-card .badge{flex:none;font-size:.68rem;white-space:normal}
+.tm-portal .lecture-progress-row{display:grid!important;grid-template-columns:minmax(0,1fr) auto auto;align-items:center!important}
+.tm-portal .lecture-progress-row .record-eyebrow::after{content:" · محاضرة"}
+.tm-portal .lecture-progress-row:has(a[target="_blank"]) .record-eyebrow::after{content:" · رابط"}
+.tm-portal .lecture-progress-row:has(a[href*=".pdf" i]) .record-eyebrow::after{content:" · PDF"}
+.tm-portal .lecture-progress-row .theory-progress{margin-top:6px;height:5px;background:var(--surface-2)}
+.tm-portal .lecture-progress-row .small-btn{min-height:40px;padding:7px 12px;font-size:.75rem}
+.tm-portal .student-quick-links{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 12px}
+.tm-portal .student-quick-links>a{min-width:0;min-height:88px;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);display:grid;align-content:center;gap:5px}
+.tm-portal .student-quick-links [data-icon]{width:23px;height:23px}.tm-portal .student-quick-links svg{width:20px;height:20px}
+.tm-portal .student-quick-links b{font-size:.88rem;overflow-wrap:anywhere}.tm-portal .student-quick-links small{font-size:.7rem;line-height:1.7;color:var(--muted)}
+.tm-portal .student-overview-grid{gap:8px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.tm-portal .student-highlight-card{align-items:start;gap:8px}.tm-portal .student-highlight-card>.iconbox{width:28px;height:28px;flex:none}
+.tm-portal .student-highlight-card h3{font-size:.85rem;line-height:1.65;color:var(--text)}
+.tm-portal .student-highlight-card :is(p,small),.tm-portal .teacher-note-card :is(p,small){font-size:.7rem;line-height:1.75;color:var(--muted)}
+.tm-portal .student-panel-title h3{font-size:1rem;line-height:1.6;margin:3px 0;color:var(--text)}
+.tm-portal .student-panel-title p{font-size:.74rem;color:var(--muted);line-height:1.75}
+.tm-portal :is(.curriculum-lecture-card,.lecture-content-item,.student-transfer-status-card,.student-ranking-card){padding:12px;min-height:0;background:var(--surface);color:var(--text);border-color:var(--border)}
+.tm-portal .curriculum-lecture-number{width:34px;height:34px;font-size:1rem;background:var(--portal-info-bg);color:var(--portal-info)}
+.tm-portal .curriculum-lecture-body h3{font-size:.9rem}.tm-portal .curriculum-lecture-body p{font-size:.72rem;line-height:1.7;color:var(--muted)}
+.tm-portal :is(.curriculum-modal-card,.qr-modal-card,.homework-dialog-card){max-width:min(920px,100%);max-height:calc(100dvh - 32px);overflow:auto;padding:18px;background:var(--surface);color:var(--text)}
+.tm-portal .curriculum-modal-close{z-index:5;min-width:44px;min-height:44px;top:10px;inset-inline-end:10px;background:var(--surface-2);color:var(--text)}
+.tm-portal .curriculum-modal-card>header{position:relative;z-index:0;padding-inline-end:52px;background:var(--surface);color:var(--text)}
+.tm-portal .curriculum-modal-card :is(h2,h3,p,small){color:inherit;overflow-wrap:anywhere}
+.tm-portal .curriculum-modal-card :is(.lecture-tabs,.lecture-content-item){border-color:var(--border);background:var(--surface-2)}
+.tm-portal .parent-report-toolbar-v70{margin:0;padding:8px 12px;gap:8px;background:var(--surface);border-color:var(--border)}
+.tm-portal .parent-report-toolbar-v70 label{font-size:.74rem;color:var(--muted)}
+.tm-portal .parent-report-toolbar-v70 select{min-height:44px;border-radius:12px;background:var(--surface-2);color:var(--text)}
+.tm-portal .parent-report-toolbar-v70 .btn{min-height:44px;padding:11px 14px;font-size:.78rem}
+.tm-portal .parent-report-header-v72{padding:12px;margin:0;gap:10px;min-width:0;background:var(--surface);border-color:var(--border)}
+.tm-portal .parent-report-header-v72 img{width:38px;height:38px}
+.tm-portal .parent-report-header-v72 h2{font-size:1.13rem;color:var(--text);line-height:1.7}
+.tm-portal .parent-report-header-v72 :is(p,small){font-size:.73rem;color:var(--muted);line-height:1.75}
+.tm-portal .parent-report-header-v72 span{color:var(--primary)}
+.tm-portal .parent-report-title-v72{background:transparent;color:var(--text)}
+.tm-portal .parent-report-title-v72 :is(code,strong){background:var(--surface-2);color:var(--text);font-size:.75rem}
+.tm-portal .parent-report-overview-v72{grid-template-columns:112px minmax(0,1fr);gap:12px;padding:12px;background:var(--surface);color:var(--text);border-color:var(--border)}
+.tm-portal .parent-report-score-v72{min-height:92px;padding:10px;background:var(--portal-info-bg);color:var(--portal-info)}
+.tm-portal .parent-report-score-v72 b{font-size:1.85rem;line-height:1.5;color:inherit}
+.tm-portal .parent-report-score-v72 :is(small,span){font-size:.74rem;color:inherit}
+.tm-portal .parent-report-overview-copy-v72{min-width:0}.tm-portal .parent-report-overview-copy-v72>b{color:var(--text);font-size:.84rem}
+.tm-portal .parent-report-overview-copy-v72 p{font-size:.74rem;line-height:1.75;color:var(--muted);margin:5px 0}
+.tm-portal .parent-report-overview-copy-v72 span{padding:6px;background:var(--surface-2);color:var(--muted);font-size:.71rem;line-height:1.7}
+.tm-portal .parent-report-overview-copy-v72 strong{color:var(--text)}
+.tm-portal .parent-report-kpis-v71{gap:8px;grid-template-columns:repeat(4,minmax(0,1fr))}
+.tm-portal .parent-report-kpis-v71>div{min-height:74px;padding:10px;gap:4px;background:var(--surface);border-color:var(--border);color:var(--text)}
+.tm-portal .parent-report-kpis-v71>div>b{font-size:1.2rem;line-height:1.5;color:var(--text)}
+.tm-portal .parent-report-kpis-v71>div>small{font-size:.72rem;line-height:1.6;color:var(--muted)}
+.tm-portal .parent-report-kpis-v71>div:nth-child(n+5){min-height:50px;padding:7px;display:flex;flex-wrap:wrap;justify-content:center;gap:5px}
+.tm-portal .parent-report-kpis-v71>div:nth-child(n+5)>b{font-size:.85rem}
+.tm-portal .parent-report-section-v70{min-width:0;min-height:0!important;padding:12px;background:var(--surface);color:var(--text);border-color:var(--border)}
+.tm-portal .parent-report-section-v70 h3{font-size:.94rem;line-height:1.7;margin:0 0 6px;color:var(--text)}
+.tm-portal .parent-report-section-v70 :is(p,small){font-size:.74rem;line-height:1.75;color:var(--muted);margin:4px 0}
+.tm-portal .parent-report-attendance-v72{}
+.tm-portal .parent-report-attendance-list-v72{gap:6px;grid-template-columns:repeat(6,minmax(0,1fr))}
+.tm-portal .parent-report-attendance-list-v72>span{padding:7px;gap:3px;background:var(--surface-2);color:var(--text);border-color:var(--border)}
+.tm-portal .parent-report-attendance-list-v72>span b{font-size:.75rem;line-height:1.5;color:inherit}
+.tm-portal .parent-report-attendance-list-v72>span small{font-size:.7rem;color:inherit}
+.tm-portal .parent-report-attendance-list-v72 :is(.present,.excused){background:var(--portal-good-bg);color:var(--portal-good)}
+.tm-portal .parent-report-attendance-list-v72 .late{background:var(--portal-warn-bg);color:var(--portal-warn)}
+.tm-portal .parent-report-attendance-list-v72 .absent{background:var(--portal-danger-bg);color:var(--portal-danger)}
+.tm-portal .parent-report-activity-grid-v72{gap:10px;grid-template-columns:1fr 1fr}
+.tm-portal .parent-report-section-head-v70{margin-bottom:8px}.tm-portal .parent-report-section-head-v70 p{margin:3px 0;color:var(--muted)}
+.tm-portal .parent-report-list-v70{gap:5px}
+.tm-portal .parent-report-list-v70>div{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,100px);align-items:center;gap:8px;padding:8px 0;border-color:var(--border);min-height:0}
+.tm-portal .parent-report-list-v70 b{font-size:.78rem;line-height:1.65;color:var(--text)}
+.tm-portal .parent-report-list-v70 small{font-size:.7rem;line-height:1.6;color:var(--muted)}
+.tm-portal .parent-report-list-v70 strong{max-width:160px;font-size:.73rem;line-height:1.65;color:var(--primary);overflow-wrap:anywhere;text-align:end}
+.tm-portal .parent-report-facts-v71{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.tm-portal .parent-report-facts-v71>div{min-width:0;padding:10px;min-height:0;background:var(--surface);color:var(--text);border-color:var(--border)}
+.tm-portal .parent-report-facts-v71 :is(small,span){font-size:.72rem;line-height:1.75;color:var(--muted)}
+.tm-portal .parent-report-facts-v71 b{font-size:.83rem;line-height:1.65;color:var(--text)}
+.tm-portal .parent-report-feedback-v7002{padding:12px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:10px}
+.tm-portal .parent-report-feedback-v7002 h3{font-size:.96rem;line-height:1.7;margin:0 0 6px;color:var(--text)}
+.tm-portal .parent-report-feedback-v7002 :is(p,div){font-size:.78rem;line-height:1.85;margin:5px 0;color:var(--muted)}
+.tm-portal .parent-report-feedback-v7002 b{color:var(--text)}
+.tm-portal .parent-report-followup-v71{background:var(--surface)}
+.tm-portal .parent-report-followup-v71>div{gap:8px;grid-template-columns:1fr 1fr}
+.tm-portal .parent-report-followup-v71 :is(.strength,.concern,.action,.teacher){padding:9px;font-size:.75rem;line-height:1.8;margin:0;border:1px solid var(--border)}
+.tm-portal .parent-report-followup-v71 .strength{background:var(--portal-good-bg)!important;color:var(--portal-good)!important}
+.tm-portal .parent-report-followup-v71 .concern{background:var(--portal-warn-bg)!important;color:var(--portal-warn)!important}
+.tm-portal .parent-report-followup-v71 .action{background:var(--portal-info-bg)!important;color:var(--portal-info)!important}
+.tm-portal .parent-report-followup-v71 .teacher{background:var(--surface-2)!important;color:var(--text)!important}
+.tm-portal .parent-report-data-note-v71{padding:10px 12px;background:var(--surface);color:var(--text);border-color:var(--border);font-size:.77rem;line-height:1.8}
+.tm-portal .parent-report-data-note-v71>summary{min-height:40px;cursor:pointer;color:var(--text)}
+.tm-portal .parent-report-data-note-v71 li{color:var(--muted)}
+.tm-portal .parent-report-sheet-v72>footer{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:12px;background:var(--surface-2);color:var(--muted);border-color:var(--border);font-size:.73rem}
+.tm-portal>.footer{background:#081e31;color:#e6f0fa;padding:18px 0;border-color:#35516a}
+.tm-portal>.footer .engineer-only-wrap{margin:0;padding:0;border:0;gap:12px}
+.tm-portal>.footer :is(a,span){color:#d8e7f5;font-size:.73rem;line-height:1.8}
+.tm-portal>.footer .engineer-only-whatsapp{color:#b7efff;background:#183a53}
+
+.tm-portal .portal-access-switch .parent-search-v29{background:var(--surface)!important;color:var(--text);border-color:var(--border)!important}
+.tm-portal .portal-code-field label{color:var(--text)}
+.tm-portal .code-input-wrap{background:var(--surface-2)!important;color:var(--text);border-color:var(--border)}
+.tm-portal .code-input-wrap input{background:var(--surface-2)!important;color:var(--text)}
+.tm-portal .portal-access-switch .student-search-actions-v29 .btn.ghost{background:var(--surface-2)!important;color:var(--text)!important}
+.tm-portal .compact-empty-v29{background:var(--surface)!important;color:var(--text);border:1px solid var(--border)}
+.tm-portal .compact-empty-v29 h3{color:var(--text)}
+.tm-portal #studentCurriculumPanel .curriculum-lecture-number{background:var(--portal-info-bg)!important;color:var(--portal-info)!important}
+.tm-portal .parent-report-toolbar-v70 .whatsapp-report-btn{background:#087442!important;color:#fff!important;border-color:#087442!important}
+.tm-portal .parent-report-toolbar-v70 .whatsapp-report-btn:hover{background:#066638!important}
+
+.tm-portal .student-help-panel{background:var(--surface);color:var(--text);border-color:var(--border)}
+.tm-portal .student-help-panel>header{background:#12334d;color:#fff}
+.tm-portal .student-help-panel>header :is(b,button){color:#fff}
+.tm-portal .student-help-panel>header small{color:#d4e5f3;opacity:1}
+.tm-portal .student-help-questions button{background:var(--surface-2);color:var(--portal-info);border-color:var(--border)}
+.tm-portal #studentHelpSearch button{background:#0066a8;color:#fff;border-color:#0066a8}
+.tm-portal #studentHelpAnswer :is(p,small){color:var(--muted)}
+.tm-portal .student-qr-details .real-qr-wrap{background:#fff!important;color:#1b354b;border-color:var(--border)}
+.tm-portal .student-qr-details .real-qr-wrap small{color:#334e68!important}
+@media(min-width:701px) and (max-width:1024px){.tm-portal .student-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.tm-portal .student-dashboard-widgets{grid-template-columns:minmax(0,1fr)}.tm-portal .parent-report-facts-v71{grid-template-columns:repeat(3,minmax(0,1fr))}.tm-portal .parent-report-attendance-list-v72{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:700px){
+.tm-portal{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}
+.tm-portal .parent-hero-v29{padding:14px 0}.tm-portal .parent-hero-grid-v29{padding:16px;gap:10px;min-height:0}.tm-portal .portal-learning-visual{height:154px}
+.tm-portal .portal-entry-identity>h1{font-size:1.6rem}.tm-portal .portal-entry-identity>p{font-size:.78rem;line-height:1.8}.tm-portal .student-app-header{padding:10px;gap:8px}
+.tm-portal .student-identity{gap:6px;flex:1}.tm-portal .student-identity h2{font-size:1rem}.tm-portal .student-identity p{font-size:.71rem}
+.tm-portal .student-dashboard-logo{width:30px;height:30px}.tm-portal .student-avatar{width:26px;height:26px;font-size:.65rem}
+.tm-portal .student-qr-details{width:100%}.tm-portal .student-qr-details>summary{min-height:40px;padding:7px;font-size:.7rem}
+.tm-portal .student-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.tm-portal .student-kpi-grid article{min-height:69px;padding:9px;gap:3px}
+.tm-portal .student-kpi-grid article>b{font-size:1.12rem}.tm-portal .student-kpi-grid article>small{font-size:.68rem}
+.tm-portal .student-dashboard-widgets{grid-template-columns:minmax(0,1fr);gap:8px}
+.tm-portal .student-quick-links{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.tm-portal .student-quick-links>a{padding:10px;min-height:82px}
+.tm-portal .student-quick-links>a:last-child{display:flex;justify-content:center;align-items:center;gap:8px;grid-column:1/-1;min-height:44px}
+.tm-portal .student-overview-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.tm-portal .student-highlight-card{display:block;padding:9px}.tm-portal .student-highlight-card>.iconbox{margin-bottom:5px}
+.tm-portal .student-highlight-card.monthly-title-card{grid-column:1/-1;display:flex}
+.tm-portal .student-highlight-card h3{font-size:.8rem}.tm-portal .student-highlight-card :is(p,small){font-size:.69rem}
+.tm-portal .student-record-card{padding:9px!important}.tm-portal .lecture-progress-row{grid-template-columns:minmax(0,1fr) auto}
+.tm-portal .lecture-progress-row>div{grid-row:1/3}.tm-portal .lecture-progress-row .badge{justify-self:end}.tm-portal .lecture-progress-row .small-btn{min-height:44px;justify-self:end;padding:7px 10px}
+.tm-portal :is(.student-transfer-form,.student-transfer-form label){min-width:0}
+.tm-portal :is(.btn,.small-btn){min-height:44px}
+.tm-portal #studentResult.student-result-v32{padding-bottom:100px!important;backdrop-filter:none;-webkit-backdrop-filter:none}
+.tm-portal .student-tabbar.tm-compact-tabs{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;position:fixed!important;top:auto!important;bottom:calc(8px + env(safe-area-inset-bottom,0px))!important;inset-inline:8px;width:auto!important;margin:0!important;padding:4px!important;gap:2px!important;min-height:58px;max-height:none;overflow:visible!important;background:var(--surface)!important;border:1px solid var(--border)!important;border-radius:12px!important;box-shadow:0 2px 14px #0002!important;z-index:75;direction:rtl}
+.tm-portal .student-tabbar.tm-compact-tabs>button,.tm-portal .student-tabbar .tm-nav-more>summary{min-width:0!important;min-height:48px;padding:4px 2px!important;gap:3px!important;flex-direction:column!important;justify-content:center!important;align-items:center;color:var(--muted)!important;font-size:.66rem!important;line-height:1.4;border-radius:8px!important}
+.tm-portal .student-tabbar.tm-compact-tabs>button.active{background:var(--portal-info-bg)!important;color:var(--portal-info)!important}
+.tm-portal .student-tabbar .tm-nav-more-list{inset-block-end:calc(100% + 8px);max-height:calc(100dvh - 150px);overflow:auto;background:var(--surface);color:var(--text);border-color:var(--border)}
+.tm-portal .student-tabbar .tm-nav-more-list button{min-height:44px!important;min-width:0!important;color:var(--text)!important;font-size:.76rem!important}
+.tm-portal .student-tabbar .tm-nav-more-list button.active{background:var(--portal-info-bg)!important;color:var(--portal-info)!important}
+.tm-portal .mobile-bottom{min-height:58px;padding:4px 6px calc(4px + env(safe-area-inset-bottom,0px));background:var(--surface);border-color:var(--border)}
+.tm-portal .mobile-bottom>a,.tm-portal .mobile-bottom .tm-public-more>summary{min-height:46px;font-size:.65rem;color:var(--muted);gap:3px}
+.tm-portal-student:has(.student-app-dashboard)>.mobile-bottom{display:none!important}
+.tm-portal .parent-report-header-v72{padding:10px;gap:8px}.tm-portal .parent-report-header-v72 h2{font-size:1rem}
+.tm-portal .parent-report-title-v72{padding-top:7px}.tm-portal .parent-report-toolbar-v70{padding:9px;gap:8px}
+.tm-portal .parent-report-toolbar-v70 label{width:100%}.tm-portal .parent-report-toolbar-v70>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:100%}.tm-portal .parent-report-toolbar-v70 .report-action-primary{grid-column:1/-1}
+.tm-portal .parent-report-toolbar-v70 .btn{min-height:44px;padding:10px;font-size:.74rem}.tm-portal .parent-report-toolbar-v70 .whatsapp-report-btn{grid-column:auto}
+.tm-portal .parent-report-overview-v72{grid-template-columns:90px minmax(0,1fr);padding:10px;gap:10px}
+.tm-portal .parent-report-overview-copy-v72>div{display:flex;flex-wrap:wrap;gap:5px}.tm-portal .parent-report-overview-copy-v72 span{font-size:.69rem}
+.tm-portal .parent-report-kpis-v71{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.tm-portal .parent-report-kpis-v71>div{min-height:69px;padding:8px}.tm-portal .parent-report-kpis-v71>div:nth-child(n+5){min-height:48px;padding:6px}.tm-portal .parent-report-kpis-v71>div>small{font-size:.69rem}
+.tm-portal .parent-report-attendance-list-v72{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.tm-portal .parent-report-attendance-list-v72>span{padding:7px 4px}
+.tm-portal .parent-report-activity-grid-v72{grid-template-columns:minmax(0,1fr);gap:8px}.tm-portal .parent-report-section-v70{padding:10px}
+.tm-portal .parent-report-list-v70 strong{max-width:115px;font-size:.7rem}.tm-portal .parent-report-list-v70>div{gap:6px}
+.tm-portal .parent-report-facts-v71{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.tm-portal .parent-report-facts-v71>div{padding:9px}.tm-portal .parent-report-facts-v71>div:last-child{grid-column:1/-1}
+.tm-portal .parent-report-followup-v71>div{grid-template-columns:minmax(0,1fr)}
+.tm-portal .parent-report-feedback-v7002{padding:10px}
+}
+@media print{
+.tm-portal .parent-monthly-report-v70{display:block}.tm-portal .parent-report-sheet-v72{display:grid;gap:8px;background:white;color:#142f46}
+.tm-portal .parent-report-toolbar-v70{display:none!important}.tm-portal .parent-report-sheet-v72 *{--surface:#fff;--surface-2:#f3f6f9;--text:#142f46;--muted:#41596e;--border:#c9d6e0;--primary:#00619c;--portal-good:#14613c;--portal-good-bg:#e5f5ec;--portal-warn:#77500b;--portal-warn-bg:#fff1d6;--portal-danger:#9d2438;--portal-danger-bg:#fce9ed;--portal-info:#085e87;--portal-info-bg:#e5f3ff}
+.tm-portal .parent-report-sheet-v72 :is(section,header,footer){break-inside:avoid}.tm-portal .parent-report-score-v72{min-height:0}
+}
+/* Existing components, reorganized into one authenticated workspace. */
+.tm-portal>.site-header .navbar{direction:rtl}.tm-portal>.site-header .logo{direction:rtl}.tm-portal>.site-header .logo>span{direction:ltr}
+.tm-account-active .account-topbar{position:sticky;top:0;z-index:60;height:60px;border:0;border-bottom:1px solid var(--border);background:var(--surface);box-shadow:none}
+.tm-account-active .account-topbar .navbar{height:60px;min-height:60px;max-width:none;padding:8px 18px;display:flex;gap:12px;direction:rtl}
+.account-topbar .header-actions{margin-inline-start:auto;display:flex;gap:8px;align-items:center;direction:rtl}
+.account-topbar .logo{display:flex;order:-2;direction:rtl;gap:7px;font-size:.8rem;color:var(--text)}
+.account-topbar .logo img{width:36px;height:36px;object-fit:contain}
+.account-topbar .logo small{font-size:.52rem;color:var(--muted)}
+.account-topbar .logo>span{direction:ltr;text-align:left}.account-topbar .account-menu-button{order:2}
+.account-brand-slot:empty{display:none}
+.account-menu-button,.account-profile-button,.account-bell{display:inline-flex;align-items:center;justify-content:center;position:relative;width:38px;height:38px;min-height:38px;padding:8px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text);cursor:pointer}
+.account-menu-button svg,.account-bell svg{width:20px;height:20px}
+.account-profile-button{background:#ffda74;border-color:#ffda74;color:#132d45;font-weight:900}
+.account-bell b{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 4px;border:2px solid var(--surface);border-radius:20px;background:#cf2644;color:white;font-size:.58rem;line-height:14px}
+.account-bell b[hidden]{display:none}
+.tm-account-active .student-report-section-v32,.tm-account-active main>.parent-report-section-v29{padding:0!important}
+.tm-portal.tm-account-active main{max-width:none!important;width:100%;margin:0!important}.tm-portal.tm-account-active main>.parent-report-section-v29{max-width:none!important;width:100%;margin:0!important}.tm-account-active .student-report-section-v32>.container,.tm-account-active main>.parent-report-section-v29>.container{max-width:none!important;width:100%!important;margin:0!important;padding:0!important}
+.tm-portal .account-layout,.tm-portal #parentMonthlyReport{display:grid!important;grid-template-columns:202px minmax(0,1fr);direction:ltr;gap:0;align-items:start;min-height:calc(100dvh - 60px)}
+.account-sidebar{position:sticky;top:60px;direction:rtl;min-height:calc(100dvh - 60px);max-height:calc(100dvh - 60px);overflow:auto;display:flex;flex-direction:column;gap:15px;padding:16px 12px;background:#041f35;color:#e6f2ff;scrollbar-width:thin}
+.account-brand-slot .logo{display:flex;align-items:center;justify-content:center;gap:7px;direction:ltr;color:#fff}
+.account-brand-slot .logo img{width:44px;height:44px;object-fit:contain}
+.tm-account-active .account-brand-slot .logo>span{color:#fff!important;font-size:.78rem;line-height:1.4}
+.tm-account-active .account-brand-slot .logo small{display:block;font-size:.54rem;color:#bed4e7!important}
+.tm-account-active .account-brand-slot .logo b{color:#19bef0!important}
+.account-sidebar-identity{display:flex;align-items:center;gap:9px;padding:11px 3px;border-block:1px solid #2a455b}
+.account-sidebar-identity div{min-width:0}
+.tm-account-active .account-sidebar-identity strong{color:#edf4fc!important;display:block;font-size:.79rem;overflow-wrap:anywhere}
+.tm-account-active .account-sidebar-identity small{display:block;font-size:.64rem;color:#bdcfe0;margin-top:2px}
+.account-avatar{width:32px;height:32px;flex:none;border-radius:50%;display:grid;place-items:center;background:#ffda74;color:#15334f;font-weight:900}
+.tm-account-active .account-sidebar :is(.student-tabbar,.parent-tabbar):not(.tm-compact-tabs){display:grid!important;grid-template-columns:1fr!important;position:static!important;width:100%;height:auto;max-height:none;overflow:visible!important;gap:4px!important;padding:0!important;margin:0!important;border:0!important;border-radius:0;background:transparent!important;box-shadow:none!important}
+.tm-account-active .account-sidebar :is(.student-tabbar,.parent-tabbar):not(.tm-compact-tabs)>button{display:flex;justify-content:flex-start;align-items:center;gap:10px;width:100%;min-height:39px;min-width:0!important;padding:8px 10px!important;background:transparent!important;color:#d5e6f4!important;border:1px solid transparent!important;border-radius:9px!important;box-shadow:none!important;font-size:.74rem!important}
+.tm-account-active .account-sidebar :is(.student-tabbar,.parent-tabbar):not(.tm-compact-tabs)>button.active{background:#0077c6!important;color:#fff!important;border-color:#159ee6!important}
+.account-sidebar nav button svg{width:18px;height:18px;flex:none}
+.account-sidebar-access{margin-top:auto;display:flex;align-items:center;gap:7px;width:100%;min-height:41px;padding:10px;border:1px solid #345068;border-radius:9px;background:#14364e;color:#eaf5ff;font-size:.71rem;cursor:pointer}
+.account-sidebar-access svg{width:16px;height:16px}
+.account-sidebar-note{font-size:.6rem;line-height:1.8;color:#b4cce0;text-align:center}
+.tm-account-active .student-dashboard-content,.parent-account-workspace{direction:rtl;min-width:0;padding:18px;display:flex;flex-direction:column;gap:13px}
+.tm-account-active .student-app-header{padding:4px 0 8px;background:transparent;border:0;box-shadow:none;border-radius:0;min-height:0}
+.tm-account-active .student-kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.tm-account-active .student-kpi-grid>article{display:grid;grid-template-columns:35px minmax(0,1fr);gap:3px 9px;align-items:center;padding:14px;min-height:96px;border-radius:11px}
+.tm-account-active .student-kpi-grid>article>[data-icon]{grid-row:span 2;width:35px;height:39px;background:var(--portal-info-bg);color:var(--portal-info)}
+.tm-account-active .student-kpi-grid>article:first-child>[data-icon]{background:#fff1d6;color:#98600a}
+.tm-account-active .student-kpi-grid>article:nth-child(2)>[data-icon]{background:#e2f8ee;color:#167049}
+.tm-account-active .student-kpi-grid>article:nth-child(4)>[data-icon]{background:#f0e9ff;color:#7140bc}
+.tm-account-active .student-secondary-kpis{grid-column:1/-1}
+.tm-account-active .student-dashboard-widgets{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tm-account-active .student-overview-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.tm-account-active .parent-report-toolbar-v70{display:flex;align-items:center;flex-wrap:wrap;justify-content:space-between;gap:9px;background:var(--surface);border:1px solid var(--border);padding:10px;border-radius:10px;margin:0}
+.tm-account-active .parent-report-toolbar-v70>label{display:flex;align-items:center;gap:8px;font-size:.72rem}
+.tm-account-active .parent-report-toolbar-v70>div{display:flex;gap:6px;flex-wrap:wrap}
+.tm-account-active .parent-report-toolbar-v70 .btn{font-size:.78rem;min-height:44px;padding:11px 14px}
+.tm-account-active .parent-report-sheet-v72{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:0!important;margin:0;border:0!important;box-shadow:none!important;background:transparent!important;color:var(--text)!important;overflow:visible}
+.tm-account-active .parent-report-header-v72{grid-column:1/-1;padding:7px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:transparent!important;color:var(--text)!important;border:0}
+.tm-account-active .parent-report-header-v72>img{width:42px;height:42px;object-fit:contain}
+.tm-account-active .parent-report-header-v72 h2{font-size:1.2rem;margin:0;color:var(--text)}
+.tm-account-active .parent-report-overview-v72,.tm-account-active .parent-report-kpis-v70,.tm-account-active .parent-report-attendance-v72,.tm-account-active .parent-report-facts-v71,.tm-account-active .parent-report-feedback-v7002,.tm-account-active .parent-report-followup-v71,.tm-account-active .parent-report-data-note-v71,.tm-account-active .parent-report-sheet-v72>footer{grid-column:1/-1}
+.tm-account-active .parent-report-kpis-v70{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:0}
+.tm-account-active .parent-report-kpis-v70>div{padding:12px;min-height:78px}
+.tm-account-active .parent-report-kpis-v70>div:nth-child(n+5){min-height:58px}
+.tm-account-active .parent-report-activity-grid-v72{display:contents!important}
+.tm-account-active .parent-report-sheet-v72 .parent-report-section-v70{margin:0}
+.tm-account-active .parent-report-attendance-list-v72{grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.tm-account-active .parent-report-followup-v71>div{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.tm-account-active .parent-report-sheet-v72 [data-parent-block][hidden]{display:none!important}
+.tm-account-active #parentMonthlyReport:not([data-parent-view="report"]) .parent-report-section-v70:not([hidden]){grid-column:1/-1}
+.account-access-dialog{width:min(560px,calc(100% - 24px));max-height:calc(100dvh - 32px);padding:16px;border:1px solid var(--border);border-radius:15px;background:var(--surface);color:var(--text);overflow:auto}
+.account-access-dialog::backdrop{background:#02152b99}
+.account-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.account-dialog-head h2{font-size:1rem;margin:0;color:var(--text)}
+.account-dialog-head button{width:40px;height:40px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--text);font-size:1.4rem;cursor:pointer}
+.account-access-dialog .portal-access-switch>summary{display:none}
+.account-access-dialog .parent-search-v29{padding:12px!important;border:0!important;box-shadow:none!important}
+.account-signout{width:100%;margin-top:14px}
+.account-legal{margin-top:16px;font-size:.74rem;color:var(--muted)}
+.account-legal footer.footer{padding:10px 0!important;background:var(--surface-2)!important;color:var(--text)!important}
+.account-inbox-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.account-inbox-toolbar p{font-size:.75rem;color:var(--muted)}
+.account-notification-list{display:grid;gap:10px}
+.account-notification{display:flex;gap:12px;padding:15px;border:1px solid var(--border);border-radius:11px;background:var(--surface);color:var(--text)}
+.account-notification.unread{border-inline-start:4px solid #0878c6}
+.account-notification.important{border-inline-start-color:#d89719}
+.account-notification-icon{width:36px;height:36px;flex:none;display:grid;place-items:center;border-radius:10px;background:var(--portal-info-bg);color:var(--portal-info)}
+.account-notification-icon svg{width:20px;height:20px}
+.account-notification>div{min-width:0;flex:1}
+.account-notification h3{font-size:.9rem;line-height:1.7;margin:3px 0;color:var(--text)}
+.account-notification p{font-size:.78rem;line-height:1.85;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--muted)}
+.account-notification small{font-size:.65rem;color:var(--muted)}
+.account-notification-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.account-notification-actions button{font-size:.7rem}
+.account-inline-error{padding:12px;border-radius:9px;background:var(--portal-danger-bg);color:var(--portal-danger)}
+.tm-account-active :is(.exam-portal-card,.exam-result-card,.exam-student-banner,.exam-security-note,.exam-question-card,.exam-review-item){background:var(--surface);border-color:var(--border);color:var(--text);min-width:0}
+.tm-account-active .exam-portal-card{padding:14px;min-height:0}
+.tm-account-active :is(.exam-portal-grid,.exam-results-grid){grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.tm-account-active .exam-portal-card :is(p,small),.tm-account-active .exam-security-note small{color:var(--muted)}
+.tm-account-active .exam-box{background:var(--surface);color:var(--text);max-width:960px;max-height:calc(100dvh - 30px)}
+.tm-account-active .exam-option{background:var(--surface-2);color:var(--text);border-color:var(--border)}
+@media(min-width:901px){.tm-account-active.account-sidebar-collapsed .account-layout,.tm-account-active.account-sidebar-collapsed #parentMonthlyReport{grid-template-columns:72px minmax(0,1fr)}.account-sidebar-collapsed .account-sidebar{padding:12px 7px}.account-sidebar-collapsed .account-brand-slot .logo>span,.account-sidebar-collapsed .account-sidebar-identity,.account-sidebar-collapsed .account-sidebar-access,.account-sidebar-collapsed .account-sidebar-note,.account-sidebar-collapsed .account-sidebar nav button>span:last-child{display:none}.account-sidebar-collapsed .account-sidebar nav button{justify-content:center!important}}
+@media(min-width:701px) and (max-width:900px){.tm-portal .account-layout,.tm-portal #parentMonthlyReport{grid-template-columns:162px minmax(0,1fr)}.account-sidebar{padding:12px 8px}.account-brand-slot{display:none}.tm-account-active .student-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.tm-account-active .student-quick-links{grid-template-columns:repeat(3,minmax(0,1fr))}.tm-account-active .student-overview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){
+ .tm-account-active .account-topbar,.tm-account-active .account-topbar .navbar{height:58px;min-height:58px}.tm-account-active .account-topbar .navbar{padding:7px 11px;gap:8px}.account-topbar .logo{font-size:.7rem}.account-topbar .logo img{width:31px;height:31px}.account-topbar .logo small{font-size:.45rem}.account-topbar .header-actions{gap:6px}.account-menu-button,.account-profile-button,.account-bell{width:33px;height:33px;min-height:33px;padding:7px}.account-topbar .theme-toggle{width:33px;min-width:33px;height:33px}
+ .tm-portal .account-layout,.tm-portal #parentMonthlyReport{display:block!important;min-height:calc(100dvh - 58px)}.account-sidebar{display:contents}.account-sidebar>.account-brand-slot,.account-sidebar>.account-sidebar-identity,.account-sidebar>.account-sidebar-note{display:none}.account-sidebar-access:not(.tm-menu-tool){display:none}
+ .tm-account-active .student-dashboard-content,.parent-account-workspace{padding:12px 10px calc(84px + env(safe-area-inset-bottom,0px));gap:10px}
+ .tm-account-active .student-app-header{padding:3px 0}.tm-account-active .student-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.tm-account-active .student-kpi-grid>article{min-height:79px;padding:10px;grid-template-columns:29px minmax(0,1fr);gap:3px 7px}.tm-account-active .student-kpi-grid>article>[data-icon]{width:29px;height:33px}
+ .tm-account-active .student-dashboard-widgets,.tm-account-active .student-overview-grid{grid-template-columns:1fr;gap:9px}.tm-account-active .student-quick-links{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .tm-account-active .student-quick-links>a:last-child{grid-column:1/-1}
+ .tm-account-active :is(.student-tabbar,.parent-tabbar).tm-compact-tabs{position:fixed!important;inset:auto 8px calc(8px + env(safe-area-inset-bottom,0px)) 8px!important;z-index:90;display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr));width:auto!important;max-height:none;min-height:58px!important;gap:0!important;padding:5px 3px!important;margin:0!important;background:#042139!important;border:1px solid #27465e!important;border-radius:13px!important;overflow:visible!important;backdrop-filter:none!important;box-shadow:0 4px 18px #001b3626!important;direction:rtl}
+ .tm-account-active .parent-tabbar.tm-compact-tabs{grid-template-columns:repeat(4,minmax(0,1fr))}
+ .tm-account-active :is(.student-tabbar,.parent-tabbar).tm-compact-tabs>button,.tm-account-active :is(.student-tabbar,.parent-tabbar).tm-compact-tabs>.tm-nav-more>summary{display:flex!important;flex-direction:column!important;align-items:center;justify-content:center;gap:2px!important;padding:3px!important;min-width:0!important;min-height:45px!important;font-size:.6rem!important;line-height:1.5!important;background:transparent!important;color:#d2e6f8!important;border:0!important;border-radius:9px!important;box-shadow:none!important;cursor:pointer}
+ .tm-account-active :is(.student-tabbar,.parent-tabbar).tm-compact-tabs>button.active{background:#0c3b5d!important;color:#43c7ff!important}
+ .tm-account-active .tm-nav-more{position:static!important;min-width:0}.tm-account-active .tm-nav-more>summary{list-style:none}.tm-account-active .tm-nav-more>summary::-webkit-details-marker{display:none}.tm-account-active .tm-nav-more>summary:before{content:"•••";font-size:1.1rem;line-height:1.1}
+ .tm-account-active .tm-nav-more-list{position:absolute!important;inset-inline:0!important;top:auto!important;bottom:calc(100% + 9px)!important;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:7px;width:auto!important;max-width:none!important;max-height:calc(100dvh - 150px);overflow:auto!important;padding:10px!important;border:1px solid var(--border)!important;border-radius:13px!important;background:var(--surface)!important;color:var(--text);box-shadow:0 8px 24px #00192f33}
+ .tm-account-active .tm-nav-more:not([open])>.tm-nav-more-list{display:none!important}
+ .tm-account-active .tm-nav-more-list :is(button,a){position:static!important;display:flex!important;align-items:center;justify-content:flex-start;gap:8px!important;width:auto!important;height:auto!important;min-width:0;min-height:43px!important;padding:9px!important;font-size:.71rem!important;line-height:1.6!important;border:1px solid var(--border)!important;border-radius:8px!important;background:var(--surface-2)!important;color:var(--text)!important;box-shadow:none!important}
+ .tm-account-active .tm-nav-more-list .active{background:var(--portal-info-bg)!important;color:var(--portal-info)!important}.tm-account-active .tm-nav-more-list svg{width:18px;height:18px}
+ .tm-account-active[data-account="student"]{padding-bottom:0!important}
+ @media(max-width:350px){.tm-account-active .account-topbar .navbar{padding-inline:8px;gap:5px}.account-topbar .logo{font-size:.65rem;gap:4px}.account-topbar .logo img{width:28px;height:28px}}
+ .tm-account-active .parent-report-sheet-v72{grid-template-columns:1fr;gap:10px}.tm-account-active .parent-report-header-v72 h2{font-size:1.08rem}.tm-account-active .parent-report-header-v72>img{width:34px;height:34px}
+ .tm-account-active .parent-report-kpis-v70{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.tm-account-active .parent-report-kpis-v70>div{min-height:73px;padding:10px}
+ .tm-account-active .parent-report-attendance-list-v72{grid-template-columns:repeat(3,minmax(0,1fr))}.tm-account-active .parent-report-followup-v71>div{grid-template-columns:1fr}
+ .tm-account-active .parent-report-toolbar-v70 .btn{font-size:.74rem;padding:10px 12px}.tm-account-active .parent-report-toolbar-v70 select{max-width:150px;font-size:.72rem}
+ .tm-account-active :is(.exam-portal-grid,.exam-results-grid){grid-template-columns:1fr}
+ .account-inbox-toolbar{flex-wrap:wrap}.account-notification{padding:12px;gap:8px}.account-notification h3{font-size:.83rem}
+}
+@media print{
+ .tm-account-active .account-topbar,.tm-account-active .account-sidebar,.tm-account-active .parent-tabbar,.tm-account-active .parent-report-toolbar-v70,.tm-account-active .account-access-dialog{display:none!important}
+ .tm-account-active #parentMonthlyReport,.tm-account-active .parent-account-workspace{display:block!important;padding:0!important;margin:0!important}
+ .tm-account-active .parent-report-sheet-v72{display:block!important;background:white!important;color:#102d48!important}
+ .tm-account-active .parent-report-sheet-v72 [data-parent-block][hidden]{display:block!important}
+ .tm-account-active .parent-report-sheet-v72 .parent-report-kpis-v70[hidden]{display:grid!important}
+ .tm-account-active .parent-report-sheet-v72>*{margin:0 0 9px!important;break-inside:avoid}
+}
+/* Final component density is applied to the same existing account nodes. */
+.tm-account-active .student-app-header{display:flex!important;flex-wrap:wrap;flex-direction:row!important;align-items:center!important;justify-content:space-between;gap:8px}
+.tm-account-active .student-qr-details{position:relative}
+.tm-portal.tm-account-active .student-dashboard-content .student-qr-details[open]{flex:1 0 100%;width:100%!important;order:2}
+.tm-account-active .student-qr-details[open] .real-qr-wrap{position:static;min-width:0;width:min(100%,260px);max-width:100%;margin:10px 0 0 auto;box-sizing:border-box}
+.tm-account-active .student-qr-details .real-qr-svg{width:160px;max-width:100%;height:auto;aspect-ratio:1;box-sizing:border-box}
+.tm-account-active .student-qr-details .real-qr-svg svg{display:block;width:100%;height:auto}
+.tm-account-active .student-qr-details .real-qr-wrap small{overflow-wrap:anywhere}
+.tm-account-active .parent-report-toolbar-v70{grid-column:1/-1}
+.parent-secondary-metrics{grid-column:1/-1;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:0 10px}
+.parent-secondary-metrics>summary{font-size:.7rem;cursor:pointer;color:var(--muted);min-height:36px;padding:8px}
+.parent-secondary-metrics>div{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:7px 0}
+.tm-account-active .parent-secondary-metrics>div>div{display:grid;gap:4px;min-width:0;padding:9px;border-radius:8px;background:var(--surface-2);color:var(--text)}
+.tm-account-active .parent-report-attendance-list-v72>span{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;padding:8px}
+.tm-account-active .parent-report-attendance-list-v72>span>b,.tm-account-active .parent-report-attendance-list-v72>span>small{max-width:100%;font-size:.66rem;line-height:1.7;word-break:normal;overflow-wrap:normal;text-align:center}
+.parent-report-actions{position:relative;font-size:.72rem}
+.parent-report-actions>summary{padding:11px 13px;min-height:44px;border:1px solid var(--border);border-radius:12px;background:var(--surface-2);color:var(--text);cursor:pointer}
+.parent-report-actions>div{display:flex;gap:7px;flex-wrap:wrap;padding:8px 0}
+.parent-report-actions:not([open])>div{display:none}
+@media(max-width:700px){
+ .tm-account-active .student-identity{flex:1;min-width:0}.tm-account-active .student-identity h2{font-size:1rem!important}.tm-account-active .student-qr-details{flex:none;align-self:flex-start}
+ .tm-account-active .student-qr-details>summary{font-size:0!important;display:grid;place-items:center;width:36px;min-height:36px;padding:6px}
+ .tm-account-active .student-qr-details>summary svg{width:20px;height:20px}.tm-account-active .student-qr-details>summary>span{display:flex}
+ .tm-account-active .parent-secondary-metrics>div{grid-template-columns:1fr 1fr}
+ .tm-account-active .parent-report-toolbar-v70{position:relative}.tm-account-active .parent-report-actions{position:static}
+ .tm-account-active .parent-report-actions>div{position:absolute;top:calc(100% + 5px);inset-inline:10px;z-index:65;width:auto;padding:9px;border:1px solid var(--border);border-radius:9px;box-shadow:0 4px 15px #001c3422;background:var(--surface);display:grid}
+ .tm-account-active .parent-report-actions:not([open])>div{display:none}
+ .tm-account-active .parent-report-actions .btn{width:100%;min-height:44px}
+}
+@media print{.parent-secondary-metrics>div{display:grid!important}.parent-report-actions{display:none!important}}
+
+.tm-portal.tm-account-active .student-dashboard-content .student-qr-details{width:auto!important;min-width:0;flex:none}
+.tm-account-active .parent-report-toolbar-v70>label{width:auto;flex:1 1 150px;min-width:0;justify-content:flex-start}
+.tm-account-active .parent-report-toolbar-v70>label>span{white-space:nowrap}
+.tm-account-active .parent-report-toolbar-v70 select{width:140px;min-width:0}
+.tm-account-active .parent-report-overview-copy-v72 p{font-size:.72rem;line-height:1.8}
+.tm-account-active .parent-report-score-v72{min-height:0;align-self:stretch;padding:10px}
+.tm-account-active .parent-report-score-v72>b{font-size:1.5rem}
+
+.tm-account-active #examStudentResult .exam-portal-card{padding:14px;border-radius:12px;min-height:0}.tm-account-active #examStudentResult .exam-portal-card h3{font-size:1rem;line-height:1.7}.tm-account-active #examStudentResult .exam-security-note{padding:10px;font-size:.72rem}.tm-account-active #examStudentResult .exam-portal-grid{gap:10px}.tm-account-active #examStudentResult .exam-portal-section{padding:0;margin-top:12px}
+
+.tm-portal.tm-account-active :is(#studentResult,#parentResult,.student-app-dashboard,#parentMonthlyReport){max-width:none!important;width:100%!important;margin:0!important;border-radius:0!important}.tm-portal.tm-account-active main>.parent-report-section-v29{padding:0!important}
+
+html[data-theme] body.tm-portal.tm-account-active .account-sidebar-identity small,html[data-theme] body.tm-portal.tm-account-active .account-sidebar-note{color:#bdcfe0!important}
+
+html[data-theme] body.tm-portal.tm-account-active .account-topbar{position:sticky!important;top:0!important}.tm-account-active :is(.student-tab-panel,.parent-report-header-v72){scroll-margin-top:72px}@media(max-width:700px){.tm-account-active .tm-nav-more-list :is(#studentHelpButton,#v56ScrollTop).tm-menu-tool{display:grid!important;grid-template-columns:23px minmax(0,1fr);grid-template-rows:1fr;grid-column:1/-1!important;justify-self:stretch!important;align-items:center!important;justify-content:stretch!important;gap:8px!important;width:100%!important;min-width:0!important;max-width:none!important;height:44px!important;min-height:44px!important;padding:8px!important;text-align:start}.tm-account-active .tm-nav-more-list :is(#studentHelpButton,#v56ScrollTop).tm-menu-tool:after{position:static!important;display:block!important;grid-column:2;grid-row:1;justify-self:stretch!important;width:100%!important;min-width:0!important;height:auto!important;background:none!important;color:var(--text)!important;transform:none!important;font-size:.72rem;line-height:1.5;white-space:normal;overflow-wrap:normal;word-break:normal}.tm-account-active .tm-nav-more-list #studentHelpButton.tm-menu-tool .tm-robot-icon svg{width:23px!important;height:23px!important;max-width:23px!important;max-height:23px!important}.tm-account-active .tm-nav-more-list #studentHelpButton.tm-menu-tool .tm-robot-pulse{display:none!important}.tm-account-active .tm-nav-more-list :is(#studentHelpButton,#v56ScrollTop).tm-menu-tool:before{display:none!important;content:none!important}.tm-account-active .tm-nav-more-list #studentHelpButton.tm-menu-tool:after{content:attr(title)!important}.tm-account-active .tm-nav-more-list #v56ScrollTop.tm-menu-tool:after{content:attr(aria-label)!important}.tm-account-active .tm-nav-more-list :is(#studentHelpButton,#v56ScrollTop).tm-menu-tool>:first-child{grid-column:1;grid-row:1;position:static!important;width:23px!important;height:23px!important;min-width:23px!important;transform:none!important}}
+
+/* Learning workspace: one renderer for the existing materials and curriculum models. */
+.tm-portal .learning-filters{display:grid;grid-template-columns:minmax(110px,.65fr) minmax(0,1fr) minmax(110px,.55fr);gap:10px;margin:12px 0}
+.tm-portal .learning-filters label{display:grid;gap:5px;font-size:.75rem;color:var(--muted);min-width:0}
+.tm-portal .learning-filters :is(input,select){min-width:0;width:100%;min-height:42px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:9px;padding:8px}
+.tm-portal .learning-units{display:grid;gap:12px}.tm-portal .learning-unit{min-width:0;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.tm-portal .learning-unit>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px;cursor:pointer;color:var(--text)}
+.tm-portal .learning-unit>summary h3{font-size:.95rem;margin:2px 0;overflow-wrap:anywhere}
+.tm-portal .learning-unit>summary small{color:var(--muted);font-size:.7rem}.tm-portal .learning-unit>summary>span{display:grid;text-align:center;gap:3px;font-size:.75rem;flex-shrink:0}
+.tm-portal .learning-unit-rows{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch;gap:12px;padding:12px}
+.tm-portal .learning-unit .curriculum-lecture-card{display:flex!important;flex-direction:column;min-width:0;min-height:0;padding:16px!important;border-radius:16px!important;gap:14px;grid-template-columns:none!important}
+.tm-portal .learning-card-meta{display:flex;align-items:flex-start;gap:10px;min-width:0}
+.tm-portal .learning-card-meta>div{display:flex;flex-wrap:wrap;gap:5px;min-width:0;flex:1}
+.tm-portal .learning-card-meta .badge{white-space:normal;overflow-wrap:anywhere;font-size:.65rem;padding:5px 8px;line-height:1.6}
+.tm-portal .learning-card-meta .curriculum-lecture-number{flex-shrink:0;display:grid;place-items:center}
+.tm-portal .learning-unit .curriculum-lecture-body{min-width:0}
+.tm-portal .learning-unit .curriculum-lecture-body h3{font-size:1rem;line-height:1.75;margin:0 0 10px;overflow-wrap:anywhere}
+.tm-portal .learning-unit .curriculum-lecture-body p{font-size:.78rem;line-height:1.85;margin:8px 0 16px;color:var(--muted);overflow-wrap:anywhere}
+.tm-portal .learning-progress-label{display:block;text-align:end;color:var(--muted);font-size:.72rem;margin-top:7px}
+.tm-portal .learning-unit .curriculum-lecture-actions{display:grid!important;grid-template-columns:minmax(0,1fr);gap:8px;margin-top:auto;min-width:0;width:100%;align-self:stretch;justify-self:stretch;align-items:stretch!important}
+.tm-portal .learning-unit .small-btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;width:100%!important;max-width:none!important;padding:10px 12px;font-size:.78rem;line-height:1.7;white-space:normal;overflow-wrap:anywhere;text-align:center}
+.tm-portal .learning-unit .small-btn [data-icon]{width:18px;height:18px;flex-shrink:0}
+.tm-portal .learning-unit .learning-gold-action{background:#edbd51!important;color:#102136!important;border:1px solid #d7a735!important}
+.tm-portal .learning-unit .learning-gold-action:hover{background:#f4cb71!important}
+.tm-portal .learning-unit .small-btn:disabled{opacity:.65;cursor:default}
+.tm-portal #curriculumLectureModal.lecture-empty-dialog{padding:16px!important;align-items:center!important}
+.tm-portal #curriculumLectureModal [data-lecture-empty="true"]{height:auto!important;min-height:0!important;max-height:calc(100dvh - 32px)!important;width:min(100%,680px)!important;border-radius:18px!important;align-self:center}
+.tm-portal .learning-missing-resource,.learning-extra-empty{color:var(--muted);font-size:.8rem;line-height:1.9;overflow-wrap:anywhere}
+.tm-portal .learning-unit [hidden]{display:none!important}
+@media(max-width:1199px){.tm-portal .learning-unit-rows{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.tm-portal .learning-unit-rows{grid-template-columns:minmax(0,1fr);padding:9px}.tm-portal .learning-unit .curriculum-lecture-card{padding:14px!important;gap:12px}.tm-portal .learning-unit .curriculum-lecture-body h3{font-size:.95rem}}
+.tm-portal .learning-written-content{grid-column:1/-1;min-width:0}.tm-portal .learning-written-content .written-box{white-space:pre-wrap;overflow-wrap:anywhere}
+.tm-portal .learning-continue{display:flex;flex-wrap:wrap;justify-content:space-between;width:100%;text-align:start;gap:8px;min-width:0;font-size:.8rem}
+.tm-portal .learning-continue span{font-size:.75rem;overflow-wrap:anywhere}
+.tm-portal .parent-account-payment{display:flex!important;justify-content:space-between;align-items:center;gap:10px;padding:12px!important;min-height:0}
+.tm-portal .parent-account-payment[hidden]{display:none!important}
+.tm-portal .parent-account-payment>div{display:grid;gap:4px}.tm-portal .parent-account-payment h3{font-size:.9rem;margin:0}
+.tm-portal .parent-account-payment small{display:none}.tm-portal .parent-account-payment b{font-size:.85rem;color:var(--text)}
+.tm-portal .parent-account-warning{margin:0;padding:10px;border:1px solid var(--portal-warn);border-radius:9px;background:var(--portal-warn-bg);color:var(--portal-warn)}
+@media(max-width:430px){.tm-portal .learning-filters{gap:8px;grid-template-columns:minmax(0,1fr)}.tm-portal .learning-unit>summary{padding:10px}.tm-portal .learning-unit-rows{padding:7px}.tm-portal .learning-unit .curriculum-lecture-body p{max-height:none}}
+
+
+
+/* Student: one original sidebar, one active page and contextual floating tools. */
+.tm-account-active[data-account="student"] .student-app-dashboard:not([data-student-view="overview"]) :is(.student-app-header,.student-kpi-grid,.portal-action-alert){display:none!important}
+.student-page-breadcrumb{display:flex;align-items:center;gap:10px;padding:6px 0;color:var(--muted);font-size:.8rem}
+.student-page-breadcrumb[hidden]{display:none}.student-page-breadcrumb button{border:0;background:transparent;color:var(--primary);padding:8px;cursor:pointer}.student-page-breadcrumb span:before{content:"/";margin-inline-end:10px}
+.tm-account-active[data-account="student"] .student-dashboard-widgets{grid-template-columns:minmax(0,1fr)}
+.tm-account-active[data-account="student"] .continue-learning-card{display:flex!important;align-items:center;gap:12px;text-align:start;padding:14px}
+.tm-account-active[data-account="student"] .continue-learning-card>.iconbox{width:34px;height:34px;flex-shrink:0}
+.tm-account-active[data-account="student"] .continue-learning-card>div{min-width:0;flex:1}
+.tm-account-active[data-account="student"] .student-panel-title{display:flex!important;flex-direction:row!important;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px;padding:0;min-height:0}
+.tm-account-active[data-account="student"] .student-panel-title>div{min-width:0}.tm-account-active[data-account="student"] .student-panel-title .badge{flex-shrink:0;font-size:.7rem}
+.tm-account-active[data-account="student"] .student-curriculum{padding:12px!important;margin:0!important}
+.tm-account-active[data-account="student"] .curriculum-head{display:grid!important;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;text-align:start;margin:0 0 10px;padding:0 0 10px;min-height:0}
+.tm-account-active[data-account="student"] .curriculum-head h2{font-size:1rem;margin:4px 0;line-height:1.6}.tm-account-active[data-account="student"] .curriculum-head p{font-size:.7rem;margin:0}
+.tm-account-active[data-account="student"] .curriculum-head .kicker{font-size:.58rem;padding:3px 6px}
+.tm-account-active[data-account="student"] .curriculum-total{display:grid;gap:3px;padding:8px;min-width:0;max-width:108px;text-align:center}.tm-account-active[data-account="student"] .curriculum-total b{font-size:1.15rem}.tm-account-active[data-account="student"] .curriculum-total small{font-size:.6rem;line-height:1.6}
+.tm-account-active[data-account="student"] .curriculum-head>[data-curriculum-refresh]{grid-column:1/-1;justify-self:end;min-height:36px;font-size:.7rem;padding:6px 10px;width:auto}
+.tm-portal .account-push-controls{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);padding:12px;margin-bottom:12px}
+.tm-portal .account-push-controls p{font-size:.76rem;line-height:1.8;color:var(--muted);margin:4px 0;max-width:60ch}.tm-portal .account-push-controls [data-push-feedback]{width:100%;color:var(--portal-warn)}
+.student-home-details{border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:0 12px}
+.student-home-details>summary{padding:13px 0;color:var(--muted);cursor:pointer;font-size:.78rem}
+.student-home-details>div{display:grid;gap:12px;padding-bottom:12px}
+.student-navigation-dialog:not([open]){display:none!important}
+.tm-account-active[data-account="student"] .account-layout{direction:rtl}
+.tm-account-active[data-account="student"] .account-sidebar{grid-column:1}
+.tm-account-active[data-account="student"] .student-dashboard-content{grid-column:2;grid-row:1;padding-bottom:88px!important}
+.tm-account-active[data-account="student"] .student-sidebar-signout{color:#ffb7c4!important;margin-top:auto}
+.tm-account-active[data-account="student"] .student-tabbar>button{min-height:42px!important}
+.tm-account-active[data-account="student"] #studentHelpButton{position:fixed!important;inset:auto 16px calc(16px + env(safe-area-inset-bottom,0px)) auto!important;z-index:75!important;width:52px!important;height:52px!important;min-width:52px!important;min-height:52px!important;border-radius:50%!important;padding:10px!important;background:#007bb8!important;color:white!important;border:1px solid #39b9e8!important;box-shadow:0 5px 16px #001c3430!important;animation:none!important}
+.tm-account-active[data-account="student"] #studentHelpButton :is(.tm-robot-pulse,.tm-public-tool-label){display:none!important}
+.tm-account-active[data-account="student"] #studentHelpButton:before,.tm-account-active[data-account="student"] #studentHelpButton:after{display:none!important;content:none!important}
+.tm-account-active[data-account="student"] #studentHelpButton .tm-robot-icon{width:29px;height:29px;position:static;transform:none}
+.tm-account-active[data-account="student"] #studentHelpButton svg{width:29px;height:29px}
+.tm-account-active[data-account="student"] #v56ScrollTop{position:fixed!important;inset:auto auto calc(16px + env(safe-area-inset-bottom,0px)) 16px!important;z-index:75!important;width:46px!important;height:46px!important;min-width:46px!important;min-height:46px!important;border-radius:50%!important;background:#063451!important;color:#fff!important;border:1px solid #427088!important;box-shadow:0 4px 12px #001c3426!important;padding:8px!important;display:none!important;transform:none!important}
+.tm-account-active[data-account="student"] #v56ScrollTop.show{display:grid!important;place-items:center;opacity:1!important;visibility:visible!important}
+.tm-account-active[data-account="student"] #studentHelpPanel{right:12px!important;left:auto!important;bottom:calc(80px + env(safe-area-inset-bottom,0px))!important;max-width:calc(100vw - 24px)!important;max-height:calc(100dvh - 150px)!important;z-index:85!important}
+body.student-menu-open{overflow:hidden}
+.student-drawer-close{display:none}
+@media(max-width:820px){
+ .tm-account-active[data-account="student"] .account-layout{display:block!important}
+ .tm-account-active[data-account="student"] .student-dashboard-content{padding:14px 12px 88px!important;gap:13px}
+ .tm-account-active[data-account="student"] .student-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .tm-account-active[data-account="student"] .student-dashboard-widgets{grid-template-columns:1fr}
+ .student-navigation-dialog[open]{display:block!important;position:fixed;inset:0 0 0 auto;margin:0;width:min(86vw,330px);max-width:100vw;height:100dvh;max-height:100dvh;padding:0;border:0;border-radius:18px 0 0 18px;background:#041f35;color:#e6f2ff;overflow:auto}
+ .student-navigation-dialog::backdrop{background:#001a3266}
+ .tm-account-active[data-account="student"] .student-navigation-dialog .account-sidebar{display:flex!important;position:static;min-height:100dvh;max-height:none;overflow:visible;padding:58px 16px 18px;gap:10px}
+ .student-navigation-dialog .account-sidebar>.account-sidebar-identity{display:flex!important}
+ .student-navigation-dialog .account-sidebar>.account-sidebar-note{display:block!important}
+ .student-navigation-dialog .account-sidebar-access{display:flex!important;align-items:center;gap:8px;min-height:44px;flex-shrink:0}
+ .tm-account-active[data-account="student"] .student-navigation-dialog .student-tabbar{position:static!important;display:grid!important;grid-template-columns:1fr!important;gap:3px!important;padding:0!important;margin:0!important;max-height:none!important;background:transparent!important;border:0!important;box-shadow:none!important;width:100%!important;overflow:visible!important}
+ .tm-account-active[data-account="student"] .student-navigation-dialog .student-tabbar>button{display:flex!important;flex-direction:row!important;align-items:center;justify-content:flex-start;gap:12px!important;width:100%!important;min-width:0!important;min-height:43px!important;padding:9px 12px!important;background:transparent!important;color:#e0edf9!important;border:0!important;border-radius:9px!important;text-align:right;font-size:.83rem!important}
+ .tm-account-active[data-account="student"] .student-navigation-dialog .student-tabbar>button.active{background:#007fbf!important;color:#fff!important}
+ .student-navigation-dialog .student-tabbar svg{width:20px;height:20px;flex-shrink:0}
+ .student-drawer-close{display:grid;place-items:center;position:absolute;top:12px;left:14px;width:36px;height:36px;border:1px solid #416078;border-radius:9px;background:transparent;color:white;font-size:1.6rem;cursor:pointer}
+}
+@media(min-width:821px){
+ body[data-account="student"].account-sidebar-collapsed .account-layout{grid-template-columns:minmax(0,1fr)!important}
+ body[data-account="student"].account-sidebar-collapsed .account-sidebar{display:none!important}
+ body[data-account="student"].account-sidebar-collapsed .student-dashboard-content{grid-column:1}
+}
+
+
+
+.tm-portal .learning-kind-filter{display:flex;align-items:center;gap:10px;font-size:.75rem;margin-top:10px;color:var(--muted)}.tm-portal .learning-kind-filter select{min-height:42px;max-width:220px;padding:8px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text)}
+
+.tm-portal .student-task-action{width:100%;text-align:start;border:1px solid var(--border);cursor:pointer}.tm-portal .student-task-copy{min-width:0;flex:1;display:grid;gap:4px}.tm-portal .student-task-copy b{font-size:.84rem;overflow-wrap:anywhere}

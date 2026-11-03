@@ -2,7 +2,7 @@
   'use strict';
 
   const cfg=window.MF_FIREBASE_CONFIG||{};
-  const FRONTEND_VERSION='70.0.7';
+  const FRONTEND_VERSION='70.0.11';
   const API_SCHEMA_VERSION='portal-v64.0.0';
   if(!cfg.enabled||typeof firebase==='undefined'){
     window.MFCloud={ready:false,error:'Firebase غير مفعل'};
@@ -18,27 +18,46 @@
   const nowIso=()=>new Date().toISOString();
 
   try{
+    const localMode=cfg.emulators?.projectId==='demo-technominds';
+    if(localMode&&!['localhost','127.0.0.1','[::1]'].includes(location.hostname))throw new Error('Local emulators require loopback.');
     const app=firebase.apps&&firebase.apps.length?firebase.app():firebase.initializeApp(cfg);
     const auth=firebase.auth();
     const db=firebase.firestore();
-    const storage=firebase.storage();
+    let storageInstance=typeof firebase.storage==='function'?firebase.storage():null;
+    const storageService=()=>{
+      if(!storageInstance){if(typeof firebase.storage!=='function')throw new Error('خدمة رفع الملفات غير محملة');storageInstance=firebase.storage();if(localMode)storageInstance.useEmulator('127.0.0.1',cfg.emulators.storage);} 
+      return storageInstance;
+    };
     const functions=typeof app.functions==='function'?app.functions(cfg.functionsRegion||'europe-west1'):null;
+    if(localMode){
+      auth.useEmulator('http://127.0.0.1:'+cfg.emulators.auth,{disableWarnings:true});
+      db.useEmulator('127.0.0.1',cfg.emulators.firestore);
+      functions?.useEmulator('127.0.0.1',cfg.emulators.functions);
+      storageInstance?.useEmulator('127.0.0.1',cfg.emulators.storage);
+    }
     const legacySiteDoc=db.collection('settings').doc('siteData');
     const platformSettingsDoc=db.collection('settings').doc('platform');
 
+    // Local diagnostics only: bounded, no payloads, tokens, messages or uploads.
+    const requestTimingSamples=[];
+    const measureRequest=async(operation,run)=>{
+      const started=performance.now();let status='error';
+      try{const result=await run();status='ok';return result;}
+      finally{requestTimingSamples.push({operation,status,durationMs:Math.round(Math.max(0,performance.now()-started)*100)/100});if(requestTimingSamples.length>100)requestTimingSamples.shift();}
+    };
     const callable=name=>{
       if(!functions)return null;
       const fn=functions.httpsCallable(name);
-      return async payload=>{
+      return payload=>measureRequest(name,async()=>{
         const result=await fn(payload||{});
         return result&&Object.prototype.hasOwnProperty.call(result,'data')?result.data:result;
-      };
+      });
     };
 
     // Use the same backend path on localhost and Vercel. Direct callables are
     // primary; the Vercel proxy remains a fallback for transient failures.
     const localHosts=new Set(['localhost','127.0.0.1','0.0.0.0']);
-    const publicApiOrigin=localHosts.has(globalThis.location?.hostname)?'https://eng-amr-khaled-academy.vercel.app':'';
+    const publicApiOrigin=''; // Local mode never falls back to production.
     const preferDirectCallable=/\.vercel\.app$/i.test(String(globalThis.location?.hostname||''))||localHosts.has(globalThis.location?.hostname);
     const apiError=(payload,status)=>{
       const details=payload?.error||{};
@@ -110,9 +129,9 @@
         catch(proxyError){proxyError.callableError=callableError;throw proxyError;}
       }
     };
-    const publicCallable=(path,payload,directCall,timeoutMs=8000,directRetries=0)=>preferDirectCallable
+    const publicCallable=(path,payload,directCall,timeoutMs=8000,directRetries=0)=>measureRequest(path,()=>localMode ? directCall(payload) : preferDirectCallable
       ? directFirstCallable(path,payload,directCall,timeoutMs,directRetries)
-      : proxyFirstCallable(path,payload,directCall,timeoutMs,directRetries);
+      : proxyFirstCallable(path,payload,directCall,timeoutMs,directRetries));
 
     const requireCompatibleBackend=result=>{
       // Release numbers describe deployments, while apiSchemaVersion describes
@@ -213,6 +232,13 @@
       ,getCurriculumFileUrl:callable('getCurriculumFileUrl')
       ,migrateCurriculumV61:callable('migrateCurriculumV61')
       ,upsertGroupSchedule:callable('upsertGroupSchedule')
+      ,manageLearningTrackAdmin:callable('manageLearningTrackAdmin')
+      ,publishAccountNotificationAdmin:callable('publishAccountNotificationAdmin')
+      ,listAccountNotificationsAdmin:callable('listAccountNotificationsAdmin')
+      ,getStudentAccountNotifications:callable('getStudentAccountNotifications')
+      ,setStudentAccountNotificationRead:callable('setStudentAccountNotificationRead')
+      ,registerStudentPushToken:callable('registerStudentPushToken')
+      ,unregisterStudentPushToken:callable('unregisterStudentPushToken')
     };
 
     const portalSessionKey=(code,mode='student')=>`tm-portal-session-v64:${mode}:${normalizeCode(code)}`;
@@ -360,15 +386,28 @@
       };
     }
 
-    async function upload(file,folder,fixedName='',skipDownloadUrl=false,onProgress=null){
+    let storageSdkPromise=null;
+    async function ensureStorageSDK(){
+      if(typeof firebase.storage==='function')return;
+      if(!storageSdkPromise)storageSdkPromise=new Promise((resolve,reject)=>{
+        const script=document.createElement('script');script.src=localMode?'/__local/sdk/firebase-storage-compat.js':'https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js';script.async=true;
+        script.onload=()=>typeof firebase.storage==='function'?resolve():reject(new Error('خدمة رفع الملفات غير متاحة.'));
+        script.onerror=()=>{script.remove();reject(new Error('تعذر تحميل خدمة رفع الملفات.'));};document.head.append(script);
+      }).catch(error=>{storageSdkPromise=null;throw error;});
+      return storageSdkPromise;
+    }
+    async function upload(file,folder,fixedName='',skipDownloadUrl=false,onProgress=null,signal=null){
+      const checkCancelled=()=>{if(signal?.aborted){const error=new Error('تم إلغاء رفع الملف.');error.code='storage/canceled';throw error;}};
+      checkCancelled();await ensureStorageSDK();checkCancelled();
       if(!file)throw new Error('No file selected');
       const safeName=String(fixedName||`${Date.now()}-${file.name}`).replace(/[\\/#?\[\]]/g,'-');
       const path=`${folder||'public/uploads'}/${safeName}`;
-      const ref=storage.ref(path);
+      const ref=storageService().ref(path);
       const task=ref.put(file,{contentType:file.type||'application/octet-stream'});
       const unsubscribe=typeof onProgress==='function'?task.on('state_changed',snapshot=>onProgress({transferred:snapshot.bytesTransferred,total:snapshot.totalBytes,percent:snapshot.totalBytes?Math.round(snapshot.bytesTransferred*100/snapshot.totalBytes):0})):null;
-      try{await task;}finally{unsubscribe?.();}
-      return {url:skipDownloadUrl?'':await ref.getDownloadURL(),path,fileName:file.name,size:file.size,contentType:file.type};
+      const cancel=()=>task.cancel();signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)cancel();
+      try{await task;checkCancelled();return {url:skipDownloadUrl?'':await ref.getDownloadURL(),path,fileName:file.name,size:file.size,contentType:file.type};}
+      finally{unsubscribe?.();signal?.removeEventListener('abort',cancel);}
     }
 
     async function getCurrentStaffProfile(){
@@ -426,6 +465,7 @@
       }
     }
 
+    function generalSettingsForWrite(settings){const value={...(settings||{})};delete value.learningTracks;delete value.learningTracksVersion;delete value.siteMedia;return value;}
     async function syncPayloadToCollections(payload,options={}){
       const data=payload||{};const ops=[];
       (data.students||[]).forEach(st=>pushStudentOps(ops,st,options.full===true));
@@ -454,7 +494,7 @@
           ops.push(batch=>batch.set(parent.collection('attempts').doc(id),summary,{merge:true}));
         }
       });
-      const settings={...(data.settings||{}),schemaVersion:54};if(changed('settings/platform',settings))ops.push(batch=>batch.set(platformSettingsDoc,{...settings,updatedAt:serverTime()},{merge:true}));
+      const settings={...generalSettingsForWrite(data.settings),schemaVersion:54};if(changed('settings/platform',settings))ops.push(batch=>batch.set(platformSettingsDoc,{...settings,updatedAt:serverTime()},{merge:true}));
       await commitOperations(ops);
       if(options.full===true)await markLeaderboardDirty('full-sync');
     }
@@ -485,7 +525,8 @@
 
     async function loadStaffCoreCollections(options={}){
       const deferred=new Set(['materials','questions','exams','reviews','assignments']);
-      const coreDocs=(name,limit,order)=>((options.shell===true&&deferred.has(name))||(options.deferredOnly===true&&!deferred.has(name)))?Promise.resolve([]):getDocs(name,limit,order).catch(()=>getDocs(name,limit));
+      const requested=Array.isArray(options.collections)?new Set(options.collections.filter(name=>deferred.has(name))):null;
+      const coreDocs=(name,limit,order)=>((options.shell===true&&deferred.has(name))||(options.deferredOnly===true&&(!deferred.has(name)||requested&&!requested.has(name))))?Promise.resolve([]):getDocs(name,limit,order).catch(()=>getDocs(name,limit));
       const [students,bookings,materials,questions,exams,reviews,groups,assignments,payments,settings]=await Promise.all([
         coreDocs('students',200,'updatedAt'),coreDocs('bookings',100,'createdAt'),coreDocs('materials',150,'updatedAt'),coreDocs('questions',150,'updatedAt'),
         coreDocs('exams',150,'updatedAt'),coreDocs('reviews',100,'createdAt'),coreDocs('groups',200,'updatedAt'),coreDocs('assignments',150,'updatedAt'),
@@ -668,7 +709,13 @@
     }
 
     window.MFCloud={
-      ready:true,app,auth,db,storage,functions,clearPortalSession:(code,mode='student')=>{try{sessionStorage.removeItem(portalSessionKey(code,mode));}catch(_){}},cleanDocId,normalizePhoneDigits:digits,currentUser:()=>auth.currentUser,
+      getRequestTimingSamples:()=>requestTimingSamples.map(row=>({...row})),
+      manageLearningTrackAdmin:payload=>calls.manageLearningTrackAdmin(payload),
+      publishAccountNotificationAdmin:payload=>calls.publishAccountNotificationAdmin(payload),
+      listAccountNotificationsAdmin:payload=>calls.listAccountNotificationsAdmin(payload||{}),
+      getStudentAccountNotifications:async(code,options={})=>calls.getStudentAccountNotifications(await portalPayload(code,{studentCode:normalizeCode(code),cursor:options.cursor||null})),
+      setStudentAccountNotificationRead:async(code,id,read)=>calls.setStudentAccountNotificationRead(await portalPayload(code,{studentCode:normalizeCode(code),id,read})),
+      ready:true,app,auth,db,get storage(){return typeof firebase.storage==='function'?storageService():null;},functions,clearPortalSession:(code,mode='student')=>{try{sessionStorage.removeItem(portalSessionKey(code,mode));}catch(_){}},cleanDocId,normalizePhoneDigits:digits,currentUser:()=>auth.currentUser,
       signIn:(email,password)=>auth.signInWithEmailAndPassword(email,password),signOut:()=>auth.signOut(),
       sendPasswordReset:email=>auth.sendPasswordResetEmail(String(email||'').trim()),getCurrentStaffProfile,
       activateOwnerAccount:()=>calls.activateOwnerAccount?calls.activateOwnerAccount({}):Promise.reject(new Error('Owner activation service unavailable')),
@@ -691,10 +738,17 @@
         }
         return data;
       },
-      loadStaffContent:()=>loadStaffCoreCollections({deferredOnly:true}),
+      loadStaffContent:options=>loadStaffCoreCollections({deferredOnly:true,collections:options?.collections}),
       loadStaffRecords:async codes=>{const profile=await getCurrentStaffProfile();if(!profile?.allowed)throw new Error('Not authorized');return loadStaffRecordCollections(codes||[]);},
       saveSiteData:async(payload,options={})=>syncPayloadToCollections(payload,options),
-      saveSettings:async settings=>{const profile=await getCurrentStaffProfile();if(!profile?.allowed||profile.role!=='admin')throw new Error('Not authorized');await platformSettingsDoc.set({...settings,schemaVersion:55,updatedAt:serverTime()},{merge:true});seedFingerprint('settings','platform',settings);},
+      saveSiteMedia:async(id,value,expectedRevision=0)=>{
+        const profile=await getCurrentStaffProfile();if(!profile?.allowed||profile.role!=='admin')throw new Error('غير مصرح بتغيير صور الموقع.');
+        const contract=window.TMSiteMedia;if(!contract)throw new Error('تعذر تجهيز إدارة الصور. أعد فتح الإعدادات.');
+        if(!Number.isInteger(expectedRevision)||expectedRevision<0)throw new Error('إصدار الصورة غير صحيح.');
+        const clean=contract.normalize(id,value,cfg.storageBucket,localMode);
+        return db.runTransaction(async transaction=>{const snapshot=await transaction.get(platformSettingsDoc),previous=snapshot.exists?snapshot.data()?.siteMedia?.[id]:null;if((Number(previous?.revision)||0)!==expectedRevision)throw new Error('الصورة اتغيرت من جلسة أخرى. حدّث الإعدادات قبل الحفظ.');const next={...clean,revision:expectedRevision+1};transaction.set(platformSettingsDoc,{siteMedia:{[id]:next},updatedAt:serverTime()},{merge:true});return next;});
+      },
+      saveSettings:async settings=>{const profile=await getCurrentStaffProfile();if(!profile?.allowed||profile.role!=='admin')throw new Error('Not authorized');await platformSettingsDoc.set({...generalSettingsForWrite(settings),schemaVersion:55,updatedAt:serverTime()},{merge:true});seedFingerprint('settings','platform',settings);},
       saveStudent:async student=>{const ops=[];pushStudentOps(ops,student);await commitOperations(ops);},
       saveContent:saveContentDocument,
       saveGroup:async group=>{
@@ -724,6 +778,7 @@
       },
       rejectBooking:async code=>{if(!calls.rejectBooking)throw new Error('Secure booking rejection function is unavailable');return calls.rejectBooking({code:normalizeCode(code)});},
       subscribeToBookings:handler=>db.collection('bookings').orderBy('createdAt','desc').limit(100).onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>console.warn('booking-listener',error)),
+      getGroupsAdmin:async()=>{const snap=await db.collection('groups').limit(250).get();return snap.docs.map(doc=>({id:doc.id,...doc.data()}));},
       subscribeToGroups:handler=>db.collection('groups').onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>console.warn('group-listener',error)),
       subscribeToStudents:handler=>db.collection('students').orderBy('updatedAt','desc').limit(200).onSnapshot(snap=>handler(snap.docs.map(doc=>normalizedStudent({id:doc.id,...doc.data()})),snap.docChanges()),error=>console.warn('student-listener',error)),
       subscribeToStudentTransferRequests:handler=>db.collection('student_transfer_requests').limit(1000).onSnapshot(snap=>handler(snap.docs.map(doc=>({id:doc.id,...doc.data()})),snap.docChanges()),error=>console.warn('student-transfer-listener',error)),
@@ -762,6 +817,32 @@
       upsertClassSession:payload=>{if(!calls.upsertClassSession)throw new Error('Class session service unavailable');return calls.upsertClassSession(payload||{});},
       getClassSessionWorkspace:payload=>{if(!calls.getClassSessionWorkspace)throw new Error('Class session workspace unavailable');return calls.getClassSessionWorkspace(payload||{});},
       migrateLegacyPayments:()=>{if(!calls.migrateLegacyPayments)throw new Error('Payment migration service unavailable');return calls.migrateLegacyPayments({confirmation:'MIGRATE-PAYMENTS-V60.6'});},
+      studentPushStatus:code=>{
+        if(window.TM_LOCAL_PREVIEW===true)return 'local-preview';
+        if(!('Notification' in window)||!('serviceWorker' in navigator)||!('PushManager' in window))return 'unsupported';
+        if(Notification.permission==='denied')return 'denied';
+        try{const b=JSON.parse(localStorage.getItem('tm-student-push-binding')||'null');if(Notification.permission==='granted'&&b?.code===normalizeCode(code))return 'enabled';}catch(_){}
+        return 'available';
+      },
+      registerStudentPushToken:async(code,{restore=false}={})=>{
+        if(window.TM_LOCAL_PREVIEW===true)throw new Error('إشعارات الموبايل تحتاج الإصدار المنشور؛ المحاكي لا يتصل بـFCM.');
+        const normalized=normalizeCode(code);if(!readPortalSession(normalized,'student'))throw new Error('ادخل حساب الطالب أولًا.');
+        if(!('Notification' in window)||!('serviceWorker' in navigator)||!('PushManager' in window)||!cfg.messagingVapidKey)throw new Error('إشعارات الموبايل غير متاحة في المتصفح أو الإعدادات الحالية.');
+        if(restore&&Notification.permission!=='granted')return {registered:false};
+        const permission=Notification.permission==='granted'?'granted':await Notification.requestPermission();if(permission!=='granted')throw new Error('لم يتم السماح بإشعارات الموبايل. تقدر تفعّلها من إعدادات المتصفح.');
+        await loadFirebaseMessaging();const registration=await navigator.serviceWorker.register('/service-worker.js',{scope:'/',updateViaCache:'none'});await navigator.serviceWorker.ready;
+        const token=await firebase.messaging().getToken({vapidKey:cfg.messagingVapidKey,serviceWorkerRegistration:registration});if(!token)throw new Error('تعذر تسجيل هذا الجهاز للإشعارات.');
+        const result=await calls.registerStudentPushToken(await portalPayload(normalized,{studentCode:normalized,token}));
+        localStorage.setItem('tm-student-push-binding',JSON.stringify({code:normalized,token}));(registration.active||navigator.serviceWorker.controller)?.postMessage({type:'TM_STUDENT_PUSH_ACCOUNT',studentCode:normalized});return result;
+      },
+      unregisterStudentPushToken:async code=>{
+        let binding;try{binding=JSON.parse(localStorage.getItem('tm-student-push-binding')||'null');localStorage.removeItem('tm-student-push-binding');}catch(_){}
+        if('serviceWorker' in navigator){const registration=await navigator.serviceWorker.getRegistration('/');(registration?.active||navigator.serviceWorker.controller)?.postMessage({type:'TM_STUDENT_PUSH_ACCOUNT',studentCode:null});}
+        const normalized=normalizeCode(code),session=readPortalSession(normalized,'student');let result={unregistered:false};
+        if(binding?.code===normalized&&session)try{result=await calls.unregisterStudentPushToken({studentCode:normalized,token:binding.token,portalSessionToken:session.token});}catch(_){}
+        if(window.TM_LOCAL_PREVIEW!==true&&binding?.code===normalized){try{await loadFirebaseMessaging();await firebase.messaging().deleteToken();}catch(_){}}
+        return result;
+      },
       registerTeacherPushToken:async()=>{
         if(!cfg.messagingVapidKey||!calls.registerTeacherPushToken)throw new Error('VAPID_KEY_REQUIRED');
         if(!('serviceWorker' in navigator))throw new Error('SERVICE_WORKER_UNAVAILABLE');
@@ -800,7 +881,7 @@
       prepareOfflineAttendance:data=>calls.prepareOfflineAttendance(data),
       syncOfflineAttendance:events=>{if(!calls.syncOfflineAttendance)throw new Error('Offline attendance sync service unavailable');return calls.syncOfflineAttendance({events:Array.isArray(events)?events:[]});},
       bulkMarkAttendance:payload=>{if(!calls.bulkMarkAttendance)throw new Error('Bulk attendance service unavailable');return calls.bulkMarkAttendance(payload||{});},
-      getStudentByCode:async(code,options={})=>{const normalized=normalizeCode(code),result=requireCompatibleBackend(await fetchPortalStudent({code:normalized,mode:'student',includeTransfers:options.includeTransfers===true}));savePortalSession(normalized,'student',result);return result;},
+      getStudentByCode:async(code,options={})=>{const normalized=normalizeCode(code);try{const binding=JSON.parse(localStorage.getItem('tm-student-push-binding')||'null');if(binding?.code&&binding.code!==normalized)await window.MFCloud.unregisterStudentPushToken(binding.code);}catch(_){}const session=options.resumeOnly===false?null:readPortalSession(normalized,'student');if(options.resumeOnly===true&&!session)throw Object.assign(new Error('انتهت جلسة الطالب؛ ادخل بالكود مرة أخرى.'),{code:'unauthenticated'});let result;try{result=requireCompatibleBackend(await fetchPortalStudent({code:normalized,mode:'student',includeTransfers:options.includeTransfers===true,...(session?{resumeOnly:true,portalSessionToken:session.token}:{})}));}catch(error){if(session&&/unauthenticated|permission-denied/.test(String(error?.code||'')))try{sessionStorage.removeItem(portalSessionKey(normalized,'student'));}catch(_){}throw error;}savePortalSession(normalized,'student',result);return result;},
       getStudentResources:async code=>{
         const normalized=normalizeCode(code),payload=await portalPayload(normalized,{code:normalized});
         if(!calls.getStudentResources)throw new Error('Student resources service unavailable');
@@ -828,7 +909,7 @@
       getHomeworkAdminWorkspace:payload=>{if(!calls.getHomeworkAdminWorkspace)throw new Error('Homework workspace service unavailable');return calls.getHomeworkAdminWorkspace(payload||{});},
       getAdminCollectionPage:payload=>{if(!calls.getAdminCollectionPage)throw new Error('Admin pagination service unavailable');return calls.getAdminCollectionPage(payload||{});},
       migratePlatformV63:apply=>{if(!calls.migratePlatformV63)throw new Error('V63 migration service unavailable');return calls.migratePlatformV63({apply:apply===true,confirmation:apply===true?'MIGRATE-PLATFORM-V63':''});},
-      uploadAttachment:(file,folder,options={})=>upload(file,folder||'teacher-uploads',options.fileName||'',options.private===true,options.onProgress),logActivity,
+      uploadAttachment:(file,folder,options={})=>upload(file,folder||'teacher-uploads',options.fileName||'',options.private===true,options.onProgress,options.signal),logActivity,
       reportClientError:payload=>calls.reportClientError?calls.reportClientError(payload):Promise.resolve(null),
       deleteDocument:async(collection,id)=>{
         if(!collection||!id)return;

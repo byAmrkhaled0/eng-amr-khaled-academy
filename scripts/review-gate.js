@@ -1,0 +1,6 @@
+'use strict';
+const {spawnSync}=require('node:child_process'),path=require('node:path');
+const root=path.resolve(__dirname,'..');
+const tests=["scripts/homework-post-commit-v7007.test.js", "scripts/payment-dashboard-coalescing-v7007.test.js", "scripts/admin-listener-lifecycle-v7007.test.js", "scripts/phase54-payment-reminder.test.js", "scripts/assessment-copy-guard.test.js", "scripts/exam-answer-limits.test.js", "scripts/phase3b-workspace-ui.test.js", "scripts/phase3a-payment-ui.test.js", "scripts/phase3d-attendance-determinism.test.js", "scripts/site-media.test.js", "scripts/public-premium-regression.test.js", "scripts/phase5-submit-guard.test.js", "scripts/unified-student-profile-regression.test.js", "scripts/local-preview.security.test.js", "scripts/monthly-report-retry.test.js", "scripts/student-transfer-navigation.test.js"];
+for(const args of [['--test',...tests],['scripts/build.js'],['scripts/verify-dist.js']]){const result=spawnSync(process.execPath,args,{cwd:root,env:process.env,stdio:'inherit'});if(result.error)throw result.error;if(result.status!==0)process.exit(result.status||1);}
+console.log('Local review gate passed. Run npm test and emulator/browser suites separately for full acceptance.');

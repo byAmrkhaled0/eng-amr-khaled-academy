@@ -161,7 +161,7 @@ test('exam add/edit state resets ids and content updates are versioned', () => {
 test('pagination is ordered, bounded and content deletion is archival', () => {
   const functions = read('functions/index.js');
   assert.match(functions, /exports\.getAdminCollectionPage/);
-  assert.match(functions, /orderBy\(orderField, 'desc'\)\.orderBy\(admin\.firestore\.FieldPath\.documentId\(\), 'desc'\)/);
+  assert.match(functions, /orderBy\(orderField, 'desc'\)\.orderBy\(FieldPath\.documentId\(\), 'desc'\)/);
   assert.match(functions, /startAfter\(cursor\.orderValue, cursor\.id\)/);
   assert.match(functions, /query\.limit\(pageSize\)/);
   assert.match(functions, /exports\.archiveContentItem/);

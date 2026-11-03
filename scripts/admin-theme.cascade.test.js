@@ -6,7 +6,7 @@ test('full production CSS cascade keeps sidebar labels readable and attendance c
  try{
   for(const theme of ['light','dark'])for(const width of [360,390,768,1440]){
    ui.document.documentElement.dataset.theme=theme;const style=cascade({width});
-   for(const selector of ['.admin-nav-copy b','.admin-staff-card b','.admin-staff-card small']){
+   for(const selector of ['.admin-sidebar .admin-workspace-switcher button span','.admin-staff-card b','.admin-staff-card small']){
     const node=ui.document.querySelector(selector);assert(node,selector);const color=style(node).color;
     for(const bg of ['#07182e','#0a2442','#0c2d50'])assert(contrast(color,bg)>=4.5,`${theme}/${width} ${selector}: ${color} on ${bg}`);
    }

@@ -1,0 +1,4 @@
+'use strict';
+const {test}=require('node:test'),assert=require('node:assert/strict'),XLSX=require('../assets/vendor/xlsx-0.18.5.full.min.js');
+test('vendored spreadsheet reader uses the corrected official release through its preserved URL',()=>{assert.equal(XLSX.version,'0.20.3');});
+test('Arabic student rows, numeric grades and text codes survive XLSX write/read roundtrip',()=>{const rows=[{name:'طالب محلي',code:'00123456',grade:92,paid:300},{name:'طالبة محلية',code:'00654321',grade:100,paid:0}],book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,XLSX.utils.json_to_sheet(rows),'الطلاب');const bytes=XLSX.write(book,{type:'buffer',bookType:'xlsx'}),loaded=XLSX.read(bytes,{type:'buffer'});assert.deepEqual(XLSX.utils.sheet_to_json(loaded.Sheets[loaded.SheetNames[0]]),rows);assert.match(XLSX.utils.sheet_to_csv(loaded.Sheets[loaded.SheetNames[0]]),/00123456/);});

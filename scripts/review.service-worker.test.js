@@ -20,9 +20,11 @@ test('CSS hotfix build changes the stylesheet URL and precaches that exact URL w
  try{
   fs.mkdirSync(path.join(root,'scripts'));fs.mkdirSync(path.join(root,'assets'));
   fs.copyFileSync('scripts/build.js',path.join(root,'scripts/build.js'));
+  fs.copyFileSync('scripts/secret-control.js',path.join(root,'scripts/secret-control.js'));
   fs.copyFileSync('scripts/sync-shared-assets.js',path.join(root,'scripts/sync-shared-assets.js'));
   fs.mkdirSync(path.join(root,'functions/lib'),{recursive:true});
   fs.copyFileSync('functions/lib/portal-results.js',path.join(root,'functions/lib/portal-results.js'));
+  fs.copyFileSync('functions/lib/account-domain.js',path.join(root,'functions/lib/account-domain.js'));
   fs.copyFileSync('service-worker.js',path.join(root,'service-worker.js'));
   fs.writeFileSync(path.join(root,'package.json'),JSON.stringify({version:'67.8.6'}));
   fs.writeFileSync(path.join(root,'index.html'),'<head><link href="assets/v55.css?v=old" rel="stylesheet"><script src="assets/app.js?v=old"></script></head>');
@@ -40,6 +42,9 @@ test('CSS hotfix build changes the stylesheet URL and precaches that exact URL w
   vm.runInNewContext(worker,{Request:LocalRequest,self:{addEventListener:(name,fn)=>listeners[name]=fn},caches:{open:async()=>({add:async request=>added.push(request.url)})}});
   listeners.install({waitUntil:value=>installed=value});await installed;
   assert.ok(added.includes('/'+after));assert.ok(!added.includes('/'+before));
+  fs.writeFileSync(path.join(root,'assets/.env.local'),'LOCAL_SECRET=synthetic-blocked-value');
+  assert.throws(()=>execFileSync(process.execPath,[path.join(root,'scripts/build.js')],{stdio:'pipe'}),error=>String(error.stderr).includes('credential-file')&&!String(error.stderr).includes('synthetic-blocked-value'));
+  assert.equal(fs.existsSync(path.join(root,'dist/assets/.env.local')),false);
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 

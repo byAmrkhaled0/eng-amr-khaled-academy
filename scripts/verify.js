@@ -67,11 +67,11 @@ for (const htmlFile of htmlFiles) {
 if (!failures.some(x => x.startsWith('Duplicate IDs') || x.startsWith('Broken local reference'))) ok('HTML IDs and local references passed');
 if (!failures.some(x => x.includes('Unified V61.1 design'))) ok(`Unified V61.1 design is loaded by all ${htmlFiles.length} HTML pages`);
 
-const designSource = read('assets/v61-design.css');
-for (const token of ['--tm-navy:#07111f', '--tm-blue:#2563eb', '--tm-cyan:#06b6d4']) {
+const designSource = read('assets/v67-learning-hub.css') + read('assets/v674-admin.css');
+for (const token of ['--tm-navy:#041e34', '--tm-blue:#0077c8', '--tm-cyan:#05b8d6']) {
   if (!designSource.includes(token)) fail(`Missing design token: ${token}`);
 }
-for (const selector of ['.site-header', '.hero', '.parent-hero-v29', '.student-hero-v32', '.admin-sidebar', 'html[data-theme="dark"]']) {
+for (const selector of ['.site-header', '.hero', '.parent-hero-v29', '.portal-code-field', '.admin-sidebar', 'html[data-theme="dark"]']) {
   if (!designSource.includes(selector)) fail(`Missing unified design selector: ${selector}`);
 }
 if (!failures.some(x => x.startsWith('Missing design'))) ok('Public, portal, admin and dark-mode design coverage passed');
@@ -164,7 +164,7 @@ const appSourceCode = read('assets/app.js');
 const fixesSourceCode = read('assets/v56-fixes.js');
 if (!adminSourceCode.includes("loadSiteData({fast:true,shell:true})") || !adminSourceCode.includes('hydrateAdminRecords')) fail('Staged admin loading is missing');
 if (!appSourceCode.includes('staffCacheOnly') || !appSourceCode.includes('if(isStaffWorkspace())return;')) fail('Compact staff browser cache protection is missing');
-if (!appSourceCode.includes("MF_ASSET_VERSION = '70.0.7'")) fail('Lazy asset loader version is stale');
+if (!appSourceCode.includes("MF_ASSET_VERSION = '70.0.11'")) fail('Lazy asset loader version is stale');
 if (!fixesSourceCode.includes('showMoreAdminStudents') || !fixesSourceCode.includes('slice(0,adminStudentVisible)')) fail('Paginated student rendering is missing');
 if (!appSourceCode.includes('ensureQrScannerLibrary') || !appSourceCode.includes("loadQrScanner:()=>loadLazyScript('qr-scanner'")) fail('Cross-browser lazy QR scanner fallback is missing');
 for (const page of ['student.html','parent.html','teacher-login.html']) {
@@ -215,9 +215,9 @@ if (manifest.display !== 'standalone' || manifest.scope !== '/' || !Array.isArra
 if (!manifest.icons.some(icon => String(icon.purpose || '').includes('maskable') && icon.sizes === '512x512')) fail('Maskable PWA icon is missing');
 const sw = read('service-worker.js');
 const appShellSource = sw.slice(0,sw.indexOf('];')+2);
-if (!/technominds-v70-0-7-complete-report/.test(sw) || !sw.includes('/assets/v61-design.css') || !sw.includes('/assets/v67-learning-hub.css') || !sw.includes('/assets/v674-admin.css') || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/curriculum-student.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes("'/practical.html'") || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell or sensitive portal exclusions are incomplete');
+if (!/technominds-v70-0-11-complete-report/.test(sw) || !sw.includes('/assets/v61-design.css') || !sw.includes('/assets/v67-learning-hub.css') || !sw.includes('/assets/v674-admin.css') || !sw.includes('/assets/v53-upgrades.js') || !sw.includes('/assets/curriculum-student.js') || !sw.includes('/assets/technominds-logo.png') || !sw.includes("'/practical.html'") || !sw.includes('/learning-path.html') || !sw.includes('/about.html')) fail('Service worker app shell or sensitive portal exclusions are incomplete');
 if (/xlsx|assets\/admin\.js|teacher-login\.html|html5-qrcode/.test(appShellSource) || !sw.includes("if(cached&&url.searchParams.get('v')===ASSET_VERSION)return cached")) fail('Lazy tools or repeat-visit caching are incomplete');
-if (!read('index.html').includes('<script defer src="https://www.gstatic.com/firebasejs/')) fail('Firebase scripts are not downloaded in parallel with deferred execution');
+if (!/<script\b(?=[^>]*\bdefer)(?=[^>]*src="https:\/\/www\.gstatic\.com\/firebasejs\/)/.test(read('index.html'))) fail('Firebase scripts are not downloaded in parallel with deferred execution');
 const upgrade = read('assets/v53-upgrades.js');
 if (!upgrade.includes('beforeinstallprompt') || !upgrade.includes('إضافة إلى الشاشة الرئيسية') || !upgrade.includes('navigator.standalone')) fail('Mobile install handling is incomplete');
 if (!read('assets/app.js').includes('renderBookingScheduleOptions') || !read('index.html').includes('bookingScheduleId')) fail('Booking schedule linkage is incomplete');
@@ -254,7 +254,7 @@ if (read('teacher-login.html').includes('firebase-messaging-compat.js') || sw.in
 if (!read('assets/admin.js').includes('MFCloud?.approveBooking') || !read('functions/index.js').includes('tx.delete(bookingRef)')) fail('Atomic booking approval and queue removal are incomplete');
 if (/مجموعة السبت والثلاثاء|مجموعة الأحد والأربعاء|مجموعة الاثنين والخميس|أونلاين متابعة/.test(read('index.html'))) fail('Static booking groups must not appear in the booking form');
 if (!appSourceCode.includes('setupUnifiedHeader') || !appSourceCode.includes('setupImageLazyLoading') || !read('assets/v60-technominds.css').includes('position:fixed!important')) fail('Unified fixed header or image lazy loading is incomplete');
-if (read('index.html').includes('floating-card one') || !read('assets/v60-technominds.css').includes('.teacher-frame:before,.teacher-frame:after')) fail('Clean portrait overlay removal is incomplete');
+if (read('index.html').includes('floating-card one') || !read('assets/v67-learning-hub.css').includes('.tm-reference-hero .teacher-frame')) fail('Clean portrait overlay removal is incomplete');
 if (!upgrade.includes('tm-robot-icon') || !upgrade.includes('مين هو المهندس عمرو خالد؟')) fail('Robot FAQ assistant is incomplete');
 if (!read('about.html').includes('https://amrkhaledabozeid.vercel.app/') || !read('about.html').includes('https://github.com/byAmrkhaled0') || !read('about.html').includes('professional-badges')) fail('About portfolio, social links, or skill badges are incomplete');
 if (!read('assets/admin.js').includes('admin-command-header') || !read('assets/admin.js').includes('adminBookingAlertCount') || !read('assets/admin.js').includes('حفظ التغييرات') || !read('assets/admin.js').includes('معاينة الموقع') || read('teacher-login.html').includes('<header class="site-header"') || !read('assets/v56-fixes.js').includes('openStudentGroupManager')) fail('Dedicated admin header or group manager is incomplete');

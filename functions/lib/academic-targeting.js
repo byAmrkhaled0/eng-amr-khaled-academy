@@ -94,6 +94,7 @@ function learningTargetMatchesStudent(item, student) {
   const targetStudentCodes = Array.isArray(item.targetStudentCodes)
     ? item.targetStudentCodes.map(value => normalizeDigits(value).trim().toUpperCase()).filter(Boolean)
     : [];
+  if (item.targetingMode === 'students' && !targetStudentCodes.length) return false;
   if (targetStudentCodes.length && !targetStudentCodes.includes(studentCode)) return false;
   const grade = wildcard(item.grade, ['كل الصفوف', 'كل المسارات', 'all']) || sameAcademicValue(item.grade, student.grade);
   const targetScheduleId = String(item.scheduleId || item.groupId || '').trim();

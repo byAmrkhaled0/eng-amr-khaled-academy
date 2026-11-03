@@ -47,29 +47,16 @@ test('admin sidebar provides searchable accessible navigation without changing r
   assert.match(admin, /goAdminSection\(btn\.dataset\.adminNav\)/);
 });
 
-test('navy and gold identity covers public pages, administration, dark mode and phones', () => {
-  const css = read('assets/v67-learning-hub.css');
+test("navy and gold identity covers public pages, administration, dark mode and phones",()=>{const css=read('assets/v67-learning-hub.css'),admin=read('assets/v674-admin.css');for(const token of ['--tm-navy:#041e34','--tm-gold:#ffca50','--tm-cyan:#05b8d6','.tm-reference-hero{position:relative;isolation:isolate;background:#031a2e','.btn.gold{background:#ffd16a','html[data-theme="dark"]'])assert(css.includes(token),token);for(const token of ['.admin-workspace-switcher{display:grid','.admin-mobile-bottom button.active','.admin-home-secondary{display:grid'])assert(admin.includes(token),token);});
 
-  assert.match(css, /V67\.3 — navy and gold identity/);
-  assert.match(css, /--tm-navy:#081a33/);
-  assert.match(css, /--tm-gold:#d3a844/);
-  assert.match(css, /\.hero\{background:[^}]+#061223/);
-  assert.match(css, /\.admin-nav-search\{/);
-  assert.match(css, /\.admin-nav-group>summary\{/);
-  assert.match(css, /\.admin-nav-copy em\{/);
-  assert.match(css, /html\[data-theme="dark"\] \.admin-command-header/);
-  assert.match(css, /@media\(max-width:980px\)[^{]*\{[^}]*\.admin-main/);
-  assert.match(css, /\.admin-mobile-bottom button\.active/);
-});
-
-test('release metadata is synchronized at 70.0.7', () => {
+test('release metadata is synchronized at 70.0.11', () => {
   const frontend = require(path.join(root, 'package.json'));
   const backend = require(path.join(root, 'functions/package.json'));
   const worker = read('service-worker.js');
 
-  assert.equal(frontend.version, '70.0.7');
-  assert.equal(backend.version, '70.0.7');
-  assert.match(read('assets/app.js'), /MF_ASSET_VERSION = '70\.0\.7'/);
-  assert.match(worker, /technominds-v70-0-7-complete-report/);
-  assert.match(worker, /ASSET_VERSION = "70\.0\.7"/);
+  assert.equal(frontend.version, '70.0.11');
+  assert.equal(backend.version, '70.0.11');
+  assert.match(read('assets/app.js'), /MF_ASSET_VERSION = '70\.0\.11'/);
+  assert.match(worker, /technominds-v70-0-11-complete-report/);
+  assert.match(worker, /ASSET_VERSION = "70\.0\.11"/);
 });
