@@ -1,0 +1,172 @@
+{
+  "sourceArchiveSha256": "46c2cf7412210dd5983cd0dd9137401cd92d8d35f745bf7373e7d359580c2e36",
+  "basis": "Owner accepted latest standalone source; fixed semantic controls, not historical Git evidence",
+  "sections": {
+    "students": {
+      "actions": [
+        "data-tm-action:copyStudentCodes",
+        "data-tm-action:deleteStudent",
+        "data-tm-action:editStudent",
+        "data-tm-action:openStudentGroupManager",
+        "data-tm-action:quickPresent",
+        "data-tm-action:regenerateStudentCode",
+        "data-tm-action:sendParentMonthlyReport",
+        "onchange:importStudentsFile",
+        "onclick:exportStudentsCSV",
+        "onclick:loadAdminStudentMetricsBatch",
+        "onclick:toggleAdminCreatePanel",
+        "onclick:upgradeLegacyAccessCodes"
+      ],
+      "fields": [
+        "[\"INPUT\",\"\",\"\",\"file\"]",
+        "[\"INPUT\",\"\",\"name\",\"text\"]",
+        "[\"INPUT\",\"\",\"parentPhone\",\"text\"]",
+        "[\"INPUT\",\"\",\"studentPhone\",\"text\"]",
+        "[\"INPUT\",\"studentSearchAdmin\",\"\",\"text\"]",
+        "[\"SELECT\",\"\",\"academicYear\",\"select-one\"]",
+        "[\"SELECT\",\"\",\"grade\",\"select-one\"]",
+        "[\"SELECT\",\"\",\"group\",\"select-one\"]",
+        "[\"SELECT\",\"\",\"month\",\"select-one\"]",
+        "[\"SELECT\",\"\",\"term\",\"select-one\"]",
+        "[\"SELECT\",\"studentGradeAdmin\",\"\",\"select-one\"]",
+        "[\"SELECT\",\"studentPayAdmin\",\"\",\"select-one\"]",
+        "[\"SELECT\",\"studentTermAdmin\",\"\",\"select-one\"]",
+        "[\"SELECT\",\"studentYearAdmin\",\"\",\"select-one\"]",
+        "[\"TEXTAREA\",\"\",\"notes\",\"textarea\"]"
+      ],
+      "forms": [
+        "[\"addStudentForm\",\"\",null,\"get\"]"
+      ],
+      "routes": []
+    },
+    "attendance": {
+      "actions": [
+        "data-tm-action:setAttendanceStatus",
+        "data-tm-action:toggleClassProgress",
+        "onclick:closeQrScanner",
+        "onclick:exportAttendanceCSV",
+        "onclick:finalizeOfflineAttendanceSession",
+        "onclick:manualAttendancePrompt",
+        "onclick:markAbsentForMissing",
+        "onclick:openQrScanner",
+        "onclick:prepareAttendanceOffline",
+        "onclick:syncOfflineAttendanceNow"
+      ],
+      "fields": [
+        "[\"INPUT\",\"\",\"code\",\"text\"]",
+        "[\"INPUT\",\"attendanceDate\",\"\",\"date\"]",
+        "[\"SELECT\",\"attendanceGrade\",\"\",\"select-one\"]",
+        "[\"SELECT\",\"attendanceGroup\",\"\",\"select-one\"]"
+      ],
+      "forms": [
+        "[\"offlineQrManualForm\",\"\",null,\"get\"]"
+      ],
+      "routes": []
+    },
+    "payments": {
+      "actions": [
+        "onchange:refreshPaymentRows",
+        "onchange:setPaymentReminderView",
+        "onclick:exportCenterSubscriptionsCSV",
+        "onclick:exportMonthlyPaymentsExcel",
+        "onclick:runLegacyPaymentMigration",
+        "onclick:saveCoursePrices",
+        "oninput:refreshPaymentRows"
+      ],
+      "fields": [
+        "[\"INPUT\",\"\",\"\",\"text\"]",
+        "[\"INPUT\",\"paymentSearch\",\"\",\"search\"]",
+        "[\"SELECT\",\"paymentAcademicYear\",\"\",\"select-one\"]",
+        "[\"SELECT\",\"paymentGrade\",\"\",\"select-one\"]",
+        "[\"SELECT\",\"paymentMonth\",\"\",\"select-one\"]",
+        "[\"SELECT\",\"paymentReminderView\",\"\",\"select-one\"]",
+        "[\"SELECT\",\"paymentStatus\",\"\",\"select-one\"]"
+      ],
+      "forms": [],
+      "routes": []
+    },
+    "exams": {
+      "actions": [
+        "onchange:updateExamQuestionType",
+        "onclick:addExamQuestion",
+        "onclick:addExamQuestionAfter",
+        "onclick:openPaperExamGrades",
+        "onclick:removeExamQuestion",
+        "onclick:toggleExamCreator",
+        "oninput:updateExamTotal"
+      ],
+      "fields": [
+        "[\"INPUT\",\"\",\"\",\"number\"]",
+        "[\"INPUT\",\"\",\"\",\"text\"]",
+        "[\"INPUT\",\"\",\"academicYear\",\"text\"]",
+        "[\"INPUT\",\"\",\"allowRetake\",\"checkbox\"]",
+        "[\"INPUT\",\"\",\"closeAt\",\"datetime-local\"]",
+        "[\"INPUT\",\"\",\"duration\",\"number\"]",
+        "[\"INPUT\",\"\",\"id\",\"hidden\"]",
+        "[\"INPUT\",\"\",\"openAt\",\"datetime-local\"]",
+        "[\"INPUT\",\"\",\"title\",\"text\"]",
+        "[\"SELECT\",\"\",\"\",\"select-one\"]",
+        "[\"SELECT\",\"\",\"grade\",\"select-one\"]",
+        "[\"SELECT\",\"\",\"group\",\"select-one\"]",
+        "[\"SELECT\",\"\",\"term\",\"select-one\"]",
+        "[\"TEXTAREA\",\"\",\"\",\"textarea\"]",
+        "[\"TEXTAREA\",\"\",\"encouragement\",\"textarea\"]",
+        "[\"TEXTAREA\",\"\",\"instructions\",\"textarea\"]"
+      ],
+      "forms": [
+        "[\"examFormV6061\",\"\",null,\"get\"]"
+      ],
+      "routes": []
+    },
+    "assignments": {
+      "actions": [
+        "onchange:updateHomeworkQuestionType",
+        "onchange:updateHomeworkTargetMode",
+        "onclick:addHomeworkQuestion",
+        "onclick:addHomeworkQuestionAfter",
+        "onclick:document.querySelectorAll",
+        "onclick:removeHomeworkQuestion",
+        "onclick:toggleHomeworkCreator",
+        "oninput:filterHomeworkStudentPicker",
+        "oninput:updateHomeworkTotal"
+      ],
+      "fields": [
+        "[\"INPUT\",\"\",\"\",\"checkbox\"]",
+        "[\"INPUT\",\"\",\"\",\"number\"]",
+        "[\"INPUT\",\"\",\"\",\"text\"]",
+        "[\"INPUT\",\"\",\"dueDate\",\"date\"]",
+        "[\"INPUT\",\"\",\"lessonNumber\",\"text\"]",
+        "[\"INPUT\",\"\",\"lessonTitle\",\"text\"]",
+        "[\"INPUT\",\"\",\"publishAt\",\"datetime-local\"]",
+        "[\"INPUT\",\"\",\"revealCorrectAnswersAfterClose\",\"hidden\"]",
+        "[\"INPUT\",\"\",\"revealCorrectAnswersAfterGrading\",\"hidden\"]",
+        "[\"INPUT\",\"\",\"title\",\"text\"]",
+        "[\"INPUT\",\"homeworkStudentSearch\",\"\",\"search\"]",
+        "[\"SELECT\",\"\",\"\",\"select-one\"]",
+        "[\"SELECT\",\"\",\"grade\",\"select-one\"]",
+        "[\"SELECT\",\"\",\"group\",\"select-one\"]",
+        "[\"SELECT\",\"\",\"targetingMode\",\"select-one\"]",
+        "[\"SELECT\",\"homeworkAttendanceAssignment\",\"\",\"select-one\"]",
+        "[\"SELECT\",\"homeworkAttendanceGrade\",\"\",\"select-one\"]",
+        "[\"SELECT\",\"homeworkAttendanceGroup\",\"\",\"select-one\"]",
+        "[\"TEXTAREA\",\"\",\"\",\"textarea\"]",
+        "[\"TEXTAREA\",\"\",\"description\",\"textarea\"]"
+      ],
+      "forms": [
+        "[\"assignmentFormV6061\",\"\",null,\"get\"]"
+      ],
+      "routes": []
+    },
+    "bookings": {
+      "actions": [
+        "onclick:exportBookingsCSV"
+      ],
+      "fields": [
+        "[\"INPUT\",\"bookingSearchAdmin\",\"\",\"text\"]",
+        "[\"SELECT\",\"bookingGradeAdmin\",\"\",\"select-one\"]"
+      ],
+      "forms": [],
+      "routes": []
+    }
+  }
+}

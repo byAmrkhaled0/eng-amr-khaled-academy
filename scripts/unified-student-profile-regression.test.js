@@ -355,7 +355,7 @@ test('parent report uses the backend monthly object across HTML text message and
   assert.match(app,/\(results\.rows\|\|\[\]\)\.slice\(0,3\)/);
   assert.match(app,/trend\.previousScore/);
   assert.match(app,/نقطة مئوية عن الشهر السابق/);
-  assert.match(parent,/family=Cairo/);
+  assert.doesNotMatch(parent,/fonts\.googleapis\.com/);assert.match(read('assets/v67-learning-hub.css'),/cairo-arabic-variable\.woff2/);assert.match(read('assets/v67-learning-hub.css'),/font-family:[\s"']*Cairo/);
   const reportSection=app.slice(app.indexOf('function parentMonthlyReportText'),app.indexOf('window.printParentReport'));
   assert.match(reportSection,/المحاضرات المكتملة/);
   assert.match(reportSection,/study\.lecturesCompleted/);

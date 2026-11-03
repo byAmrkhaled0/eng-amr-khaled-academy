@@ -37,27 +37,16 @@ test('dashboard shell adds context without removing commands or routes', () => {
   assert.match(read('assets/app.js'), /settings:/);
 });
 
-test('admin design covers desktop, dark mode and mobile hierarchy', () => {
-  const css = read('assets/v674-admin.css');
+test("admin design covers desktop, dark mode and mobile hierarchy",()=>{const css=read('assets/v674-admin.css'),shared=read('assets/v67-learning-hub.css');assert.match(css,/\.admin-page\{display:grid;grid-template-columns:200px minmax\(0,1fr\)/);assert.match(css,/width:min\(88vw,300px\)/);assert.match(css,/\.admin-command-more:not\(\[open\]\)>\.admin-command-actions\{display:none/);assert.match(css,/\.admin-mobile-bottom\{display:grid/);assert.match(shared,/html\[data-theme="dark"\]/);assert.match(css,/padding:12px 12px calc\(88px \+ env\(safe-area-inset-bottom,0px\)\)/);});
 
-  assert.match(css, /V67\.5 — simplified administration with progressive disclosure/);
-  assert.match(css, /\.admin-page-v37\{display:grid!important;grid-template-columns:280px/);
-  assert.match(css, /\.admin-nav-copy em\{display:none!important\}/);
-  assert.match(css, /\.admin-overview-layout\{display:grid;grid-template-columns:/);
-  assert.match(css, /html\[data-theme="dark"\] body\.admin-dashboard-active/);
-  assert.match(css, /@media\(max-width:980px\)/);
-  assert.match(css, /width:min\(88vw,326px\)/);
-  assert.match(css, /@media\(max-width:390px\)/);
-});
-
-test('release metadata is synchronized at 70.0.7', () => {
+test('release metadata is synchronized at 70.0.11', () => {
   const frontend = require(path.join(root, 'package.json'));
   const backend = require(path.join(root, 'functions/package.json'));
   const worker = read('service-worker.js');
 
-  assert.equal(frontend.version, '70.0.7');
-  assert.equal(backend.version, '70.0.7');
-  assert.match(read('assets/app.js'), /MF_ASSET_VERSION = '70\.0\.7'/);
-  assert.match(worker, /technominds-v70-0-7-complete-report/);
-  assert.match(worker, /ASSET_VERSION = "70\.0\.7"/);
+  assert.equal(frontend.version, '70.0.11');
+  assert.equal(backend.version, '70.0.11');
+  assert.match(read('assets/app.js'), /MF_ASSET_VERSION = '70\.0\.11'/);
+  assert.match(worker, /technominds-v70-0-11-complete-report/);
+  assert.match(worker, /ASSET_VERSION = "70\.0\.11"/);
 });

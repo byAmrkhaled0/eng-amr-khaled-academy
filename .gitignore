@@ -24,3 +24,12 @@ Thumbs.db
 
 .vercel
 .env*
+
+# Server credentials must never enter the source repository.
+*.pem
+*.p12
+*.pfx
+*.key
+**/service-account*.json
+**/service_account*.json
+**/credentials.json

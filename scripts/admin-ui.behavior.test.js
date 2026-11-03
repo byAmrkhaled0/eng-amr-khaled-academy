@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const {createAdminDOM,tick}=require('./testing/admin-dom');
-test('all 19 visible administration sections render through the production script chain',async()=>{
+test('all 19 administration sections remain reachable through the production script chain',async()=>{
  const ui=await createAdminDOM();
  try{
   const calls=[];
@@ -20,8 +20,9 @@ test('all 19 visible administration sections render through the production scrip
    assert.ok(ui.document.querySelector('#adminContent').textContent.trim(),`${section} produced an empty page`);
   }
   assert.equal(sections.length,19);
-  const primary=[...ui.document.querySelectorAll('.admin-nav-primary [data-admin-nav]')].map(el=>el.dataset.adminNav);
-  assert.deepEqual(primary,['overview','classroom','students','attendance','assignments']);
+  const workspaces=[...ui.document.querySelectorAll('[data-admin-workspace]')];
+  assert.equal(workspaces.length,8);
+  assert.equal(new Set([...ui.document.querySelectorAll('#adminNavList [data-admin-nav]')].map(el=>el.dataset.adminNav)).size,19);
   assert.equal(ui.run("adminLegacySectionAliases.operations"),'classroom');
   assert.deepEqual(ui.errors.map(error=>error.message),[]);
  }finally{ui.close();}
@@ -193,8 +194,8 @@ test('each theory card exposes only its matching lesson banks and bank links cal
 test('lecture file routing, pending completion, retry, and Escape use the actual student module',async()=>{
  const ui=await createAdminDOM();
  try{
-  const fs=require('node:fs');ui.run(fs.readFileSync(require('node:path').join(__dirname,'../assets/curriculum-student.js'),'utf8'));
-  ui.document.body.insertAdjacentHTML('beforeend','<div id="studentResult"></div>');
+  const fs=require('node:fs');ui.run(fs.readFileSync(require('node:path').join(__dirname,'../assets/learning-progress.js'),'utf8'));ui.run(fs.readFileSync(require('node:path').join(__dirname,'../assets/curriculum-student.js'),'utf8'));
+  ui.document.body.insertAdjacentHTML('beforeend','<div id="studentResult"><section class="student-tab-panel show" data-student-panel="lectures"></section></div>');
   const files=[];let completeResolve,completeReject;
   Object.assign(ui.window.MFCloud,{
    getStudentCurriculum:async()=>({lectures:[{id:'lesson',title:'درس',term:'الترم الأول',lectureNumber:1}]}),
@@ -203,13 +204,13 @@ test('lecture file routing, pending completion, retry, and Escape use the actual
    getCurriculumFileUrl:async(...args)=>{files.push(args);return {url:'https://example.test/file.pdf'};}
   });
   ui.window.open=()=>({location:{replace(){}},close(){}});
-  ui.document.dispatchEvent(new ui.window.CustomEvent('technominds:student-loaded',{detail:{code:'DEMO001'}}));await tick();
+  ui.document.dispatchEvent(new ui.window.CustomEvent('technominds:student-tab',{detail:{key:'lectures',code:'DEMO001'}}));await tick();
   const open=ui.document.querySelector('[data-open-lecture]');open.focus();open.click();await tick();
   const modal=ui.document.querySelector('#curriculumLectureModal');modal.querySelector('[data-lecture-tab="questions"]').click();
   modal.querySelector('[data-content-file]').click();await tick();assert.deepEqual(files[0],['DEMO001','question_banks','bank']);
   const complete=modal.querySelector('[data-complete-lecture]');complete.click();await tick();assert(complete.disabled);assert.match(complete.textContent,/جارٍ الحفظ/);
   completeReject(new Error('offline'));await tick();assert(!complete.disabled);assert.match(complete.textContent,/إعادة/);
   complete.click();await tick();completeResolve({ok:true});await tick();assert.match(complete.textContent,/سجلت إكمال/);
-  modal.dispatchEvent(new ui.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));assert.equal(ui.document.querySelector('#curriculumLectureModal'),null);assert.equal(ui.document.activeElement,open);assert(!ui.document.documentElement.classList.contains('lecture-dialog-open'));
+  modal.dispatchEvent(new ui.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));assert.equal(ui.document.querySelector('#curriculumLectureModal'),null);assert.equal(ui.document.activeElement,ui.document.querySelector('[data-open-lecture="lesson"]'));assert(!ui.document.documentElement.classList.contains('lecture-dialog-open'));
  }finally{ui.close();}
 });

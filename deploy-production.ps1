@@ -1,5 +1,7 @@
 param(
   [switch]$Resume,
+  [switch]$Plan,
+  [switch]$ConfirmProduction,
   [string[]]$Functions = @(),
   [switch]$DeployRules,
   [switch]$DeployIndexes,
@@ -21,7 +23,6 @@ $StateFile = Join-Path $ProjectRoot ".deploy-state.txt"
 $SuccessFile = Join-Path $ProjectRoot ".deploy-success"
 $script:CurrentAction = "preflight"
 Set-Location $ProjectRoot
-Remove-Item -LiteralPath $SuccessFile -Force -ErrorAction SilentlyContinue
 
 function Invoke-Checked {
   param(
@@ -62,6 +63,40 @@ try {
   if ($Functions.Count -eq 0 -and -not $DeployRules -and -not $DeployIndexes) {
     throw "Select -Functions, -DeployRules, or -DeployIndexes explicitly. The frontend deploys through GitHub -> Vercel."
   }
+  # Validate selections before dependency installs, state writes, or Firebase calls.
+  $FunctionsSource = Get-Content -LiteralPath (Join-Path $ProjectRoot "functions\index.js") -Raw
+  $AvailableFunctions = [regex]::Matches($FunctionsSource, 'exports\.([A-Za-z0-9_]+)\s*=') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
+  # entry.js adds legacy wrappers beyond index.js. Preserve and allow explicit selection.
+  $EntrySource = Get-Content -LiteralPath (Join-Path $ProjectRoot 'functions\entry.js') -Raw
+  $EntryExports = [regex]::Match($EntrySource, 'module\.exports\s*=\s*\{\.\.\.base,([^}]+)\}')
+  if ($EntryExports.Success) { $AvailableFunctions += @($EntryExports.Groups[1].Value -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^[A-Za-z0-9_]+$' }) }
+  $StudentReportSources = [regex]::Match($FunctionsSource, 'const REPORT_STUDENT_SOURCES=\[([^\]]+)\]')
+  $ContentReportSources = [regex]::Match($FunctionsSource, 'for\(const collection of \[([^\]]+)\]\)\{\s*exports\[.invalidateReport_')
+  foreach ($SourceList in @($StudentReportSources, $ContentReportSources)) {
+    if ($SourceList.Success) { $AvailableFunctions += @([regex]::Matches($SourceList.Groups[1].Value, "'([^']+)'") | ForEach-Object { 'invalidateReport_' + $_.Groups[1].Value }) }
+  }
+  foreach ($FunctionName in $Functions) {
+    if ($FunctionName -notin $AvailableFunctions) { throw "Unknown Function: $FunctionName" }
+  }
+  $SelectedResources = @($Functions | ForEach-Object { "functions:$_" })
+  if ($DeployRules) { $SelectedResources += 'firestore:rules,storage' }
+  if ($DeployIndexes) { $SelectedResources += 'firestore:indexes' }
+  if ($Plan) {
+    [pscustomobject]@{ project='eng-amr-khaled-academy'; version=$ReleaseVersion; resources=$SelectedResources; productionChanges=$false; confirmationRequired=$true } | ConvertTo-Json -Depth 4
+    exit 0
+  }
+  if (-not $ConfirmProduction) { throw "No deployment performed. Review -Plan, then explicitly pass -ConfirmProduction for the selected resources." }
+  # Resume is valid only for the same source and exact selection.
+  $ReleaseInputs = @('package.json','package-lock.json','functions\package.json','functions\package-lock.json','firestore.rules','storage.rules','firestore.indexes.json','firebase.json')
+  $ReleaseInputs += @(Get-ChildItem -LiteralPath (Join-Path $ProjectRoot 'functions') -File -Filter '*.js' | ForEach-Object { $_.FullName })
+  if (Test-Path -LiteralPath (Join-Path $ProjectRoot 'functions\lib')) { $ReleaseInputs += @(Get-ChildItem -LiteralPath (Join-Path $ProjectRoot 'functions\lib') -Recurse -File -Filter '*.js' | ForEach-Object { $_.FullName }) }
+  $Fingerprint = ($SelectedResources -join ',') + '|' + (($ReleaseInputs | Sort-Object | ForEach-Object { $InputPath = if ([IO.Path]::IsPathRooted($_)) { $_ } else { Join-Path $ProjectRoot $_ }; [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([IO.File]::ReadAllBytes($InputPath))).Replace("-", "") }) -join '|')
+  $FingerprintFile = Join-Path $ProjectRoot '.deploy-fingerprint.txt'
+  if ($Resume -and (Test-Path -LiteralPath $StateFile)) {
+    if (-not (Test-Path -LiteralPath $FingerprintFile) -or (Get-Content -LiteralPath $FingerprintFile -Raw).Trim() -ne $Fingerprint) { throw 'Resume refused: source or selected resources changed. Review and run without -Resume.' }
+  }
+  Set-Content -LiteralPath $FingerprintFile -Value $Fingerprint -Encoding ASCII
+  Remove-Item -LiteralPath $SuccessFile -Force -ErrorAction SilentlyContinue
   if (-not $Resume) { Remove-Item -LiteralPath $StateFile -Force -ErrorAction SilentlyContinue }
   $env:FUNCTIONS_DISCOVERY_TIMEOUT = "120"
 
@@ -84,17 +119,19 @@ try {
     Invoke-Checked -Executable $NpmExecutable -ArgumentList @("run", "verify:dist") -FailureLabel "dist verification"
   }
   if ($Functions.Count -gt 0) {
-    $FunctionsSource = Get-Content -LiteralPath (Join-Path $ProjectRoot "functions\index.js") -Raw
-    $AvailableFunctions = [regex]::Matches($FunctionsSource, 'exports\.([A-Za-z0-9_]+)\s*=') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
     foreach ($FunctionName in $Functions) {
       if ($FunctionName -notin $AvailableFunctions) { throw "Unknown Function: $FunctionName" }
     }
   Invoke-Step "functions-prepare" "4/8 Preparing selected Firebase Functions for Node.js 22..." {
     $FunctionsEnv = Join-Path $ProjectRoot "functions\.env"
     $FunctionsEnvExample = Join-Path $ProjectRoot "functions\.env.example"
-    if (-not (Test-Path -LiteralPath $FunctionsEnv)) {
+    if (Test-Path -LiteralPath $FunctionsEnv) {
+      Write-Host 'Using existing functions/.env without modifying it.' -ForegroundColor DarkGray
+    } elseif (Test-Path -LiteralPath $FunctionsEnvExample) {
       Copy-Item -LiteralPath $FunctionsEnvExample -Destination $FunctionsEnv
-      Write-Host "Created functions/.env from the safe template. Configure Judge0 before production code execution." -ForegroundColor Yellow
+      Write-Host 'Copied functions/.env.example. Verify provider configuration before deploying code runner Functions.' -ForegroundColor Yellow
+    } else {
+      Write-Host 'No optional functions/.env template found. Continuing with platform environment/secret configuration; no .env created and no provider disabled.' -ForegroundColor Yellow
     }
     Invoke-Checked -Executable $NpmExecutable -ArgumentList @("--prefix", "functions", "ci", "--no-audit", "--no-fund") -FailureLabel "Functions dependency installation"
     Invoke-Checked -Executable $NpmExecutable -ArgumentList @("--prefix", "functions", "run", "lint") -FailureLabel "Functions syntax check"
@@ -110,7 +147,7 @@ try {
         continue
       }
       Write-Host "  Deploying function: $FunctionName" -ForegroundColor Cyan
-      Invoke-Checked -Executable $FirebaseExecutable -ArgumentList @("deploy", "--only", "functions:$FunctionName") -FailureLabel "Firebase Function '$FunctionName'"
+      Invoke-Checked -Executable $FirebaseExecutable -ArgumentList @("deploy", "--project", "eng-amr-khaled-academy", "--non-interactive", "--only", "functions:$FunctionName") -FailureLabel "Firebase Function '$FunctionName'"
       Complete-Step $FunctionStep
     }
     Complete-Step "functions"
@@ -118,13 +155,13 @@ try {
 
   if ($DeployRules) {
     Invoke-Step "rules-storage" "6/8 Deploying explicitly requested Firestore and Storage rules..." {
-      Invoke-Checked -Executable $FirebaseExecutable -ArgumentList @("deploy", "--only", "firestore:rules,storage") -FailureLabel "Firestore/Storage rules deployment"
+      Invoke-Checked -Executable $FirebaseExecutable -ArgumentList @("deploy", "--project", "eng-amr-khaled-academy", "--non-interactive", "--only", "firestore:rules,storage") -FailureLabel "Firestore/Storage rules deployment"
     }
   }
   if ($DeployIndexes) {
     Invoke-Step "indexes" "7/8 Deploying explicitly requested Firestore indexes..." {
       Write-Host "If Firebase lists old indexes, answer No to deletion. No automatic confirmation is used." -ForegroundColor Yellow
-      Invoke-Checked -Executable $FirebaseExecutable -ArgumentList @("deploy", "--only", "firestore:indexes") -FailureLabel "Firestore indexes deployment"
+      Invoke-Checked -Executable $FirebaseExecutable -ArgumentList @("deploy", "--project", "eng-amr-khaled-academy", "--non-interactive", "--only", "firestore:indexes") -FailureLabel "Firestore indexes deployment"
     }
   }
   if ($SkipSiteCheck) {
@@ -145,7 +182,7 @@ try {
   Write-Host "Deployment stopped at: $script:CurrentAction" -ForegroundColor Red
   Write-Host $_.Exception.Message -ForegroundColor Red
   if ($Functions.Count -gt 0 -or $DeployRules -or $DeployIndexes) {
-    $ResumeCommand = @('.\deploy-production.ps1', '-Resume')
+    $ResumeCommand = @('.\deploy-production.ps1', '-Resume', '-ConfirmProduction')
     if ($Functions.Count -gt 0) { $ResumeCommand += @('-Functions', ($Functions -join ',')) }
     if ($DeployRules) { $ResumeCommand += '-DeployRules' }
     if ($DeployIndexes) { $ResumeCommand += '-DeployIndexes' }
@@ -155,6 +192,5 @@ try {
   } else {
     Write-Host "Select -Functions, -DeployRules, or -DeployIndexes before retrying; -Resume alone cannot deploy anything." -ForegroundColor Yellow
   }
-  Remove-Item -LiteralPath $SuccessFile -Force -ErrorAction SilentlyContinue
   exit 1
 }

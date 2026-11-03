@@ -16,7 +16,7 @@ async function createAdminDOM(){
  window.fetch=async()=>{throw new Error('External requests disabled in DOM tests');};
  window.MFCloud={ready:false};
  const html=fs.readFileSync(path.join(root,'teacher-login.html'),'utf8');
- const sources=[...html.matchAll(/<script defer src="(assets\/[^?]+)\?/g)].map(match=>match[1]);
+ const sources=[...html.matchAll(/<script\s+defer\b[^>]*\bsrc="(assets\/[^?]+)\?/g)].map(match=>match[1]);
  for(const source of sources){
   if(/firebase-(?:config|sync)|offline-attendance/.test(source))continue;
   vm.runInContext(fs.readFileSync(path.join(root,source),'utf8'),context,{filename:source});

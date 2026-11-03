@@ -11,14 +11,14 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 test('phone navigation remains in the DOM and above floating tools', () => {
   const fixes = read('assets/v56-fixes.js');
   const legacyCss = read('assets/v56.css');
-  const currentCss = read('assets/v65-redesign.css');
+  const currentCss = read('assets/v67-learning-hub.css');
   const remover = fixes.slice(fixes.indexOf('function removeLegacyFloatingTools'), fixes.indexOf('function installCleanScrollTop'));
 
   assert.doesNotMatch(remover, /mobile-bottom|admin-mobile-bottom|mobile-nav-active/);
   assert.doesNotMatch(legacyCss, /\.mobile-bottom\{display:none!important;visibility:hidden/);
-  assert.match(currentCss, /\.mobile-bottom\{display:grid!important\}/);
+  assert.match(currentCss, /\.mobile-bottom\{display:grid/);
   assert.match(legacyCss, /\.student-help-button\{[^}]+bottom:calc\(88px/);
-  assert.match(legacyCss, /\.admin-main\{padding-bottom:92px!important\}/);
+  assert.match(read('assets/v674-admin.css'), /padding:12px 12px calc\(88px/);
 });
 
 test('exam dialog adapts to the visual viewport and restores keyboard focus', () => {
@@ -52,14 +52,14 @@ test('release build normalizes immutable asset versions and keeps heavy QR code 
   assert.match(build, /html\.replace\(/);
   assert.doesNotMatch(appShell, /html5-qrcode/);
   assert.ok(worker.includes("if(cached&&url.searchParams.get('v')===ASSET_VERSION)return cached"));
-  assert.match(worker, /technominds-v70-0-7-complete-report/);
+  assert.match(worker, /technominds-v70-0-11-complete-report/);
 });
 
 test('health status reflects the usable default code runner without claiming a live probe', () => {
   const backend = read('functions/index.js');
   const functionsPackage = require(path.join(root, 'functions/package.json'));
 
-  assert.equal(functionsPackage.version, '70.0.7');
+  assert.equal(functionsPackage.version, '70.0.11');
   assert.match(backend, /runner = codeRunnerConfig\(\)/);
   assert.equal(require('../functions/lib/code-runner-policy').codeRunnerConfig({}).baseUrl, 'https://ce.judge0.com');
   assert.match(backend, /default-provider-configured/);

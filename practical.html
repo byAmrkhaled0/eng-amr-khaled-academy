@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ar" dir="rtl" data-theme="light">
 <head>
-<script src="assets/theme-init.js?v=70.0.7&rev=080c0540c3"></script>
+<script src="assets/theme-init.js?v=70.0.11&rev=080c0540c3"></script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#2563eb">
@@ -13,22 +13,14 @@
   <link rel="manifest" href="site-manifest.json">
   <link rel="stylesheet" href="assets/site.css?v=64.0.0">
   <link rel="stylesheet" href="assets/v55.css?v=64.0.0">
-  <link rel="stylesheet" href="assets/v56.css?v=64.0.0">
-  <link rel="stylesheet" href="assets/v60-technominds.css?v=70.0.7&rev=1aad12527e">
+  <link rel="stylesheet" href="assets/v56.css?v=64.0.0&rev=d7d8a640ef1f">
+  <link rel="stylesheet" href="assets/v60-technominds.css?v=70.0.11&rev=1aad12527e">
 <link rel="stylesheet" href="assets/v61-design.css?v=64.0.0">
 <link rel="stylesheet" href="assets/v65-redesign.css?v=66.2.0">
-<link rel="stylesheet" href="assets/v67-learning-hub.css?v=70.0.7&rev=9f9161e977">
+<link rel="stylesheet" href="assets/v67-learning-hub.css?v=70.0.11&rev=296d12984ea0">
 </head>
-<body id="top" class="tm-practical-page">
-<header class="site-header">
-  <div class="container navbar">
-    <a class="logo" href="index.html" aria-label="Techno Minds"><span class="logo-mark" data-icon="atom"></span><span>Techno Minds <small>Programming &amp; AI</small></span></a>
-    <nav class="navlinks" aria-label="روابط الموقع">
-      <a href="index.html">الرئيسية</a><a href="materials.html">محاضرات عملي</a><a href="theory-lectures.html">محاضرات نظري</a><a href="about.html">عن م. عمرو</a><a href="index.html#booking">الحجز</a><a class="active" href="practical.html">العملي</a><a href="student.html">بوابة الطالب</a><a href="exams.html">الاختبارات</a>
-    </nav>
-    <div class="header-actions"><button id="themeToggle" class="theme-toggle" aria-label="تغيير الوضع" type="button"></button></div>
-  </div>
-</header>
+<body id="top" class="tm-visual-system tm-practical-page">
+<header class="site-header"><div class="container navbar"><a aria-label="Techno Minds" class="logo" href="index.html"><img src="assets/technominds-logo.webp" width="40" height="40" alt=""><span>TECHNO <b>MINDS</b><small>Programming &amp; AI</small></span></a><nav aria-label="روابط الموقع" class="navlinks"><a href="index.html">الرئيسية</a><a href="index.html#tracks">المسارات</a><a href="index.html#top-students">أوائل الشهر</a><a href="about.html">عن م. عمرو</a><a href="index.html#ratings">الآراء</a><a href="index.html#contact">تواصل معنا</a><details class="tm-header-more"><summary>المزيد</summary><div><a href="parent.html">ولي الأمر</a><a href="materials.html">محاضرات عملي</a><a href="theory-lectures.html">محاضرات نظري</a><a href="practical.html" class="active" aria-current="page">المعمل العملي</a><a href="questions.html">بنوك الأسئلة</a><a href="exams.html">الاختبارات</a></div></details></nav><div class="header-actions"><button aria-label="تغيير الوضع" class="theme-toggle" id="themeToggle" type="button"></button><a class="btn primary tm-header-login" href="student.html" aria-label="دخول بوابة الطالب">دخول الطالب</a><a class="btn gold tm-header-booking" href="index.html#booking">احجز الآن</a></div></div></header>
 <main class="tm-code-page">
   <div class="container">
     <div class="tm-code-intro">
@@ -58,11 +50,24 @@
     </section>
   </div>
 </main>
-<footer class="footer"><div class="container engineer-only-wrap"><strong>Techno Minds — Eng. Amr Khaled Academy</strong><a href="index.html">العودة للرئيسية</a></div></footer>
+<footer class="footer engineer-only-footer"><div class="container tm-footer-grid"><div class="tm-footer-brand"><a class="logo" href="index.html"><img src="assets/technominds-logo.webp" width="40" height="40" alt=""><span>Techno Minds<small>Programming &amp; AI</small></span></a><p>منصة تعليمية متكاملة لتعلم البرمجة والذكاء الاصطناعي بالتطبيق والمتابعة.</p></div><nav aria-label="روابط سريعة"><b>روابط سريعة</b><a href="index.html">الرئيسية</a><a href="about.html">عن م. عمرو</a><a href="learning-path.html">المسارات التعليمية</a><a href="materials.html">محاضرات عملي</a><a href="theory-lectures.html">محاضرات نظري</a></nav><nav aria-label="دخول ومتابعة"><h2 class="tm-footer-platform-title" id="tmPlatformFeaturesTitle">رحلتك التعليمية أبعد من المحاضرة</h2><b>الدخول والمتابعة</b><a class="btn ghost" href="student.html">دخول الطالب</a><a class="btn ghost" href="parent.html">بوابة ولي الأمر</a><a class="btn ghost" href="exams.html">الاختبارات</a><a href="index.html#booking">الحجز</a></nav><div class="tm-footer-contact"><b>ابدأ رحلتك</b><p>اختار المسار المناسب، وسجّل بياناتك أو تواصل مع المدرس.</p><a class="btn gold" href="index.html#contact">تواصل معنا ←</a><div class="reference-secondary-actions"><a class="btn ghost" href="practical.html"><span data-icon="clipboard"></span> محرر الأكواد</a>
+<button class="btn ghost" id="installAppButton" type="button" hidden=""><span data-icon="external-link"></span> تثبيت المنصة</button>
+</div></div></div>
+  <div class="container engineer-only-wrap">
+    <span class="footer-legal-links"><span>© TECHNO MINDS</span><a href="privacy.html">الخصوصية</a><a href="terms.html">الشروط</a></span>
+    <a class="engineer-only-name" href="https://wa.me/201008454029" rel="noreferrer" target="_blank">تم البرمجة بواسطة المهندس عمرو خالد</a>
+    <a class="engineer-only-whatsapp" href="https://wa.me/201008454029" aria-label="تواصل واتساب" rel="noreferrer" target="_blank">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M20.52 3.48A11.86 11.86 0 0 0 12.08 0C5.48 0 .12 5.36.12 11.96c0 2.1.55 4.16 1.6 5.97L0 24l6.22-1.63a11.95 11.95 0 0 0 5.86 1.5h.01c6.6 0 11.96-5.36 11.96-11.96 0-3.2-1.25-6.2-3.53-8.43ZM12.09 21.85h-.01a9.9 9.9 0 0 1-5.04-1.38l-.36-.21-3.69.97.99-3.6-.23-.37a9.86 9.86 0 0 1-1.51-5.3c0-5.44 4.43-9.87 9.88-9.87 2.64 0 5.12 1.03 6.98 2.9a9.8 9.8 0 0 1 2.9 6.96c-.01 5.45-4.44 9.9-9.91 9.9Zm5.42-7.39c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.95 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.48-.89-.79-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.49s1.07 2.89 1.22 3.09c.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.63.71.23 1.36.2 1.87.12.57-.08 1.76-.72 2.01-1.42.25-.7.25-1.3.17-1.42-.07-.12-.27-.2-.57-.35Z"></path>
+      </svg>
+    </a>
+  </div>
+</footer>
 <div class="toast" id="toast"></div>
-<script defer src="assets/app.js?v=70.0.7&rev=9c4c9d2c95"></script>
+<script defer src="assets/account-domain.js?v=70.0.11"></script>
+<script defer src="assets/app.js?v=70.0.11&rev=9c4c9d2c95"></script>
 <script defer src="assets/v53-upgrades.js?v=64.0.0&rev=42d3651b70e2"></script>
-<script defer src="assets/v56-fixes.js?v=70.0.7&rev=ffd7f894b1"></script>
+<script defer src="assets/v56-fixes.js?v=70.0.11&rev=45bb1d99968a"></script>
 <script defer src="assets/practical.js?v=64.0.0&rev=bc33609d44d0"></script>
 </body>
 </html>

@@ -54,6 +54,6 @@ test('the official site logo has a real alpha channel and is used by the PWA', (
   const png = fs.readFileSync(path.join(root, 'assets/technominds-logo.png'));
   assert.equal(png.toString('ascii', 1, 4), 'PNG');
   assert.equal(png[25], 6, 'PNG color type 6 is RGBA');
-  assert.match(read('assets/v67-learning-hub.css'), /background-image:url\("technominds-logo\.webp"\)!important/);
+  assert.match(read('assets/v67-learning-hub.css'), /background:url\('technominds-logo\.webp'\) center\/contain no-repeat/);
   assert.match(read('service-worker.js'), /technominds-logo\.png/);
 });

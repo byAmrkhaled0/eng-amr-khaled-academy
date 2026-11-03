@@ -19,6 +19,84 @@
   const safeId=value=>String(value||'').replace(/[^A-Za-z0-9_-]/g,'');
   const spreadsheetSafe=value=>{const text=String(value??'');return /^[=+\-@]/.test(text)?`'${text}`:text;};
 
+  // Manual WhatsApp reminders reuse loaded ledger rows. This registry is device-local,
+  // never a delivery receipt and never synced through saveData/Firebase.
+  let reminderView='all';
+  const reminderStoreKey=()=>`technominds-payment-reminders-v1:${window.MF_FIREBASE_CONFIG?.projectId||location.host}`;
+  function reminderStore(){
+    const raw=localStorage.getItem(reminderStoreKey());if(!raw)return {};
+    const value=JSON.parse(raw);if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('سجل التنبيهات المحلي غير صالح؛ لا يمكن تأكيد منع التكرار.');return value;
+  }
+  function reminderSnapshot(){
+    const students=new Map((adminData.students||[]).map(student=>[String(stCode(student)),student]));
+    try{return {records:reminderStore(),students,error:''};}catch(error){return {records:{},students,error:error.message||'تعذر قراءة سجل التنبيهات المحلي'};}
+  }
+  function paymentMonthKey(row){
+    const explicit=String(row.monthKey||row.summary?.monthKey||'');
+    if(/^\d{4}-(?:0[1-9]|1[0-2])$/.test(explicit))return explicit;
+    const month=Array.isArray(MONTHS)?MONTHS.indexOf(row.month)+1:0,years=String(row.academicYear||'').match(/^(\d{4})\/(\d{4})$/);
+    if(!month||!years||Number(years[2])!==Number(years[1])+1)return '';
+    return `${month>=7?years[1]:years[2]}-${String(month).padStart(2,'0')}`;
+  }
+  function reminderPhone(student){
+    const raw=String(student?.studentPhone||'').trim(),normalized=typeof toEnglishDigits==='function'?toEnglishDigits(raw):raw;
+    if(!/^[+\d\s()-]+$/.test(normalized))return '';
+    const digits=phoneDigits(normalized);
+    if(/^01[0125]\d{8}$/.test(digits))return adminWhatsAppPhone(digits);
+    if(/^201[0125]\d{8}$/.test(digits))return digits;
+    if(/^\+/.test(normalized)&&/^[1-9]\d{7,14}$/.test(digits))return digits;
+    if(/^00/.test(normalized)&&/^[1-9]\d{7,14}$/.test(digits.slice(2)))return digits.slice(2);
+    return '';
+  }
+  function paymentDueDetails(row,snapshot=reminderSnapshot()){
+    const loaded=snapshot.students.get(String(stCode(row.student||{}))),student={...(loaded||{}),...(row.student||{})},monthKey=paymentMonthKey(row),expected=number(row.expected),paid=number(row.paid),remaining=number(row.remaining??Math.max(0,expected-paid));
+    const exempt=['exempt','waived','free'].includes(String(row.status||row.summary?.status||''))||expected===0&&row.priceConfigured===true;
+    const paidInFull=!exempt&&expected>0&&(row.status==='paid'||remaining<=0);
+    const requiresPayment=!exempt&&expected>0,overdue=requiresPayment&&!paidInFull&&!!monthKey&&cairoDate()>`${monthKey}-10`;
+    const phone=reminderPhone(student),code=String(stCode(student)||''),id=code&&monthKey?`payment-reminder:${code}:${monthKey}`:'';
+    const record=id?snapshot.records[id]||null:null;let storageError=snapshot.error;
+    const validRecord=!record||record.studentCode===code&&record.monthKey===monthKey&&record.reminderType==='monthly-payment-overdue'&&['prepared','opened','sent'].includes(record.status);
+    if(!validRecord)storageError='حالة التنبيه المحفوظة غير صالحة؛ راجع سجل الجهاز.';
+    const unpaid=paid<=0&&(!row.status||row.status==='unpaid'),active=student.active!==false;
+    const eligible=active&&overdue&&unpaid&&!!phone&&!!id&&!storageError&&record?.status!=='sent';
+    const label=exempt?'معفى / غير مستحق':paidInFull?'مدفوع':!requiresPayment?'السعر غير محدد':!monthKey?'فترة الدفع غير محددة':overdue?'متأخر في الدفع':'مستحق حتى يوم 10';
+    return {id,code,monthKey,phone,record,eligible,overdue,active,unpaid,exempt,paidInFull,requiresPayment,label,storageError};
+  }
+  function paymentReminderMessage(row){return `أهلاً ${row.student?.name||row.student?.studentName||'طالبنا'} 👋\n\nتذكير من TECHNO MINDS بخصوص اشتراك شهر ${row.month}.\n\nآخر موعد للدفع كان يوم 10، والاشتراك ما زال غير مسجل كمدفوع حتى الآن.\n\nبرجاء إتمام الدفع في أقرب وقت، ولو تم الدفع بالفعل تجاهل الرسالة.\n\nشكراً ليك 💙\nTECHNO MINDS`;}
+  function reminderStatus(info){return info.storageError?'تعذر حفظ حالة التنبيه':info.record?.status==='sent'?'تم إرسال تنبيه':info.requiresPayment&&info.active&&!info.phone?'لا يوجد رقم هاتف':info.record?.status==='opened'?'واتساب مفتوح · لم يؤكد الإرسال':info.record?.status==='prepared'?'الرسالة جاهزة':info.eligible?'بانتظار تجهيز الرسالة':'لا يحتاج تنبيه';}
+  function reminderMatches(row,snapshot){const info=paymentDueDetails(row,snapshot);return reminderView==='all'||reminderView==='overdue'&&info.overdue&&info.active||reminderView==='queued'&&info.eligible||reminderView==='sent'&&info.record?.status==='sent'||reminderView==='no-phone'&&info.requiresPayment&&info.active&&!info.phone;}
+  function reminderMarkup(row,snapshot){
+    const info=paymentDueDetails(row,snapshot),status=reminderStatus(info);
+    return `<section class="payment-reminder-row" aria-label="استحقاق الدفع والتنبيه"><div><span class="badge ${info.paidInFull||info.exempt?'good':info.overdue?'danger':'warn'}">${safe(info.label)}</span><small>${info.monthKey?`آخر موعد: ${safe(info.monthKey)}-10`:'اختر فترة دفع صحيحة'}${number(row.paid)>0&&!info.paidInFull?' · دفع جزئي':''}</small></div><div class="payment-reminder-state"><b>${safe(status)}</b><small>${info.record?.sentAt?`تأكيد يدوي على هذا الجهاز · ${safe(info.record.sentAt.slice(0,10))}`:info.record?.createdAt?'حالة محفوظة على هذا الجهاز':'التواصل مع رقم الطالب المسجل'}</small></div>${info.eligible?`<div class="payment-reminder-actions"><button class="small-btn whatsapp-report-btn" type="button" ${renderActionAttrs('openPaymentReminder',[String(row.key)])}>${info.record?'فتح واتساب':'إرسال تنبيه واتساب'}</button>${info.record?.status==='opened'?`<button class="small-btn" type="button" ${renderActionAttrs('confirmPaymentReminder',[String(row.key)])}>تأكيد تم الإرسال</button>`:''}</div>`:''}${info.storageError?`<small class="payment-reminder-error" role="alert">${safe(info.storageError)}</small>`:''}</section>`;
+  }
+  window.openPaymentReminder=function(key){
+    const row=state.rows.find(item=>String(item.key)===String(key));if(!row||state.loading||state.error)return aToast('انتظر اكتمال تحميل بيانات الدفع.');
+    const info=paymentDueDetails(row);if(!info.eligible)return aToast(info.record?.status==='sent'?'تم تأكيد هذا التنبيه من قبل لنفس الطالب والشهر.':'هذا الطالب غير مؤهل لتنبيه الدفع أو رقمه غير صالح.');
+    try{
+      const records=reminderStore(),previous=records[info.id];if(previous?.status==='sent')return aToast('التنبيه مكتمل بالفعل.');
+      const record=previous||{studentCode:info.code,monthKey:info.monthKey,reminderType:'monthly-payment-overdue',status:'prepared',createdAt:new Date().toISOString(),sentAt:null};
+      records[info.id]=record;localStorage.setItem(reminderStoreKey(),JSON.stringify(records));
+      const popup=window.open(whatsappLink(info.phone,paymentReminderMessage(row)),'_blank');
+      if(popup){popup.opener=null;record.status='opened';record.openedAt=new Date().toISOString();localStorage.setItem(reminderStoreKey(),JSON.stringify(records));aToast('راجع الرسالة وأرسلها من واتساب، ثم أكّد الإرسال هنا.');}
+      else aToast('تم تجهيز الرسالة. اسمح بفتح النافذة ثم اضغط فتح واتساب.');
+    }catch(error){aToast(error.message||'تعذر حفظ حالة التنبيه؛ لم يتم تأكيد إرساله.');}
+    updateDashboard();
+  };
+  window.confirmPaymentReminder=function(key){
+    const row=state.rows.find(item=>String(item.key)===String(key));if(!row||state.loading||state.error)return aToast('انتظر اكتمال تحميل بيانات الدفع.');
+    const info=paymentDueDetails(row);if(!info.eligible||info.record?.status!=='opened')return aToast('افتح الرسالة المؤهلة أولًا؛ فتح واتساب وحده لا يعني الإرسال.');
+    if(!confirm('هل أرسلت هذه الرسالة بالفعل من واتساب؟ هذا تأكيد يدوي وليس إثبات تسليم من مزود.'))return;
+    try{const records=reminderStore(),record=records[info.id];if(!record||record.status!=='opened')return aToast('حالة التنبيه تغيرت؛ أعد مراجعتها.');record.status='sent';record.sentAt=new Date().toISOString();localStorage.setItem(reminderStoreKey(),JSON.stringify(records));aToast('تم تسجيل تأكيد الإرسال لهذا الطالب والشهر.');}catch(error){aToast(error.message||'تعذر حفظ تأكيد الإرسال.');}updateDashboard();
+  };
+  window.setPaymentReminderView=function(value){reminderView=['all','overdue','queued','sent','no-phone'].includes(value)?value:'all';updateDashboard();};
+  window.openOverduePayments=function(){reminderView='overdue';goAdminSection('payments');};
+  window.getLoadedOverduePaymentCount=function(){
+    const context=window.adminWorkspaceContext?.();if(!context||typeof adminPaymentPeriods==='undefined'||adminPaymentPeriods.key!==`${context.academicYear}|${context.month}`)return null;
+    const snapshot=reminderSnapshot();return [...(adminPaymentPeriods.rows?.values()||[])].filter(row=>{const info=paymentDueDetails(row,snapshot);return info.active&&info.overdue&&info.unpaid;}).length;
+  };
+  // Pure derivation is exposed for existing Admin integrations and local QA only.
+  window.TMPaymentReminder={details:paymentDueDetails,monthKey:paymentMonthKey,message:paymentReminderMessage};
+
   function filters(){
     return {
       query:normalizeText(document.getElementById('paymentSearch')?.value||''),
@@ -46,11 +124,11 @@
 
   function paymentMethodLabel(value){return ({cash:'نقدي',transfer:'تحويل بنكي',wallet:'محفظة إلكترونية',card:'بطاقة',legacy:'بيانات قديمة',other:'أخرى'})[value]||value||'نقدي';}
 
-  function paymentCard(row){
+  function paymentCard(row,snapshot){
     const code=stCode(row.student),pending=state.pending.has(code),rowCourse=row.summary?.course||row.student.grade||'-';
     const missingPrice=number(row.expected)<=0&&row.priceConfigured!==true,alreadyPaid=!missingPrice&&number(row.remaining)<=0;
-    const buttonLabel=pending?'جارٍ الحفظ…':missingPrice?'حدد السعر أولًا':alreadyPaid?'تم الدفع':'تم الدفع';
-    return `<article data-payment-key="${safe(row.key)}" class="monthly-payment-card quick-payment-card ${pending?'is-saving':''}"><div class="monthly-payment-main"><span class="student-avatar">${safe(String(row.student.name||'ط').charAt(0))}</span><div><b>${safe(row.student.name)}</b><small>${safe(code)} · ${safe(rowCourse)}</small><span>السعر <strong>${safe(money(row.expected))}</strong>${row.paid>0?` · المحصل <strong>${safe(money(row.paid))}</strong>`:''}</span></div><span class="badge ${statusClass(row.status)}">${statusLabel(row.status)}</span></div><button class="btn primary quick-paid-button" type="button" ${pending||alreadyPaid?'disabled':''} ${renderActionAttrs("markStudentPaid",[String((code)??''),String((row.month)??''),String((row.academicYear)??''),String((rowCourse)??'')])}>${buttonLabel}</button><div class="payment-history-actions"><button class="small-btn" type="button" ${renderActionAttrs("openMonthlyPaymentForm",[String((code)??''),String((row.month)??''),String((row.academicYear)??''),"",String((rowCourse)??'')])} ${pending||alreadyPaid||missingPrice?'disabled':''}>دفع جزئي</button><button class="small-btn" type="button" onclick="togglePaymentHistory(this)">سجل الدفعات</button></div><div class="payment-history-shell" hidden></div>${missingPrice?'<small class="payment-price-warning">اضغط الزر لتحديد سعر هذا الصف</small>':''}</article>`;
+    const due=paymentDueDetails(row,snapshot),buttonLabel=pending?'جارٍ الحفظ…':missingPrice?'حدد السعر أولًا':due.exempt?'غير مستحق':alreadyPaid?'تم الدفع':'تم الدفع';
+    return `<article data-payment-key="${safe(row.key)}" class="monthly-payment-card quick-payment-card payment-compact-row ${pending?'is-saving':''}"><div class="monthly-payment-main"><span class="student-avatar">${safe(String(row.student.name||'ط').charAt(0))}</span><div><b>${safe(row.student.name)}</b><small>${safe(code)} · ${safe(rowCourse)}</small></div></div><dl class="payment-row-amounts"><div><dt>المطلوب</dt><dd>${safe(money(row.expected))}</dd></div><div><dt>المدفوع</dt><dd>${safe(money(row.paid))}</dd></div><div><dt>المتبقي</dt><dd>${safe(money(row.remaining))}</dd></div></dl><span class="badge ${pending?'warn':missingPrice?'warn':statusClass(row.status)}" role="status">${pending?'جارٍ الحفظ…':missingPrice?'السعر غير محدد':due.exempt?'معفى / غير مستحق':statusLabel(row.status)}</span><div class="payment-row-actions"><button class="btn primary quick-paid-button" type="button" ${pending||alreadyPaid?'disabled':''} ${renderActionAttrs("markStudentPaid",[String((code)??''),String((row.month)??''),String((row.academicYear)??''),String((rowCourse)??'')])}>${buttonLabel}</button><div class="payment-history-actions"><button class="small-btn" type="button" ${renderActionAttrs("openMonthlyPaymentForm",[String((code)??''),String((row.month)??''),String((row.academicYear)??''),"",String((rowCourse)??'')])} ${pending||alreadyPaid||missingPrice?'disabled':''}>دفع جزئي</button><button class="small-btn" type="button" aria-expanded="false" onclick="togglePaymentHistory(this)">سجل الدفعات</button></div></div><div class="payment-history-shell" hidden></div>${reminderMarkup(row,snapshot)}${missingPrice?'<small class="payment-price-warning">اضغط الزر لتحديد سعر هذا الصف</small>':''}</article>`;
   }
 
   function focusCoursePrice(course){
@@ -61,11 +139,12 @@
   }
 
   function updateDashboard(){
+    const snapshot=reminderSnapshot(),visibleRows=state.rows.filter(row=>reminderMatches(row,snapshot));
     const t=state.totals,unknown=state.loading&&!t?'جارٍ التحميل…':state.error?'تعذر التحميل':'—';
     const values={paymentToday:t?money(t.today):unknown,paymentCollected:t?money(t.collected):unknown,paymentExpected:t?money(t.expected):unknown,paymentRemaining:t?money(t.remaining):unknown,paymentPaidCount:t?.paid??'—',paymentPartialCount:t?.partial??'—',paymentUnpaidCount:t?.unpaid??'—'};
     Object.entries(values).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.textContent=value;});
     const courses=document.getElementById('paymentCourseTotals');if(courses)courses.innerHTML=Object.entries(state.courses).map(([name,t])=>`<article><span>${safe(name)}</span><b>${safe(money(t.paid))}</b><small>من ${safe(money(t.expected))}</small></article>`).join('');
-    const box=document.getElementById('paymentRows');if(box)box.innerHTML=state.error?`<p role="alert">${safe(state.error)}</p><button type="button" class="btn" onclick="refreshPaymentDashboard()">إعادة المحاولة</button>`:state.rows.map(paymentCard).join('')+(state.loading?'<p role="status">جارٍ تحميل المدفوعات…</p>':state.nextCursor?'<button type="button" class="btn ghost" onclick="loadMorePayments()">المزيد من الطلاب</button>':state.rows.length?'':'<p>لا توجد نتائج مطابقة.</p>');
+    const box=document.getElementById('paymentRows');if(box)box.innerHTML=state.error?`<p role="alert">${safe(state.error)}</p><button type="button" class="btn" onclick="refreshPaymentDashboard()">إعادة المحاولة</button>`:visibleRows.map(row=>paymentCard(row,snapshot)).join('')+(state.loading?'<p role="status">جارٍ تحميل المدفوعات…</p>':state.nextCursor?'<button type="button" class="btn ghost" onclick="loadMorePayments()">المزيد من الطلاب</button>':visibleRows.length?'':'<p>لا توجد نتائج مطابقة ضمن البيانات المحمّلة؛ يمكن تحميل المزيد من الطلاب عند توفر صفحة أخرى.</p>');
     const note=document.querySelector('.payment-filter-note');if(note)note.textContent=state.generatedAt?`الإجماليات لكل النتائج المطابقة، والقائمة على صفحات. آخر تحديث ${new Date(state.generatedAt).toLocaleTimeString('ar-EG')}؛ قد يتأخر تحديث جهاز آخر حتى 15 ثانية.`:'جارٍ تحميل ملخص الفترة من الخادم؛ لم تُحدد حالة الدفع بعد.';
   }
   function applyPaymentResult(row,result,paymentDate){
@@ -106,8 +185,8 @@
   window.loadMorePayments=()=>loadDashboard({append:true});
   window.togglePaymentHistory=async function(button){
     const card=button.closest('.monthly-payment-card'),shell=card.querySelector('.payment-history-shell'),row=state.rows.find(r=>r.key===card.dataset.paymentKey);if(!row)return;
-    if(!shell.hidden&&!button.dataset.cursor){shell.hidden=true;button.textContent='سجل الدفعات';return;}
-    shell.hidden=false;shell.innerHTML='<p role="status">جارٍ تحميل سجل الدفعات…</p>';button.disabled=true;
+    if(!shell.hidden&&!button.dataset.cursor){shell.hidden=true;button.setAttribute('aria-expanded','false');button.textContent='سجل الدفعات';return;}
+    shell.hidden=false;button.setAttribute('aria-expanded','true');shell.innerHTML='<p role="status">جارٍ تحميل سجل الدفعات…</p>';button.disabled=true;
     try{const result=await window.MFCloud.getPaymentHistory({studentCode:row.student.studentCode,month:row.month,academicYear:row.academicYear,course:row.summary?.course||row.student.grade,cursor:button.dataset.cursor||null});state.transactions=[...state.transactions.filter(t=>!result.rows.some(x=>x.id===t.id)),...result.rows];shell.innerHTML=transactionHistory(row);button.dataset.cursor=result.nextCursor||'';button.textContent=result.nextCursor?'تحميل المزيد من السجل':'إخفاء السجل';}
     catch(error){shell.textContent=adminActionErrorMessage(error,'تعذر تحميل السجل.');}finally{button.disabled=false;}
   };
@@ -163,7 +242,7 @@
   function academicYears(){return [...new Set([schoolYear(),...(adminData.students||[]).map(row=>row.academicYear).filter(Boolean),...state.summaries.map(row=>row.academicYear).filter(Boolean)])];}
   const renderPaymentsV606=function(){
     fresh();const prices=coursePrices(),defaultYear=adminData.settings?.academicYear||schoolYear(),activeGrades=[...new Set((adminData.students||[]).filter(row=>row.active!==false).map(row=>row.grade).filter(Boolean))],missingPrices=activeGrades.filter(grade=>!Object.keys(prices).some(key=>adminSameAcademic(key,grade))),configuredPrices=activeGrades.length-missingPrices.length;
-    content(`<div class="section-head compact-admin-head"><div><span class="kicker"><span data-icon="database"></span> المدفوعات</span><h2 class="section-title">الدفع والخزنة</h2><p class="section-desc">حدد سعر كل مسار مرة واحدة؛ بعدها زر «تم الدفع» يسجل المتبقي تلقائيًا بالسعر المحفوظ.</p></div><div class="payment-export-actions"><button class="btn ghost" type="button" onclick="exportCenterSubscriptionsCSV(this)">CSV</button><button class="btn ghost" type="button" onclick="exportMonthlyPaymentsExcel(this)">Excel</button></div></div><div class="payment-financial-kpis payment-kpis-v606"><article class="collected"><small>مقبوضات اليوم</small><b id="paymentToday">0 ج.م</b><span>عمليات نشطة اليوم</span></article><article class="collected"><small>إجمالي المحصل</small><b id="paymentCollected">0 ج.م</b><span><b id="paymentPaidCount">0</b> طالب تم الدفع لهم</span></article><article><small>المتوقع تحصيله</small><b id="paymentExpected">0 ج.م</b><span>للطلاب النشطين فقط</span></article><article class="remaining"><small>المتبقي</small><b id="paymentRemaining">0 ج.م</b><span><b id="paymentPartialCount">0</b> جزئي · <b id="paymentUnpaidCount">0</b> لم يدفعوا</span></article></div><div id="paymentCourseTotals" class="payment-course-totals" aria-label="إجماليات المسارات"></div><details class="card course-price-editor" ${missingPrices.length?'open':''}><summary><span><b>السعر التلقائي للمسارات</b><small>${missingPrices.length?`${missingPrices.length} مسار نشط يحتاج سعرًا قبل تسجيل الدفع`:`تم حفظ أسعار ${configuredPrices} مسار نشط؛ عدّلها فقط عند تغير الاشتراك`}</small></span><span data-icon="settings"></span></summary><p id="coursePriceSavedState" class="course-price-saved-state">السعر المحفوظ في الخادم هو المرجع، ويُطبق تلقائيًا عند الضغط على «تم الدفع».</p><div class="course-price-grid">${GRADES.map(grade=>`<label><span>${safe(grade)}</span><div><input type="text" inputmode="decimal" data-digits-only data-course-price="${safe(grade)}" value="${safe(number(prices[grade]))}" aria-label="سعر ${safe(grade)}"><small>جنيه</small></div></label>`).join('')}</div><div class="payment-settings-actions"><button class="btn primary" id="saveCoursePricesButton" type="button" onclick="saveCoursePrices()">حفظ الأسعار مرة واحدة</button><button class="btn ghost" id="legacyPaymentMigrationButton" type="button" onclick="runLegacyPaymentMigration()">ترحيل الدفعات القديمة</button></div></details><div class="card payment-panel"><div class="payment-toolbar payment-toolbar-v606"><input id="paymentSearch" type="search" placeholder="بحث بالاسم أو الكود" oninput="refreshPaymentRows()"><select id="paymentGrade" aria-label="المسار" onchange="refreshPaymentRows()"><option value="all">كل المسارات</option>${GRADES.map(grade=>`<option>${safe(grade)}</option>`).join('')}</select><select id="paymentMonth" aria-label="شهر الدفع" onchange="refreshPaymentRows()"><option value="all">كل الشهور المسجلة</option>${MONTHS.map(month=>`<option ${month===currentMonth()?'selected':''}>${safe(month)}</option>`).join('')}</select><select id="paymentAcademicYear" aria-label="العام الدراسي" onchange="refreshPaymentRows()"><option value="all">كل الأعوام</option>${academicYears().map(year=>`<option ${year===defaultYear?'selected':''}>${safe(year)}</option>`).join('')}</select><select id="paymentStatus" aria-label="حالة الدفع" onchange="refreshPaymentRows()"><option value="all">كل الحالات</option><option value="paid">تم الدفع</option><option value="partial">دفع جزئي</option><option value="unpaid">لم يدفع</option></select></div><p class="payment-filter-note">الأرقام والكروت تتحدث مباشرة بعد الدفع، ولا يتم احتساب الطلاب غير النشطين.</p><div id="paymentRows" class="monthly-payment-list quick-payment-grid"><div class="loading-state">جارٍ تحميل الطلاب…</div></div></div>`);
+    content(`<div class="section-head compact-admin-head"><div><span class="kicker"><span data-icon="database"></span> المدفوعات</span><h2 class="section-title">الدفع والخزنة</h2><p class="section-desc">حدد سعر كل مسار مرة واحدة؛ بعدها زر «تم الدفع» يسجل المتبقي تلقائيًا بالسعر المحفوظ.</p></div><div class="payment-export-actions"><button class="btn ghost" type="button" onclick="exportCenterSubscriptionsCSV(this)">CSV</button><button class="btn ghost" type="button" onclick="exportMonthlyPaymentsExcel(this)">Excel</button></div></div><div class="payment-financial-kpis payment-kpis-v606"><article class="collected"><small>مقبوضات اليوم</small><b id="paymentToday">0 ج.م</b><span>عمليات نشطة اليوم</span></article><article class="collected"><small>إجمالي المحصل</small><b id="paymentCollected">0 ج.م</b><span><b id="paymentPaidCount">0</b> طالب تم الدفع لهم</span></article><article><small>المتوقع تحصيله</small><b id="paymentExpected">0 ج.م</b><span>للطلاب النشطين فقط</span></article><article class="remaining"><small>المتبقي</small><b id="paymentRemaining">0 ج.م</b><span><b id="paymentPartialCount">0</b> جزئي · <b id="paymentUnpaidCount">0</b> لم يدفعوا</span></article></div><div id="paymentCourseTotals" class="payment-course-totals" aria-label="إجماليات المسارات"></div><details class="card course-price-editor" ${missingPrices.length?'open':''}><summary><span><b>السعر التلقائي للمسارات</b><small>${missingPrices.length?`${missingPrices.length} مسار نشط يحتاج سعرًا قبل تسجيل الدفع`:`تم حفظ أسعار ${configuredPrices} مسار نشط؛ عدّلها فقط عند تغير الاشتراك`}</small></span><span data-icon="settings"></span></summary><p id="coursePriceSavedState" class="course-price-saved-state">السعر المحفوظ في الخادم هو المرجع، ويُطبق تلقائيًا عند الضغط على «تم الدفع».</p><div class="course-price-grid">${GRADES.map(grade=>`<label><span>${safe(grade)}</span><div><input type="text" inputmode="decimal" data-digits-only data-course-price="${safe(grade)}" value="${safe(number(prices[grade]))}" aria-label="سعر ${safe(grade)}"><small>جنيه</small></div></label>`).join('')}</div><div class="payment-settings-actions"><button class="btn primary" id="saveCoursePricesButton" type="button" onclick="saveCoursePrices()">حفظ الأسعار مرة واحدة</button><button class="btn ghost" id="legacyPaymentMigrationButton" type="button" onclick="runLegacyPaymentMigration()">ترحيل الدفعات القديمة</button></div></details><div class="card payment-panel"><div class="payment-toolbar payment-toolbar-v606"><input id="paymentSearch" type="search" placeholder="بحث بالاسم أو الكود" oninput="refreshPaymentRows()"><select id="paymentGrade" aria-label="المسار" onchange="refreshPaymentRows()"><option value="all">كل المسارات</option>${GRADES.map(grade=>`<option>${safe(grade)}</option>`).join('')}</select><select id="paymentMonth" aria-label="شهر الدفع" onchange="refreshPaymentRows()"><option value="all">كل الشهور المسجلة</option>${MONTHS.map(month=>`<option ${month===currentMonth()?'selected':''}>${safe(month)}</option>`).join('')}</select><select id="paymentAcademicYear" aria-label="العام الدراسي" onchange="refreshPaymentRows()"><option value="all">كل الأعوام</option>${academicYears().map(year=>`<option ${year===defaultYear?'selected':''}>${safe(year)}</option>`).join('')}</select><select id="paymentStatus" aria-label="حالة الدفع" onchange="refreshPaymentRows()"><option value="all">كل الحالات</option><option value="paid">تم الدفع</option><option value="partial">دفع جزئي</option><option value="unpaid">لم يدفع</option></select></div><div class="payment-reminder-toolbar"><label><span>حالة التنبيه</span><select id="paymentReminderView" onchange="setPaymentReminderView(this.value)">${[['all','كل التنبيهات'],['overdue','متأخرون في الدفع'],['queued','قائمة التنبيهات المطلوبة'],['sent','تم إرسال تنبيه'],['no-phone','لا يوجد رقم هاتف']].map(([value,label])=>`<option value="${value}" ${reminderView===value?'selected':''}>${label}</option>`).join('')}</select></label><p>آخر موعد للاشتراك يوم 10. واتساب يفتح رسالة جاهزة؛ أكّد الإرسال بعد إرسالها بنفسك. حالة التنبيه محفوظة على هذا الجهاز.</p></div><p class="payment-filter-note">الأرقام والكروت تتحدث مباشرة بعد الدفع، ولا يتم احتساب الطلاب غير النشطين.</p><div id="paymentRows" class="monthly-payment-list quick-payment-grid"><div class="loading-state">جارٍ تحميل الطلاب…</div></div></div>`);
     startListeners();hydrateIcons();
   };
 

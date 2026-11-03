@@ -5,7 +5,8 @@
     ['lectures','هيكل المحاضرات'],['lecture_materials','ملفات المحاضرات'],['question_banks','بنوك الأسئلة'],
     ['bank_questions','أسئلة البنك'],['teacher_files','ملفات المدرس']
   ];
-  let active='lectures',rows=[],cursor=null,hasMore=false,editing=null;
+  let active='lectures',rows=[],cursor=null,hasMore=false,editing=null,treeView=true,loadEpoch=0,openEditor=null,pageScope='';
+  const importTransfers=new Set();
 
   const gradeOptions='<option value="">اختر الصف</option><option>أولى ثانوي بكالوريا</option><option>تانية ثانوي بكالوريا</option><option>أساسيات برمجة</option>';
   const termOptions='<option value="">اختر الترم</option><option>الترم الأول</option><option>الترم الثاني</option>';
@@ -16,9 +17,9 @@
     return `<div class="section-head"><div><span class="kicker">مكتبة المنهج</span><h2>المنهج وبنك الأسئلة</h2><p class="section-desc">نظّم هيكل المنهج وملفات المحاضرات والأسئلة. التسليم والتصحيح يتمان من قسمي الواجبات والاختبارات.</p></div><button class="btn primary" type="button" data-new-content>إضافة محتوى</button></div>
     <div class="curriculum-admin-tabs">${sections.map(item=>`<button type="button" class="${item[0]===active?'active':''}" data-content-section="${item[0]}">${item[1]} <small data-section-count="${item[0]}"></small></button>`).join('')}</div>
     <div class="card curriculum-admin-toolbar"><input type="search" id="curriculumSearch" placeholder="بحث بالعنوان" aria-label="بحث بالعنوان"><select id="curriculumGradeFilter" aria-label="فلترة حسب الصف">${gradeOptions}<option value="all">كل الصفوف</option></select><select id="curriculumTermFilter" aria-label="فلترة حسب الترم">${termOptions}<option value="all">كل الترمات</option></select><select id="curriculumDirection" aria-label="الترتيب"><option value="asc">تصاعدي</option><option value="desc">تنازلي</option></select><button class="btn ghost" type="button" data-apply-filter>تطبيق</button></div>
-    <div id="curriculumAdminList"><div class="skeleton" style="height:240px"></div></div>
+    <button type="button" class="small-btn" data-content-view aria-pressed="${treeView}">عرض حسب الصف والترم والوحدة</button><div id="curriculumAdminList"><div class="skeleton" style="height:240px"></div></div>
     <div class="pagination-actions"><button class="btn ghost" type="button" data-load-more hidden>تحميل المزيد</button></div>
-    <section class="card curriculum-import"><h3>استيراد ملفات المنهج</h3><p>ارفع عدة ملفات PDF أو Word أو صور بحد أقصى 15MB للملف. يتم استخراج رقم المحاضرة من اسم الملف ويمكن مراجعة البيانات قبل الحفظ.</p><div class="grid three"><select id="importGrade">${gradeOptions}</select><select id="importTerm">${termOptions}</select><input id="importUnit" placeholder="اسم/معرّف الوحدة"></div><label class="btn ghost file-button">اختيار الملفات<input id="curriculumBulkFiles" type="file" multiple accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp" hidden></label><div id="curriculumImportPreview"></div></section>
+    <details class="card curriculum-import"><summary>استيراد ملفات المنهج</summary><div class="reference-import-body"><p>ارفع عدة ملفات PDF أو Word أو صور بحد أقصى 15MB للملف. يتم استخراج رقم المحاضرة من اسم الملف ويمكن مراجعة البيانات قبل الحفظ.</p><div class="grid three"><select id="importGrade">${gradeOptions}</select><select id="importTerm">${termOptions}</select><input id="importUnit" placeholder="اسم/معرّف الوحدة"></div><label class="btn ghost file-button">اختيار الملفات<input id="curriculumBulkFiles" type="file" multiple accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp" hidden></label><div id="curriculumImportPreview"></div></div></details>
     <details class="card curriculum-migration curriculum-maintenance"><summary><span><b>أدوات الصيانة والترحيل</b><small>استخدمها فقط عند استيراد أو ترحيل محتوى قديم.</small></span></summary><div class="admin-detail-body"><p>الفحص التجريبي لا يكتب أو يحذف أي بيانات. التنفيذ قابل للإعادة ويمنع التكرار.</p><button class="btn ghost" type="button" data-migration-dry>فحص Dry Run</button><button class="btn primary" type="button" data-migration-apply>تنفيذ الترحيل</button><pre id="curriculumMigrationResult" aria-live="polite"></pre></div></details>`;
   }
 
@@ -26,28 +27,42 @@
     const query=(document.getElementById('curriculumSearch')?.value||'').trim().toLowerCase();
     const filtered=rows.filter(item=>!query||String(item.title||'').toLowerCase().includes(query));
     const box=document.getElementById('curriculumAdminList');if(!box)return;
-    box.innerHTML=filtered.length?`<div class="curriculum-admin-list">${filtered.map(item=>`<article class="curriculum-admin-row"><div><small>${safe(item.grade||'')} · ${safe(item.term||'')} · رقم ${Number(item.lectureNumber||item.order||0)}</small><h3>${safe(item.title)}</h3><p>${safe(item.description||'')}</p></div><span class="badge ${item.status==='published'?'good':item.status==='hidden'?'danger':'warn'}">${item.status==='published'?'منشور':item.status==='hidden'?'مخفي':'مسودة'}</span><div class="mobile-actions"><button class="small-btn" type="button" data-edit-content="${safe(item.id)}">تعديل</button><button class="small-btn" type="button" data-copy-content="${safe(item.id)}">نسخ</button><button class="small-btn danger" type="button" data-delete-content="${safe(item.id)}">حذف</button></div></article>`).join('')}</div>`:'<div class="empty-state"><h3>لا يوجد محتوى مطابق</h3><p>ابدأ بإضافة أول عنصر أو غيّر الفلاتر.</p></div>';
+    const record=item=>`<article class="curriculum-admin-row"><div><small>${safe(item.grade||'')} · ${safe(item.term||'')} · رقم ${Number(item.lectureNumber||item.order||0)}</small><h3>${safe(item.title)}</h3><p>${safe(item.description||'')}</p></div><span class="badge ${item.status==='published'?'good':item.status==='hidden'?'danger':'warn'}">${item.status==='published'?'منشور':item.status==='hidden'?'مخفي':'مسودة'}</span><div class="mobile-actions"><button class="small-btn" type="button" data-edit-content="${safe(item.id)}">تعديل</button><button class="small-btn" type="button" data-copy-content="${safe(item.id)}">نسخ</button><button class="small-btn danger" type="button" data-delete-content="${safe(item.id)}">حذف</button></div></article>`;
+    const groups=new Map();
+    for(const item of filtered){
+      const labels=[item.grade||'بدون صف محدد',item.term||'بدون ترم محدد',item.unitTitle||item.unitId||'غير مرتبط بوحدة'];
+      const key=JSON.stringify(labels);if(!groups.has(key))groups.set(key,{labels,items:[]});groups.get(key).items.push(item);
+    }
+    const listing=active==='lectures'&&treeView?[...groups.values()].map(group=>`<details class="curriculum-workspace-branch" open><summary>${group.labels.map(safe).join(' / ')} <span class="badge">${group.items.length}</span></summary><div>${group.items.map(record).join('')}</div></details>`).join(''):filtered.map(record).join('');
+    box.innerHTML=filtered.length?`<div class="curriculum-admin-list">${listing}</div>`:'<div class="empty-state"><h3>لا يوجد محتوى مطابق</h3><p>ابدأ بإضافة أول عنصر أو غيّر الفلاتر.</p></div>';
     bindRows();
   }
 
   async function load(append=false){
-    const box=document.getElementById('curriculumAdminList');if(!append&&box)box.innerHTML='<div class="skeleton" style="height:240px"></div>';
+    const box=document.getElementById('curriculumAdminList');if(!box)return;
+    const request=++loadEpoch,collection=active,more=document.querySelector('[data-load-more]');
+    if(more)more.disabled=true;if(!append)box.innerHTML='<div class="skeleton" role="status" style="height:240px"></div>';
+    const current=()=>request===loadEpoch&&collection===active&&box.isConnected&&document.getElementById('curriculumAdminList')===box;
     try{
-      const grade=document.getElementById('curriculumGradeFilter')?.value;
-      const term=document.getElementById('curriculumTermFilter')?.value;
-      const result=await window.MFCloud.listCurriculumAdmin({collection:active,pageSize:20,cursor:append?cursor:null,direction:document.getElementById('curriculumDirection')?.value||'asc',grade:grade&&grade!=='all'?grade:'',term:term&&term!=='all'?term:''});
-      rows=append?[...rows,...result.rows]:result.rows;cursor=result.nextCursor;hasMore=result.hasMore;list();
-      const more=document.querySelector('[data-load-more]');if(more)more.hidden=!hasMore;
-    }catch(error){if(box)box.innerHTML=`<div class="empty-state"><h3>تعذر تحميل المحتوى</h3><p>${safe(error?.message||'انشر Functions والفهارس الجديدة أولًا.')}</p></div>`;}
+      const grade=document.getElementById('curriculumGradeFilter')?.value,term=document.getElementById('curriculumTermFilter')?.value;
+      const direction=document.getElementById('curriculumDirection')?.value||'asc',scope=JSON.stringify([collection,grade,term,direction]);if(append&&scope!==pageScope)append=false;pageScope=scope;
+      const result=await window.MFCloud.listCurriculumAdmin({collection,pageSize:20,cursor:append?cursor:null,direction,grade:grade&&grade!=='all'?grade:'',term:term&&term!=='all'?term:''});
+      if(!current())return;rows=append?[...rows,...result.rows]:result.rows;cursor=result.nextCursor;hasMore=result.hasMore;list();if(more)more.hidden=!hasMore;
+    }catch(error){
+      if(!current())return;if(append&&rows.length)list();else box.replaceChildren();
+      const state=document.createElement('div');state.className='empty-state';state.innerHTML='<h3>تعذر تحميل المحتوى</h3><p role="alert"></p><button class="btn ghost" type="button">إعادة المحاولة</button>';state.querySelector('p').textContent=error?.message||'تحقق من الاتصال وأعد المحاولة.';state.querySelector('button').onclick=()=>load(append);box.append(state);
+    }finally{if(current()&&more)more.disabled=false;}
   }
 
   function modal(item={}){
-    editing=item.id||null;
-    document.getElementById('curriculumEditorModal')?.remove();
+    if(openEditor&&!openEditor.close())return;editing=item.id||null;
+    const operation={collection:active,id:editing,controller:new AbortController(),uploaded:null,pending:false,committing:false};
+    const returnFocus=document.activeElement;
     const isQuestion=['bank_questions','assignment_questions','exam_questions_v2'].includes(active);
     document.body.insertAdjacentHTML('beforeend',`<div class="curriculum-modal" id="curriculumEditorModal" role="dialog" aria-modal="true" aria-labelledby="curriculumEditorTitle"><form class="card curriculum-editor" id="curriculumEditorForm"><button class="curriculum-modal-close" type="button" aria-label="إغلاق">×</button><h2 id="curriculumEditorTitle">${editing?'تعديل':'إضافة'} ${safe(sections.find(section=>section[0]===active)?.[1]||'محتوى')}</h2>
       <div class="grid three"><label class="field"><span>الصف</span><select name="grade" required>${gradeOptions}</select></label><label class="field"><span>الترم</span><select name="term" required>${termOptions}</select></label><label class="field"><span>المجموعة</span><select name="group">${groupOptions(item.grade,item.group)}</select></label></div><label class="field"><span>الوحدة</span><input name="unitId" required></label>
       <div class="grid three"><label class="field"><span>رقم المحاضرة</span><input name="lectureNumber" type="number" min="1" max="36" required></label><label class="field"><span>معرّف المحاضرة</span><input name="lectureId"></label><label class="field"><span>الترتيب</span><input name="order" type="number" min="0"></label></div>
+      ${active==='lectures'?`<div class="grid two"><label class="field"><span>نوع المحاضرة</span><select name="lectureCategory"><option value="theory">نظري</option><option value="practical">عملي</option></select></label><label class="field"><span>رابط Google Drive للمحاضرة</span><input name="linkUrl" type="url" placeholder="https://drive.google.com/..."><small>يمكن إضافة الرابط ورفع PDF لنفس المحاضرة معًا.</small></label></div>`:''}
       <label class="field"><span>العنوان</span><input name="title" maxlength="220" required></label><label class="field"><span>الوصف</span><textarea name="description" rows="3"></textarea></label><label class="field"><span>أهداف التعلم — هدف في كل سطر</span><textarea name="learningObjectives" rows="4"></textarea></label>
       ${isQuestion?`<div class="grid three"><label class="field"><span>نوع السؤال</span><select name="questionType"><option value="mcq">اختيار من متعدد</option><option value="true_false">صح وخطأ</option><option value="complete">أكمل</option><option value="concept">مفاهيم</option><option value="trace_code">توقع ناتج الكود</option><option value="debug">اكتشاف الخطأ</option><option value="order_code">ترتيب الكود</option><option value="program">كتابة برنامج</option><option value="essay">مقالي</option></select></label><label class="field"><span>الصعوبة</span><select name="difficulty"><option>سهل</option><option>متوسط</option><option>متقدم</option></select></label><label class="field"><span>الدرجة</span><input name="points" type="number" min="0"></label></div><label class="field"><span>الاختيارات — اختيار في كل سطر</span><textarea name="choices"></textarea></label><label class="field"><span>الإجابة الصحيحة</span><textarea name="correctAnswer"></textarea></label><label class="field"><span>شرح الإجابة</span><textarea name="answerExplanation"></textarea></label>`:''}
       <div class="grid three"><label class="field"><span>تاريخ الفتح</span><input name="openAt" type="datetime-local"></label><label class="field"><span>تاريخ الإغلاق</span><input name="closeAt" type="datetime-local"></label><label class="field"><span>الحالة</span><select name="status"><option value="draft">مسودة</option><option value="published">منشور</option><option value="hidden">مخفي</option></select></label></div>
@@ -56,23 +71,41 @@
     const form=document.getElementById('curriculumEditorForm');
     Object.entries(item).forEach(([key,value])=>{const field=form.elements[key];if(!field)return;if(field.type==='checkbox')field.checked=value===true;else if(key==='learningObjectives'&&Array.isArray(value))field.value=value.join('\n');else if(key==='choices'&&Array.isArray(value))field.value=value.join('\n');else if(field.type==='datetime-local')field.value=typeof isoToLocalDateTimeInput==='function'?isoToLocalDateTimeInput(value?.toDate?value.toDate():value):String(value||'').slice(0,16);else if(!value?.toDate)field.value=value??'';});
     form.elements.grade.onchange=()=>{const current=form.elements.group.value;form.elements.group.innerHTML=groupOptions(form.elements.grade.value,current);};
-    form.querySelector('.curriculum-modal-close').onclick=()=>form.closest('.curriculum-modal').remove();form.querySelector('[data-cancel-editor]').onclick=()=>form.closest('.curriculum-modal').remove();form.onsubmit=save;
+    operation.close=()=>{if(operation.committing){window.aToast?.('جاري حفظ المحتوى؛ انتظر تأكيد العملية.');return false;}operation.controller.abort();form.closest('.curriculum-modal')?.remove();if(openEditor===operation)openEditor=null;returnFocus?.isConnected&&returnFocus.focus({preventScroll:true});return true;};openEditor=operation;
+    form.querySelector('.curriculum-modal-close').onclick=operation.close;form.querySelector('[data-cancel-editor]').onclick=operation.close;form.onsubmit=event=>save(event,operation);
+    const dialog=form.closest('.curriculum-modal');dialog.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();operation.close();}if(event.key==='Tab'){const controls=[...form.querySelectorAll('button,input,select,textarea,a[href]')].filter(n=>!n.disabled&&n.type!=='hidden'),first=controls[0],last=controls.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}});form.querySelector('button').focus();
   }
 
-  async function save(event){
-    event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type="submit"]');button.disabled=true;
+  async function save(event,operation){
+    event.preventDefault();if(operation.pending||operation.controller.signal.aborted)return;
+    const form=event.currentTarget,button=form.querySelector('[type="submit"]'),data=Object.fromEntries(new FormData(form).entries()),file=form.elements.file.files[0];delete data.file;
+    operation.pending=true;const controls=[...form.querySelectorAll('button,input,select,textarea')].map(node=>({node,disabled:node.disabled}));
+    controls.forEach(({node})=>{if(!node.matches('[data-cancel-editor],.curriculum-modal-close'))node.disabled=true;});button.classList.add('is-loading');
+    let status=form.querySelector('[data-curriculum-save-status]');if(!status){status=document.createElement('p');status.dataset.curriculumSaveStatus='';status.setAttribute('role','status');form.append(status);}
+    const current=()=>!operation.controller.signal.aborted&&form.isConnected;
     try{
-      const data=Object.fromEntries(new FormData(form).entries()),file=form.elements.file.files[0];delete data.file;
       data.scheduleId=data.groupId=String(form.elements.group?.selectedOptions?.[0]?.dataset?.scheduleId||'');
       data.openAt=typeof localDateTimeToIso==='function'?localDateTimeToIso(data.openAt):data.openAt;data.closeAt=typeof localDateTimeToIso==='function'?localDateTimeToIso(data.closeAt):data.closeAt;
       data.allowDownload=form.elements.allowDownload.checked;data.learningObjectives=String(data.learningObjectives||'').split('\n').filter(Boolean);if(data.choices)data.choices=String(data.choices).split('\n').filter(Boolean);
-      if(file){if(file.size>15*1024*1024)throw new Error('حجم الملف أكبر من 15MB.');const upload=await window.MFCloud.uploadAttachment(file,active==='teacher_files'?'teacher-files':`curriculum/${data.grade}/${active}`);data.filePath=upload.path;data.fileName=file.name;data.contentType=file.type;}
-      await window.MFCloud.upsertCurriculumEntity({collection:active,id:editing||undefined,data});form.closest('.curriculum-modal').remove();if(typeof aToast==='function')aToast('تم حفظ المحتوى');await load();
-    }catch(error){if(typeof aToast==='function')aToast(error?.message||'تعذر حفظ المحتوى');}finally{button.disabled=false;}
+      if(file&&file.size>15*1024*1024)throw new Error('حجم الملف أكبر من 15MB.');
+      if(window.confirmAdminContentRelease&&!await window.confirmAdminContentRelease({...data,published:data.status==='published'},{form,kind:sections.find(row=>row[0]===operation.collection)?.[1]||'محتوى منهج',fileNames:file?[file.name]:[data.fileName||(data.filePath?'الملف الحالي محفوظ':'')].filter(Boolean),signal:operation.controller.signal}))return;
+      if(!current())return;
+      if(file){
+        const folder=operation.collection==='teacher_files'?'teacher-files':`curriculum/${data.grade}/${operation.collection}`;
+        if(!operation.uploaded||operation.uploaded.file!==file||operation.uploaded.folder!==folder){status.textContent='جاري رفع الملف…';const result=await window.MFCloud.uploadAttachment(file,folder,{signal:operation.controller.signal,onProgress:p=>{if(current())status.textContent='جاري رفع الملف… '+p.percent+'%';}});if(!current())return;operation.uploaded={file,folder,result};}
+        data.filePath=operation.uploaded.result.path;data.fileName=file.name;data.contentType=file.type;
+      }
+      if(!current())return;operation.committing=true;controls.forEach(({node})=>node.disabled=true);status.textContent='جاري حفظ المحتوى…';
+      await window.MFCloud.upsertCurriculumEntity({collection:operation.collection,id:operation.id||undefined,data});
+      if(!current())return;form.closest('.curriculum-modal')?.remove();if(openEditor===operation)openEditor=null;window.aToast?.('تم حفظ المحتوى');if(active===operation.collection&&document.getElementById('curriculumAdminList'))await load();
+    }catch(error){if(current()){status.setAttribute('role','alert');status.textContent=error?.message||'تعذر حفظ المحتوى؛ يمكنك إعادة المحاولة.';window.aToast?.(status.textContent);}}
+    finally{operation.pending=false;operation.committing=false;controls.forEach(({node,disabled})=>node.disabled=disabled);button.classList.remove('is-loading');}
   }
 
   function confirmDelete(item){
-    document.getElementById('curriculumConfirmModal')?.remove();document.body.insertAdjacentHTML('beforeend',`<div class="curriculum-modal" id="curriculumConfirmModal" role="dialog" aria-modal="true"><div class="card confirm-card"><h2>حذف المحتوى؟</h2><p>سيتم حذف «${safe(item.title)}». لا يؤثر ذلك في البيانات القديمة.</p><div class="mobile-actions"><button class="btn danger" type="button" data-confirm-delete>حذف</button><button class="btn ghost" type="button" data-cancel-delete>إلغاء</button></div></div></div>`);const modal=document.getElementById('curriculumConfirmModal');modal.querySelector('[data-cancel-delete]').onclick=()=>modal.remove();modal.querySelector('[data-confirm-delete]').onclick=async event=>{event.currentTarget.disabled=true;await window.MFCloud.deleteCurriculumEntity(active,item.id);modal.remove();await load();};
+    const collection=active;document.getElementById('curriculumConfirmModal')?.remove();document.body.insertAdjacentHTML('beforeend',`<div class="curriculum-modal" id="curriculumConfirmModal" role="dialog" aria-modal="true"><div class="card confirm-card"><h2>حذف المحتوى؟</h2><p>سيتم حذف «${safe(item.title)}». لا يؤثر ذلك في البيانات القديمة.</p><p data-delete-error role="alert"></p><div class="mobile-actions"><button class="btn danger" type="button" data-confirm-delete>حذف</button><button class="btn ghost" type="button" data-cancel-delete>إلغاء</button></div></div></div>`);
+    const dialog=document.getElementById('curriculumConfirmModal'),cancel=dialog.querySelector('[data-cancel-delete]');cancel.onclick=()=>dialog.remove();
+    dialog.querySelector('[data-confirm-delete]').onclick=async event=>{const button=event.currentTarget;if(button.disabled)return;button.disabled=cancel.disabled=true;try{await window.MFCloud.deleteCurriculumEntity(collection,item.id);dialog.remove();if(active===collection&&document.getElementById('curriculumAdminList'))await load();}catch(error){if(dialog.isConnected){const message=error?.message||'تعذر حذف المحتوى. أعد المحاولة.';dialog.querySelector('[data-delete-error]').textContent=message;window.aToast?.(message);}}finally{button.disabled=cancel.disabled=false;}};
   }
 
   function bindRows(){
@@ -82,13 +115,34 @@
   }
 
   function previewFiles(files){
-    const box=document.getElementById('curriculumImportPreview');if(!box)return;const list=[...files];box.innerHTML=list.map((file,index)=>{const number=Number(file.name.match(/(?:lecture|lec|محاضرة|l)[-_ ]?(\d{1,2})/i)?.[1]||file.name.match(/\b(\d{1,2})\b/)?.[1]||0);return `<div class="import-preview-row" data-import-index="${index}"><span>${safe(file.name)}</span><input value="${safe(file.name.replace(/\.[^.]+$/,''))}" aria-label="العنوان"><input type="number" min="1" max="36" value="${number||''}" placeholder="رقم المحاضرة" aria-label="رقم المحاضرة"><button class="small-btn primary" type="button">رفع</button><small>${(file.size/1024/1024).toFixed(2)} MB</small></div>`;}).join('');box.querySelectorAll('.import-preview-row').forEach(row=>row.querySelector('button').onclick=async()=>{const file=list[Number(row.dataset.importIndex)],button=row.querySelector('button');if(file.size>15*1024*1024){button.textContent='أكبر من 15MB';button.classList.add('danger');return;}const grade=document.getElementById('importGrade').value,term=document.getElementById('importTerm').value,unitId=document.getElementById('importUnit').value,lectureNumber=row.querySelector('input[type="number"]').value,title=row.querySelector('input:not([type="number"])').value;if(!grade||!term||!unitId||!lectureNumber){if(typeof aToast==='function')aToast('أكمل الصف والترم والوحدة ورقم المحاضرة');return;}button.disabled=true;button.textContent='جارٍ الرفع';try{const uploaded=await window.MFCloud.uploadAttachment(file,`curriculum/${grade}/${active}`);await window.MFCloud.upsertCurriculumEntity({collection:active,data:{grade,term,unitId,lectureId:`lecture-${lectureNumber}`,lectureNumber,order:lectureNumber,title,status:'draft',filePath:uploaded.path,fileName:file.name,contentType:file.type}});button.textContent='نجح';button.classList.add('good');}catch(error){button.textContent='فشل';button.classList.add('danger');}finally{button.disabled=false;}});}
+    for(const transfer of importTransfers)transfer.abort();importTransfers.clear();
+    const box=document.getElementById('curriculumImportPreview');if(!box)return;const filesList=[...files],collection=active;
+    box.innerHTML=filesList.map((file,index)=>{const number=Number(file.name.match(/(?:lecture|lec|محاضرة|l)[-_ ]?(\d{1,2})/i)?.[1]||file.name.match(/\b(\d{1,2})\b/)?.[1]||0);return `<div class="import-preview-row" data-import-index="${index}"><span>${safe(file.name)}</span><input value="${safe(file.name.replace(/\.[^.]+$/,''))}" aria-label="العنوان"><input type="number" min="1" max="36" value="${number||''}" placeholder="رقم المحاضرة" aria-label="رقم المحاضرة"><button class="small-btn primary" type="button">رفع</button><small role="status">${(file.size/1024/1024).toFixed(2)} MB</small></div>`;}).join('');
+    box.querySelectorAll('.import-preview-row').forEach(row=>{let controller=null,uploaded=null;row.querySelector('button').onclick=async()=>{
+      if(controller){controller.abort();return;}
+      const file=filesList[Number(row.dataset.importIndex)],button=row.querySelector('button'),status=row.querySelector('small');if(file.size>15*1024*1024){status.textContent='أكبر من 15MB';return;}
+      const grade=document.getElementById('importGrade').value,term=document.getElementById('importTerm').value,unitId=document.getElementById('importUnit').value,lectureNumber=row.querySelector('input[type="number"]').value,title=row.querySelector('input:not([type="number"])').value;
+      if(!grade||!term||!unitId||!lectureNumber){window.aToast?.('أكمل الصف والترم والوحدة ورقم المحاضرة');return;}
+      const transfer=new AbortController();controller=transfer;importTransfers.add(transfer);button.textContent='إلغاء الرفع';const current=()=>!transfer.signal.aborted&&row.isConnected&&active===collection;
+      try{
+        const folder=`curriculum/${grade}/${collection}`;
+        if(!uploaded||uploaded.folder!==folder)uploaded={folder,result:await window.MFCloud.uploadAttachment(file,folder,{signal:transfer.signal,onProgress:p=>{if(current())status.textContent='جاري الرفع… '+p.percent+'%';}})};
+        if(!current())return;button.disabled=true;button.textContent='جارٍ الحفظ';
+        await window.MFCloud.upsertCurriculumEntity({collection,data:{grade,term,unitId,lectureId:`lecture-${lectureNumber}`,lectureNumber,order:lectureNumber,title,status:'draft',filePath:uploaded.result.path,fileName:file.name,contentType:file.type}});
+        if(!current())return;button.textContent='نجح';button.classList.add('good');button.disabled=true;status.textContent='تم حفظ الملف';
+      }catch(error){if(row.isConnected){status.textContent=transfer.signal.aborted?'تم إلغاء الرفع':error?.message||'تعذر الرفع؛ أعد المحاولة.';button.textContent='إعادة المحاولة';button.disabled=false;}}
+      finally{importTransfers.delete(transfer);controller=null;if(row.isConnected&&!button.classList.contains('good')){button.disabled=false;if(transfer.signal.aborted){button.textContent='إعادة المحاولة';status.textContent='تم إلغاء الرفع';}}}
+    };});
+  }
 
   async function migration(apply){const output=document.getElementById('curriculumMigrationResult');output.textContent='جاري الفحص...';try{const result=await window.MFCloud.migrateCurriculumV61(apply);output.textContent=JSON.stringify(result,null,2);}catch(error){output.textContent=error?.message||'تعذر تشغيل الترحيل';}}
 
   window.renderCurriculumAdmin=function(){
+    for(const transfer of importTransfers)transfer.abort();importTransfers.clear();
+    if(openEditor&&!openEditor.close())return;
     if(typeof content!=='function')return;content(shell());
     document.querySelectorAll('[data-content-section]').forEach(button=>button.onclick=()=>{active=button.dataset.contentSection;rows=[];cursor=null;window.renderCurriculumAdmin();});
+    document.querySelector('[data-content-view]').onclick=event=>{treeView=!treeView;event.currentTarget.setAttribute('aria-pressed',String(treeView));list();};
     document.querySelector('[data-new-content]').onclick=()=>modal();document.querySelector('[data-apply-filter]').onclick=()=>load();document.getElementById('curriculumSearch').oninput=list;document.querySelector('[data-load-more]').onclick=()=>load(true);document.getElementById('curriculumBulkFiles').onchange=event=>previewFiles(event.target.files);document.querySelector('[data-migration-dry]').onclick=()=>migration(false);document.querySelector('[data-migration-apply]').onclick=()=>migration(true);load();
   };
 

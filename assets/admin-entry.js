@@ -15,16 +15,29 @@
     bundlePromise=(async()=>{
       // Attach enhancement handlers only after the page's native DOMContentLoaded.
       if(document.readyState==='loading')await new Promise(resolve=>document.addEventListener('DOMContentLoaded',resolve,{once:true}));
-      // Dynamic classic scripts with async=false download concurrently and execute
-      // in insertion order, preserving every existing enhancement dependency.
-      await Promise.all(Array.from(bundle.content.querySelectorAll('script[src]'),original=>
-        new Promise((resolve,reject)=>{
-          const script=document.createElement('script');
-          script.src=original.src;script.async=false;
-          script.onload=resolve;script.onerror=()=>reject(new Error(`تعذر تحميل ملف الإدارة: ${original.getAttribute('src')}`));
+      // Presentation assets stay out of the login critical path. The authorized
+      // workspace waits for the same styles before its existing scripts render.
+      const assets=Array.from(bundle.content.querySelectorAll('script[src]'));
+      const assetPromises=new Map(),loaded=new Set();
+      const loadScript=original=>{
+        const src=original.src;if(assetPromises.has(src))return assetPromises.get(src);
+        const promise=new Promise((resolve,reject)=>{
+          const script=document.createElement('script');script.src=src;script.async=false;
+          script.onload=()=>{loaded.add(src);resolve();};script.onerror=()=>reject(new Error(`تعذر تحميل ملف الإدارة: ${original.getAttribute('src')}`));
           document.body.appendChild(script);
-        })
-      ));
+        }).catch(error=>{assetPromises.delete(src);throw error;});
+        assetPromises.set(src,promise);return promise;
+      };
+      const forSection=section=>assets.filter(asset=>(asset.dataset?.adminSections||'').split(/\s+/).includes(section));
+      window.__tmAdminSectionAssetsReady=section=>forSection(section).every(asset=>loaded.has(asset.src));
+      window.__tmLoadAdminSectionAssets=section=>Promise.all(forSection(section).map(loadScript)).then(()=>{window.__tmAdminInstallRenderEnhancers?.();});
+      // CSS and the ordered shared shell scripts download in parallel. No section
+      // bundles or section events execute until the existing router asks for them.
+      const styles=document.getElementById?.('adminStyles');
+      const stylePromise=styles?Promise.all(Array.from(styles.content.querySelectorAll('link[rel="stylesheet"]'),original=>new Promise((resolve,reject)=>{
+        const link=document.createElement('link');link.rel='stylesheet';link.href=original.href;link.onload=resolve;link.onerror=()=>reject(new Error('تعذر تحميل تنسيق لوحة الإدارة.'));document.head.appendChild(link);
+      }))):Promise.resolve();
+      await Promise.all([stylePromise,Promise.all(assets.filter(asset=>!asset.dataset?.adminSections).map(loadScript))]);
       // The existing admin enhancements install on DOMContentLoaded. They must
       // see the same script order as the former deferred production scripts.
       window.__tmAdminBundleState='ready';

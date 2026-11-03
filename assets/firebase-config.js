@@ -16,3 +16,14 @@ window.MF_FIREBASE_CONFIG = {
   messagingVapidKey: "BMx64MqhFTphH9EMdwXP3aSXGyTvDdEcb8a9tTEISI-s-qr3B6-jaTL9g1TurKmFyldod2kd6ms43PBq_OVSQpI",
   useSecureFunctions: true
 };
+
+(function(){
+ const loopback=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
+ if(!loopback&&!window.TM_LOCAL_PREVIEW)return;
+ const local=window.TM_LOCAL_EMULATORS;
+ if(!loopback||!local||local.projectId!=='demo-technominds'){
+  window.MF_FIREBASE_CONFIG={enabled:false,useSecureFunctions:true,localOffline:true};
+  return;
+ }
+ window.MF_FIREBASE_CONFIG={enabled:true,useSecureFunctions:true,apiKey:'demo-local-only',authDomain:'localhost',projectId:'demo-technominds',storageBucket:'demo-technominds.appspot.com',appId:'demo-technominds-local',functionsRegion:'europe-west1',emulators:local};
+})();

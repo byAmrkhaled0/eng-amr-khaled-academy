@@ -1,10 +1,11 @@
 'use strict';
+const { FieldValue, Timestamp } = require('firebase-admin/firestore');
 
 const crypto = require('node:crypto');
 const zlib = require('node:zlib');
 
 // One schema for scheduled, manual, safety, and restore operations.
-const BACKUP_COLLECTIONS = Object.freeze([
+const LEGACY_BACKUP_COLLECTIONS = Object.freeze([
   'settings','users','students','student_portal','parent_portal','bookings','booking_status','reviews',
   'materials','questions','groups','assignments','exams','exam_attempts','exam_sessions','exam_absences','homework_submissions',
   'attendance','recitations','grades','payments','monthly_payments','payment_transactions','monthly_reports','reports','activityLog','client_errors',
@@ -13,6 +14,9 @@ const BACKUP_COLLECTIONS = Object.freeze([
   'curriculum','units','lectures','lecture_materials','assignments_v2','assignment_questions','question_banks','bank_questions',
   'monthly_exams','exam_questions_v2','teacher_files','student_progress','theory_lecture_progress','_student_names','deleted_students'
 ]);
+// Durable inbox/read state and report revisions are part of current recovery.
+// Bearer sessions, push tokens and delivery queues must not be revived.
+const BACKUP_COLLECTIONS=Object.freeze([...LEGACY_BACKUP_COLLECTIONS,'account_notifications','account_notification_reads','monthly_report_state']);
 const FINANCIAL_ROOTS=['payments','monthly_payments','payment_transactions'];
 const canonical=value=>Array.isArray(value)?value.map(canonical):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;
 const LEGACY_CHILDREN = {student_attempts:{attempts:'attempts'}, student_progress:{lectures:'lectures',monthlyEvents:'monthly_events'}};
@@ -43,14 +47,17 @@ function planRestore(payload, project) {
   if (included.some(name => !BACKUP_COLLECTIONS.includes(name))) throw new Error('Unknown root collection');
   if (payload.backupFormatVersion === 3) {
     const manifest = payload.manifest;
-    if (!manifest?.complete || digest(payload.collections) !== manifest.sha256 || included.length !== BACKUP_COLLECTIONS.length || BACKUP_COLLECTIONS.some(name => !included.includes(name))) throw new Error('Incomplete or corrupt backup');
+    const completeFor=names=>included.length===names.length&&names.every(name=>included.includes(name));
+    const schema=manifest?.collectionSchemaVersion;
+    const complete=schema===2?completeFor(BACKUP_COLLECTIONS):schema===undefined&&(completeFor(LEGACY_BACKUP_COLLECTIONS)||completeFor(BACKUP_COLLECTIONS));
+    if (!manifest?.complete || digest(payload.collections) !== manifest.sha256 || !complete) throw new Error('Incomplete or corrupt backup');
   }
   for (const name of included) validateRows(payload.collections[name], name, documents);
   if (new Set(documents.map(row=>row.path)).size !== documents.length) throw new Error('Duplicate document path');
   const plan = {
     mode:'merge', format:payload.backupFormatVersion, included, preserved:BACKUP_COLLECTIONS.filter(name=>!included.includes(name)),
     writes:documents.length, deletes:0, storageBytesIncluded:false,
-    warnings:[...(payload.backupFormatVersion === 2 ? ['Legacy completeness cannot be proved; omitted documents and subcollections are preserved.'] : []),
+    warnings:[...(payload.backupFormatVersion===3&&BACKUP_COLLECTIONS.some(name=>!included.includes(name))?['Older backup has no current inbox/read state or report revisions; omitted collections are retained.']:[]),...(payload.backupFormatVersion === 2 ? ['Legacy completeness cannot be proved; omitted documents and subcollections are preserved.'] : []),
       'Merge restores backed-up fields; documents absent from the backup are retained.',
       'Storage file bytes are not in this JSON backup. Restore object generations separately.',
       'Multi-batch restoration is not atomic. Pause writes, retain the safety backup and review failed runs.',
@@ -60,7 +67,7 @@ function planRestore(payload, project) {
 }
 
 function createBackupService({db,admin,project}) {
-  const Timestamp = admin.firestore.Timestamp;
+
   const encode = value => {
     if (value instanceof Timestamp) return {__mfType:'timestamp',seconds:value.seconds,nanoseconds:value.nanoseconds};
     if (value instanceof admin.firestore.GeoPoint) return {__mfType:'geopoint',latitude:value.latitude,longitude:value.longitude};
@@ -98,11 +105,11 @@ function createBackupService({db,admin,project}) {
     const collections = {};
     for (const name of BACKUP_COLLECTIONS) collections[name] = await exportCollection(db.collection(name));
     const payload = {schemaVersion:63,backupFormatVersion:3,project,reason,createdAt:new Date().toISOString(),actor,
-      collections,manifest:{complete:true,sha256:digest(collections),storageBytesIncluded:false}};
+      collections,manifest:{complete:true,collectionSchemaVersion:2,sha256:digest(collections),storageBytesIncluded:false}};
     const buffer = zlib.gzipSync(Buffer.from(JSON.stringify(payload)));
     const name = `automatic-backups/${new Date().toISOString().replace(/[:.]/g,'-')}-${crypto.randomUUID()}-${String(reason).replace(/[^a-zA-Z0-9_-]/g,'-')}.json.gz`;
     await admin.storage().bucket().file(name).save(buffer,{resumable:false,contentType:'application/gzip',metadata:{cacheControl:'private, no-store'}});
-    await db.collection('backup_runs').add({name,reason,size:buffer.length,createdAt:admin.firestore.FieldValue.serverTimestamp(),actorUid:actor.uid||''});
+    await db.collection('backup_runs').add({name,reason,size:buffer.length,createdAt:FieldValue.serverTimestamp(),actorUid:actor.uid||''});
     return {name,size:buffer.length,createdAt:payload.createdAt};
   }
   async function readBackup(name) {
@@ -134,7 +141,7 @@ function createBackupService({db,admin,project}) {
     if(result.plan.financialConflictCount)throw new Error('رفض الاستعادة: بيانات مالية أحدث أو مختلفة. استعد النسخة في بيئة معزولة وراجع الخزنة قبل النقل.');
     const safety = await createPlatformBackup('pre-restore',actor);
     const run = db.collection('_restore_runs').doc();
-    await run.set({plan:result.plan,safetyBackup:safety.name,status:'running',completedWrites:0,createdAt:admin.firestore.FieldValue.serverTimestamp()});
+    await run.set({plan:result.plan,safetyBackup:safety.name,status:'running',completedWrites:0,createdAt:FieldValue.serverTimestamp()});
     let completedWrites = 0;
     try {
       for (let i=0;i<result.documents.length;i+=300) {

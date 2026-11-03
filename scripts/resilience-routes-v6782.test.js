@@ -16,9 +16,9 @@ const functionBody = name => {
 };
 
 test('release, theme bootstrap and transparent logo stay synchronized', () => {
-  assert.equal(require(path.join(root, 'package.json')).version, '70.0.7');
-  assert.equal(require(path.join(root, 'functions/package.json')).version, '70.0.7');
-  assert.match(read('service-worker.js'), /technominds-v70-0-7-complete-report/);
+  assert.equal(require(path.join(root, 'package.json')).version, '70.0.11');
+  assert.equal(require(path.join(root, 'functions/package.json')).version, '70.0.11');
+  assert.match(read('service-worker.js'), /technominds-v70-0-11-complete-report/);
 
   for (const name of fs.readdirSync(root).filter(file => file.endsWith('.html'))) {
     const html = read(name);
@@ -35,8 +35,8 @@ test('release, theme bootstrap and transparent logo stay synchronized', () => {
   assert.equal(fs.statSync(path.join(root, 'assets/technominds-logo.webp')).size < 80 * 1024, true, 'header logo is too large');
 
   const css = read('assets/v67-learning-hub.css');
-  assert.ok(css.lastIndexOf('.site-header .logo .logo-mark') > css.lastIndexOf('.logo-mark,.iconbox'), 'final logo rule must win the cascade');
-  assert.match(css, /background-image:url\("technominds-logo\.webp"\)!important/);
+  assert.ok(css.lastIndexOf('.logo-mark{') > css.indexOf('Reference-locked owner'), 'real logo is owned by the consolidated public shell');
+  assert.match(css, /background:url\('technominds-logo\.webp'\) center\/contain no-repeat/);
   assert.match(css, /html\.theme-switching \*/);
 });
 

@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const {gradeFillAnswer}=require('./lib/fill-answer');
 const zlib = require('zlib');
 const admin = require('firebase-admin');
 const { version: PLATFORM_VERSION } = require('./package.json');
@@ -8,6 +9,7 @@ const { money, paymentStatus, paymentTotals, paymentPeriodStatus, resolveExpecte
 const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { onDocumentCreated, onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { onTaskDispatched } = require('firebase-functions/v2/tasks');
 const { setGlobalOptions } = require('firebase-functions/v2/options');
 const { scheduledTimeMillis, assignmentIsReleased, assignmentDueDatePassed } = require('./lib/assignment-schedule');
 const {
@@ -46,8 +48,7 @@ admin.initializeApp();
 setGlobalOptions({ region: 'europe-west1', maxInstances: 10, memory: '256MiB' });
 
 const db = admin.firestore();
-const FieldValue = admin.firestore.FieldValue;
-const Timestamp = admin.firestore.Timestamp;
+const { FieldValue, Timestamp, FieldPath } = require('firebase-admin/firestore');
 const PAYMENT_MONTH_NAMES = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 // Callable endpoints must accept the browser's unauthenticated CORS preflight.
 // Sensitive operations still enforce staff authentication inside each handler.
@@ -187,7 +188,7 @@ async function requirePortalSession(request, expectedStudentCode, allowedModes =
     account = await db.collection('student_portal').doc(cleanDocId(session.studentCode)).get();
   }
   if (!account.exists || !studentIsApproved(account.data())) throw new HttpsError('permission-denied', 'حساب الطالب غير متاح لهذه الخدمة.');
-  return session;
+  return {...session,student:account.data()};
 }
 
 function publicStudentName(value) {
@@ -560,18 +561,41 @@ function paymentLegacyMirrorWrites(tx, student, summary, paymentDate) {
 
 const { buildPaymentDashboard } = require('./lib/payment-dashboard');
 const paymentDashboardCache=new Map();
+const paymentDashboardInFlight=new Map();
+let paymentDashboardGeneration=0;
+function invalidatePaymentDashboardCache(){
+  paymentDashboardGeneration++;
+  paymentDashboardCache.clear();
+  paymentDashboardInFlight.clear();
+}
 exports.getPaymentDashboard = onCall({...CALLABLE_OPTIONS,timeoutSeconds:60,memory:'512MiB'}, async request => {
   await requireStaff(request);
   const body=request.data||{},filters={month:text(body.month,40)||'all',academicYear:text(body.academicYear,30)||'all',grade:text(body.grade,100)||'all',status:['paid','partial','unpaid'].includes(body.status)?body.status:'all',query:text(body.query,100)};
   if(filters.month!=='all'&&!PAYMENT_MONTH_NAMES.includes(filters.month))throw new HttpsError('invalid-argument','الشهر غير صالح.');
-  const cacheKey=JSON.stringify([filters.month,filters.academicYear,cairoDateKey()]);
+  const dashboardDate=cairoDateKey(),cacheKey=JSON.stringify([filters.month,filters.academicYear,dashboardDate]);
   let cached=paymentDashboardCache.get(cacheKey);
   if(!cached||Date.now()-cached.at>15000||body.force===true){
-    const scope=q=>{if(filters.month!=='all')q=q.where('month','==',filters.month);if(filters.academicYear!=='all')q=q.where('academicYear','==',filters.academicYear);return q;};
-    const [students,summaries,today,settings]=await Promise.all([fetchAllCollectionDocuments('students'),fetchAllCollectionDocuments('monthly_payments',scope),fetchAllCollectionDocuments('payment_transactions',q=>scope(q).where('paymentDate','==',cairoDateKey()).where('status','==','active')),db.collection('settings').doc('platform').get()]);
-    const rows=result=>result.docs.map(doc=>({id:doc.id,...doc.data()}));
-    cached={at:Date.now(),students:rows(students),summaries:rows(summaries),todayTransactions:rows(today),prices:settings.data()?.coursePrices||{}};
-    if(paymentDashboardCache.size>=8)paymentDashboardCache.clear();paymentDashboardCache.set(cacheKey,cached);
+    let loading=paymentDashboardInFlight.get(cacheKey);
+    // A force request may join another force load, but never an older ordinary
+    // load. Per-entry identity prevents that older load from winning the race.
+    if(!loading||(body.force===true&&!loading.force)){
+      loading={generation:paymentDashboardGeneration,force:body.force===true};
+      const entry=loading;
+      entry.promise=Promise.resolve().then(async()=>{
+        const scope=q=>{if(filters.month!=='all')q=q.where('month','==',filters.month);if(filters.academicYear!=='all')q=q.where('academicYear','==',filters.academicYear);return q;};
+        const [students,summaries,today,settings]=await Promise.all([fetchAllCollectionDocuments('students'),fetchAllCollectionDocuments('monthly_payments',scope),fetchAllCollectionDocuments('payment_transactions',q=>scope(q).where('paymentDate','==',dashboardDate).where('status','==','active')),db.collection('settings').doc('platform').get()]);
+        const rows=result=>result.docs.map(doc=>({id:doc.id,...doc.data()}));
+        const data={at:Date.now(),students:rows(students),summaries:rows(summaries),todayTransactions:rows(today),prices:settings.data()?.coursePrices||{}};
+        if(entry.generation===paymentDashboardGeneration&&paymentDashboardInFlight.get(cacheKey)===entry){
+          if(paymentDashboardCache.size>=8)paymentDashboardCache.clear();paymentDashboardCache.set(cacheKey,data);
+        }
+        return data;
+      }).finally(()=>{
+        if(paymentDashboardInFlight.get(cacheKey)===entry)paymentDashboardInFlight.delete(cacheKey);
+      });
+      paymentDashboardInFlight.set(cacheKey,entry);
+    }
+    cached=await loading.promise;
   }
   const result=buildPaymentDashboard({...cached,filters,canonical:canonicalAcademicLabel});
   const after=text(body.cursor,500),pageSize=40,rows=result.rows.filter(row=>!after||row.key.localeCompare(after,'en')>0).slice(0,pageSize);
@@ -580,7 +604,7 @@ exports.getPaymentDashboard = onCall({...CALLABLE_OPTIONS,timeoutSeconds:60,memo
 exports.getPaymentHistory = onCall(CALLABLE_OPTIONS, async request => {
   await requireStaff(request);
   const body=request.data||{},studentCode=normalizeCode(body.studentCode),periodId=paymentPeriodId(studentCode,body.academicYear,body.month,body.course);
-  let query=db.collection('payment_transactions').where('periodId','==',periodId).orderBy(admin.firestore.FieldPath.documentId()).limit(41);
+  let query=db.collection('payment_transactions').where('periodId','==',periodId).orderBy(FieldPath.documentId()).limit(41);
   if(body.cursor)query=query.startAfter(text(body.cursor,100));
   const snap=await query.get(),docs=snap.docs.slice(0,40);
   return {rows:docs.map(doc=>({id:doc.id,...doc.data(),createdAt:reportIso(doc.data().createdAt),updatedAt:reportIso(doc.data().updatedAt)})),nextCursor:snap.size>40?docs.at(-1).id:null};
@@ -678,7 +702,7 @@ exports.createPaymentTransaction = onCall(CALLABLE_OPTIONS, async request => {
     tx.set(db.collection('activityLog').doc(), paymentAudit(staff, 'تم تسجيل دفعة شهرية', { transactionId: transactionRef.id, studentCode, amount, academicYear, month, course }));
     result = { id: transactionRef.id, duplicate: false, transactionStatus:'active', periodId, studentCode, amount, expectedAmount: summary.expectedAmount, paidAmount: summary.paidAmount, remainingAmount: summary.remainingAmount, status: summary.status, lastPaymentDate:summary.lastPaymentDate };
   });
-  if (!result.duplicate) paymentDashboardCache.clear();
+  if (!result.duplicate) invalidatePaymentDashboardCache();
   return result;
 });
 
@@ -729,7 +753,7 @@ exports.editPaymentTransaction = onCall(CALLABLE_OPTIONS, async request => {
     tx.set(db.collection('activityLog').doc(), paymentAudit(staff, 'تم تعديل دفعة شهرية', { transactionId, oldAmount: money(original.amount), newAmount }));
     result = { id: transactionId, amount: newAmount, expectedAmount: summary.expectedAmount, paidAmount: summary.paidAmount, remainingAmount: summary.remainingAmount, status: summary.status, lastPaymentDate:summary.lastPaymentDate };
   });
-  paymentDashboardCache.clear();
+  invalidatePaymentDashboardCache();
   return result;
 });
 
@@ -775,7 +799,7 @@ exports.cancelPaymentTransaction = onCall(CALLABLE_OPTIONS, async request => {
     tx.set(db.collection('activityLog').doc(), paymentAudit(staff, 'تم إلغاء دفعة شهرية', { transactionId, amount: money(original.amount), reason: text(request.data?.reason, 500) }));
     result = { id: transactionId, cancelled: true, expectedAmount: summary.expectedAmount, paidAmount: summary.paidAmount, remainingAmount: summary.remainingAmount, status: summary.status, lastPaymentDate:summary.lastPaymentDate };
   });
-  if (!result.alreadyCancelled) paymentDashboardCache.clear();
+  if (!result.alreadyCancelled) invalidatePaymentDashboardCache();
   return result;
 });
 
@@ -931,11 +955,12 @@ exports.saveMotivationSettingsAdmin = onCall(CALLABLE_OPTIONS, async request => 
   return motivationConfig;
 });
 
-async function archiveLeaderboardPeriod(period){
+async function archiveLeaderboardPeriod(period,{publishCongratulations=false}={}){
+  const rankings=[];
   const rows=await leaderboardRowsForPeriod(period.academicYear,period.monthName,{recalculate:true}),batch=db.batch();
   const source=await leaderboardStateRef.get(),sourceVersion=Number(source.data()?.version||0);
-  ACADEMIC_GRADES.forEach(grade=>{const gradeRows=enrichLeaderboardRows(rows.filter(row=>canonicalLeaderboardGrade(row.grade)===canonicalLeaderboardGrade(grade))),id=`${period.monthKey}_${hash(grade).slice(0,12)}`;batch.set(db.collection('leaderboard_archives').doc(id),{academicYear:period.academicYear,month:period.monthName,monthKey:period.monthKey,grade,rows:gradeRows,studentCount:gradeRows.length,sourceVersion,attendancePolicyVersion:'monthly-v12-scheduled-session-attendance',lockedAt:FieldValue.serverTimestamp()},{merge:true});});
-  await batch.commit();return {ok:true,monthKey:period.monthKey,studentCount:rows.length};
+  ACADEMIC_GRADES.forEach(grade=>{const gradeRows=enrichLeaderboardRows(rows.filter(row=>canonicalLeaderboardGrade(row.grade)===canonicalLeaderboardGrade(grade))),id=`${period.monthKey}_${hash(grade).slice(0,12)}`;rankings.push({grade,rows:gradeRows});batch.set(db.collection('leaderboard_archives').doc(id),{academicYear:period.academicYear,month:period.monthName,monthKey:period.monthKey,grade,rows:gradeRows,studentCount:gradeRows.length,sourceVersion,attendancePolicyVersion:'monthly-v12-scheduled-session-attendance',lockedAt:FieldValue.serverTimestamp()},{merge:true});});
+  await batch.commit();const congratulations=publishCongratulations?await accountPlatform.publishMonthlyRankingNotifications(period,rankings):null;return {ok:true,monthKey:period.monthKey,studentCount:rows.length,...(congratulations?{congratulations}:{})};
 }
 
 async function refreshFrozenMotivationMonth(academicYear,month){
@@ -946,11 +971,20 @@ async function refreshFrozenMotivationMonth(academicYear,month){
 }
 
 exports.freezeLeaderboardMonthAdmin = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds:120, memory:'512MiB' },async request=>{await requireStaff(request,['admin']);return archiveLeaderboardPeriod(leaderboardPeriod(text(request.data?.academicYear,30),text(request.data?.month,40)));});
-exports.freezeMonthlyLeaderboard = onSchedule({region:'europe-west1',schedule:'10 0 1 * *',timeZone:'Africa/Cairo',timeoutSeconds:180,memory:'512MiB'},async()=>archiveLeaderboardPeriod(previousLeaderboardPeriod()));
+exports.freezeMonthlyLeaderboard = onSchedule({region:'europe-west1',schedule:'10 0 1 * *',timeZone:'Africa/Cairo',timeoutSeconds:180,memory:'512MiB'},async()=>archiveLeaderboardPeriod(previousLeaderboardPeriod(),{publishCongratulations:true}));
+
+function examAnswerLimit(question){
+  return question?.type==='code'?20000:question?.type==='mcq'||question?.type==='truefalse'?4000:5000;
+}
+function readExamAnswer(question,value,index){
+  const answer=String(value??''),limit=examAnswerLimit(question);
+  if(answer.length>limit)throw new HttpsError('invalid-argument',`إجابة السؤال ${Number(index)+1} تتجاوز ${limit} حرفًا. لم يتم قصّ الإجابة.`);
+  return answer;
+}
 
 function publicExamSession(sessionId, exam, questions, startedAtMs, expiresAtMs, progress = {}) {
   const draftAnswers = progress.draftAnswers && typeof progress.draftAnswers === 'object' && !Array.isArray(progress.draftAnswers)
-    ? Object.fromEntries(Object.entries(progress.draftAnswers).slice(0, questions.length).map(([key,value]) => [text(key, 8), String(value ?? '').slice(0,4000)]))
+    ? Object.fromEntries(Object.entries(progress.draftAnswers).slice(0, questions.length).map(([key,value]) => [text(key, 8), String(value ?? '')]))
     : {};
   return {
     sessionId,
@@ -1063,7 +1097,7 @@ function parseExamQuestions(source) {
       });
     } else {
       questions.push({
-        type: declaredType === 'code' || declaredType === 'كود' ? 'code' : 'essay',
+        type: declaredType === 'code' || declaredType === 'كود' ? 'code' : declaredType === 'fill' || declaredType === 'أكمل' ? 'fill' : 'essay',
         question,
         options: [],
         optionLabels: [],
@@ -1112,6 +1146,14 @@ function portalResponse(data, attempts, records = {}) {
   const gradingWeights = records.platformSettings?.gradingWeights || data.gradingWeights || {};
   const overall = configurableOverallAverage(results, gradingWeights);
   const paymentPeriod = periodFromMonthKey(cairoDateKey().slice(0,7));
+  // Derive the account alert from data already loaded by studentRecords.
+  const prices=records.platformSettings?.coursePrices||{},priceKey=Object.keys(prices).find(key=>sameAcademicValue(key,data.grade));
+  const periodRows=(records.monthlyPayments||[]).filter(row=>row.academicYear===paymentPeriod.academicYear&&row.month===paymentPeriod.monthName&&(!row.course||sameAcademicValue(row.course,data.grade)));
+  const summary=periodRows.length?{expectedAmount:periodRows.reduce((sum,row)=>sum+money(row.expectedAmount),0),paidAmount:periodRows.reduce((sum,row)=>sum+money(row.paidAmount),0),transactionCount:periodRows.reduce((sum,row)=>sum+Number(row.transactionCount||row.activeTransactionCount||0),0)}:null;
+  const expected=resolveExpectedAmount(summary,priceKey===undefined?undefined:prices[priceKey]),paid=money(summary?.paidAmount);
+  const exempt=periodRows.some(row=>['exempt','waived','free'].includes(row.status));
+  const paymentAccountState={monthKey:cairoDateKey().slice(0,7),expectedAmount:expected,paidAmount:paid,remainingAmount:Math.max(0,expected-paid),status:exempt?'exempt':expected===0?'free':paymentStatus(expected,paid)};
+
   return {
     ...apiMetadata(),
     studentCode: text(data.studentCode || data.code, 40),
@@ -1132,6 +1174,7 @@ function portalResponse(data, attempts, records = {}) {
     scheduleStartTime: text(data.scheduleStartTime, 20),
     scheduleEndTime: text(data.scheduleEndTime, 20),
     attendanceCode: text(data.attendanceCode, 40),
+    paymentAccountState,
     paid: paymentPeriodStatus(records.monthlyPayments, paymentPeriod.academicYear, paymentPeriod.monthName) === 'paid',
     paymentDate: text(data.paymentDate, 40),
     notes: text(data.parentNotes, 1500),
@@ -1342,7 +1385,7 @@ async function attemptSummaries(studentCode) {
     review: Array.isArray(a.review) ? a.review.slice(0, 200).map(answer => ({
       question: text(answer.question, 1500),
       type: text(answer.type, 30),
-      answer: text(answer.answer, 4000),
+      answer: String(answer.answer ?? ''),
       mark: Math.max(0.25, Number(answer.mark || 1)),
       awardedMark: answer.awardedMark === null || answer.awardedMark === undefined ? null : Number(answer.awardedMark),
       correct: answer.correct === true ? true : answer.correct === false ? false : null,
@@ -1357,7 +1400,7 @@ async function attemptSummaries(studentCode) {
 function publicAssignmentPayload(data = {}, id = '') {
   const type = ['mcq', 'truefalse', 'code', 'text', 'file', 'multi'].includes(data.type) ? data.type : 'text';
   const questions = Array.isArray(data.questions) ? data.questions.slice(0, 100).map(question => ({
-    type: ['mcq','truefalse','code','text'].includes(question.type) ? question.type : 'text',
+    type: ['mcq','truefalse','code','text','fill'].includes(question.type) ? question.type : 'text',
     question: text(question.question, 1500),
     mark: Math.max(0.25, Math.min(100, Number(question.mark || 1))),
     language: text(question.language, 40),
@@ -1553,6 +1596,7 @@ exports.getPortalStudent = onCall(EXAM_ENTRY_OPTIONS, async request => {
   const code = normalizeCode(request.data && request.data.code);
   const mode = request.data && request.data.mode === 'parent' ? 'parent' : 'student';
   const includeTransfers = mode === 'student' && request.data?.includeTransfers === true;
+  const resumedSession=request.data?.resumeOnly===true?await requirePortalSession(request,code,[mode]):null;
   // Login still has a strict per-code limit, but a school network may contain
   // dozens of legitimate students sharing one public IP.
   await rateLimitStudentAction(`portal-${mode}`, code, request, 20, 3000, 60 * 1000);
@@ -1601,7 +1645,7 @@ exports.getPortalStudent = onCall(EXAM_ENTRY_OPTIONS, async request => {
   const nextAssignment = assignmentDocs ? assignmentDocs.map(doc => ({ id: doc.id, ...doc.data() }))
     .filter(item => learningTargetMatchesStudent(item, secureStudent))
     .map(item => scheduledTimeMillis(item.publishAt)).filter(value => value > Date.now()).sort((a, b) => a - b)[0] || 0 : 0;
-  const portalSession = await createPortalSession(studentCode, mode, request);
+  const portalSession = resumedSession?{token:request.data.portalSessionToken,expiresAt:resumedSession.expiresAt.toMillis()}:await createPortalSession(studentCode, mode, request);
   let monthlyReport=null,monthlyReportError=false;
   if(approved&&mode==='student'){
     try{monthlyReport=await buildStudentMonthlyReport(secureStudent,cairoDateKey(new Date()).slice(0,7));}
@@ -1746,6 +1790,7 @@ async function commitServerWrites(writes, chunkSize = 420) {
   }
 }
 
+const { groupScheduleFields } = require('./lib/group-schedule');
 exports.upsertGroupSchedule = onCall(CALLABLE_OPTIONS, async request => {
   const staff = await requireStaff(request, ['admin', 'teacher']);
   const body = request.data || {};
@@ -1754,15 +1799,15 @@ exports.upsertGroupSchedule = onCall(CALLABLE_OPTIONS, async request => {
   const previousName = text(body.previousName, 100);
   const grade = text(canonicalAcademicLabel(body.grade), 80);
   if (!id || !name || !isSupportedAcademicGrade(grade)) throw new HttpsError('invalid-argument', 'بيانات المجموعة غير مكتملة.');
-  const payload = {
-    id, name, grade,
-    days: text(body.days, 100), startTime: text(body.startTime, 20), endTime: text(body.endTime, 20),
-    capacity: Math.max(0, Math.min(500, Number(body.capacity || 0))),
-    note: text(body.note, 800), active: body.active !== false,
-    updatedAt: FieldValue.serverTimestamp(), updatedBy: staff.uid
-  };
   const groupRef = db.collection('groups').doc(id);
   const existing = await groupRef.get();
+  let schedule;
+  try { schedule = groupScheduleFields(body, existing.exists ? existing.data() : {}); }
+  catch (error) { throw new HttpsError('invalid-argument', error.message); }
+  const payload = {
+    id, name, grade, ...schedule, active: body.active !== false,
+    updatedAt: FieldValue.serverTimestamp(), updatedBy: staff.uid
+  };
   const effectivePreviousName = previousName || (existing.exists ? text(existing.data().name, 100) : '');
   await groupRef.set({ ...payload, createdAt: existing.exists ? (existing.data().createdAt || FieldValue.serverTimestamp()) : FieldValue.serverTimestamp() }, { merge: true });
 
@@ -1875,14 +1920,15 @@ exports.upsertVersionedContent = onCall(CALLABLE_OPTIONS, async request => {
   input = { ...input };
   delete input.examRecoveryGrants;
   const activitySnap = collection === 'assignments'
-    ? await db.collection('homework_submissions').where('assignmentId', '==', id).limit(1).get().catch(() => null)
-    : collection === 'exams' ? await db.collection('exam_attempts').where('examId', '==', id).limit(1).get().catch(() => null) : null;
-  const hasStudentActivity = !!activitySnap && !activitySnap.empty;
+    ? await db.collection('homework_submissions').where('assignmentId', '==', id).limit(1).get()
+    : collection === 'exams' ? await db.collection('exam_attempts').where('examId', '==', id).limit(1).get() : null;
+  const sessionSnap=collection==='exams'?await db.collection('exam_sessions').where('examId','==',id).limit(1).get():null;
+  const hasStudentActivity = !!activitySnap && !activitySnap.empty || !!sessionSnap && !sessionSnap.empty;
   const result = await db.runTransaction(async tx => {
     const currentSnap = await tx.get(ref);
     const current = currentSnap.exists ? currentSnap.data() : {};
     const oldFingerprint = contentQuestionsFingerprint(collection, current);
-    const newFingerprint = contentQuestionsFingerprint(collection, input);
+    const newFingerprint = contentQuestionsFingerprint(collection, { ...current, ...input });
     const questionChanged = currentSnap.exists && oldFingerprint !== newFingerprint;
     const currentVersion = Math.max(1, Number(current.version || 1));
     const nextVersion = questionChanged ? currentVersion + 1 : currentVersion;
@@ -1923,10 +1969,15 @@ exports.upsertVersionedContent = onCall(CALLABLE_OPTIONS, async request => {
         createdBy: staff.email || staff.uid
       });
     }
-    const scheduleId = text(input.scheduleId || input.groupId, 100);
-    const targetStudentCodes = collection === 'assignments' && Array.isArray(input.targetStudentCodes)
-      ? [...new Set(input.targetStudentCodes.map(normalizeCode).filter(validLegacyOrStrongCode))].slice(0, 500)
-      : [];
+    const scheduleId = text(Object.hasOwn(input,'scheduleId')?input.scheduleId:Object.hasOwn(input,'groupId')?input.groupId:current.scheduleId||current.groupId,100);
+    const assessment=collection==='assignments'||collection==='exams';
+    const rawTargets=assessment?(Object.hasOwn(input,'targetStudentCodes')?input.targetStudentCodes:current.targetStudentCodes||[]):[];
+    if(!Array.isArray(rawTargets)||rawTargets.length>500||rawTargets.some(code=>!validLegacyOrStrongCode(normalizeCode(code))))throw new HttpsError('invalid-argument','قائمة الطلاب المستهدفين غير صالحة؛ اختر حتى 500 طالب.');
+    const targetStudentCodes=[...new Set(rawTargets.map(normalizeCode))];
+    const targetingMode=Object.hasOwn(input,'targetingMode')?input.targetingMode:targetStudentCodes.length?'students':'class';
+    if(assessment&&(!['class','students'].includes(targetingMode)||targetingMode==='students'&&!targetStudentCodes.length||targetingMode==='class'&&targetStudentCodes.length))throw new HttpsError('invalid-argument','حدد الطلاب أو اختر الصف/المجموعة؛ لن ينشر التقييم بقائمة فارغة.');
+    const audienceFingerprint=row=>JSON.stringify([row.targetStudentCodes?.length?'students':'class',[...new Set((row.targetStudentCodes||[]).map(normalizeCode))].sort(),canonicalAcademicLabel(row.grade||'كل المسارات'),String(row.scheduleId||row.groupId||''),row.scheduleId||row.groupId?'':String(row.group||'كل المجموعات'),row.academicYear||'',row.term||'']);
+    if(assessment&&hasStudentActivity&&audienceFingerprint(current)!==audienceFingerprint({...current,...input,targetStudentCodes}))throw new HttpsError('failed-precondition','لا يمكن تغيير الطلاب أو الصف بعد بدء التقييم أو وجود تسليمات؛ أنشئ تقييمًا جديدًا.');
     const payload = {
       ...input,
       id,
@@ -1938,13 +1989,14 @@ exports.upsertVersionedContent = onCall(CALLABLE_OPTIONS, async request => {
               : (current.scheduleChangedAt || FieldValue.delete())
           }
         : {}),
-      grade: input.grade ? canonicalAcademicLabel(input.grade) : '',
+      grade: canonicalAcademicLabel(Object.hasOwn(input,'grade')?input.grade:current.grade||''),
       groupId: scheduleId,
       scheduleId,
       targetStudentCodes,
+      ...(assessment?{targetingMode}:{}),
       version: nextVersion,
       previousVersion: questionChanged ? currentVersion : Number(current.previousVersion || 0),
-      audienceKeys: collection === 'materials' || collection === 'assignments' || collection === 'exams' ? academicAudienceKeysForItem({ ...input, scheduleId, groupId: scheduleId, targetStudentCodes }) : [],
+      audienceKeys: collection === 'materials' || collection === 'assignments' || collection === 'exams' ? academicAudienceKeysForItem({ ...current, ...input, scheduleId, groupId: scheduleId, targetStudentCodes }) : [],
       archived: false,
       archivedAt: FieldValue.delete(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -2024,7 +2076,7 @@ exports.getAdminCollectionPage = onCall(CALLABLE_OPTIONS, async request => {
     const value = text(filters[field], 120);
     if (value) query = query.where(field, '==', field === 'studentCode' ? normalizeCode(value) : value);
   }
-  query = query.orderBy(orderField, 'desc').orderBy(admin.firestore.FieldPath.documentId(), 'desc');
+  query = query.orderBy(orderField, 'desc').orderBy(FieldPath.documentId(), 'desc');
   const cursor = request.data?.cursor;
   if (cursor?.orderValue !== undefined && cursor?.id) query = query.startAfter(cursor.orderValue, cursor.id);
   const snap = await query.limit(pageSize).get();
@@ -2105,12 +2157,14 @@ for(const collection of REPORT_STUDENT_SOURCES){
   exports[`invalidateReport_${collection}`]=onDocumentWritten({document:`${collection}/{id}`,region:'europe-west1'},async event=>{
     const codes=new Set([event.data?.before.data(),event.data?.after.data()].filter(Boolean).map(row=>normalizeCode(row.studentCode||row.code||(collection==='students'?event.params.id:''))).filter(Boolean));
     await Promise.all([...codes].map(code=>db.collection('monthly_report_state').doc(code).set({version:FieldValue.increment(1),updatedAt:FieldValue.serverTimestamp()},{merge:true})));
+    if(collection==='students')await studentDelivery.syncAudience(normalizeCode(event.data?.after.data()?.studentCode||event.data?.before.data()?.studentCode||event.params.id),event.data?.after.data(),event.data?.before.data());
   });
 }
 for(const collection of ['assignments','exams','class_sessions','materials','groups']){
-  exports[`invalidateReport_${collection}`]=onDocumentWritten({document:`${collection}/{id}`,region:'europe-west1'},async()=>{
+  exports[`invalidateReport_${collection}`]=onDocumentWritten({document:`${collection}/{id}`,region:'europe-west1'},async event=>{
     await db.doc('_system/report_content').set({version:FieldValue.increment(1),updatedAt:FieldValue.serverTimestamp()},{merge:true});
     if(collection==='class_sessions'||collection==='groups')await markLeaderboardDirty(`${collection}-updated`);
+    if(['materials','assignments','exams'].includes(collection))await studentDelivery.publish(collection,event.params.id,event.data?.after.data(),event.data?.before.data());
   });
 }
 
@@ -2147,7 +2201,7 @@ function reportMonthBounds(monthKeys=[]) {
   if(!keys.length)return null;
   const [startYear,startMonth]=keys[0].split('-').map(Number),[endYear,endMonth]=keys.at(-1).split('-').map(Number);
   const start=new Date(Date.UTC(startYear,startMonth-1,1)),end=new Date(Date.UTC(endYear,endMonth,1));
-  return {startKey:keys[0]+'-01',endKey:`${end.getUTCFullYear()}-${String(end.getUTCMonth()+1).padStart(2,'0')}-01`,startTimestamp:admin.firestore.Timestamp.fromDate(start),endTimestamp:admin.firestore.Timestamp.fromDate(end)};
+  return {startKey:keys[0]+'-01',endKey:`${end.getUTCFullYear()}-${String(end.getUTCMonth()+1).padStart(2,'0')}-01`,startTimestamp:Timestamp.fromDate(start),endTimestamp:Timestamp.fromDate(end)};
 }
 
 async function successfulReportSnapshots(promises) {
@@ -2341,6 +2395,14 @@ function reportAvailableMonths(source,currentMonthKey) {
 }
 
 async function buildStudentMonthlyReport(student,monthKey,options={}) {
+  // Retry a concurrent invalidation once using fresh revisions; never publish stale data.
+  for(let attempt=0;attempt<2;attempt+=1){
+    try{return await buildStudentMonthlyReportOnce(student,monthKey,options);}
+    catch(error){if(error?.code!=='aborted'||attempt===1)throw error;}
+  }
+}
+
+async function buildStudentMonthlyReportOnce(student,monthKey,options={}) {
   if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(monthKey))throw new HttpsError('invalid-argument','اختر شهر التقرير بصورة صحيحة.');
   const studentCode=normalizeCode(student.studentCode||student.code||student.id),ref=db.collection('monthly_reports').doc(cleanDocId(`${studentCode}_${monthKey}`));
   const stateRef=db.collection('monthly_report_state').doc(studentCode),contentRef=db.doc('_system/report_content');
@@ -2378,6 +2440,7 @@ exports.getStudentMonthlyReportAdmin = onCall({ ...CALLABLE_OPTIONS, timeoutSeco
 exports.getParentMonthlyReport = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds:60, memory:'512MiB' }, async request => {
   const studentCode=normalizeCode(request.data?.studentCode),monthKey=text(request.data?.monthKey,7);
   await requirePortalSession(request,studentCode,['parent']);
+  await rateLimitStudentAction('parent-monthly-report',studentCode,request,20,3000,60*1000);
   const found=await getStudentPortalByCode(studentCode);
   const [report,ranking]=await Promise.all([buildStudentMonthlyReport(found.data,monthKey),studentReportRanking(found.data,monthKey).catch(()=>null)]);
   return ranking?{...report,motivation:{...(report.motivation||{}),...ranking}}:report;
@@ -2594,7 +2657,7 @@ exports.submitAssignmentAnswer = onCall(CALLABLE_OPTIONS, async request => {
     if (jsonByteSize(rawAnswers) > 96 * 1024) throw new HttpsError('invalid-argument', 'حجم إجابات الواجب أكبر من الحد المسموح.');
     answerType = 'multi';
     review = multiQuestions.map((question, index) => {
-      const qType = ['mcq','truefalse','code','text'].includes(question.type) ? question.type : 'text';
+      const qType = ['mcq','truefalse','code','text','fill'].includes(question.type) ? question.type : 'text';
       const mark = Math.max(0.25, Math.min(100, Number(question.mark || 1)));
       const raw = rawAnswers[String(index)] ?? rawAnswers[index] ?? '';
       if (qType === 'mcq' || qType === 'truefalse') {
@@ -2607,6 +2670,7 @@ exports.submitAssignmentAnswer = onCall(CALLABLE_OPTIONS, async request => {
       }
       const answer = text(raw, qType === 'code' ? 20000 : 5000);
       if (!answer) throw new HttpsError('invalid-argument', `أجب عن السؤال ${index + 1}.`);
+      if(qType==='fill'){const correct=gradeFillAnswer(answer,question.modelAnswer);if(correct===true)autoScore+=mark;if(correct===null)needsManualReview=true;return {question:text(question.question,1500),type:qType,answer,correct,correctAnswer:text(question.modelAnswer,2000)||'يصححها المدرس',mark,awardedMark:correct===null?null:correct?mark:0};}
       needsManualReview = true;
       return { question:text(question.question,1500), type:qType, answer, correct:null, correctAnswer:text(question.modelAnswer,2000)||'يصححها المدرس', mark, awardedMark:null };
     });
@@ -2715,10 +2779,25 @@ exports.submitAssignmentAnswer = onCall(CALLABLE_OPTIONS, async request => {
     if (grantRef) tx.update(grantRef, { status: 'used', usedAt: FieldValue.serverTimestamp(), submissionId, updatedAt: FieldValue.serverTimestamp() });
     return { submissionId, submission, duplicate:false };
   });
-  if(!committed.duplicate)await Promise.all([
-    markLeaderboardDirty('assignment-submitted'),
-    markStudentMonthlyReportDirty(studentCode,committed.submission?.submittedAt||submittedAt,'homework-submitted')
-  ]);
+  if (!committed.duplicate) {
+    // The submission is already committed. Observe both invalidations without
+    // turning a report/cache failure into a failed student submission.
+    // Existing source triggers invalidate monthly reports; the live leaderboard
+    // cache also expires after five minutes. Duplicate retries do not repeat
+    // these invalidation writes.
+    const invalidations = await Promise.allSettled([
+      Promise.resolve().then(() => markLeaderboardDirty('assignment-submitted')),
+      Promise.resolve().then(() => markStudentMonthlyReportDirty(studentCode, committed.submission?.submittedAt || submittedAt, 'homework-submitted'))
+    ]);
+    invalidations.forEach((result, index) => {
+      if (result.status === 'rejected') console.warn('homework-submit-post-commit-failed', {
+        stage: 'post-commit',
+        dependency: index === 0 ? 'leaderboard' : 'monthly-report',
+        code: text(result.reason?.code || 'internal', 60),
+        committed: true
+      });
+    });
+  }
   const publicSubmission = publicHomeworkProjection(committed.submission);
   return {
     ok: true,
@@ -2804,7 +2883,7 @@ exports.reviewExamAttempt = onCall(CALLABLE_OPTIONS, async request => {
     const publicReview = answers.map(answer => ({
       question: text(answer.question, 1500),
       type: text(answer.type, 30),
-      answer: text(answer.answer, 4000),
+      answer: String(answer.answer ?? ''),
       mark: Math.max(0.25, Number(answer.mark || 1)),
       awardedMark: Number(answer.awardedMark || 0),
       correct: answer.correct === true,
@@ -3395,10 +3474,10 @@ exports.unifyLegacyStudentAccess = onSchedule({ schedule: '0 4 * * 0', region: '
   const stateRef = db.collection('_system').doc('unified_student_access');
   const stateSnap = await stateRef.get();
   const cursor = text(stateSnap.exists ? stateSnap.data().cursor : '', 200);
-  let query = db.collection('students').orderBy(admin.firestore.FieldPath.documentId()).limit(100);
+  let query = db.collection('students').orderBy(FieldPath.documentId()).limit(100);
   if (cursor) query = query.startAfter(cursor);
   let snap = await query.get();
-  if (snap.empty && cursor) snap = await db.collection('students').orderBy(admin.firestore.FieldPath.documentId()).limit(100).get();
+  if (snap.empty && cursor) snap = await db.collection('students').orderBy(FieldPath.documentId()).limit(100).get();
   const result = await unifyStudentAccessDocuments(snap.docs);
   const nextCursor = snap.empty ? '' : snap.docs[snap.docs.length - 1].id;
   await stateRef.set({ ...result, cursor: nextCursor, lastRunAt: FieldValue.serverTimestamp() }, { merge: true });
@@ -4312,7 +4391,7 @@ exports.saveExamProgress = onCall(CALLABLE_OPTIONS, async request => {
     const questions=Array.isArray(session.questions)?session.questions:[],expiresAt=session.expiresAt?.toMillis?.()||0;
     if(expiresAt&&Date.now()>expiresAt+120000)throw new HttpsError('deadline-exceeded','انتهى وقت الامتحان.');
     if(revision<=Number(session.draftRevision||0))return {saved:false,submitted:false,revision:Number(session.draftRevision||0)};
-    const answers={};Object.entries(raw).slice(0,questions.length).forEach(([key,value])=>{const index=Number(key);if(Number.isInteger(index)&&index>=0&&index<questions.length)answers[String(index)]=String(value??'').slice(0,4000);});
+    const answers={};Object.entries(raw).slice(0,questions.length).forEach(([key,value])=>{const index=Number(key);if(Number.isInteger(index)&&index>=0&&index<questions.length)answers[String(index)]=readExamAnswer(questions[index],value,index);});
     const current=Math.max(0,Math.min(Math.max(0,questions.length-1),Math.trunc(Number(body.current||0))));
     tx.update(ref,{draftAnswers:answers,draftCurrent:current,draftRevision:revision,draftSavedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()});
     return {saved:true,submitted:false,revision};
@@ -4394,13 +4473,17 @@ exports.submitExam = onCall(EXAM_ENTRY_OPTIONS, async request => {
         mark: questionMark,
         awardedMark: correct === true ? questionMark : 0
       });
+    } else if(question.type==='fill'){
+      const answer=readExamAnswer(question,value,index),correct=gradeFillAnswer(answer,question.modelAnswer);
+      if(correct===true)correctCount+=1;if(correct===null)needsManualReview=true;
+      staffAnswers.push({question:question.question,type:'fill',answer,correct,correctAnswer:question.modelAnswer||'يصححها المدرس',mark:questionMark,awardedMark:correct===null?null:correct?questionMark:0});
     } else {
       essayCount += 1;
       needsManualReview = true;
       staffAnswers.push({
         question: question.question,
-        type: 'essay',
-        answer: text(value, 4000),
+        type: question.type === 'code' ? 'code' : 'essay',
+        answer: readExamAnswer(question,value,index),
         correct: null,
         correctAnswer: question.modelAnswer || 'يصححها المدرس',
         mark: questionMark,
@@ -4598,14 +4681,9 @@ exports.registerHomeworkSubmission = onCall(CALLABLE_OPTIONS, async request => {
 });
 
 exports.reportClientError = onCall(CALLABLE_OPTIONS, async request => {
-  const body = request.data || {};
-  await rateLimitPublic('client-error', text(body.page, 120), request, 5, 15, 60 * 60 * 1000);
-  await db.collection('client_errors').add({
-    message: text(body.message, 1000),
-    page: text(body.page, 500),
-    userAgent: text(body.userAgent, 500),
-    createdAt: FieldValue.serverTimestamp()
-  });
+  const row = require('./lib/client-error').safeClientError(request.data);
+  await rateLimitPublic('client-error', row.page, request, 5, 15, 60 * 60 * 1000);
+  await db.collection('client_errors').add({...row,createdAt:FieldValue.serverTimestamp()});
   return { ok: true };
 });
 
@@ -4961,6 +5039,20 @@ exports.getPlatformHealthHttp = onRequest({ region:'europe-west1', timeoutSecond
   catch(error){console.error('platform-health-http',error);return response.status(503).json({status:'error',firestore:false});}
 });
 
+// Serialize quota checks for one IP inside this instance. The Firestore transaction
+// remains the cross-instance authority; no quota, window or provider limit changes.
+const codeQuotaQueues = new Map();
+async function withCodeQuota(visitorIdentity, request, ipRuns) {
+  const key = requestIp(request), previous = codeQuotaQueues.get(key) || Promise.resolve();
+  const operation = previous.catch(() => {}).then(() => rateLimitPublic('code-run-public', visitorIdentity, request, 6, ipRuns, 60 * 1000));
+  codeQuotaQueues.set(key, operation);
+  try { await operation; }
+  catch (error) {
+    if (error?.code === 10 || error?.code === 'ABORTED') throw new HttpsError('unavailable', 'خدمة التشغيل مشغولة مؤقتًا. أعد المحاولة بعد لحظات.');
+    throw error;
+  } finally { if (codeQuotaQueues.get(key) === operation) codeQuotaQueues.delete(key); }
+}
+
 exports.submitCodeExecution = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 30, memory: '256MiB' }, async request => {
   let config;
   try { config = codeRunnerConfig(); } catch (_) { throw new HttpsError('unavailable', 'خدمة تشغيل الأكواد غير متاحة حاليًا.'); }
@@ -4974,7 +5066,7 @@ exports.submitCodeExecution = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 30, 
   // The practical lab is public. Abuse is limited per visitor IP while code is
   // still executed in Judge0 without network access and with strict resources.
   const visitorIdentity = `${requestIp(request)}:${text(request.data?.visitorId, 80) || 'anonymous'}`;
-  await rateLimitPublic('code-run-public', visitorIdentity, request, 6, config.ipRuns, 60 * 1000);
+  await withCodeQuota(visitorIdentity, request, config.ipRuns);
   if (activeCodeRuns >= 4) throw new HttpsError('resource-exhausted', 'خدمة التشغيل مشغولة. حاول مرة أخرى بعد لحظات.');
   activeCodeRuns += 1;
 
@@ -5217,7 +5309,14 @@ exports.upsertCurriculumEntity = onCall(CALLABLE_OPTIONS, async request => {
       raw.contentType = 'application/pdf';
     }
   }
+  if(collection==='lectures'&&existing.exists){const prior=existing.data();raw={...raw,filePath:raw.filePath??prior.filePath??'',fileName:raw.fileName??prior.fileName??'',contentType:raw.contentType??prior.contentType??''};}
   const payload = normalizedCurriculumPayload(raw, staff, id);
+  if(collection==='lectures'){
+    const previous=existing.exists?existing.data():{},category=raw.lectureCategory??previous.lectureCategory??'theory',rawLink=String(raw.linkUrl??previous.linkUrl??'').trim(),link=curriculumDriveUrl(rawLink);
+    if(!['theory','practical'].includes(category))throw new HttpsError('invalid-argument','اختر محاضرة عملي أو نظري.');
+    if(rawLink&&!link)throw new HttpsError('invalid-argument','اكتب رابط Google Drive صحيحًا باستخدام HTTPS.');
+    payload.lectureCategory=category;payload.linkUrl=link;
+  }
   await ref.set({
     ...payload,
     createdAt: existing.exists ? (existing.data().createdAt || FieldValue.serverTimestamp()) : FieldValue.serverTimestamp(),
@@ -5235,7 +5334,7 @@ exports.listCurriculumAdmin = onCall(CALLABLE_OPTIONS, async request => {
   const pageSize = Math.max(10, Math.min(50, Number(request.data?.pageSize || 20)));
   const requestedGrade = text(request.data?.grade, 80);
   const direction = request.data?.direction === 'desc' ? 'desc' : 'asc';
-  let query = db.collection(collection).orderBy('order', direction).orderBy(admin.firestore.FieldPath.documentId(), direction);
+  let query = db.collection(collection).orderBy('order', direction).orderBy(FieldPath.documentId(), direction);
   if (requestedGrade && requestedGrade !== 'all') query = query.where('grade', 'in', academicGradeQueryValues(requestedGrade));
   if (request.data?.term) query = query.where('term', '==', text(request.data.term, 40));
   if (request.data?.unitId) query = query.where('unitId', '==', text(request.data.unitId, 120));
@@ -5298,8 +5397,8 @@ function contentIsOpen(data, now = Timestamp.now()) {
   // them. This keeps old uploads available to staff without publishing them by
   // accident during a migration.
   if (data.legacySource && data.studentVisible !== true) return false;
-  if (data.openAt && data.openAt.toMillis && data.openAt.toMillis() > now.toMillis()) return false;
-  if (data.closeAt && data.closeAt.toMillis && data.closeAt.toMillis() <= now.toMillis()) return false;
+  if (data.openAt && firestoreMillis(data.openAt) > firestoreMillis(now)) return false;
+  if (data.closeAt && firestoreMillis(data.closeAt) && firestoreMillis(data.closeAt) <= firestoreMillis(now)) return false;
   return true;
 }
 
@@ -5327,6 +5426,10 @@ async function visibleQuestionBanks(documents, student, materialDocs = [], kind 
   });
 }
 
+function curriculumDriveUrl(value) {
+  const raw=String(value||'').trim();if(!raw||raw.length>2048||/[\u0000-\u0020\u007f]/.test(raw))return '';
+  try{const url=new URL(raw);return url.protocol==='https:'&&!url.username&&!url.password&&!url.port&&['drive.google.com','docs.google.com'].includes(url.hostname)?url.href:'';}catch(_){return '';}
+}
 function publicLecture(data, id, progress = {}) {
   return {
     id, grade: text(canonicalAcademicLabel(data.grade), 80), term: text(data.term, 40), unitId: text(data.unitId, 120),
@@ -5334,6 +5437,8 @@ function publicLecture(data, id, progress = {}) {
     lectureNumber: Number(data.lectureNumber || data.order || 0), order: Number(data.order || 0),
     title: text(data.title, 220), description: text(data.description, 1200),
     learningObjectives: Array.isArray(data.learningObjectives) ? data.learningObjectives : [],
+    lectureCategory: data.lectureCategory==='practical'?'practical':'theory', linkUrl: curriculumDriveUrl(data.linkUrl),
+    hasFile: Boolean(text(data.filePath, 500)), contentType: text(data.fileType || data.contentType, 100),
     allowDownload: data.allowDownload === true, coverPath: text(data.coverPath, 500),
     openAt: data.openAt || null, closeAt: data.closeAt || null,
     progress: Math.max(0, Math.min(100, Number(progress.percent || 0))),
@@ -5352,7 +5457,7 @@ exports.getStudentCurriculum = onCall(CALLABLE_OPTIONS, async request => {
   const [lectureDocs, unitDocs, progressSnap] = await Promise.all([
     targetedLearningDocs('lectures', student, 500),
     targetedLearningDocs('units', student, 250),
-    db.collection('student_progress').doc(code).collection('lectures').limit(40).get()
+    db.collection('student_progress').doc(code).collection('lectures').limit(500).get()
   ]);
   const progress = new Map(progressSnap.docs.map(doc => [doc.id, doc.data()]));
   const now = Timestamp.now();
@@ -5434,10 +5539,10 @@ exports.getCurriculumFileUrl = onCall(CALLABLE_OPTIONS, async request => {
   const code = normalizeCode(request.data?.studentCode), collection = text(request.data?.collection, 80), id = curriculumId(request.data?.id);
   await requirePortalSession(request, code, ['student']);
   await rateLimitPublic('curriculum-file', `${code}:${collection}:${id}`, request, 20, 50, 60 * 1000);
-  if (!['lectures','lecture_materials','assignments_v2','question_banks','bank_questions','monthly_exams'].includes(collection)) throw new HttpsError('invalid-argument', 'نوع الملف غير صالح.');
+  if (!['materials','lectures','lecture_materials','assignments_v2','question_banks','bank_questions','monthly_exams'].includes(collection)) throw new HttpsError('invalid-argument', 'نوع الملف غير صالح.');
   const [found, snap] = await Promise.all([getStudentPortalByCode(code), db.collection(collection).doc(id).get()]);
   requireApprovedStudent(found.data);
-  if (!snap.exists || !contentIsOpen(snap.data()) || !learningTargetMatchesStudent(snap.data(), found.data) || !learningContentAccessAllowed(snap.data(), found.data, collection)) throw new HttpsError('permission-denied', 'الملف غير متاح لهذا الطالب.');
+  if (!snap.exists || !(collection === 'materials' ? reusableLearningContentIsVisible(snap.data()) : contentIsOpen(snap.data())) || !learningTargetMatchesStudent(snap.data(), found.data) || !learningContentAccessAllowed(snap.data(), found.data, collection)) throw new HttpsError('permission-denied', 'الملف غير متاح لهذا الطالب.');
   if (['lecture_materials','assignments_v2','question_banks','bank_questions','monthly_exams'].includes(collection) && !(await visibleQuestionBanks([snap], found.data, [], collection)).length) throw new HttpsError('permission-denied', 'الدرس المرتبط بالملف غير متاح لهذا الطالب.');
   const path = text(snap.data().filePath, 500);
   if (!path) throw new HttpsError('not-found', 'لا يوجد ملف مرتبط.');
@@ -5467,4 +5572,70 @@ exports.migrateCurriculumV61 = onCall({ region: 'europe-west1', timeoutSeconds: 
   }
   if (apply) await serverActivity(staff, 'ترحيل المحتوى إلى Curriculum V61', report);
   return report;
+});
+
+
+// Account messages use the existing Admin identity and portal session boundaries.
+const accountPlatform=require('./lib/account-platform').createAccountPlatform({
+  db,FieldValue,Timestamp,documentId:FieldPath.documentId(),HttpsError,
+  canonicalAcademicLabel,ACADEMIC_GRADES,studentIsApproved,academicAudienceKeysForStudent,canReadNotice:(notice,student)=>studentDelivery.allowed(notice,student)
+});
+exports.manageLearningTrackAdmin = onCall(CALLABLE_OPTIONS,async request=>{
+  const profile=await requireStaff(request);
+  await rateLimit('manage-learning-track',profile.uid,60,60*60*1000);
+  return accountPlatform.manageLearningTrackAdmin(request,profile);
+});
+exports.publishAccountNotificationAdmin = onCall(CALLABLE_OPTIONS,async request=>{
+  const profile=await requireStaff(request);
+  await rateLimit('publish-account-notification',profile.uid,60,60*60*1000);
+  return accountPlatform.publishAccountNotificationAdmin(request,profile);
+});
+exports.listAccountNotificationsAdmin = onCall(CALLABLE_OPTIONS,async request=>{
+  await requireStaff(request);
+  return accountPlatform.listAccountNotificationsAdmin(request);
+});
+exports.getStudentAccountNotifications = onCall(CALLABLE_OPTIONS,async request=>{
+  const code=normalizeCode(request.data?.studentCode);
+  const session=await requirePortalSession(request,code,['student']);
+  await rateLimitPublic('student-account-notifications',code,request,30,120,60*60*1000);
+  return accountPlatform.getStudentAccountNotifications(request,session);
+});
+exports.setStudentAccountNotificationRead = onCall(CALLABLE_OPTIONS,async request=>{
+  const code=normalizeCode(request.data?.studentCode);
+  const session=await requirePortalSession(request,code,['student']);
+  await rateLimitPublic('student-notification-read',code,request,100,300,60*60*1000);
+  return accountPlatform.setStudentAccountNotificationRead(request,session);
+});
+
+
+
+// Student delivery reuses the current portal session and the existing content policies.
+const {createStudentDelivery}=require('./lib/student-delivery');
+async function canStudentReadNoticeContent(ref,student){
+  const supported=['materials','assignments','exams','lectures','lecture_materials','assignments_v2','monthly_exams','question_banks','bank_questions'];
+  if(!supported.includes(ref?.collection)||!ref.id||String(ref.id).includes('/'))return false;
+  const snap=await db.collection(ref.collection).doc(ref.id).get();if(!snap.exists)return false;const row=snap.data();
+  const visible=['materials','assignments','exams'].includes(ref.collection)?reusableLearningContentIsVisible(row):contentIsOpen(row);
+  if(!visible||!learningTargetMatchesStudent(row,student)||!learningContentAccessAllowed(row,student,ref.collection))return false;
+  if(row.lectureId&&!['lectures','materials'].includes(ref.collection))return canStudentReadNoticeContent({collection:row.lectureSource==='materials'?'materials':'lectures',id:row.lectureId},student);
+  return true;
+}
+const studentDelivery=createStudentDelivery({db,Timestamp,FieldValue,documentId:FieldPath.documentId(),HttpsError,studentIsApproved,
+  canReadContent:canStudentReadNoticeContent,localOnly:String(process.env.GCLOUD_PROJECT||'').startsWith('demo-'),
+  enqueue:async(data,date)=>{const {getFunctions}=require('firebase-admin/functions'),id=hash(JSON.stringify(data)+':'+Math.floor(date.getTime()/86400000)).slice(0,48);try{await getFunctions().taskQueue('locations/europe-west1/functions/deliverStudentNotificationPush').enqueue(data,{scheduleTime:date,dispatchDeadlineSeconds:300,id});}catch(e){if(!['functions/task-already-exists','already-exists'].includes(e.code)&&e.code!==6)throw e;}},
+  send:messages=>admin.messaging().sendEach(messages)
+});
+for(const collection of ['lectures','lecture_materials','assignments_v2','monthly_exams','question_banks','bank_questions']){
+  exports[`notifyStudent_${collection}`]=onDocumentWritten({document:collection+'/{id}',region:'europe-west1'},event=>studentDelivery.publish(collection,event.params.id,event.data?.after.data(),event.data?.before.data()));
+}
+exports.queueStudentNotificationPush=onDocumentCreated({document:'account_notifications/{id}',region:'europe-west1',retry:true},async event=>{
+  if(!/^[a-f0-9]{48}$/.test(event.params.id))return;
+  return studentDelivery.queue({noticeId:event.params.id},Number(event.data?.data()?.availableAt)||Date.now());
+});
+exports.deliverStudentNotificationPush=onTaskDispatched({region:'europe-west1',timeoutSeconds:300,retryConfig:{maxAttempts:5,minBackoffSeconds:60,maxBackoffSeconds:300},rateLimits:{maxConcurrentDispatches:2,maxDispatchesPerSecond:2}},request=>studentDelivery.dispatch(request.data));
+exports.registerStudentPushToken = onCall(CALLABLE_OPTIONS,async request=>{
+ const code=normalizeCode(request.data?.studentCode),session=await requirePortalSession(request,code,['student']);await rateLimitPublic('student-push-register',code,request,15,300,60*60*1000);return studentDelivery.register(session,request.data?.token);
+});
+exports.unregisterStudentPushToken = onCall(CALLABLE_OPTIONS,async request=>{
+ const code=normalizeCode(request.data?.studentCode),session=await requirePortalSession(request,code,['student']);await rateLimitPublic('student-push-unregister',code,request,20,300,60*60*1000);return studentDelivery.unregister(session,request.data?.token);
 });

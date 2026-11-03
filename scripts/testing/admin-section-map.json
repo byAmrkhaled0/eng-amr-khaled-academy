@@ -1,0 +1,192 @@
+[
+  {
+    "sectionId": "overview",
+    "currentLabel": "الرئيسية",
+    "workspace": "الرئيسية",
+    "newVisibleLabel": "الرئيسية",
+    "originalHandler": "goAdminSection('overview')",
+    "routeHash": null,
+    "oldWorkspace": "الرئيسية",
+    "presentation": "local workspace tab"
+  },
+  {
+    "sectionId": "classroom",
+    "currentLabel": "حصة اليوم",
+    "workspace": "الحصص والمتابعة",
+    "newVisibleLabel": "حصة اليوم",
+    "originalHandler": "goAdminSection('classroom')",
+    "routeHash": null,
+    "oldWorkspace": "التشغيل",
+    "presentation": "local workspace tab"
+  },
+  {
+    "sectionId": "students",
+    "currentLabel": "الطلاب",
+    "workspace": "الطلاب",
+    "newVisibleLabel": "الطلاب",
+    "originalHandler": "goAdminSection('students')",
+    "routeHash": null,
+    "oldWorkspace": "الطلاب",
+    "presentation": "local workspace tab"
+  },
+  {
+    "sectionId": "motivation",
+    "currentLabel": "التحفيز والترتيب",
+    "workspace": "التقارير والتواصل",
+    "newVisibleLabel": "التحفيز والترتيب",
+    "originalHandler": "goAdminSection('motivation')",
+    "routeHash": null,
+    "oldWorkspace": "المتابعة",
+    "presentation": "local workspace tab"
+  },
+  {
+    "sectionId": "schedules",
+    "currentLabel": "المواعيد",
+    "workspace": "الحصص والمتابعة",
+    "newVisibleLabel": "المواعيد",
+    "originalHandler": "goAdminSection('schedules')",
+    "routeHash": null,
+    "oldWorkspace": "الطلاب",
+    "presentation": "local workspace tab"
+  },
+  {
+    "sectionId": "attendance",
+    "currentLabel": "الحضور والغياب",
+    "workspace": "الحصص والمتابعة",
+    "newVisibleLabel": "الحضور والغياب",
+    "originalHandler": "goAdminSection('attendance')",
+    "routeHash": null,
+    "oldWorkspace": "الطلاب",
+    "presentation": "local workspace tab"
+  },
+  {
+    "sectionId": "materials",
+    "currentLabel": "محاضرات العملي",
+    "workspace": "المحتوى التعليمي",
+    "newVisibleLabel": "محاضرات العملي",
+    "originalHandler": "goAdminSection('materials')",
+    "routeHash": null,
+    "oldWorkspace": "التعليم",
+    "presentation": "local workspace tab"
+  },
+  {
+    "sectionId": "theoryLectures",
+    "currentLabel": "محاضرات النظري",
+    "workspace": "المحتوى التعليمي",
+    "newVisibleLabel": "محاضرات النظري",
+    "originalHandler": "goAdminSection('theoryLectures')",
+    "routeHash": null,
+    "oldWorkspace": "التعليم",
+    "presentation": "local workspace tab"
+  },
+  {
+    "sectionId": "assignments",
+    "currentLabel": "الواجبات",
+    "workspace": "التقييمات",
+    "newVisibleLabel": "الواجبات",
+    "originalHandler": "goAdminSection('assignments')",
+    "routeHash": null,
+    "oldWorkspace": "التعليم",
+    "presentation": "local workspace tab"
+  },
+  {
+    "sectionId": "exams",
+    "currentLabel": "الاختبارات",
+    "workspace": "التقييمات",
+    "newVisibleLabel": "الاختبارات",
+    "originalHandler": "goAdminSection('exams')",
+    "routeHash": null,
+    "oldWorkspace": "التعليم",
+    "presentation": "local workspace tab"
+  },
+  {
+    "sectionId": "questionBanks",
+    "currentLabel": "بنوك الأسئلة",
+    "workspace": "التقييمات",
+    "newVisibleLabel": "بنوك الأسئلة",
+    "originalHandler": "goAdminSection('questionBanks')",
+    "routeHash": null,
+    "oldWorkspace": "التعليم",
+    "presentation": "local workspace tab"
+  },
+  {
+    "sectionId": "payments",
+    "currentLabel": "المدفوعات",
+    "workspace": "المالية",
+    "newVisibleLabel": "المدفوعات",
+    "originalHandler": "goAdminSection('payments')",
+    "routeHash": null,
+    "oldWorkspace": "المالية",
+    "presentation": "local workspace tab"
+  },
+  {
+    "sectionId": "bookings",
+    "currentLabel": "طلبات التسجيل",
+    "workspace": "الطلاب",
+    "newVisibleLabel": "طلبات التسجيل",
+    "originalHandler": "goAdminSection('bookings')",
+    "routeHash": null,
+    "oldWorkspace": "التشغيل",
+    "presentation": "local workspace tab"
+  },
+  {
+    "sectionId": "studentRequests",
+    "currentLabel": "طلبات النقل",
+    "workspace": "الطلاب",
+    "newVisibleLabel": "طلبات النقل",
+    "originalHandler": "goAdminSection('studentRequests')",
+    "routeHash": null,
+    "oldWorkspace": "الطلاب",
+    "presentation": "local workspace tab"
+  },
+  {
+    "sectionId": "warnings",
+    "currentLabel": "متابعة الغياب",
+    "workspace": "الحصص والمتابعة",
+    "newVisibleLabel": "متابعة الغياب",
+    "originalHandler": "goAdminSection('warnings')",
+    "routeHash": null,
+    "oldWorkspace": "المتابعة",
+    "presentation": "local workspace tab"
+  },
+  {
+    "sectionId": "curriculum",
+    "currentLabel": "المنهج الدراسي",
+    "workspace": "المحتوى التعليمي",
+    "newVisibleLabel": "المنهج الدراسي",
+    "originalHandler": "goAdminSection('curriculum')",
+    "routeHash": null,
+    "oldWorkspace": "التعليم",
+    "presentation": "local workspace tab"
+  },
+  {
+    "sectionId": "reviews",
+    "currentLabel": "التقييمات",
+    "workspace": "التقارير والتواصل",
+    "newVisibleLabel": "التقييمات",
+    "originalHandler": "goAdminSection('reviews')",
+    "routeHash": null,
+    "oldWorkspace": "المتابعة",
+    "presentation": "local workspace tab"
+  },
+  {
+    "sectionId": "backup",
+    "currentLabel": "النسخ والسجل",
+    "workspace": "الإعدادات",
+    "newVisibleLabel": "النسخ والسجل",
+    "originalHandler": "goAdminSection('backup')",
+    "routeHash": null,
+    "oldWorkspace": "الإدارة",
+    "presentation": "local workspace tab"
+  },
+  {
+    "sectionId": "settings",
+    "currentLabel": "الإعدادات",
+    "workspace": "الإعدادات",
+    "newVisibleLabel": "الإعدادات",
+    "originalHandler": "goAdminSection('settings')",
+    "routeHash": null,
+    "oldWorkspace": "الإدارة",
+    "presentation": "local workspace tab"
+  }
+]

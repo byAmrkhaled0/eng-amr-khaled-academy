@@ -1,0 +1,7 @@
+'use strict';
+// Local fixture only. Production HTML does not load this file.
+const localStudent={studentCode:'123456',name:'محمد أحمد — طالب المراجعة',grade:'أولى ثانوي بكالوريا',group:'مجموعة المراجعة',active:true,attendance:[],grades:[],homeworks:[],examAttempts:[],assignments:[],materials:[],recitations:[],monthlyPayments:[],transferOptions:[]};
+const localReport=code=>({schemaVersion:11,policyVersion:typeof MONTHLY_REPORT_POLICY==='undefined'?11:MONTHLY_REPORT_POLICY,student:{...localStudent,studentCode:code},monthKey:'2026-10',availableMonths:['2026-10'],monthlyTitle:'بيانات غير كافية',level:'بيانات غير كافية',overallScore:null,attendance:{rows:[],percentage:null,present:0,absent:0},homework:{rows:[],completionPercentage:null,submitted:0,required:0},results:{rows:[],average:null},motivation:{},study:{},practical:{},warnings:[],deliveryState:{firstDelivery:true}});
+window.MFCloud={ready:/\/(student|parent)\.html$/.test(location.pathname),getStudentByCode:async code=>code==='123456'?{...localStudent,monthlyReport:localReport(code)}:null,getParentStudent:async code=>code==='123456'?{...localStudent}:null,getParentMonthlyReport:async code=>localReport(code),getStudentLeaderboardPosition:async()=>({rank:null}),signIn:async()=>{throw Error('تسجيل الدخول الحقيقي معطل في المعاينة المحلية');},getCurrentStaffProfile:async()=>({allowed:false})};
+window.open=()=>null;
+document.addEventListener('click',event=>{const a=event.target.closest('a[href]');if(a&&new URL(a.href,location.href).origin!==location.origin)event.preventDefault();},true);

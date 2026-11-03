@@ -12,8 +12,8 @@ let env;
 test.before(async () => {
   env = await initializeTestEnvironment({
     projectId:'demo-technominds',
-    firestore:{host:'127.0.0.1',port:8181,rules:fs.readFileSync(path.join(root,'firestore.rules'),'utf8')},
-    storage:{host:'127.0.0.1',port:9199,rules:fs.readFileSync(path.join(root,'storage.rules'),'utf8')}
+    firestore:{host:'127.0.0.1',port:require('./testing/emulator-ports').emulatorPort('FIRESTORE_EMULATOR_HOST'),rules:fs.readFileSync(path.join(root,'firestore.rules'),'utf8')},
+    storage:{host:'127.0.0.1',port:require('./testing/emulator-ports').emulatorPort('FIREBASE_STORAGE_EMULATOR_HOST'),rules:fs.readFileSync(path.join(root,'storage.rules'),'utf8')}
   });
   await env.withSecurityRulesDisabled(async context => {
     const db=context.firestore();
@@ -158,4 +158,18 @@ test('accepted homework bytes and metadata are server-write-only, including for 
   await assertFails(uploadBytes(target,Buffer.from('%PDF-'),{contentType:'application/pdf'}));
   await assertFails(updateMetadata(target,{contentType:'application/pdf'}));
  }
+});
+
+test('account inbox content is server-only, including for verified Admin clients',async()=>{
+ const publicDb=env.unauthenticatedContext().firestore();
+ for(const collection of ['account_notifications','account_notification_reads']){
+  await assertFails(getDoc(doc(publicDb,collection,'local-only')));
+  await assertFails(getDoc(doc(adminDb(),collection,'local-only')));
+  await assertFails(setDoc(doc(adminDb(),collection,'local-only'),{title:'bypass'}));
+ }
+});
+test('students cannot create notices or alter another account read state directly',async()=>{
+ const studentDb=env.authenticatedContext('student-user',{role:'student'}).firestore();
+ await assertFails(setDoc(doc(studentDb,'account_notifications','local-only'),{target:{scope:'all'}}));
+ await assertFails(setDoc(doc(studentDb,'account_notification_reads','another-student'),{read:{}}));
 });

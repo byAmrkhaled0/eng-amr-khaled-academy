@@ -3,16 +3,16 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const root=path.resolve(__dirname,'..'),read=file=>fs.readFileSync(path.join(root,file),'utf8');
 
 test('release, frontend, backend, lockfiles and worker agree without changing API schema',()=>{
-  const version='70.0.7';
+  const version='70.0.11';
   for(const file of ['package.json','functions/package.json','package-lock.json','functions/package-lock.json']){
     const value=JSON.parse(read(file));assert.equal(value.version,version,file);
     if(value.packages)assert.equal(value.packages[''].version,version,file);
   }
-  assert.match(read('assets/firebase-sync.js'),/FRONTEND_VERSION='70\.0\.7'/);
+  assert.match(read('assets/firebase-sync.js'),/FRONTEND_VERSION='70\.0\.11'/);
   assert.match(read('assets/firebase-sync.js'),/API_SCHEMA_VERSION='portal-v64\.0\.0'/);
-  assert.match(read('assets/app.js'),/MF_ASSET_VERSION = '70\.0\.7'/);
-  assert.match(read('service-worker.js'),/technominds-v70-0-7-complete-report/);
-  assert.match(read('service-worker.js'),/ASSET_VERSION = "70\.0\.7"/);
+  assert.match(read('assets/app.js'),/MF_ASSET_VERSION = '70\.0\.11'/);
+  assert.match(read('service-worker.js'),/technominds-v70-0-11-complete-report/);
+  assert.match(read('service-worker.js'),/ASSET_VERSION = "70\.0\.11"/);
 });
 
 test('deployment is selective and Vercel only; smoke check gets each published route',()=>{
@@ -63,19 +63,19 @@ test('deployment normalizes PowerShell and CMD function lists and README uses cu
   assert.match(launcher,/powershell\.exe[^\n]*-File "%~dp0deploy-production\.ps1" %\*/);
   assert.match(readme,/GitHub → Vercel/);
   assert.match(readme,/لا تستخدم Firebase Hosting أو `DEPLOY-HOSTING-ONLY\.cmd`/);
-  assert.match(readme,/\.\\deploy-production\.ps1 -Functions getPlatformHealthHttp,getPortalStudent -SkipSiteCheck/);
-  assert.match(readme,/\.\\deploy-production\.ps1 -Resume -Functions getPlatformHealthHttp,getPortalStudent -SkipSiteCheck/);
-  assert.match(readme,/DEPLOY-WINDOWS\.cmd -Resume -Functions getPlatformHealthHttp,getPortalStudent -SkipSiteCheck/);
+  assert.match(readme,/\.\\deploy-production\.ps1 -Functions submitCodeExecution,upsertGroupSchedule -Plan/);assert.match(readme,/\.\\deploy-production\.ps1 -Functions submitCodeExecution,upsertGroupSchedule -ConfirmProduction -SkipSiteCheck/);
+  assert.match(readme,/\.\\deploy-production\.ps1 -Resume -Functions submitCodeExecution,upsertGroupSchedule -ConfirmProduction -SkipSiteCheck/);
+  assert.match(readme,/DEPLOY-WINDOWS\.cmd -Resume -Functions submitCodeExecution,upsertGroupSchedule -ConfirmProduction -SkipSiteCheck/);
   assert.doesNotMatch(readme,/^\s*\.?\\?DEPLOY-WINDOWS\.cmd -Resume\s*$/m);
   assert.doesNotMatch(readme,/^\s*\.\\DEPLOY-HOSTING-ONLY\.cmd\s*$/m);
   assert.doesNotMatch(production+launcher+readme,/firebase deploy --only hosting|"deploy", "--only", "hosting"|--force/i);
-  assert.equal(JSON.parse(read('package.json')).version,'70.0.7');
+  assert.equal(JSON.parse(read('package.json')).version,'70.0.11');
 });
 
 test('teacher page keeps admin bundles inert and preserves final renderer order',()=>{
   const html=read('teacher-login.html');
   const login=html.split('<template id="adminBundles">')[0];
-  assert.match(login,/assets\/admin-entry\.js\?v=70\.0\.7/);
+  assert.match(login,/assets\/admin-entry\.js\?v=70\.0\.11/);
   for(const name of ['admin.js','app.js','v60-admin-workflow.js','v64-admin-operations.js'])assert.doesNotMatch(login,new RegExp('src="assets/'+name.replace('.','\\.')+'\\?'));
   assert.ok(html.indexOf('assets/admin.js?')<html.indexOf('assets/v60-admin-workflow.js?'));
   assert.ok(html.indexOf('assets/v60-admin-workflow.js?')<html.indexOf('assets/v64-admin-operations.js?'));
@@ -90,18 +90,20 @@ test('login loads each admin bundle once only after admin claim, and deep link s
   form.email.value='teacher@example.test';form.password.value='secret';
   const loaded=[],root=document.getElementById('adminRoot');let allowed=false,observer,starts=0,reset=0,signouts=0,readyResolve;
   window.MFCloud={ready:true,auth:{currentUser:{uid:'admin'},onIdTokenChanged(fn){observer=fn;}},async signIn(){setTimeout(()=>observer({uid:'admin'}),0);},async signOut(){signouts++;},async getCurrentStaffProfile(){return {uid:'admin',allowed};},async sendPasswordReset(){reset++;}};
+  const styleLoads=[],originalHeadAppend=document.head.appendChild.bind(document.head);
+  document.head.appendChild=node=>{if(node.tagName==='LINK'){styleLoads.push(node.href);queueMicrotask(()=>node.onload?.());return node;}return originalHeadAppend(node);};
   const originalAppend=document.body.appendChild.bind(document.body);
   document.body.appendChild=node=>{if(node.tagName==='SCRIPT'){loaded.push(node.src.split('/').pop().split('?')[0]);if(node.src.includes('v638-admin-recovery.js?'))window.__tmAdminRenderReady=new Promise(resolve=>{readyResolve=resolve;});if(node.src.includes('admin.js?'))window.__tmAdminBootstrapStart=async profile=>{starts++;assert.ok(profile.allowed);root.className='admin-page';assert.equal(new window.URLSearchParams(window.location.search).get('section'),'bookings');};queueMicrotask(()=>node.onload?.());return node;}return originalAppend(node);};
   window.eval(read('assets/admin-entry.js'));
   assert.equal(loaded.length,0);
   const submit=()=>form.dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));
   submit();await new Promise(resolve=>setTimeout(resolve,5));
-  assert.equal(loaded.length,0,'unauthorized users must not download admin bundles');assert.equal(signouts,1);
+  assert.equal(loaded.length,0,'unauthorized users must not download admin bundles');assert.equal(styleLoads.length,0,'unauthorized users must not download admin styles');assert.equal(signouts,1);
   allowed=true;submit();submit();await new Promise(resolve=>setTimeout(resolve,12));
   assert.equal(starts,0,'workspace cannot render before the final renderer is installed');
   readyResolve();await new Promise(resolve=>setTimeout(resolve,10));
-  assert.equal(starts,1);assert.equal(loaded.length,document.getElementById('adminBundles').content.querySelectorAll('script[src]').length);
-  assert.equal(loaded.filter(name=>name==='admin.js').length,1);
+  assert.equal(starts,1);assert.equal(loaded.length,document.getElementById('adminBundles').content.querySelectorAll('script[src]:not([data-admin-sections])').length);
+  assert.equal(loaded.filter(name=>name==='admin.js').length,1);assert.equal(styleLoads.length,8,'authorized workspace loads each original stylesheet once');
   await observer({uid:'admin'});assert.equal(starts,1);
   form.email.value='teacher@example.test';document.getElementById('adminPasswordReset').click();await new Promise(resolve=>setTimeout(resolve,0));assert.equal(reset,1);
   dom.window.close();
@@ -120,13 +122,14 @@ test('logout reports server sign-out failures instead of claiming success',async
   assert.equal(feedback,'offline');
 });
 
-test('localhost shares Vercel backend routing without Firebase Hosting fallbacks',()=>{
-  const sync=read('assets/firebase-sync.js'),practical=read('assets/practical.js');
-  assert.doesNotMatch(sync+practical,/eng-amr-khaled-academy\.web\.app/);
-  assert.match(sync,/publicApiOrigin=localHosts\.has\([^)]*\)\?'https:\/\/eng-amr-khaled-academy\.vercel\.app'/);
-  assert.match(sync,/preferDirectCallable=[^;]+\|\|localHosts\.has/);
-  assert.match(practical,/PREFER_DIRECT=[^;]+\|\|LOCAL_HOSTS\.includes/);
-  assert.match(practical,/eng-amr-khaled-academy\.vercel\.app\/api\/code/);
+test('localhost uses explicit demo emulators and cannot fall back to production',()=>{
+  const sync=read('assets/firebase-sync.js'),practical=read('assets/practical.js'),config=read('assets/firebase-config.js');
+  assert.match(sync,/const publicApiOrigin=''/);
+  assert.match(sync,/localMode \? directCall\(payload\)/);
+  assert.match(sync,/functions\?\.useEmulator/);
+  assert.match(config,/demo-technominds/);assert.match(config,/localOffline:true/);
+  assert.match(practical,/FUNCTION_BASES=LOCAL_HOSTS.includes/);
+  assert.doesNotMatch(practical,/vercel\.app\/api\/code/);
 });
 
 test('offline attendance keeps the cached verified staff path after auth refresh fails', {skip:!JSDOM},async()=>{
@@ -134,12 +137,13 @@ test('offline attendance keeps the cached verified staff path after auth refresh
   const {window}=dom,{document}=window;
   Object.defineProperty(window.navigator,'onLine',{value:false,configurable:true});
   window.localStorage.setItem('tm-offline-staff-profile-v1',JSON.stringify({allowed:true,role:'admin',uid:'admin',expiresAt:Date.now()+60000}));
+  const styles=[],originalHead=document.head.appendChild.bind(document.head);document.head.appendChild=node=>{if(node.tagName==='LINK'){styles.push(node.href);queueMicrotask(()=>node.onload?.());return node;}return originalHead(node);};
   let observer,loads=0;
   window.MFCloud={ready:true,auth:{onIdTokenChanged(fn){observer=fn;}},getCurrentStaffProfile:async()=>{throw Error('offline');}};
   document.body.appendChild=node=>{if(node.tagName==='SCRIPT'){loads++;if(node.src.includes('v638-admin-recovery'))window.__tmAdminRenderReady=Promise.resolve();queueMicrotask(()=>node.onload?.());return node;}throw Error('unexpected append');};
   window.eval(read('assets/admin-entry.js'));
   await observer({uid:'admin'});
-  assert.equal(loads,document.getElementById('adminBundles').content.querySelectorAll('script[src]').length);
+  assert.equal(loads,document.getElementById('adminBundles').content.querySelectorAll('script[src]:not([data-admin-sections])').length);assert.equal(styles.length,8);
   assert.match(read('assets/admin.js'),/tryOfflineStaffWorkspace\(\)/);
   dom.window.close();
 });

@@ -17,10 +17,10 @@
   const $=id=>document.getElementById(id);
   const editor=$('codeEditor'),language=$('codeLanguage'),stdin=$('codeStdin'),output=$('codeOutput'),runButton=$('runCodeButton');
   const LOCAL_HOSTS=['localhost','127.0.0.1','0.0.0.0'];
-  const PROXY_FUNCTIONS_BASE=LOCAL_HOSTS.includes(location.hostname)?'https://eng-amr-khaled-academy.vercel.app/api/code':'/api/code';
+  const PROXY_FUNCTIONS_BASE='/api/code';
   const DIRECT_FUNCTIONS_BASE='https://europe-west1-eng-amr-khaled-academy.cloudfunctions.net';
   const PREFER_DIRECT=/\.vercel\.app$/i.test(location.hostname)||LOCAL_HOSTS.includes(location.hostname);
-  const FUNCTION_BASES=PREFER_DIRECT?[DIRECT_FUNCTIONS_BASE,PROXY_FUNCTIONS_BASE]:[PROXY_FUNCTIONS_BASE,DIRECT_FUNCTIONS_BASE];
+  const FUNCTION_BASES=LOCAL_HOSTS.includes(location.hostname)?(window.TM_LOCAL_EMULATORS?.projectId==='demo-technominds'?['http://127.0.0.1:'+window.TM_LOCAL_EMULATORS.functions+'/demo-technominds/europe-west1']:[]):PREFER_DIRECT?[DIRECT_FUNCTIONS_BASE,PROXY_FUNCTIONS_BASE]:[PROXY_FUNCTIONS_BASE,DIRECT_FUNCTIONS_BASE];
   let languages=FALLBACK;
   const storageKey=key=>`tm_code_v60_${key}`;
   function visitorId(){const key='tm_public_code_visitor_v1';try{let value=localStorage.getItem(key);if(!value){value=crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`;localStorage.setItem(key,value);}return value;}catch(_){return'session-visitor';}}
@@ -31,6 +31,7 @@
   function renderLanguages(){language.innerHTML=languages.map(entry=>`<option value="${entry.key}">${entry.name}</option>`).join('');language.value=languages[0]?.key||'python';loadTemplate(true);}
   function errorMessage(error){const raw=`${error?.code||''} ${error?.message||''}`,detail=String(error?.message||'').replace(/^FirebaseError:\s*/,'').trim();if(/resource-exhausted|429|too many/i.test(raw))return 'عدد محاولات التشغيل كبير. انتظر دقيقة وحاول مرة أخرى.';if(/invalid-argument/i.test(raw))return detail.split(':').pop().trim()||'راجع الكود والبيانات المدخلة.';if(/انتهت مهلة|خدمة تشغيل الأكواد/i.test(detail))return detail;if(/unavailable|internal|network|fetch|timeout|abort/i.test(raw))return 'تعذر الوصول لخادم تشغيل الأكواد مؤقتًا. حاول مرة أخرى بعد لحظات.';return detail||'تعذر تشغيل الكود. راجع الكود وحاول مرة أخرى.';}
   async function publicCallable(name,data){
+    if(!FUNCTION_BASES.length)throw new Error('المعاينة المحلية غير متصلة بخدمة تشغيل الأكواد.');
     let lastError;
     for(let attempt=0;attempt<FUNCTION_BASES.length;attempt+=1){
       const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),attempt===0?18000:12000);
