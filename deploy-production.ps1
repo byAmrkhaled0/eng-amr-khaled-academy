@@ -63,29 +63,20 @@ try {
   if ($Functions.Count -eq 0 -and -not $DeployRules -and -not $DeployIndexes) {
     throw "Select -Functions, -DeployRules, or -DeployIndexes explicitly. The frontend deploys through GitHub -> Vercel."
   }
-  # Validate selections before dependency installs, state writes, or Firebase calls.
-  $FunctionsSource = Get-Content -LiteralPath (Join-Path $ProjectRoot "functions\index.js") -Raw
-  $AvailableFunctions = [regex]::Matches($FunctionsSource, 'exports\.([A-Za-z0-9_]+)\s*=') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
-  # entry.js adds legacy wrappers beyond index.js. Preserve and allow explicit selection.
-  $EntrySource = Get-Content -LiteralPath (Join-Path $ProjectRoot 'functions\entry.js') -Raw
-  $EntryExports = [regex]::Match($EntrySource, 'module\.exports\s*=\s*\{\.\.\.base,([^}]+)\}')
-  if ($EntryExports.Success) { $AvailableFunctions += @($EntryExports.Groups[1].Value -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^[A-Za-z0-9_]+$' }) }
-  $StudentReportSources = [regex]::Match($FunctionsSource, 'const REPORT_STUDENT_SOURCES=\[([^\]]+)\]')
-  $ContentReportSources = [regex]::Match($FunctionsSource, 'for\(const collection of \[([^\]]+)\]\)\{\s*exports\[.invalidateReport_')
-  foreach ($SourceList in @($StudentReportSources, $ContentReportSources)) {
-    if ($SourceList.Success) { $AvailableFunctions += @([regex]::Matches($SourceList.Groups[1].Value, "'([^']+)'") | ForEach-Object { 'invalidateReport_' + $_.Groups[1].Value }) }
-  }
-  foreach ($FunctionName in $Functions) {
-    if ($FunctionName -notin $AvailableFunctions) { throw "Unknown Function: $FunctionName" }
-  }
-  $SelectedResources = @($Functions | ForEach-Object { "functions:$_" })
-  if ($DeployRules) { $SelectedResources += 'firestore:rules,storage' }
-  if ($DeployIndexes) { $SelectedResources += 'firestore:indexes' }
-  if ($Plan) {
-    [pscustomobject]@{ project='eng-amr-khaled-academy'; version=$ReleaseVersion; resources=$SelectedResources; productionChanges=$false; confirmationRequired=$true } | ConvertTo-Json -Depth 4
-    exit 0
-  }
-  if (-not $ConfirmProduction) { throw "No deployment performed. Review -Plan, then explicitly pass -ConfirmProduction for the selected resources." }
+  # The same offline policy runs in Linux CI and this Windows adapter.
+  $PolicyArguments = @((Join-Path $ProjectRoot 'scripts/release-policy.js'))
+  if ($Functions.Count -gt 0) { $PolicyArguments += @('--functions', ($Functions -join ',')) }
+  if ($DeployRules) { $PolicyArguments += '--rules' }
+  if ($DeployIndexes) { $PolicyArguments += '--indexes' }
+  if ($Plan) { $PolicyArguments += '--plan' }
+  if ($ConfirmProduction) { $PolicyArguments += '--confirm-production' }
+  $PolicyOutput = & node @PolicyArguments 2>&1
+  if ($LASTEXITCODE -ne 0) { throw ($PolicyOutput -join "`n") }
+  $ValidatedPlan = ($PolicyOutput -join "`n") | ConvertFrom-Json
+  $SelectedResources = @($ValidatedPlan.resources)
+  # Selection has already been checked against the real source by the policy.
+  $AvailableFunctions = @($Functions)
+  if ($Plan) { $ValidatedPlan | ConvertTo-Json -Depth 4; exit 0 }
   # Resume is valid only for the same source and exact selection.
   $ReleaseInputs = @('package.json','package-lock.json','functions\package.json','functions\package-lock.json','firestore.rules','storage.rules','firestore.indexes.json','firebase.json')
   $ReleaseInputs += @(Get-ChildItem -LiteralPath (Join-Path $ProjectRoot 'functions') -File -Filter '*.js' | ForEach-Object { $_.FullName })
@@ -123,16 +114,12 @@ try {
       if ($FunctionName -notin $AvailableFunctions) { throw "Unknown Function: $FunctionName" }
     }
   Invoke-Step "functions-prepare" "4/8 Preparing selected Firebase Functions for Node.js 22..." {
-    $FunctionsEnv = Join-Path $ProjectRoot "functions\.env"
-    $FunctionsEnvExample = Join-Path $ProjectRoot "functions\.env.example"
-    if (Test-Path -LiteralPath $FunctionsEnv) {
-      Write-Host 'Using existing functions/.env without modifying it.' -ForegroundColor DarkGray
-    } elseif (Test-Path -LiteralPath $FunctionsEnvExample) {
-      Copy-Item -LiteralPath $FunctionsEnvExample -Destination $FunctionsEnv
-      Write-Host 'Copied functions/.env.example. Verify provider configuration before deploying code runner Functions.' -ForegroundColor Yellow
-    } else {
-      Write-Host 'No optional functions/.env template found. Continuing with platform environment/secret configuration; no .env created and no provider disabled.' -ForegroundColor Yellow
-    }
+    $EnvironmentOutput = & node @PolicyArguments --prepare-env 2>&1
+    if ($LASTEXITCODE -ne 0) { throw ($EnvironmentOutput -join "`n") }
+    $Environment = ($EnvironmentOutput -join "`n") | ConvertFrom-Json
+    if ($Environment.environment -eq 'existing') { Write-Host 'Using existing functions/.env without modifying it.' -ForegroundColor DarkGray }
+    elseif ($Environment.environment -eq 'template') { Write-Host 'Copied optional functions/.env.example. Verify provider configuration before deploying code runner Functions.' -ForegroundColor Yellow }
+    else { Write-Host 'No optional environment template found. Existing platform configuration is preserved.' -ForegroundColor Yellow }
     Invoke-Checked -Executable $NpmExecutable -ArgumentList @("--prefix", "functions", "ci", "--no-audit", "--no-fund") -FailureLabel "Functions dependency installation"
     Invoke-Checked -Executable $NpmExecutable -ArgumentList @("--prefix", "functions", "run", "lint") -FailureLabel "Functions syntax check"
   }
