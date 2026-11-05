@@ -2038,6 +2038,20 @@ exports.getHomeworkAdminWorkspace = onCall(CALLABLE_OPTIONS, async request => {
   return { assignment, students };
 });
 
+const homeworkReminders=require('./lib/homework-reminders').createHomeworkReminders({
+  db,Timestamp,HttpsError,
+  fetchStudents:async()=>{const snap=await fetchAllCollectionDocuments('students');return snap.docs.map(doc=>({...doc.data(),id:doc.id}));},
+  fetchSubmissions:async assignmentId=>{const snap=await fetchAllCollectionDocuments('homework_submissions',q=>q.where('assignmentId','==',assignmentId));return snap.docs.map(doc=>doc.data());},
+  canAccess:(assignment,student)=>contentAvailableAfterStudentJoined(assignment,student)&&learningContentAccessAllowed(assignment,student,'assignments')
+});
+exports.remindMissingHomeworkAdmin = onCall({...CALLABLE_OPTIONS,timeoutSeconds:120},async request=>{
+  const staff=await requireStaff(request,['admin']);
+  await rateLimit('remind-missing-homework',staff.uid,12,60*60*1000);
+  const assignmentId=String(request.data?.assignmentId||'').trim();
+  if(!assignmentId||assignmentId.length>120||/[\\/#?\[\]]/.test(assignmentId))throw new HttpsError('invalid-argument','اختر واجبًا صحيحًا.');
+  return homeworkReminders(assignmentId,staff);
+});
+
 exports.archiveContentItem = onCall(CALLABLE_OPTIONS, async request => {
   const staff = await requireStaff(request, ['admin', 'teacher']);
   const collection = text(request.data?.collection, 40);
@@ -5617,6 +5631,12 @@ async function canStudentReadNoticeContent(ref,student){
   const snap=await db.collection(ref.collection).doc(ref.id).get();if(!snap.exists)return false;const row=snap.data();
   const visible=['materials','assignments','exams'].includes(ref.collection)?reusableLearningContentIsVisible(row):contentIsOpen(row);
   if(!visible||!learningTargetMatchesStudent(row,student)||!learningContentAccessAllowed(row,student,ref.collection))return false;
+  if(ref.collection==='assignments'&&ref.requireMissing===true){
+    if(!require('./lib/homework-reminders').reminderOpen(row,Date.now()))return false;
+    const code=normalizeCode(student.studentCode||student.code||student.id),id=homeworkLockId(ref.id,code);
+    const [lock,first]=await db.getAll(db.collection('homework_submission_locks').doc(id),db.collection('homework_submissions').doc(id));
+    if(first.exists||Number(lock.data()?.submittedAttempts||0)>0)return false;
+  }
   if(row.lectureId&&!['lectures','materials'].includes(ref.collection))return canStudentReadNoticeContent({collection:row.lectureSource==='materials'?'materials':'lectures',id:row.lectureId},student);
   return true;
 }

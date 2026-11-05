@@ -5,7 +5,7 @@ const value=(flag,fallback)=>args.includes(flag)?args[args.indexOf(flag)+1]:fall
 const host=value('--host','127.0.0.1'),port=Number(value('--port',process.env.PORT||5173));
 const demo=args.includes('--emulators'),loopback=new Set(['127.0.0.1','localhost','::1']);
 if(demo&&!loopback.has(host))throw Error('Demo emulators must bind to loopback.');
-const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'application/javascript; charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.svg':'image/svg+xml','.json':'application/json; charset=utf-8','.woff2':'font/woff2','.webmanifest':'application/manifest+json'};
+const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'application/javascript; charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.svg':'image/svg+xml','.json':'application/json; charset=utf-8','.woff2':'font/woff2','.webmanifest':'application/manifest+json','.txt':'text/plain; charset=utf-8','.xml':'application/xml; charset=utf-8'};
 const runtime={projectId:'demo-technominds',auth:9099,firestore:8181,functions:5002,storage:9199};
 const localCsp="default-src 'self'; script-src 'self'; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: http://127.0.0.1:9199; connect-src 'self' http://127.0.0.1:5002 http://127.0.0.1:8181 http://127.0.0.1:9099 http://127.0.0.1:9199 ws://127.0.0.1:8181; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'";
 function send(req,res,status,type,data){
@@ -25,7 +25,7 @@ const server=http.createServer((req,res)=>{
  }else{
   if(pathname==='/')pathname='/index.html';
   const rel=pathname.slice(1);
-  if(rel.split('/').some(p=>p.startsWith('.')||['functions','node_modules','scripts','api'].includes(p))||!(/^assets\/|^[^/]+\.html$|^(site-manifest\.json|teacher-manifest\.json|service-worker\.js|manifest\.webmanifest)$/.test(rel)))return send(req,res,404,'text/plain','Not a public preview asset');
+  if(rel.split('/').some(p=>p.startsWith('.')||['functions','node_modules','scripts','api'].includes(p))||!(/^assets\/|^[^/]+\.html$|^(site-manifest\.json|teacher-manifest\.json|service-worker\.js|manifest\.webmanifest|robots\.txt|sitemap\.xml|llms\.txt)$/.test(rel)))return send(req,res,404,'text/plain','Not a public preview asset');
   file=path.resolve(root,rel);if(!file.startsWith(root+path.sep))return send(req,res,403,'text/plain','Forbidden');
  }
  fs.readFile(file,(err,buffer)=>{

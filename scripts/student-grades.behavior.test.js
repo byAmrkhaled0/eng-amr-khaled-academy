@@ -50,3 +50,54 @@ test('a correction updates the card only after a server acknowledgment and failu
   assert.equal(ui.run('calcStudent(adminData.students[0]).avg'),80);assert.equal(ui.run('calcStudent(adminData.students[0]).gradeCount'),1);
  }finally{ui.close();}
 });
+
+test('remote-only homework correction updates cached file, summary and reopened filters without another read',async()=>{
+ const ui=await createAdminDOM();
+ try{
+  ui.run(`adminData.students=[];adminData.assignments=[{id:'remote-hw',title:'Remote homework',active:true,totalScore:10}];`);
+  let reads=0,resolve,reject;
+  ui.window.MFCloud.getHomeworkAdminWorkspace=async payload=>{if(!payload.assignmentId)return [];reads++;return {students:[{studentCode:'REMOTE1',name:'Remote student',submission:{id:'remote-sub',assignmentId:'remote-hw',score:null,maxScore:10,needsManualReview:true,answers:[{question:'Explain',answer:'Answer',mark:10}]}}]};};
+  ui.window.MFCloud.reviewHomeworkSubmission=()=>new Promise((a,b)=>{resolve=a;reject=b;});
+  ui.window.renderAssignments();ui.window.openHomeworkAdminFile('remote-hw');await tick(30);
+  const box=ui.document.getElementById('homeworkAttendanceRows');
+  const button=box.querySelector('[data-tm-action="saveHomeworkCorrection"]');assert(button);
+  button.closest('details').open=true;
+  box.querySelector('[data-homework-award]').value='8';
+  const first=ui.window.saveHomeworkCorrection('remote-sub',button);await tick();
+  assert.match(box.textContent,/المصحح 0/);
+  reject(new Error('offline'));await first;
+  assert.match(box.textContent,/يحتاج تصحيحًا/);
+  const retry=ui.window.saveHomeworkCorrection('remote-sub',button);await tick();resolve({ok:true,score:8,maxScore:10});await retry;
+  assert.match(box.textContent,/المصحح 1/);assert.match(box.textContent,/المتوسط 80%/);
+  assert.doesNotMatch(box.textContent,/يحتاج تصحيحًا/);assert.match(box.textContent,/8 من 10/);
+  assert.equal(box.querySelector('details.assignment-submission-row').open,true);
+  ui.window.openHomeworkAdminFile('remote-hw');await tick();
+  assert.match(box.textContent,/المصحح 1/);assert.doesNotMatch(box.textContent,/يحتاج تصحيحًا/);
+  assert.equal(reads,1);
+  const edit=box.querySelector('[data-homework-edit-correction]');assert(edit);edit.click();
+  assert.equal(box.querySelector('[data-homework-award]').value,'8');
+  box.querySelector('[data-homework-award]').value='2';
+  box.querySelector('[data-homework-cancel="true"]').click();
+  assert.match(box.textContent,/8 من 10/);assert(!box.querySelector('[data-homework-award]'));
+  box.querySelector('[data-homework-edit-correction]').click();
+  assert.equal(box.querySelector('[data-homework-award]').value,'8');box.querySelector('[data-homework-award]').value='0';
+  const save=box.querySelector('[data-tm-action="saveHomeworkCorrection"]');
+  const revised=ui.window.saveHomeworkCorrection('remote-sub',save);await tick();
+  assert.match(box.textContent,/8 من 10/);resolve({ok:true,score:0,maxScore:10});await revised;
+  assert.match(box.textContent,/0 من 10/);assert.match(box.textContent,/المتوسط 0%/);assert.match(box.textContent,/المصحح 1/);
+  ui.window.openHomeworkAdminFile('remote-hw');assert.match(box.textContent,/0 من 10/);assert.equal(reads,1);
+ }finally{ui.close();}
+});
+
+test('manual missing homework button confirms, prevents double clicks and reports only server acknowledgments',async()=>{
+ const ui=await createAdminDOM();
+ try{
+  ui.run(`adminData.assignments=[{id:'reminder-ui',title:'Homework',active:true}];`);
+  ui.window.renderAssignments();ui.window.openHomeworkAdminFile('reminder-ui');await tick(30);
+  const button=ui.document.querySelector('[data-homework-remind]');assert(button);
+  let calls=0,resolve;ui.window.MFCloud.remindMissingHomeworkAdmin=payload=>{assert.deepEqual(JSON.parse(JSON.stringify(payload)),{assignmentId:'reminder-ui'});calls++;return new Promise(r=>resolve=r);};
+  ui.window.confirm=()=>false;button.click();await tick();assert.equal(calls,0);
+  ui.window.confirm=()=>true;button.click();button.click();await tick();assert.equal(calls,1);assert(button.disabled);
+  resolve({ok:true,created:3,duplicate:1});await tick();assert(!button.disabled);assert.match(ui.document.getElementById('toast').textContent,/3 تنبيه/);
+ }finally{ui.close();}
+});
