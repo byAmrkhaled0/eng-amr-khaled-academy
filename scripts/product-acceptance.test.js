@@ -2,16 +2,31 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const {JSDOM}=require('jsdom'),{safeClientError}=require('../functions/lib/client-error');
 const source=fs.readFileSync(require('node:path').join(__dirname,'../assets/app.js'),'utf8');
-async function exam(save,confirmations,storage=true){
+async function exam(save,confirmations,storage=true,exit=true){
  let storageFailed=false;
  const dom=new JSDOM('<div id="examOverlay"><div id="examBox"></div></div>',{url:'https://example.test/student.html',runScripts:'outside-only'}),w=dom.window,toasts=[];
  let draft={sessionId:'local-session',studentCode:'TEST0001',exam:{title:'Exam'},questions:[{type:'essay',question:'Explain',mark:1}],answers:{0:'My answer'},expiresAt:Date.now()+3600000};
  Object.assign(w,{currentSecureExams:[{id:'exam',title:'Exam'}],currentExamStudent:{studentCode:'TEST0001',name:'Student'},normalizeText:String,readExamDraft:()=>storageFailed?null:structuredClone(draft),saveExamDraft:(a,b,d)=>{if(!storage){storageFailed=true;return false;}draft=structuredClone(d);return true;},examAnswerIssue:()=>null,hydrateIcons:()=>{},setupAssessmentCopyGuard:()=>{},esc:String,httpsFileUrl:String,examClockNow:d=>Date.now(),renderExamQuestionHtml:()=>'<textarea name="q0"></textarea>',toast:message=>toasts.push(message),confirm:()=>confirmations.shift()===true,requestAnimationFrame:fn=>fn(),setTimeout:()=>0,clearTimeout:()=>{},setInterval:()=>0,clearInterval:()=>{},MFCloud:{saveSecureExamProgress:save}});
  vm.runInContext(source.slice(source.indexOf('function enhanceAssessmentCode('),source.indexOf('function bindHomeworkForms(')),dom.getInternalVMContext());
  vm.runInContext(source.slice(source.indexOf('async function openSecureExam('),source.indexOf('const examStartRequests=')),dom.getInternalVMContext());
- await w.openSecureExam('exam','TEST0001');w.document.getElementById('examExitBtn').click();await new Promise(r=>setTimeout(r,15));
+ await w.openSecureExam('exam','TEST0001');
+ if(exit){w.document.getElementById('examExitBtn').click();await new Promise(r=>setTimeout(r,15));}
  return {w,toasts,close:()=>w.close()};
 }
+test('an older save acknowledgment cannot mark the edited answer as server-saved',async()=>{
+ let acknowledge;
+ const f=await exam(()=>new Promise(resolve=>{acknowledge=resolve;}),[],true,false);
+ try{
+  f.w.dispatchEvent(new f.w.Event('online'));
+  const answer=f.w.document.querySelector('textarea');
+  answer.value='A newer answer';
+  answer.dispatchEvent(new f.w.Event('input'));
+  acknowledge({saved:true});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.match(f.w.document.getElementById('examSaveStatus').textContent,/تم الحفظ على الجهاز/);
+  assert.doesNotMatch(f.w.document.getElementById('examSaveStatus').textContent,/الخادم/);
+ }finally{f.close();}
+});
 test('failed server save keeps exam open when local-only exit is declined',async()=>{const f=await exam(async()=>{throw Error('offline')},[true,false]);try{assert(f.w.document.getElementById('examOverlay').classList.contains('show'));assert.match(f.w.document.getElementById('examSaveStatus').textContent,/محفوظ على الجهاز/);assert.equal(f.toasts.length,0);assert.equal(f.w.document.getElementById('examExitBtn').disabled,false);}finally{f.close();}});
 test('confirmed offline exit clearly says same-device only',async()=>{const f=await exam(async()=>{throw Error('offline')},[true,true]);try{assert(!f.w.document.getElementById('examOverlay').classList.contains('show'));assert.match(f.toasts.at(-1),/هذا الجهاز فقط/);assert.doesNotMatch(f.toasts.at(-1),/تم حفظ المحاولة على الخادم/);}finally{f.close();}});
 test('acknowledged server save permits normal exit',async()=>{const f=await exam(async()=>({saved:true}),[true]);try{assert(!f.w.document.getElementById('examOverlay').classList.contains('show'));assert.match(f.toasts.at(-1),/تم حفظ المحاولة على الخادم/);}finally{f.close();}});

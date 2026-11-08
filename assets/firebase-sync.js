@@ -418,8 +418,11 @@
       // request and can return a transient HTTP 400 while a valid admin is
       // opening a local workspace panel. Use the current verified token here;
       // Firebase will refresh it automatically when required.
-      const token=await user.getIdTokenResult(false);
-      const userDoc=await db.collection('users').doc(user.uid).get();
+      const [token,userDoc]=await Promise.all([
+        user.getIdTokenResult(false),
+        db.collection('users').doc(user.uid).get()
+      ]);
+      if(auth.currentUser?.uid!==user.uid)return null;
       const profile=userDoc.exists?userDoc.data():{};
       const role=profile.role||'';
       const allowed=userDoc.exists&&role==='admin'&&profile.active!==false&&token.claims.admin===true&&token.claims.email_verified===true;
@@ -724,9 +727,24 @@
       getCodeLanguages:()=>calls.getCodeLanguages?calls.getCodeLanguages({}):Promise.reject(new Error('Code runner service unavailable')),
       submitCodeExecution:payload=>calls.submitCodeExecution?calls.submitCodeExecution(payload):Promise.reject(new Error('Code runner service unavailable')),
       getCodeExecutionResult:runId=>calls.getCodeExecutionResult?calls.getCodeExecutionResult({runId}):Promise.reject(new Error('Code runner service unavailable')),
-      loadSiteData:async(options={})=>{
+      prepareStaffShell:()=>{
+        const uid=auth.currentUser?.uid;
+        if(!uid)return undefined;
+        const pending=loadStaffCoreCollections({shell:true}).then(data=>({data}),error=>({error}));
+        return async verifiedUid=>{
+          if(verifiedUid!==uid||auth.currentUser?.uid!==uid)throw new Error('انتهت جلسة الإدارة قبل فتح اللوحة.');
+          const result=await pending;
+          if(auth.currentUser?.uid!==uid)throw new Error('انتهت جلسة الإدارة قبل فتح اللوحة.');
+          if('error' in result)throw result.error;
+          return result.data;
+        };
+      },
+      loadSiteData:async(options={},preparedShell)=>{
         const profile=await getCurrentStaffProfile().catch(()=>null);
-        const data=profile?.allowed?await loadStaffCollections(options):await loadPublicCollections().catch(()=>null);
+        if(preparedShell&&!profile?.allowed)throw new Error('تعذر تأكيد صلاحية حساب الإدارة.');
+        const data=profile?.allowed
+          ? await (preparedShell&&options.fast&&options.shell?preparedShell(profile.uid):loadStaffCollections(options))
+          : await loadPublicCollections().catch(()=>null);
         const hasData=data&&['students','bookings','materials','questions','exams','reviews','groups','assignments'].some(key=>Array.isArray(data[key])&&data[key].length);
         if(profile?.allowed&&!hasData){
           const legacy=await legacySiteDoc.get().catch(()=>null);

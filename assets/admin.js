@@ -293,10 +293,12 @@ function filterStudents(grade='all', group='all'){return (adminData.students||[]
 
 async function cloudDelete(collection,id){if(!window.MFCloud?.deleteDocument)throw new Error('Delete service unavailable');await window.MFCloud.deleteDocument(collection,id);return true;}
 async function saveAdminDataNow(){if(!window.MFCloud?.saveSiteData)throw new Error('Sync service unavailable');await window.MFCloud.saveSiteData(adminData);saveData(adminData);return true;}
-async function reloadFromCloud(){
+async function reloadFromCloud(preparedShell){
   if(!window.MFCloud?.loadSiteData) return;
   adminAttendanceTransfersLoaded=false;
-  const data = await window.MFCloud.loadSiteData({fast:true,shell:true});
+  const data = preparedShell
+    ? await window.MFCloud.loadSiteData({fast:true,shell:true},preparedShell)
+    : await window.MFCloud.loadSiteData({fast:true,shell:true});
   if(data){ adminData = mergeData(data); saveData(adminData);cacheOfflineStaffProfile();await cacheOfflineAttendanceRoster(); }
   ++adminRecordsLoadToken;adminRecordsReady=false;adminRecordsPromise=null;
   adminContentReady=false;adminContentPromise=null;adminContentLoadedCollections.clear();
@@ -1410,9 +1412,9 @@ function exportCSV(name, rows){const csv=rows.map(r=>r.map(v=>`"${String(v??'').
 window.exportBookingsCSV=function(){exportCSV('bookings.csv',[['code','name','grade','month','group','parentPhone','status'],...adminData.bookings.map(b=>[b.code,b.name,b.grade,b.month,b.group,b.parentPhone,b.status])]);};
 
 function initAdmin(){const requested=new URLSearchParams(location.search).get('section'),resolvedSection=adminLegacySectionAliases[requested]||requested;if(adminSections.some(([id])=>id===resolvedSection))currentSection=resolvedSection;setupTheme();hydrateIcons();tryOfflineStaffWorkspace();if(!window.__offlineAttendanceEventsBound){window.addEventListener('online',()=>{if(window.__adminOfflineMode){location.reload();return;}attendanceCloudDate='';attendanceCloudError=null;if(currentSection==='attendance')renderAttendance();syncOfflineAttendanceNow();window.refreshAdminAttentionAlerts?.(true);});window.addEventListener('offline',()=>{tryOfflineStaffWorkspace();});navigator.serviceWorker?.addEventListener?.('message',event=>{if(event.data?.type==='SYNC_OFFLINE_ATTENDANCE')syncOfflineAttendanceNow(true);});window.__offlineAttendanceEventsBound=true;}}
-window.__tmAdminBootstrapStart=async function(profile){if(window.__tmAdminBundleState&&window.__tmAdminBundleState!=='ready')throw new Error('ملفات الإدارة غير مكتملة؛ حدّث الصفحة.');currentStaff=profile;window.__adminOfflineMode=false;window.__adminOfflineCapability=null;if(window.MFCloud?.auth?.currentUser?.uid!==profile.uid)throw new Error('انتهت جلسة الإدارة قبل فتح اللوحة.');
+window.__tmAdminBootstrapStart=async function(profile,preparedShell){if(window.__tmAdminBundleState&&window.__tmAdminBundleState!=='ready')throw new Error('ملفات الإدارة غير مكتملة؛ حدّث الصفحة.');currentStaff=profile;window.__adminOfflineMode=false;window.__adminOfflineCapability=null;if(window.MFCloud?.auth?.currentUser?.uid!==profile.uid)throw new Error('انتهت جلسة الإدارة قبل فتح اللوحة.');
   window.__tmAdminHydrating=true;renderAdmin();
-  try{await reloadFromCloud();if(window.MFCloud?.auth?.currentUser?.uid!==profile.uid)throw new Error('انتهت جلسة الإدارة قبل فتح اللوحة.');}
+  try{await reloadFromCloud(preparedShell);if(window.MFCloud?.auth?.currentUser?.uid!==profile.uid)throw new Error('انتهت جلسة الإدارة قبل فتح اللوحة.');}
   catch(error){document.getElementById('adminContent').textContent='تعذر تحميل بيانات الإدارة. حدّث الصفحة وحاول مرة أخرى.';throw error;}
   finally{window.__tmAdminHydrating=false;}
   renderSection();syncAdminChrome();startBookingNotifications();startAdminLiveData();

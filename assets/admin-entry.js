@@ -50,8 +50,11 @@
     if(opening)return opening;
     opening=(async()=>{
       busy(true);notify('جاري تجهيز لوحة الإدارة…');
+      const preparedShell=profile.allowed&&profile.uid===window.MFCloud?.auth?.currentUser?.uid
+        ? window.MFCloud.prepareStaffShell?.()
+        : undefined;
       await loadBundles();
-      await window.__tmAdminBootstrapStart(profile);
+      await window.__tmAdminBootstrapStart(profile,preparedShell);
       notify('تم الدخول إلى لوحة الإدارة');
     })().catch(error=>{
       console.error('admin-workspace-load',error);
