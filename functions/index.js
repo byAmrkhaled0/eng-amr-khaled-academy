@@ -3979,6 +3979,42 @@ exports.recordAttendance = onCall(CALLABLE_OPTIONS, async request => {
   };
 });
 
+exports.correctAttendance = onCall(CALLABLE_OPTIONS, async request => {
+  const staff = await requireStaff(request);
+  const { recordId, date, expectedStatus, status } = request.data || {};
+  if (typeof recordId !== 'string' || !recordId || recordId.length > 300 || /[/]/.test(recordId) ||
+      recordId === '.' || recordId === '..' || typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+      !['present', 'absent', 'حاضر', 'غائب'].includes(expectedStatus) || !['present', 'absent'].includes(status) ||
+      (expectedStatus === 'حاضر' ? 'present' : expectedStatus === 'غائب' ? 'absent' : expectedStatus) === status) {
+    throw new HttpsError('invalid-argument', 'بيانات تصحيح الحضور غير صالحة.');
+  }
+
+  const ref = db.collection('attendance').doc(recordId);
+  const auditRef = db.collection('activityLog').doc();
+  await db.runTransaction(async tx => {
+    const snapshot = await tx.get(ref);
+    if (!snapshot.exists) throw new HttpsError('not-found', 'سجل الحضور غير موجود.');
+    const record = snapshot.data();
+    if (record.date !== date || record.status !== expectedStatus) {
+      throw new HttpsError('failed-precondition', 'السجل اتغير. حدّث الحضور وراجع الحالة قبل التصحيح.');
+    }
+    tx.update(ref, { status, updatedAt: FieldValue.serverTimestamp(), correctedByUid: staff.uid });
+    const legacyCode = normalizeCode(record.studentId);
+    if (!normalizeCode(record.studentCode || record.code) && validLegacyOrStrongCode(legacyCode)) {
+      tx.set(db.collection('monthly_report_state').doc(legacyCode), {
+        version: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+    }
+    tx.create(auditRef, paymentAudit(staff, 'تم تصحيح حالة الحضور', {
+      recordId, date, studentCode: record.studentCode || record.studentId || '',
+      classSessionId: record.classSessionId || record.sessionId || '',
+      oldStatus: expectedStatus, newStatus: status
+    }));
+  });
+  await markLeaderboardDirty('attendance-correction');
+  return { id: recordId, status };
+});
+
 exports.prepareOfflineAttendance = onCall({...CALLABLE_OPTIONS,timeoutSeconds:60,memory:'512MiB'},async request=>{
   const staff=await requireStaff(request),scheduleId=cleanDocId(text(request.data?.scheduleId,100)),date=text(request.data?.date,10);
   if(!scheduleId||!attendanceDateInWindow(date))throw new HttpsError('invalid-argument','اختر مجموعة وحصة في حدود أسبوع من اليوم.');
@@ -4006,7 +4042,7 @@ async function commitAttendanceOnce(payload,requestId,staff){
     const [seen,existing,legacy]=await Promise.all([tx.get(dedup),tx.get(ref),tx.get(legacyRef)]);
     if(seen.exists){if(seen.data().fingerprint!==fingerprint)throw new HttpsError('already-exists','معرّف المزامنة مستخدم لسجل مختلف.');return {id:seen.data().id||ref.id,duplicate:true,status:seen.data().status};}
     if(!existing.exists&&legacy.exists&&!legacy.data().classSessionId&&(!legacy.data().scheduleId||legacy.data().scheduleId===payload.scheduleId)){if(legacy.data().status!==payload.status)throw new HttpsError('failed-precondition','سجل قديم بحالة مختلفة؛ يحتاج مراجعة.');tx.create(dedup,{fingerprint,id:legacy.id,status:payload.status,expiresAt:Timestamp.fromMillis(Date.now()+30*86400000)});return {id:legacy.id,duplicate:true,status:payload.status};}
-    const replacesAutomaticAbsence=existing.exists&&existing.data().status==='absent'&&existing.data().method==='bulk_absent'&&payload.status==='present';
+    const replacesAutomaticAbsence=existing.exists&&existing.data().status==='absent'&&existing.data().method==='bulk_absent'&&!existing.data().correctedByUid&&payload.status==='present';
     if(existing.exists&&existing.data().status!==payload.status&&!replacesAutomaticAbsence)throw new HttpsError('failed-precondition','توجد حالة مختلفة للحصة؛ راجع السجل قبل تعديلها.');
     if(replacesAutomaticAbsence)tx.set(ref,payload,{merge:true});
     if(!existing.exists)tx.create(ref,payload);
