@@ -20,6 +20,31 @@ test('present wins if bulk commits first; explicit manual absence remains protec
  const explicit=await setup('explicit');await call('recordAttendance',{studentCode:explicit.studentCode,date,status:'absent',classSessionId:explicit.sessionId,requestId:'closure-manual-absent'});await assert.rejects(call('recordAttendance',{studentCode:explicit.studentCode,date,status:'present',classSessionId:explicit.sessionId,requestId:'closure-manual-conflict'}),/حالة مختلفة/);
 });
 
+test('admin correction survives bulk, QR and a concurrent stale correction', async () => {
+  const scope = await setup('correction');
+  await call('bulkMarkAttendance', { date, scheduleId: scope.scheduleId });
+  const recordId = `${scope.studentCode}_${scope.sessionId}`;
+  const ref = db.doc(`attendance/${recordId}`);
+  await call('correctAttendance', { recordId, date, expectedStatus: 'absent', status: 'present' });
+  const correction = { recordId, date, expectedStatus: 'present', status: 'absent' };
+  const results = await Promise.allSettled([
+    call('correctAttendance', correction),
+    call('correctAttendance', correction)
+  ]);
+  assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
+  assert.equal(results.find(result => result.status === 'rejected').reason.code, 'failed-precondition');
+  const bulk = await call('bulkMarkAttendance', { date, scheduleId: scope.scheduleId });
+  assert.equal(bulk.saved, 0);
+  await assert.rejects(call('recordAttendance', {
+    attendanceCode: `ATT-${scope.studentCode}`, date, status: 'present',
+    classSessionId: scope.sessionId, requestId: 'closure-corrected-qr'
+  }), { code: 'failed-precondition' });
+  assert.equal((await ref.get()).data().status, 'absent');
+  const audit = await db.collection('activityLog').where('meta.recordId', '==', recordId).get();
+  assert.equal(audit.size, 2);
+  assert.ok(audit.docs.every(doc => doc.data().actorUid === auth.uid));
+});
+
 test('two sessions and legacy attendance keep separate identities during bulk',async()=>{
  const scope=await setup('sessions'),second=`${scope.scheduleId}_extra`;await db.doc('class_sessions/'+second).set({date,scheduleId:scope.scheduleId,group:scope.scheduleId,status:'open'});
  await call('recordAttendance',{studentCode:scope.studentCode,date,status:'present',classSessionId:scope.sessionId,requestId:'closure-first-session'});

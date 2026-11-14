@@ -5,6 +5,85 @@ const {actualSessionsForStudent,calculateMonthlyReport,membershipAt}=require('..
 const {attendanceDayDecision,attendanceDateInWindow}=require('../functions/lib/attendance-domain');
 const backend=read('functions/index.js'),group=new Map([['old',{days:'الثلاثاء والجمعة'}],['new',{days:'الاثنين والخميس'}]]);
 const student={studentCode:'ST1',studentName:'طالب',scheduleId:'old',group:'قديمة',createdAt:'2026-09-15'};
+
+test('attendance correction requires admin and the reviewed state, and updates the exact record with an audit', async () => {
+  const start = backend.indexOf('exports.correctAttendance =');
+  const end = backend.indexOf('exports.prepareOfflineAttendance =', start);
+  const record = { date: '2026-09-22', status: 'present', studentId: 'ST1' };
+  const writes = [];
+  const db = {
+    collection: name => ({ doc: id => `${name}/${id || 'new'}` }),
+    runTransaction: action => action({
+      get: async () => ({ exists: true, data: () => record }),
+      update: (ref, patch) => { writes.push([ref, patch]); Object.assign(record, patch); },
+      create: (ref, audit) => writes.push([ref, audit]),
+      set: (ref, patch) => writes.push([ref, patch])
+    })
+  };
+  const context = vm.createContext({
+    exports: {}, CALLABLE_OPTIONS: {}, onCall: (_, handler) => handler, db,
+    HttpsError: class extends Error { constructor(code, message) { super(message); this.code = code; } },
+    requireStaff: async request => {
+      if (!request.auth) throw Object.assign(new Error('unauthenticated'), { code: 'unauthenticated' });
+      return { uid: 'admin' };
+    },
+    normalizeCode: value => value || '', validLegacyOrStrongCode: () => true,
+    FieldValue: { serverTimestamp: () => 'server', increment: value => value },
+    paymentAudit: (staff, action, meta) => ({ staff, action, meta }),
+    markLeaderboardDirty: async () => {}
+  });
+  vm.runInContext(backend.slice(start, end), context);
+  const correct = context.exports.correctAttendance;
+  const data = { recordId: 'legacy-1', date: record.date, expectedStatus: 'present', status: 'absent' };
+  await assert.rejects(correct({ data }), { code: 'unauthenticated' });
+  await assert.rejects(correct({ auth: true, data: { ...data, date: '2026-09-25' } }), { code: 'failed-precondition' });
+  assert.equal(writes.length, 0);
+  assert.equal((await correct({ auth: true, data })).status, 'absent');
+  await assert.rejects(correct({ auth: true, data }), { code: 'failed-precondition' });
+  assert.equal(writes.length, 3);
+  assert.equal(writes[0][0], 'attendance/legacy-1');
+  assert.equal(writes[0][1].correctedByUid, 'admin');
+  assert.equal(writes[1][0], 'monthly_report_state/ST1');
+  assert.equal(writes[2][0], 'activityLog/new');
+  assert.equal(writes[2][1].meta.oldStatus, 'present');
+  assert.equal(writes[2][1].meta.newStatus, 'absent');
+});
+
+test('attendance log correction confirms the change and refreshes the row after server acknowledgment', async () => {
+  const admin = read('assets/admin.js');
+  const start = admin.indexOf('const attendanceCorrectionsPending');
+  const end = admin.indexOf('function attendanceLogHTML()', start);
+  const row = { id: 'record-1', date: '2026-09-22', status: 'absent', studentCode: 'ST1', studentName: 'طالب' };
+  const cached = { ...row };
+  const history = { open: false };
+  let confirmed = false;
+  let calls = 0;
+  const context = vm.createContext({
+    window: {
+      confirm: message => /غائب.*حاضر/.test(message) && confirmed,
+      MFCloud: { ready: true, correctAttendance: async change => {
+        calls++;
+        assert.equal(change.recordId, row.id);
+        assert.equal(change.expectedStatus, 'absent');
+        return { id: change.recordId, status: change.status };
+      } }
+    },
+    navigator: { onLine: true }, attendanceDate: row.date, currentSection: 'attendance',
+    todayAttendanceRows: () => [row], adminData: { students: [{ code: 'ST1', attendance: [row] }] },
+    stCode: student => student.code, attendanceCloudSnapshots: new Map([[row.date, { attendance: [cached] }]]),
+    renderActionAttrs: () => '', saveData() {}, aToast() {}, renderAttendance() {},
+    document: { querySelector: () => history }
+  });
+  vm.runInContext(admin.slice(start, end), context);
+  await context.window.correctAttendanceRecord(row.id, row.date);
+  assert.equal(calls, 0);
+  confirmed = true;
+  await context.window.correctAttendanceRecord(row.id, row.date);
+  assert.equal(calls, 1);
+  assert.equal(row.status, 'present');
+  assert.equal(cached.status, 'present');
+  assert.equal(history.open, true);
+});
 const session=(id,scheduleId,date,extra={})=>({id,scheduleId,date,...extra});
 const input=(sessions,attendance=[],options={})=>({student,groupsBySchedule:group,sessions:actualSessionsForStudent(student,sessions,attendance,[],group),attendance,sessionsComplete:true,monthKey:'2026-09',now:'2026-09-30',...options});
 

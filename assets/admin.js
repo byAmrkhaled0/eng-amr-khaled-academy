@@ -31,6 +31,7 @@ let attendanceCloudDate='',attendanceCloudPending=null,attendanceCloudError=null
 const attendanceCloudSnapshots=new Map();
 let offlineAttendanceSyncTimer = null;
 let correctionReturnFocus = null;
+let correctionInertSiblings = [];
 const bookingActionPending = new Set();
 const acceptedBookingCodes = new Set();
 const classProgressActionPending = new Set();
@@ -544,7 +545,7 @@ function renderAdmin(){
             <p id="adminDesktopSectionDescription">${safe(adminSectionDescriptions[currentSection]||'')}</p>
           </div>
         </div>
-        <details class="admin-command-more" open><summary aria-label="المزيد من أوامر الإدارة">⋯</summary><div class="header-actions admin-command-actions">
+        <details class="admin-command-more" open><summary aria-label="أدوات الإدارة: البحث والمظهر والتحديث ومعاينة الموقع">⋯</summary><div class="header-actions admin-command-actions">
           <button class="btn ghost admin-global-search phase5-icon-action" title="البحث في الإدارة" type="button" aria-label="البحث في أقسام الإدارة" onclick="toggleAdminDrawer(true);document.getElementById('adminNavSearch')?.focus()"><span data-icon="search"></span><span class="admin-search-label">ابحث عن قسم أو وظيفة...</span></button>
           <button class="btn ghost phase5-icon-action admin-account-action" type="button" aria-label="الحساب الحالي" title="الحساب الحالي" onclick="toggleAdminDrawer(true);document.querySelector('.admin-staff-card')?.scrollIntoView({block:'nearest'})"><span data-icon="user"></span><span class="admin-account-initial">${safe(String(currentStaff?.name||'ع').trim().charAt(0))}</span><span class="admin-account-name">${safe(currentStaff?.name||'م. عمرو خالد')}</span><span class="tm-screen-reader">الحساب الحالي</span></button>
           <button class="admin-hero-theme-icon" id="themeToggleAdmin" type="button" aria-label="تغيير الوضع" title="تغيير الوضع"></button>
@@ -560,7 +561,7 @@ function renderAdmin(){
     <aside class="admin-attention-panel-v69" id="adminAttentionPanel" hidden aria-label="تنبيهات متابعة الطلاب" aria-live="polite"><div class="admin-attention-head-v69"><div><span>متابعة تحتاج تدخلك</span><h2>تنبيهات الطلاب</h2></div><button type="button" aria-label="إغلاق" onclick="toggleAdminAttentionPanel(false)">×</button></div><div id="adminAttentionPanelBody" class="admin-attention-body-v69"><div class="portal-loading"><span></span><b>جارٍ تجهيز التنبيهات…</b></div></div><div class="admin-attention-footer-v69"><button type="button" class="small-btn" onclick="refreshAdminAttentionAlerts(true)">تحديث التنبيهات</button><button type="button" class="small-btn ghost" onclick="enableBookingNotifications()">تفعيل إشعارات الحجز</button></div></aside>
     <nav class="admin-mobile-bottom" aria-label="التنقل السريع في لوحة التحكم">
       ${[['overview','bar-chart','الرئيسية'],['students','users','الطلاب'],['attendance','calendar','الحضور'],['payments','database','المالية']].map(([id,ic,name])=>`<button type="button" data-admin-nav="${id}" class="${id===currentSection?'active':''}"><span data-icon="${ic}"></span><span>${name}</span></button>`).join('')}
-      <details class="admin-mobile-more"><summary aria-label="المزيد"><span aria-hidden="true">⋯</span><span>المزيد</span></summary><div class="admin-mobile-more-list"><button type="button" data-admin-nav="exams"><span data-icon="clipboard"></span><span>التقييمات</span></button><button type="button" data-admin-nav="curriculum"><span data-icon="book-open"></span><span>المحتوى</span></button><button type="button" data-admin-nav="motivation"><span data-icon="bar-chart"></span><span>التقارير</span></button><button type="button" data-admin-nav="settings"><span data-icon="settings"></span><span>الإعدادات</span></button><button type="button" onclick="openStudentNotificationCenter()"><span data-icon="bell"></span><span>إشعارات الطلاب</span></button><button type="button" onclick="toggleAdminDrawer(true)"><span aria-hidden="true">☰</span><span>كل الأقسام</span></button></div></details></nav>`;
+      <details class="admin-mobile-more"><summary aria-label="الأقسام: التقييمات والمحتوى والتقارير والإعدادات"><span aria-hidden="true">⋯</span><span>الأقسام</span></summary><div class="admin-mobile-more-list"><button type="button" data-admin-nav="exams"><span data-icon="clipboard"></span><span>التقييمات</span></button><button type="button" data-admin-nav="curriculum"><span data-icon="book-open"></span><span>المحتوى</span></button><button type="button" data-admin-nav="motivation"><span data-icon="bar-chart"></span><span>التقارير</span></button><button type="button" data-admin-nav="settings"><span data-icon="settings"></span><span>الإعدادات</span></button><button type="button" onclick="openStudentNotificationCenter()"><span data-icon="bell"></span><span>إشعارات الطلاب</span></button><button type="button" onclick="toggleAdminDrawer(true)"><span aria-hidden="true">☰</span><span>كل الأقسام</span></button></div></details></nav>`;
   const brand=document.querySelector('#adminRoot .admin-brand'),brandSlot=document.querySelector('#adminRoot .admin-mobile-brand');
   if(brand&&brandSlot){const label=brandSlot.querySelector('#adminCurrentSectionLabel');brandSlot.replaceChildren(brand);if(label)brand.querySelector('span')?.append(label);}
   const navigation=document.getElementById('adminNavList');
@@ -1031,7 +1032,58 @@ window.toggleClassProgress=async function(code,type){
     aToast(adminActionErrorMessage(error,'تعذر حفظ متابعة الحصة.'));
   }finally{classProgressActionPending.delete(actionKey);}
 };
-function attendanceLogHTML(){const rows=todayAttendanceRows(); return `<div class="mobile-card-table">${rows.map(r=>`<div class="mobile-row"><b>${safe(r.studentName)}</b><span class="badge ${badgeStatus(r.status)}">${r.status==='present'?'حاضر':'غائب'}</span><small>${safe(r.studentCode)} · ${safe(formatTime12(r.time)||'-')} · ${safe(r.group||'-')}</small></div>`).join('')||'<p class="section-desc">لا توجد سجلات اليوم.</p>'}</div><div class="table-wrap admin-table-desktop"><table><thead><tr><th>الطالب</th><th>الكود</th><th>الحالة</th><th>الوقت</th><th>الطريقة</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${safe(r.studentName)}</td><td>${safe(r.studentCode)}</td><td><span class="badge ${badgeStatus(r.status)}">${r.status==='present'?'حاضر':'غائب'}</span></td><td>${safe(formatTime12(r.time)||'-')}</td><td>${safe(r.method||'-')}</td></tr>`).join('')||'<tr><td colspan="5">لا توجد سجلات اليوم</td></tr>'}</tbody></table></div>`;}
+const attendanceCorrectionsPending = new Set();
+function attendanceStatusLabel(status) {
+  return { present: 'حاضر', absent: 'غائب', late: 'متأخر', excused: 'بعذر', حاضر: 'حاضر', غائب: 'غائب', متأخر: 'متأخر', بعذر: 'بعذر' }[status] || 'غير محدد';
+}
+function attendanceCorrectionButton(row) {
+  if (!row.id || row.offlinePending || row.method === 'offline_qr_pending' || !['present', 'absent', 'حاضر', 'غائب'].includes(row.status)) return '';
+  return `<button type="button" class="small-btn ghost" ${renderActionAttrs("correctAttendanceRecord", [row.id, row.date])}>تصحيح الحضور</button>`;
+}
+window.correctAttendanceRecord = async function(recordId, date) {
+  if (navigator.onLine === false || !window.MFCloud?.ready) return aToast('اتصل بالإنترنت لتصحيح الحضور.');
+  if (date !== attendanceDate || attendanceCorrectionsPending.has(recordId)) return;
+  const row = todayAttendanceRows().find(item => item.id === recordId);
+  if (!row || !attendanceCorrectionButton(row)) return aToast('السجل غير متاح للتصحيح.');
+  const status = attendanceStatusLabel(row.status) === 'حاضر' ? 'absent' : 'present';
+  const session = row.classSessionId || row.sessionId;
+  const details = [row.studentName, date, row.group, session].filter(Boolean).join(" · ");
+  if (!window.confirm(`${details}
+تغيير الحالة من «${attendanceStatusLabel(row.status)}» إلى «${attendanceStatusLabel(status)}»؟`)) return;
+  attendanceCorrectionsPending.add(recordId);
+  try {
+    const saved = await window.MFCloud.correctAttendance({ recordId, date, expectedStatus: row.status, status });
+    if (saved?.id !== recordId || saved.status !== status) throw new Error('تعذر تأكيد حفظ التصحيح.');
+    const student = (adminData.students || []).find(item => stCode(item) === row.studentCode);
+    const snapshots = [student?.attendance, attendanceCloudSnapshots.get(date)?.attendance];
+    for (const records of snapshots) {
+      const record = records?.find(item => item.id === recordId);
+      if (record) record.status = status;
+    }
+    saveData(adminData);
+    aToast('تم تصحيح حالة الحضور.');
+    if (currentSection === 'attendance' && attendanceDate === date) {
+      renderAttendance();
+      const history = document.querySelector('.attendance-history');
+      if (history) history.open = true;
+    }
+  } catch (error) {
+    aToast(adminActionErrorMessage(error, 'تعذر تصحيح حالة الحضور.'));
+    if (String(error?.code || '').endsWith('failed-precondition') && currentSection === 'attendance' && attendanceDate === date) {
+      attendanceCloudDate = '';
+      renderAttendance();
+    }
+  } finally {
+    attendanceCorrectionsPending.delete(recordId);
+  }
+};
+function attendanceLogHTML() {
+  const rows = todayAttendanceRows();
+  const badge = row => `<span class="badge ${badgeStatus(row.status)}">${attendanceStatusLabel(row.status)}</span>`;
+  const mobileRows = rows.map(row => `<div class="mobile-row"><b>${safe(row.studentName)}</b>${badge(row)}<small>${safe(row.studentCode)} · ${safe(formatTime12(row.time) || "-")} · ${safe(row.group || "-")}</small>${attendanceCorrectionButton(row)}</div>`).join("");
+  const desktopRows = rows.map(row => `<tr><td>${safe(row.studentName)}</td><td>${safe(row.studentCode)}</td><td>${badge(row)}</td><td>${safe(formatTime12(row.time) || "-")}</td><td>${safe(row.method || "-")}</td><td>${attendanceCorrectionButton(row)}</td></tr>`).join("");
+  return `<div class="mobile-card-table">${mobileRows || "<p class=section-desc>لا توجد سجلات لهذا التاريخ.</p>"}</div><div class="table-wrap admin-table-desktop"><table><thead><tr><th>الطالب</th><th>الكود</th><th>الحالة</th><th>الوقت</th><th>الطريقة</th><th>إجراءات</th></tr></thead><tbody>${desktopRows || "<tr><td colspan=6>لا توجد سجلات لهذا التاريخ</td></tr>"}</tbody></table></div>`;
+}
 function attendanceReportHTML(){const rows=todayAttendanceRows(); const present=rows.filter(r=>r.status==='present').length, absent=rows.filter(r=>r.status==='absent').length; return `<div class="metric-grid"><div class="metric"><b>${rows.length}</b><small>إجمالي مسجل</small></div><div class="metric"><b>${present}</b><small>حاضر</small></div><div class="metric"><b>${absent}</b><small>غائب</small></div><div class="metric"><b>${rows.length?Math.round(present/rows.length*100)+'%':'—'}</b><small>نسبة الحضور المسجل</small></div></div>`;}
 window.manualAttendancePrompt=function(){const code=prompt('اكتب كود الطالب الموجود في QR'); if(code) registerQrAttendance(code.trim());};
 window.openQrScanner=async function(){const selected=selectedGroup()==='all'?null:attendanceStudents(selectedGrade(),selectedGroup())[0];if(selected){const allowed=attendanceDayAllowed(selected);if(!allowed.ok)return aToast(allowed.message);}document.getElementById('qrScannerModal').hidden=false;const reader=document.getElementById('adminQrReader');if(!reader)return;if(navigator.onLine===false){const state=await window.OfflineAttendance?.counts?.().catch(()=>({roster:0}));if(!state?.roster){reader.innerHTML='<p class="section-desc">لا توجد قائمة طلاب محفوظة على الهاتف. اتصل بالإنترنت واختر المجموعة ثم اضغط تجهيز الحصة أوفلاين.</p>';return;}}if(!window.isSecureContext&&!/^(localhost|127\.0\.0\.1)$/.test(location.hostname)){reader.innerHTML='<p class="section-desc">الكاميرا تحتاج فتح الموقع من رابط HTTPS الآمن.</p>';return;}reader.innerHTML='<p class="section-desc">جاري تجهيز الكاميرا…</p>';try{await ensureQrScannerLibrary();reader.innerHTML='';if(typeof window.Html5Qrcode==='function'){qrScanner=new window.Html5Qrcode('adminQrReader');await window.startCompatibleQrCamera(qrScanner,decoded=>{registerQrAttendance(decoded);},250);}else if(navigator.mediaDevices?.getUserMedia&&'BarcodeDetector'in window){reader.innerHTML='<video id="adminQrVideo" autoplay playsinline></video>';const video=document.getElementById('adminQrVideo');const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});video.srcObject=stream;video.muted=true;await video.play();const detector=new window.BarcodeDetector({formats:['qr_code']});const loop=async()=>{if(document.getElementById('qrScannerModal').hidden)return;const codes=await detector.detect(video).catch(()=>[]);if(codes.length)await registerQrAttendance(codes[0].rawValue);setTimeout(loop,350);};loop();}else{reader.innerHTML='<p class="section-desc">قارئ QR غير محفوظ على الهاتف. اتصل بالإنترنت وافتح لوحة الإدارة مرة واحدة، ويمكنك الآن استخدام إدخال الكود اليدوي.</p>';}}catch(error){const video=document.getElementById('adminQrVideo');if(video?.srcObject){video.srcObject.getTracks().forEach(track=>track.stop());video.srcObject=null;}console.warn('Admin QR scanner failed to start.',error);reader.innerHTML=`<p class="section-desc">${safe(window.cameraStartMessage?.(error)||'تعذر فتح الكاميرا.')}</p><button class="btn ghost small" type="button" onclick="openQrScanner()">إعادة المحاولة</button>`;}};
@@ -1187,7 +1239,24 @@ function examAttemptScoreText(a){const max=Number(a.maxScore||100);return !windo
 function examAttemptCorrectionLabel(a){if(window.TMResults.isExamGradePending(a))return 'تصحيح الآن';if(a.status==='corrected'||a.reviewedAt||a.approved)return 'مراجعة وتعديل التصحيح';return 'تعديل التصحيح التلقائي';}
 function examAttemptCorrectionNote(a){if(window.TMResults.isExamGradePending(a))return 'هذه المحاولة تنتظر التصحيح. راجع كل إجابة ثم احفظ الدرجة النهائية.';if(a.status==='corrected')return 'سبق حفظ تصحيح هذه المحاولة، ويمكنك تعديل الدرجات مرة أخرى حتى بعد انتهاء الامتحان.';return 'هذه المحاولة صُححت تلقائيًا، ويمكنك تعديل درجة أي سؤال حتى بعد انتهاء الامتحان.';}
 function examAttemptRowHTML(a){const label=examAttemptCorrectionLabel(a);return `<div class="mobile-row exam-review-row-v40" data-exam-attempt-id="${safe(a.id)}"><div><b>${safe(a.studentName||'-')} — ${safe(a.examTitle||'امتحان')}</b><small>${safe(a.studentCode||'-')} · ${safe(a.submittedAt||'-')}</small></div>${examAttemptBadge(a)}<span class="badge ${a.score!==null&&a.score!==undefined?'good':'warn'}">${safe(examAttemptScoreText(a))}</span><div class="mobile-actions"><button class="small-btn primary" type="button" ${renderActionAttrs("correctAttempt",[String((a.id)??'')])} title="${safe(label)}">${safe(label)}</button></div></div>`;}
-function correctionModalKeydown(event){if(event.key==='Escape')window.closeCorrectionModal();}
+function correctionModalKeydown(event) {
+  if (event.key==='Escape') {
+    event.preventDefault();
+    window.closeCorrectionModal();
+    return;
+  }
+  if (event.key !== 'Tab') return;
+  const modal = document.querySelector('.correction-modal-v40');
+  if (!modal) return;
+  const controls = [...modal.querySelectorAll('button,input,select,textarea,a[href],[tabindex]')]
+    .filter(control => control.tabIndex >= 0 && !control.matches(':disabled') && control.getClientRects().length);
+  const active = document.activeElement;
+  const edge = event.shiftKey ? controls[0] : controls.at(-1);
+  if (controls.includes(active) && active !== edge) return;
+  event.preventDefault();
+  const destination = event.shiftKey ? controls.at(-1) : controls[0];
+  (destination || modal).focus();
+}
 window.correctAttempt=function(id){
   const a=adminData.examAttempts.find(x=>String(x.id)===String(id));if(!a)return;
   window.closeCorrectionModal(false);correctionReturnFocus=document.activeElement instanceof HTMLElement?document.activeElement:null;
@@ -1196,9 +1265,24 @@ window.correctAttempt=function(id){
   const titleId=`correctionTitle-${String(a.id||'attempt').replace(/[^a-zA-Z0-9_-]/g,'')}`;
   const html=`<div class="correction-modal-v40" role="dialog" aria-modal="true" aria-labelledby="${safe(titleId)}" data-correction-attempt="${safe(a.id)}"><div class="correction-card-v40 card"><div class="profile-top correction-head-v683"><div><span class="kicker">مراجعة درجة الامتحان</span><h2 id="${safe(titleId)}">${safe(a.studentName||'-')}</h2><p class="section-desc">${safe(a.examTitle||'امتحان')} · الدرجة من ${safe(max)}</p><p class="correction-mode-note-v683">${safe(examAttemptCorrectionNote(a))}</p></div><button type="button" class="small-btn danger" data-correction-close onclick="closeCorrectionModal()" aria-label="إغلاق شاشة التصحيح">إغلاق</button></div><div class="correction-list-v40" tabindex="0" aria-label="إجابات الطالب القابلة للتمرير">${answers.map((ans,i)=>`<div class="correction-question-v40"><h3>${i+1}. ${safe(ans.question||'سؤال')} <small>(${safe(ans.mark||1)} درجة)</small></h3><div class="correction-answer-grid-v40"><div><span>إجابة الطالب</span><p>${safe(ans.answer||'-')}</p></div><div><span>الإجابة الصحيحة / النموذجية</span><p>${safe(ans.correctAnswer||ans.modelAnswer||'يصَححها المدرس')}</p></div></div><label>الدرجة المستحقة<input type="number" inputmode="decimal" data-awarded-index="${i}" min="0" max="${safe(ans.mark||1)}" step="0.25" value="${safe(ans.awardedMark??(ans.correct?ans.mark||1:0))}" oninput="recalculateCorrectionScore()" aria-label="درجة السؤال ${i+1} من ${safe(ans.mark||1)}"></label></div>`).join('')||'<p class="section-desc">لا توجد إجابات محفوظة.</p>'}</div><div class="correction-final-v40"><label>الدرجة النهائية من ${safe(max)}<input id="manualFinalScore" type="number" min="0" max="${safe(max)}" step="0.25" value="${safe(a.score??a.autoScore??0)}" readonly></label><label class="correction-reason-v683">ملاحظة التعديل (اختياري)<textarea id="correctionReason" rows="2" maxlength="800" placeholder="مثال: قبول إجابة بديلة صحيحة"></textarea></label><button type="button" class="btn primary" ${renderActionAttrs("saveAttemptCorrection",[String((a.id)??'')])}>حفظ الدرجة المعدلة</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',html);document.body.classList.add('correction-open');document.addEventListener('keydown',correctionModalKeydown);recalculateCorrectionScore();
-  requestAnimationFrame(()=>{const modal=document.querySelector('.correction-modal-v40');modal?.querySelector('.correction-list-v40')?.scrollTo({top:0});modal?.querySelector('[data-correction-close]')?.focus({preventScroll:true});});
+  const modal = document.body.lastElementChild;
+  modal.tabIndex = -1;
+  correctionInertSiblings = [...document.body.children].filter(node =>
+    node !== modal && !node.matches('script,template,#toast,[inert]')
+  );
+  modal.querySelector('[data-correction-close]')?.focus({preventScroll:true});
+  correctionInertSiblings.forEach(node => node.setAttribute('inert', ''));
+  requestAnimationFrame(()=>modal.querySelector('.correction-list-v40')?.scrollTo?.({top:0}));
 };
-window.closeCorrectionModal=function(restoreFocus=true){document.removeEventListener('keydown',correctionModalKeydown);document.querySelector('.correction-modal-v40')?.remove();document.body.classList.remove('correction-open');if(restoreFocus!==false&&correctionReturnFocus?.isConnected)correctionReturnFocus.focus({preventScroll:true});if(restoreFocus!==false)correctionReturnFocus=null;};
+window.closeCorrectionModal=function(restoreFocus=true){
+  document.removeEventListener('keydown',correctionModalKeydown);
+  document.querySelector('.correction-modal-v40')?.remove();
+  document.body.classList.remove('correction-open');
+  correctionInertSiblings.forEach(node => node.removeAttribute('inert'));
+  correctionInertSiblings = [];
+  if(restoreFocus!==false&&correctionReturnFocus?.isConnected)correctionReturnFocus.focus({preventScroll:true});
+  if(restoreFocus!==false)correctionReturnFocus=null;
+};
 window.recalculateCorrectionScore=function(){const fields=[...document.querySelectorAll('.correction-modal-v40 [data-awarded-index]')];const score=fields.reduce((sum,input)=>sum+Math.max(0,Math.min(Number(input.max),Number(input.value)||0)),0);const target=document.getElementById('manualFinalScore');if(target)target.value=score;};
 window.saveAttemptCorrection=async function(id){
   const attempt=adminData.examAttempts.find(item=>String(item.id)===String(id));if(!attempt)return;
