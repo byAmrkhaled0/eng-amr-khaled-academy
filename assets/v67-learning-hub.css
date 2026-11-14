@@ -711,12 +711,12 @@ body.tm-public-app #home>.tm-reference-hero .teacher-photo img{display:block;wid
 body.tm-public-app #home>.tm-learning-areas{position:relative;z-index:2;margin:-26px auto 0;width:min(calc(100% - 56px),1380px);padding:20px 18px 8px;background:var(--public-surface);border:1px solid var(--public-border);border-radius:15px;box-shadow:0 8px 28px #082b4810}
 body.tm-public-app #home>.tm-learning-areas>.container{width:100%;max-width:none;padding:0}
 body.tm-public-app #home>.tm-learning-areas .reference-feature-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
-body.tm-public-app #home>.tm-learning-areas .tm-feature{display:grid;grid-template-columns:30px minmax(0,1fr);gap:2px 9px;padding:0;min-height:48px;align-content:center;justify-items:start;text-align:right;background:transparent;border:0;box-shadow:none;transform:none}
+body.tm-public-app #home>.tm-learning-areas .tm-feature{display:grid;grid-template-columns:30px minmax(0,1fr);gap:2px 9px;padding:10px;min-height:68px;align-content:center;justify-items:start;text-align:right;background:var(--public-elevated);border:1px solid var(--public-border);border-radius:10px;box-shadow:none;transform:none}
 body.tm-public-app #home>.tm-learning-areas .tm-feature>[data-icon]{display:grid;place-items:center;grid-row:1/3;width:26px;height:26px;border:0;background:transparent;color:var(--public-cyan)}
 body.tm-public-app #home>.tm-learning-areas .tm-feature svg{width:25px;height:25px}
 body.tm-public-app #home>.tm-learning-areas .tm-feature h3{font-size:13px;line-height:1.6;margin:0;color:var(--public-text)}
 body.tm-public-app #home>.tm-learning-areas .tm-feature p{font-size:11px;line-height:1.7;margin:0;color:var(--public-muted)}
-body.tm-public-app #home>.tm-learning-areas .reference-learn-more{display:flex;width:max-content;margin:7px auto 0;padding:4px 6px;min-height:30px;font-size:11px;border:0;background:transparent!important;color:var(--public-cyan)!important}
+body.tm-public-app #home>.tm-learning-areas .reference-learn-more{display:flex;width:max-content;max-width:100%;margin:5px auto 0;padding:4px 10px;min-height:44px;font-size:12px;border:0;background:transparent!important;color:var(--public-cyan)!important}
 body.tm-visual-system:not(.tm-portal) .tm-reference-tracks{padding:36px 0 24px}
 body.tm-visual-system:not(.tm-portal) .tm-reference-tracks .section-head{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:16px;text-align:right;margin-bottom:21px}
 body.tm-visual-system:not(.tm-portal) .tm-reference-tracks .section-title{font-size:28px;line-height:1.5;color:var(--public-text);margin:0}
@@ -808,20 +808,20 @@ body.tm-public-app #home>.tm-reference-hero .tm-hero-proof{display:none}
 body.tm-public-app #home>.tm-reference-hero .teacher-frame{inset:0 0 auto;width:100%;height:320px}
 body.tm-public-app #home>.tm-reference-hero .teacher-photo img{object-position:60% 40%}
 body.tm-public-app #home>.tm-learning-areas{width:calc(100% - 28px);margin:-18px auto 0;padding:15px 12px 7px;border-radius:12px}
-body.tm-public-app #home>.tm-learning-areas .reference-feature-grid{grid-template-columns:1fr 1fr;gap:13px 9px}
-body.tm-public-app #home>.tm-learning-areas .tm-feature{grid-template-columns:23px minmax(0,1fr);gap:2px 7px;min-height:40px}
+body.tm-public-app #home>.tm-learning-areas .reference-feature-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+body.tm-public-app #home>.tm-learning-areas .tm-feature{grid-template-columns:23px minmax(0,1fr);gap:2px 6px;min-height:62px;padding:7px}
 body.tm-public-app #home>.tm-learning-areas .tm-feature>[data-icon],body.tm-public-app #home>.tm-learning-areas .tm-feature svg{width:21px;height:21px}
 body.tm-public-app #home>.tm-learning-areas .tm-feature h3{font-size:12px}body.tm-public-app #home>.tm-learning-areas .tm-feature p{font-size:11px}
 body.tm-visual-system:not(.tm-portal) .tm-reference-tracks{padding:25px 0 20px}
 body.tm-visual-system:not(.tm-portal) .tm-reference-tracks .section-head{gap:8px;margin-bottom:16px}
 body.tm-visual-system:not(.tm-portal) .tm-reference-tracks .section-title{font-size:23px}
 body.tm-visual-system:not(.tm-portal) .tm-reference-tracks .section-desc{font-size:12px;line-height:1.8;margin-top:5px}
-body.tm-visual-system:not(.tm-portal) .tm-reference-tracks .section-head>.btn{min-height:36px;font-size:11px;padding:7px 8px}
+body.tm-visual-system:not(.tm-portal) .tm-reference-tracks .section-head>.btn{min-height:44px;font-size:12px;padding:7px 10px}
 body.tm-visual-system:not(.tm-portal) .tm-track-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;overflow:visible;display:grid}
 body.tm-visual-system:not(.tm-portal) .tm-track-card{min-height:228px;min-width:0;flex:none;border-radius:12px;gap:0}
 body.tm-visual-system:not(.tm-portal) .tm-track-copy{padding:10px 10px 0;gap:4px}
 body.tm-visual-system:not(.tm-portal) .tm-track-card h3{font-size:13px;line-height:1.7}
-body.tm-visual-system:not(.tm-portal) .tm-track-card p,body.tm-visual-system:not(.tm-portal) .tm-track-card small{font-size:11px;line-height:1.7}
+body.tm-visual-system:not(.tm-portal) .tm-track-card p,body.tm-visual-system:not(.tm-portal) .tm-track-card small{font-size:12px;line-height:1.7}
 body.tm-visual-system:not(.tm-portal) .tm-track-open{font-size:11px;padding:9px 10px 12px}
 body.tm-visual-system:not(.tm-portal) .tm-track-card>img{height:96px;width:100%;order:-1;border-radius:0;flex:none}
 body.tm-visual-system:not(.tm-portal) .tm-track-art{height:96px}

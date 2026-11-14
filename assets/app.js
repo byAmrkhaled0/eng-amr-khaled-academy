@@ -16,7 +16,6 @@ var cloudSaveTimer = null;
 var staffCacheTimer = null;
 var MF_ASSET_VERSION = '70.0.11';
 var mfLazyScriptPromises = Object.create(null);
-var publicScheduleUnsubscribe = null;
 
 function setupInteractionPerformance(){
   if(window.__tmPerformanceBound)return;window.__tmPerformanceBound=true;window.__tmPerformanceSamples=[];
@@ -319,21 +318,12 @@ async function initFirebaseData(){
   if(isStaffWorkspace())return;
   if(document.getElementById('studentSearchForm')||document.getElementById('parentSearchForm'))return;
   if(!window.MFCloud?.ready || !window.MFCloud.loadSiteData) return;
-  startPublicScheduleSync();
   try{
     const cloudData = await window.MFCloud.loadSiteData();
     if(cloudData){ appData = mergeData(cloudData); saveData(appData); refreshActiveViews(); }
   }catch(e){ appDataLoadFailed=true; refreshActiveViews(); }
-}
-function startPublicScheduleSync(){
-  if(publicScheduleUnsubscribe||!document.getElementById('bookingGroup')||!window.MFCloud?.subscribeToGroups)return;
-  publicScheduleUnsubscribe=window.MFCloud.subscribeToGroups(rows=>{
-    appData.groups=Array.isArray(rows)?rows:[];
-    saveData(appData);
-    renderBookingScheduleOptions();
-    const live=document.getElementById('bookingSchedulesLive');
-    if(live)live.textContent='المواعيد متصلة بلوحة الإدارة الآن';
-  });
+  const schedulesLabel=document.getElementById('bookingSchedulesLive');
+  if(schedulesLabel) schedulesLabel.hidden=true;
 }
 function applyPublicSiteMedia(){
   const settings=appData.settings||{};if(!settings.siteMedia&&!window.TMSiteMedia)return;
@@ -669,10 +659,19 @@ function studentTransferPanelHTML(raw){
   const st=normalizedStudent(raw),transferOptions=Array.isArray(st.transferOptions)?st.transferOptions:[],transferRequest=st.transferRequest||null,transferPending=transferRequest?.status==='pending';
   return `<div class="student-panel-title"><div><span class="kicker"><span data-icon="user-check"></span> طلب نقل</span><h3>الانتقال إلى مجموعة أخرى</h3><p>تظهر فقط مجموعات Firebase النشطة المطابقة لمسارك والترم الحالي.</p></div>${transferRequest?`<span class="badge ${transferRequest.status==='approved'?'good':transferRequest.status==='rejected'?'danger':'warn'}">${transferRequest.status==='approved'?'تمت الموافقة':transferRequest.status==='rejected'?'تم الرفض':'قيد المراجعة'}</span>`:''}</div>${transferRequest?`<article class="student-transfer-status-card"><small>آخر طلب</small><h4>${esc(transferRequest.currentGroup||st.group||'-')} ← ${esc(transferRequest.targetGroup||'-')}</h4><p>${esc(transferRequest.reason||'')}</p>${transferRequest.teacherNote?`<small>رد المدرس: ${esc(transferRequest.teacherNote)}</small>`:''}</article>`:''}${transferPending?'<div class="portal-empty"><h3>طلبك قيد المراجعة</h3><p>لا يمكن إرسال طلب جديد قبل مراجعة الطلب الحالي.</p></div>':transferOptions.length?`<form class="student-transfer-form" data-student-code="${esc(st.studentCode)}"><label><span>المجموعة الجديدة</span><select name="targetScheduleId" required><option value="">اختر مجموعة متاحة</option>${transferOptions.map(item=>`<option value="${esc(item.id)}">${esc(item.name)} — ${esc(item.days||'')} ${item.startTime?`· ${esc(formatTime12(item.startTime))}`:''}${item.availableSeats!==null&&item.availableSeats!==undefined?` · متبقي ${esc(item.availableSeats)} مكان`:''}</option>`).join('')}</select></label><label><span>سبب طلب النقل</span><textarea name="reason" rows="4" maxlength="800" required placeholder="اكتب سبب طلب النقل"></textarea></label><button class="btn primary" type="submit"><span data-icon="user-check"></span> إرسال الطلب للإدارة</button></form>`:'<div class="portal-empty"><h3>لا توجد مجموعات أخرى متاحة</h3><p>أي مجموعة مكتملة أو غير مطابقة لمسارك لا تظهر هنا.</p></div>'}`;
 }
-function studentHomeTasksHTML(required,report){
-  const tasks=[...(required||[]).map(row=>({id:String(row.id||''),tab:'homework',title:row.title||'واجب مطلوب',date:row.dueDate,label:'حل الواجب',icon:'file-text'})),...(report?.results?.rows||[]).filter(row=>row.examId&&row.assessmentMode!=='paper'&&['available','upcoming'].includes(row.status)).map(row=>({id:String(row.examId),tab:'exams',title:row.examTitle||row.activityName||'اختبار',date:row.date,label:row.status==='available'?'اختبار متاح':'اختبار قادم',icon:'clipboard'}))].filter(row=>row.id);
-  const unique=[...new Map(tasks.map(row=>[row.tab+':'+row.id,row])).values()];unique.sort((a,b)=>(Date.parse(a.date)||Infinity)-(Date.parse(b.date)||Infinity)||a.title.localeCompare(b.title,'ar'));
-  return unique.slice(0,3).map(row=>`<button type="button" class="student-record-card student-task-action" data-student-task-tab="${row.tab}" data-student-task-id="${esc(row.id)}"><span data-icon="${row.icon}"></span><span class="student-task-copy"><b>${esc(row.title)}</b><small>${row.date?esc(formatPortalDate(row.date)):'لم يحدد موعد تسليم'}</small></span><span class="badge warn">${esc(row.label)}</span></button>`).join('')||'<p class="student-widget-empty">لا توجد مهام مطلوبة في البيانات الحالية.</p>';
+function studentHomeTasksHTML(required,report,extra=[]){
+  const dateLabel=(prefix,date,fallback)=>Number.isFinite(Date.parse(date))?`${prefix} ${new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',day:'numeric',month:'short',...(String(date).includes('T')?{hour:'numeric',minute:'2-digit'}:{})}).format(new Date(date))}`:fallback;
+  const tasks=[
+    ...(required||[]).map(row=>({id:row.id,tab:'homework',title:row.title||'واجب مطلوب',date:row.dueDate,priority:1,detail:dateLabel('آخر تسليم',row.dueDate,'بدون موعد تسليم محدد'),label:'حل الواجب',icon:'file-text'})),
+    ...extra.map(row=>({id:row.id,tab:'homework',title:row.title||'واجب',priority:1,detail:'محاولة إضافية متاحة',label:'فتح الواجب',icon:'file-text'})),
+    ...(report?.results?.rows||[]).filter(row=>row.examId&&row.assessmentMode!=='paper'&&['available','upcoming'].includes(row.status)).map(row=>{
+      const available=row.status==='available';
+      return {id:row.examId,tab:'exams',title:row.examTitle||row.activityName||'اختبار',date:row.date,priority:available?0:2,detail:available?'اختبار متاح الآن':dateLabel('يفتح',row.date,'اختبار قادم'),label:available?'فتح الاختبار':'عرض الموعد',icon:'clipboard'};
+    })
+  ].filter(row=>row.id);
+  const unique=[...new Map(tasks.map(row=>[row.tab+':'+row.id,row])).values()];
+  unique.sort((a,b)=>a.priority-b.priority||(Date.parse(a.date)||Infinity)-(Date.parse(b.date)||Infinity)||a.title.localeCompare(b.title,'ar'));
+  return unique.slice(0,3).map(row=>`<button type="button" class="student-record-card student-task-action" data-student-task-tab="${row.tab}" data-student-task-id="${esc(row.id)}"><span aria-hidden="true" data-icon="${row.icon}"></span><span class="student-task-copy"><b>${esc(row.title)}</b><small>${esc(row.detail)}</small></span><span class="student-task-label">${esc(row.label)}</span></button>`).join('')||'<p class="student-widget-empty">لا توجد مهام مطلوبة في البيانات الحالية.</p>';
 }
 function studentProfileHTML(raw, isParent=false){
   const st=normalizedStudent(raw),monthlyReport=compatibleMonthlyReport(st.monthlyReport,st.studentCode)?st.monthlyReport:null;
@@ -723,7 +722,8 @@ function studentProfileHTML(raw, isParent=false){
   const motivationTransactions=Array.isArray(st.motivation?.transactions)?st.motivation.transactions:[];
   const motivationCurrent=monthlyReport?.motivation||null;
   const motivationCards=()=>motivationTransactions.length?motivationTransactions.slice(0,20).map(row=>`<article class="student-record-card motivation-record"><div><span class="record-eyebrow">${esc(row.month||'-')} · ${esc(row.academicYear||'-')}</span><h4>${esc(row.reason||'نقاط تحفيز')}</h4><small>${esc(row.notes||formatPortalDate(row.createdAt)||'')}</small></div><strong class="score-pill ${Number(row.points)>=0?'good':'danger'}">${Number(row.points)>=0?'+':''}${esc(row.points)} نقطة</strong></article>`).join(''):'<div class="portal-empty"><span class="iconbox" data-icon="star"></span><h3>لا توجد نقاط تحفيز بعد</h3><p>ستظهر هنا نقاط الحضور والمشاركة والالتزام عند تسجيلها من المدرس.</p></div>';
-  const now=Date.now(),soonAssignments=assignmentGroups.required.filter(item=>{const time=Date.parse(item.dueDate||'');return Number.isFinite(time)&&time>=now&&time-now<=3*86400000;}),latestMotivation=motivationTransactions[0],latestMotivationTime=Date.parse(latestMotivation?.createdAt||'');
+  const now=Date.now(),latestMotivation=motivationTransactions[0],latestMotivationTime=Date.parse(latestMotivation?.createdAt||'');
+  const soonAssignments=assignmentGroups.required.filter(item=>{const time=Date.parse(item.dueDate||'');return Number.isFinite(time)&&time>=now&&time-now<=3*86400000;});
   const deadlineAlert=soonAssignments.length?`<section class="portal-action-alert deadline"><span data-icon="alert-circle"></span><div><b>${soonAssignments.length===1?'واجب يقترب موعد إغلاقه':`${soonAssignments.length} واجبات تقترب مواعيد إغلاقها`}</b><small>افتح قسم الواجبات وسلّم قبل الموعد المحدد.</small></div></section>`:'';
   const motivationAlert=latestMotivation&&Number.isFinite(latestMotivationTime)&&now-latestMotivationTime<7*86400000?`<section class="portal-action-alert motivation"><span data-icon="star"></span><div><b>لديك ${Number(latestMotivation.points)>=0?'نقاط تحفيز جديدة':'تحديث جديد في نقاط التحفيز'}</b><small>${Number(latestMotivation.points)>=0?'+':''}${esc(latestMotivation.points)} — ${esc(latestMotivation.reason)}</small></div></section>`:'';
   const markup=`<div class="student-app-dashboard" data-student-code="${esc(st.studentCode)}">
@@ -753,7 +753,7 @@ function studentProfileHTML(raw, isParent=false){
     <section class="student-tab-panel show" data-student-panel="overview">
       <div class="student-dashboard-widgets">
         <section class="student-dashboard-widget"><div class="student-section-heading"><h3>النشاط الأخير</h3><span>سجلك الدراسي</span></div><div class="student-record-list">${grades.slice(0,3).map(row=>`<article class="student-record-card"><span data-icon="bar-chart"></span><div><h4>${esc(row.activityName||row.examTitle||row.homeworkTitle||row.title||'نتيجة دراسية')}</h4><small>${esc(formatPortalDate(row.date||row.submittedAt))} · ${row.score==null?'قيد التصحيح':esc(row.score)+' / '+esc(row.maxScore||100)}</small></div></article>`).join('')||'<p class="student-widget-empty">ستظهر نتائج أنشطتك هنا عند تسجيلها.</p>'}</div></section>
-        <section class="student-dashboard-widget"><div class="student-section-heading"><h3>مطلوب منك دلوقتي</h3><span>واجبات واختبارات حسابك</span></div><div class="student-record-list">${studentHomeTasksHTML(assignmentGroups.required,monthlyReport)}</div></section>
+        <section class="student-dashboard-widget student-home-tasks"><div class="student-section-heading"><h3>مطلوب منك دلوقتي</h3></div><div class="student-record-list">${pending?'<p class="student-widget-empty">هتظهر المهام هنا بعد قبول الحجز.</p>':studentHomeTasksHTML(assignmentGroups.required,monthlyReport,assignmentGroups.extra)}</div></section>
       </div>
       <article class="teacher-note-card"><span data-icon="clipboard"></span><div><small>ملاحظات المدرس</small><p>${esc(st.notes||'لا توجد ملاحظات حالية. استمر في المذاكرة والمتابعة.')}</p></div></article>
 
@@ -1417,7 +1417,11 @@ function setupHomeworkStepper(form){
   form.addEventListener('input',update);form.addEventListener('change',update);goTo(current,false);
   const controller={goTo,firstMissing:()=>firstMissingHomeworkQuestion(form),update};form.__homeworkStepper=controller;return controller;
 }
-function protectedStudentWorkOpen(){return Boolean(window.__tmExamInProgress||document.body?.classList.contains('exam-open')||document.querySelector('.student-assignment-card[open] .assignment-answer-form,.assignment-answer-form[data-submitting="true"],.assignment-answer-form[data-draft-dirty="true"]'));}
+function protectedStudentWorkOpen({visibleHomeworkOnly=false}={}){
+  const openHomework='.student-assignment-card[open] .assignment-answer-form';
+  const homeworkScope=visibleHomeworkOnly?'[data-student-panel="homework"].show ':'';
+  return Boolean(window.__tmExamInProgress||document.body?.classList.contains('exam-open')||document.querySelector(`${homeworkScope}${openHomework},.assignment-answer-form[data-submitting="true"],.assignment-answer-form[data-draft-dirty="true"]`));
+}
 function refreshHomeworkSummary(student){
   student.homeworkMetrics=window.TMResults.homeworkMetrics(student.assignments||[],student.homeworks||[]);
   const nonHomework=(Array.isArray(student.results)?student.results:[]).filter(row=>row.type!=='homework');

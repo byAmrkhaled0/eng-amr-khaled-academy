@@ -147,6 +147,7 @@
 
     const calls={
       getPortalStudent:callable('getPortalStudent'),
+      getPublicBookingSchedules:callable('getPublicBookingSchedules'),
       getStudentResources:callable('getStudentResources'),
       getPublicLeaderboard:callable('getPublicLeaderboard'),
       getStudentLeaderboardPosition:callable('getStudentLeaderboardPosition'),
@@ -522,7 +523,7 @@
       // fetch their own content; portals use secure callable responses.
       const [materials,questions,reviews,groups,assignments,settings]=await Promise.all([
         [],[],
-        (home||reviewsPage)?getApprovedReviews().catch(()=>[]):[],home?getDocs('groups').catch(()=>[]):[],
+        (home||reviewsPage)?getApprovedReviews().catch(()=>[]):[],home&&calls.getPublicBookingSchedules?calls.getPublicBookingSchedules({}).then(response=>response.schedules).catch(()=>[]):[],
         [],getSettings().catch(()=>({}))
       ]);
       return {students:[],bookings:[],materials,questions,exams:[],reviews,groups,assignments,examAttempts:[],grades:[],settings};
