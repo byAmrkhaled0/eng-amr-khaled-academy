@@ -14,7 +14,7 @@ test('classroom exam traffic is isolated per student and supports a shared netwo
   assert.match(source, /exam-start',[\s\S]*?60,\s*10000,\s*10 \* 60 \* 1000/);
   assert.match(source, /exam-submit',[\s\S]*?60,\s*10000,\s*10 \* 60 \* 1000/);
   assert.match(source, /exam-progress',[\s\S]*?5000,\s*100000,\s*60\*60\*1000/);
-  assert.match(source, /rateLimitStudentAction\(`portal-\$\{mode\}`[\s\S]*?20,\s*3000,\s*60 \* 1000/);
+  assert.match(source, /rateLimitStudentAction\(`portal-\$\{mode\}`, code, request, 20, 3000, 60_000\)/);
   assert.match(source, /const shardCount = 32/);
   assert.doesNotMatch(source, /rateLimitPublic\('exam-start'/);
   assert.doesNotMatch(source, /rateLimitPublic\('exam-submit'/);
