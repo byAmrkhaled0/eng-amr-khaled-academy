@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@firebase/rules-unit-testing');
-const { doc, getDoc, setDoc, updateDoc, Timestamp } = require('firebase/firestore');
+const { collection, doc, getDoc, getDocs, setDoc, updateDoc, Timestamp } = require('firebase/firestore');
 const { ref, uploadBytes, getBytes, updateMetadata } = require('firebase/storage');
 
 const root = path.resolve(__dirname, '..');
@@ -25,12 +25,20 @@ test.before(async () => {
     await setDoc(doc(db,'settings/platform'),{siteName:'Techno Minds'});
     await setDoc(doc(db,'class_sessions/session-1'),{date:'2026-08-14',scheduleId:'group-1'});
     await setDoc(doc(db,'student_notes/note-1'),{studentCode:'12345678',note:'Private'});
+    await setDoc(doc(db,'groups/group-1'),{name:'Test schedule',internalNote:'Private'});
     await uploadBytes(ref(context.storage(),'teacher-files/admin-test.pdf'),Buffer.from('%PDF-test'),{contentType:'application/pdf'});
   });
 });
 
 test.after(async()=>{if(env)await env.cleanup();});
 const adminDb=()=>env.authenticatedContext('admin-uid',{admin:true,email_verified:true,email:'admin@example.com'}).firestore();
+
+test('raw timetable documents are private even when their IDs are public',async()=>{
+  const publicDb=env.unauthenticatedContext().firestore();
+  await assertFails(getDoc(doc(publicDb,'groups/group-1')));
+  await assertFails(getDocs(collection(publicDb,'groups')));
+  await assertSucceeds(getDoc(doc(adminDb(),'groups/group-1')));
+});
 
 test('only the verified active Admin can read student data',async()=>{
   await assertSucceeds(getDoc(doc(adminDb(),'students/12345678')));

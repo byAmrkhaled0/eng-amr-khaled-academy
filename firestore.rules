@@ -97,7 +97,7 @@ service cloud.firestore {
     // getStudentResources Function after validating the student's code/track.
     match /materials/{id} { allow read: if isStaff(); allow write: if isTeacher(); }
     match /questions/{id} { allow read: if isStaff(); allow write: if isTeacher(); }
-    match /groups/{id} { allow read: if true; allow write: if isTeacher(); }
+    match /groups/{id} { allow read, write: if isAdmin(); }
     // Assignments are returned only after validating the student code/track.
     match /assignments/{id} { allow read, write: if isTeacher(); }
     // Transfer requests are created and reviewed only by validated Functions.

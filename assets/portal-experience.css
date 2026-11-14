@@ -500,4 +500,10 @@ body.student-menu-open{overflow:hidden}
 
 .tm-portal .learning-kind-filter{display:flex;align-items:center;gap:10px;font-size:.75rem;margin-top:10px;color:var(--muted)}.tm-portal .learning-kind-filter select{min-height:42px;max-width:220px;padding:8px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text)}
 
-.tm-portal .student-task-action{width:100%;text-align:start;border:1px solid var(--border);cursor:pointer}.tm-portal .student-task-copy{min-width:0;flex:1;display:grid;gap:4px}.tm-portal .student-task-copy b{font-size:.84rem;overflow-wrap:anywhere}
+.tm-portal .student-home-tasks{margin:0}
+.tm-portal .student-task-action{width:100%;min-block-size:48px;text-align:start;border:1px solid var(--border);cursor:pointer}
+.tm-portal .student-task-action:is(:hover,:focus-visible){background:var(--surface-2)}
+.tm-portal .student-task-action:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.tm-portal .student-task-copy{min-width:0;flex:1;display:grid;gap:4px}
+.tm-portal .student-task-copy b{font-size:.88rem;overflow-wrap:anywhere}
+.tm-portal .student-task-label{flex:none;color:var(--primary);font-size:.73rem;font-weight:700}

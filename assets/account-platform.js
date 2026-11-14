@@ -107,19 +107,32 @@
   let activityFocusCleanup=()=>{};
   function openActivity(tab,id){
     if(!['homework','exams'].includes(tab)||!id)return;
-    if(window.protectedStudentWorkOpen?.()){window.toast?.('كمّل الامتحان أو الواجب المفتوح الأول.');return;}
+    if(window.protectedStudentWorkOpen?.({visibleHomeworkOnly:true})){window.toast?.('كمّل الامتحان أو الواجب المفتوح الأول.');return;}
     activityFocusCleanup();const code=state.code;selectStudentTab(tab);
     const panel=document.querySelector('[data-student-panel="'+tab+'"]');if(!panel)return;
     let observer,timer;const stop=()=>{observer?.disconnect();clearTimeout(timer);};activityFocusCleanup=stop;
-    const focus=()=>{if(state.code!==code||state.role!=='student'){stop();return true;}const target=[...panel.querySelectorAll(tab==='homework'?'[data-assignment-id]':'[data-exam-id]')].find(node=>(node.dataset.assignmentId||node.dataset.examId)===id);if(!target)return false;stop();const card=target.closest('.student-assignment-card,.exam-portal-card')||target;if(card.tagName==='DETAILS')card.open=true;card.scrollIntoView({block:'center'});card.setAttribute('tabindex','-1');card.focus({preventScroll:true});return true;};
+    const focus=()=>{
+      if(state.code!==code||state.role!=='student'||panel.closest('[data-student-view]')?.dataset.studentView!==tab){stop();return true;}
+      const target=[...panel.querySelectorAll(tab==='homework'?'[data-assignment-id]':'[data-exam-id]')].find(node=>(node.dataset.assignmentId||node.dataset.examId)===id);
+      if(!target)return false;
+      stop();
+      const card=target.closest('.student-assignment-card,.exam-portal-card')||target;
+      const hiddenRow=card.closest('[data-assignment-lazy][hidden]');
+      if(hiddenRow)hiddenRow.hidden=false;
+      if(card.tagName==='DETAILS')card.open=true;
+      card.setAttribute('tabindex','-1');
+      card.focus({preventScroll:true});
+      card.scrollIntoView({block:'center'});
+      return true;
+    };
     requestAnimationFrame(()=>{if(!focus()){observer=new MutationObserver(focus);observer.observe(panel,{childList:true,subtree:true});timer=setTimeout(stop,10000);}});
   }
   function mountStudent(box,student){
     document.body.classList.remove('student-menu-open');document.querySelector('.account-menu-button')?.setAttribute('aria-expanded','false');
     const nav=box.querySelector('.student-tabbar');if(!nav)return;
     const dashboard=box.querySelector('.student-app-dashboard');if(dashboard.dataset.accountMounted)return;dashboard.dataset.accountMounted='true';
-    const workspace=box.querySelector('.student-dashboard-content');workspace.prepend(workspace.querySelector('.student-app-header'),workspace.querySelector('.student-kpi-grid'));
-    const widgets=workspace.querySelector('.student-dashboard-widgets');if(widgets?.children.length===2)widgets.prepend(widgets.lastElementChild);
+    const workspace=box.querySelector('.student-dashboard-content');workspace.prepend(workspace.querySelector('.student-app-header'));
+    const widgets=workspace.querySelector('.student-dashboard-widgets');
     box.querySelector('.student-qr-details>summary')?.setAttribute('aria-label','عرض QR الحضور');
     box.querySelector('.student-dashboard-logo')?.remove();
     const previousCode=state.code;
@@ -130,8 +143,10 @@
     const resources=overview.querySelector('.student-quick-links');if(resources){resources.setAttribute('aria-label','أقسامك الدراسية — بنفس حساب الطالب');}
     const continuing=overview.querySelector('.continue-learning-card');if(continuing)overview.querySelector('.student-dashboard-widgets')?.after(continuing);
     [...overview.children].filter(n=>n!==continuing&&n!==resources&&!n.classList.contains('student-dashboard-widgets')).forEach(n=>extra.lastChild.append(n));overview.append(extra);overview.prepend(...[widgets,continuing,resources].filter(node=>node&&node.parentElement===overview));
-    const activity=overview.querySelector('.student-dashboard-widgets .student-dashboard-widget:last-child');if(activity)extra.lastChild.prepend(activity);
+    const activity=widgets?.querySelector('.student-dashboard-widget:not(.student-home-tasks)');if(activity)extra.lastChild.prepend(activity);
     const secondary=workspace.querySelector('.student-secondary-kpis');if(secondary)extra.lastChild.prepend(secondary);
+    const indicators=workspace.querySelector('.student-kpi-grid');
+    if(indicators)widgets?.after(indicators,...workspace.querySelectorAll(':scope > .portal-action-alert'));
     const exit=document.createElement('button');exit.type='button';exit.className='account-sidebar-access student-sidebar-signout';exit.textContent='تسجيل الخروج';exit.onclick=signOut;nav.closest('.account-sidebar').append(exit);
     nav.addEventListener('click',e=>{const button=e.target.closest('[data-student-tab]');if(button)studentPage(button.dataset.studentTab);});
     requestAnimationFrame(restoreStudentPage);

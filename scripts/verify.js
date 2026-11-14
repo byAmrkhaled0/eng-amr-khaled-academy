@@ -221,7 +221,7 @@ if (!/<script\b(?=[^>]*\bdefer)(?=[^>]*src="https:\/\/www\.gstatic\.com\/firebas
 const upgrade = read('assets/v53-upgrades.js');
 if (!upgrade.includes('beforeinstallprompt') || !upgrade.includes('إضافة إلى الشاشة الرئيسية') || !upgrade.includes('navigator.standalone')) fail('Mobile install handling is incomplete');
 if (!read('assets/app.js').includes('renderBookingScheduleOptions') || !read('index.html').includes('bookingScheduleId')) fail('Booking schedule linkage is incomplete');
-if (!read('assets/firebase-sync.js').includes('subscribeToGroups:handler') || !read('assets/app.js').includes('startPublicScheduleSync')) fail('Live booking schedules are not connected to the admin timetable');
+if (!read('assets/firebase-sync.js').includes('calls.getPublicBookingSchedules({})') || !functionsSource.includes('exports.getPublicBookingSchedules')) fail('Public booking schedules must load through the sanitized callable');
 if (/24\/7/.test(read('index.html')) || /24\/7/.test(read('assets/app.js'))) fail('Ambiguous 24/7 student portal label is still present');
 if (!read('assets/app.js').includes('leaderboard-name-line') || !read('assets/v56.css').includes('.leaderboard-avatar')) fail('Improved mobile leaderboard identity layout is missing');
 if (!functionsSource.includes('leaderboardStateRef') || !functionsSource.includes('stateVersion') || !functionsSource.includes('currentMonthRows')) fail('Immediate monthly leaderboard cache invalidation is missing');

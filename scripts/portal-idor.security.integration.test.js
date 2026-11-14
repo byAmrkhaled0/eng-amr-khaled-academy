@@ -24,3 +24,14 @@ test('A cannot save or submit B exam session even while sending A studentCode',a
 test('parent report session is owner/mode/expiry bound and own parent is allowed',async()=>{
  const data={monthKey:'2026-09'};assert((await s.call('getParentMonthlyReport',s.portal(tokens.parent,s.code,data))).student.studentCode===s.code);await s.deny(s.call('getParentMonthlyReport',s.portal(tokens.token,s.code,data)));await s.deny(s.call('getParentMonthlyReport',s.portal(tokens.parent,s.other,data)));await s.deny(s.call('getParentMonthlyReport',s.portal(await s.session(s.code,'parent',Date.now()-1),s.code,data)));await s.deny(s.call('getParentMonthlyReport',s.portal('fake-parent'.padEnd(48,'x'),s.code,data)));
 });
+test('portal login cannot ignore a supplied invalid or foreign bearer token',async()=>{
+  await s.deny(s.call('getPortalStudent',{code:s.code,portalSessionToken:tokens.otherToken,resumeOnly:false}));
+  await s.deny(s.call('getPortalStudent',{code:s.code,portalSessionToken:'invalid'}));
+});
+test('public booking schedules omit internal fields and disabled groups',async()=>{
+  await s.db.doc('groups/security-public').set({name:'Booking test',grade:s.grade,days:'الأربعاء',startTime:'17:00',internalNote:'private',enrolledCount:2});
+  await s.db.doc('groups/security-hidden').set({name:'Disabled',grade:s.grade,active:false});
+  const {schedules}=await s.call('getPublicBookingSchedules',{});
+  assert.deepEqual(schedules.find(row=>row.id==='security-public'),{id:'security-public',name:'Booking test',grade:s.grade,days:'الأربعاء',startTime:'17:00',endTime:''});
+  assert(!schedules.some(row=>row.id==='security-hidden'));
+});

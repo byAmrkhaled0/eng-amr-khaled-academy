@@ -347,6 +347,7 @@ async function rateLimit(action, identity, limit, windowMs) {
 }
 
 const { requestIp } = require('./lib/request-ip');
+const canLimitByVisitorNetwork = !process.env.K_SERVICE || /^[1-5]$/.test(process.env.TM_TRUSTED_PROXY_HOPS || '');
 
 async function rateLimitPublic(action, identity, request, identityLimit, ipLimit, windowMs) {
   const normalizedIdentity = text(identity || 'empty', 160);
@@ -1550,6 +1551,24 @@ function publicSchedule(schedule = {}) {
   };
 }
 
+let bookingSchedulesCache;
+exports.getPublicBookingSchedules = onCall(CALLABLE_OPTIONS, async request => {
+  if (canLimitByVisitorNetwork) await rateLimit('public-booking-schedules-ip', requestIp(request), 120, 60_000);
+  if (bookingSchedulesCache && bookingSchedulesCache.expiresAt > Date.now()) return bookingSchedulesCache.result;
+  const result = db.collection('groups').limit(300).get().then(snapshot => ({
+    schedules: snapshot.docs.filter(doc => doc.data().active !== false).map(doc => {
+      const { id, name, grade, days, startTime, endTime } = publicSchedule({ ...doc.data(), id: doc.id });
+      return { id, name, grade, days, startTime, endTime };
+    }).filter(schedule => schedule.name && schedule.grade)
+  }));
+  bookingSchedulesCache = { result, expiresAt: Date.now() + 30_000 };
+  try { return await result; }
+  catch (error) {
+    if (bookingSchedulesCache?.result === result) bookingSchedulesCache = null;
+    throw error;
+  }
+});
+
 function firestoreMillis(value) {
   if (!value) return 0;
   if (typeof value.toMillis === 'function') return Number(value.toMillis()) || 0;
@@ -1596,10 +1615,19 @@ exports.getPortalStudent = onCall(EXAM_ENTRY_OPTIONS, async request => {
   const code = normalizeCode(request.data && request.data.code);
   const mode = request.data && request.data.mode === 'parent' ? 'parent' : 'student';
   const includeTransfers = mode === 'student' && request.data?.includeTransfers === true;
-  const resumedSession=request.data?.resumeOnly===true?await requirePortalSession(request,code,[mode]):null;
-  // Login still has a strict per-code limit, but a school network may contain
-  // dozens of legitimate students sharing one public IP.
-  await rateLimitStudentAction(`portal-${mode}`, code, request, 20, 3000, 60 * 1000);
+  const resumedSession=request.data?.resumeOnly===true||request.data?.portalSessionToken!==undefined
+    ? await requirePortalSession(request,code,[mode]) : null;
+  if (resumedSession) await rateLimitStudentAction(`portal-${mode}`, code, request, 20, 3000, 60_000);
+  else {
+    if (!validLegacyOrStrongCode(code)) throw new HttpsError('invalid-argument', 'كود غير صالح.');
+    if (canLimitByVisitorNetwork) {
+      await rateLimit('portal-login-ip', requestIp(request), 120, 60_000);
+      await rateLimit('portal-login-identity', code, 10, 60_000);
+    } else {
+      // Cloud Run may present the same proxy peer for many visitors.
+      await rateLimitStudentAction('portal-login', code, request, 10, 3000, 60_000);
+    }
+  }
   const found = mode === 'parent' ? await getParentPortalByCode(code) : await getStudentPortalByCode(code);
   const studentCode = normalizeCode(found.data.studentCode || found.data.code);
   const canonicalFound = mode === 'parent' ? await getStudentPortalByCode(studentCode).catch(() => null) : null;
