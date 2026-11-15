@@ -1,6 +1,6 @@
 {
   "framework": null,
-  "buildCommand": "npm test && npm run build",
+  "buildCommand": "npm test && node --test scripts/portal-access.test.mjs && npm run build",
   "outputDirectory": "dist",
   "installCommand": "npm ci --ignore-scripts && npm --prefix functions ci --ignore-scripts",
   "cleanUrls": false,
