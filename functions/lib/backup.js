@@ -93,10 +93,16 @@ function createBackupService({db,admin,project}) {
     const refs = await ref.listDocuments(), rows = [];
     for (let i=0;i<refs.length;i+=100) {
       const snapshots = await db.getAll(...refs.slice(i,i+100));
-      for (const snap of snapshots) {
-        const subcollections = {};
-        for (const child of await snap.ref.listCollections()) subcollections[child.id] = await exportCollection(child);
-        rows.push({id:snap.id,exists:snap.exists,data:encode(snap.data()||{}),subcollections});
+      // Overlap metadata reads within a page, then descend with no reads in flight.
+      // This keeps concurrency bounded even when a collection has nested data.
+      for (let offset = 0; offset < snapshots.length; offset += 12) {
+        const page = snapshots.slice(offset, offset + 12);
+        const childrenByDocument = await Promise.all(page.map(snap => snap.ref.listCollections()));
+        for (const [index, snap] of page.entries()) {
+          const subcollections = {};
+          for (const child of childrenByDocument[index]) subcollections[child.id] = await exportCollection(child);
+          rows.push({id:snap.id,exists:snap.exists,data:encode(snap.data()||{}),subcollections});
+        }
       }
     }
     return rows;

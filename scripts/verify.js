@@ -309,7 +309,11 @@ const firebaseConfigSource = read('assets/firebase-config.js');
 if (!/messagingVapidKey:\s*"[A-Za-z0-9_-]{80,}"/.test(firebaseConfigSource)) fail('Firebase Web Push VAPID public key is missing');
 const functionsPackage = JSON.parse(read('functions/package.json'));
 if (functionsPackage.dependencies?.['techno-minds-platform']) fail('Functions still has an unnecessary parent file dependency');
-if (functionsPackage.overrides?.['fast-xml-parser'] !== '5.10.1') fail('Safe fast-xml-parser override is missing');
+const functionsLock = JSON.parse(read('functions/package-lock.json'));
+for (const [dependency, minimum] of Object.entries({'body-parser':'2.4.0','fast-xml-parser':'5.12.1',qs:'6.16.1'})) {
+  const installed = functionsLock.packages[`node_modules/${dependency}`]?.version;
+  if (!installed || installed.localeCompare(minimum, 'en', { numeric:true }) < 0) fail(`Security update for ${dependency} is missing`);
+}
 if (!failures.some(x => x.includes('Messaging') || x.includes('Push token'))) ok('Background booking Push and token lifecycle checks passed');
 
 if (!deployScript.includes('functions:$FunctionName') || !deployScript.includes('.deploy-state.txt') || !read('DEPLOY-WINDOWS.cmd').includes('.deploy-success')) fail('Resumable per-Function Windows deployment is incomplete');
