@@ -245,7 +245,11 @@
     };
 
     const portalSessionKey=(code,mode='student')=>`tm-portal-session-v64:${mode}:${normalizeCode(code)}`;
+    const portalGatewayPreview = false;
     async function fetchPortalStudent(payload){
+      if (portalGatewayPreview) {
+        return measureRequest('/api/portal-access',()=>sameOriginCallable('/api/portal-access',payload,18000));
+      }
       // Functional errors such as an invalid code are returned directly;
       // only a missing/broken proxy route falls back to the Firebase SDK.
       return publicCallable('/api/portal/student',payload,calls.getPortalStudent,6500,0);
