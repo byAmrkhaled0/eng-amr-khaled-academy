@@ -4773,10 +4773,14 @@ async function pruneBackups(retentionDays = 14) {
   const bucket = admin.storage().bucket();
   const [files] = await bucket.getFiles({ prefix: 'automatic-backups/' });
   const cutoff = Date.now() - Math.max(3, Math.min(90, Number(retentionDays) || 14)) * 24 * 60 * 60 * 1000;
-  await Promise.all(files.filter(file => new Date(file.metadata.timeCreated || 0).getTime() < cutoff).map(file => file.delete().catch(() => null)));
+  const datedFiles = files.filter(file => file.name.endsWith('.json.gz') && Number.isFinite(Date.parse(file.metadata.timeCreated)));
+  datedFiles.sort((a, b) => Date.parse(b.metadata.timeCreated) - Date.parse(a.metadata.timeCreated));
+  // Keep recovery points even after an interruption longer than the retention window.
+  if (datedFiles.filter(file => Date.parse(file.metadata.timeCreated) >= cutoff).length < 2) return;
+  await Promise.all(datedFiles.slice(3).filter(file => Date.parse(file.metadata.timeCreated) < cutoff).map(file => file.delete().catch(() => null)));
 }
 
-exports.scheduledPlatformBackup = onSchedule({ schedule: '30 2 * * 0', timeZone: 'Africa/Cairo', region: 'europe-west1', timeoutSeconds: 540, memory: '512MiB' }, async () => {
+exports.scheduledPlatformBackup = onSchedule({ schedule: '30 2 * * 0', timeZone: 'Africa/Cairo', region: 'europe-west1', timeoutSeconds: 900, memory: '512MiB', maxInstances: 1, concurrency: 1 }, async () => {
   const settings = await db.collection('settings').doc('platform').get().catch(() => null);
   const retentionDays = settings?.exists ? Number(settings.data().backupRetentionDays || 14) : 14;
   await createPlatformBackup('scheduled');
