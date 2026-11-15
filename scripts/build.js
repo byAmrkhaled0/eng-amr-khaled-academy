@@ -58,12 +58,12 @@ for (const entry of entriesToCopy) {
   copyRecursive(path.join(root, entry), path.join(dist, entry));
 }
 
-if (process.env.VERCEL_ENV === 'preview' && process.env.TM_PORTAL_GATEWAY_ENABLED === 'true') {
-  const client = path.join(dist, 'assets', 'firebase-sync.js');
-  const source = fs.readFileSync(client, 'utf8');
+const firebaseClient = path.join(dist, 'assets', 'firebase-sync.js');
+if (process.env.VERCEL_ENV === 'preview' && process.env.TM_PORTAL_GATEWAY_ENABLED === 'true' && fs.existsSync(firebaseClient)) {
+  const source = fs.readFileSync(firebaseClient, 'utf8');
   const flag = 'const portalGatewayPreview = false;';
   if (!source.includes(flag)) throw new Error('Portal preview configuration flag is missing');
-  fs.writeFileSync(client, source.replace(flag, 'const portalGatewayPreview = true;'));
+  fs.writeFileSync(firebaseClient, source.replace(flag, 'const portalGatewayPreview = true;'));
 }
 
 // Every changed script or stylesheet gets a fresh immutable URL.
