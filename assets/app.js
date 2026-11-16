@@ -348,7 +348,7 @@ function setupUnifiedHeader(){
   const portal=file==='student.html'||file==='parent.html';
   let header=document.querySelector('.site-header');
   if(!header){header=document.createElement('header');header.className='site-header';document.body.insertAdjacentElement('afterbegin',header);}
-  const links=portal?[['index.html','الرئيسية'],['student.html','الطالب'],['parent.html','ولي الأمر'],['index.html#booking','الحجز']]:[['index.html','الرئيسية'],['index.html#tracks','المسارات'],['index.html#top-students','أوائل الشهر'],['about.html','عن م. عمرو'],['index.html#ratings','الآراء'],['index.html#contact','تواصل معنا']];
+  const links=portal?[['index.html','الرئيسية'],['student.html','الطالب'],['parent.html','ولي الأمر'],['index.html#booking','الحجز']]:[['index.html','الرئيسية'],['index.html#tracks','المسارات'],['index.html#top-students','أوائل الشهر'],['about.html','عن م. عمرو'],['reviews.html','الآراء'],['index.html#contact','تواصل معنا']];
   const secondary=[['parent.html','ولي الأمر'],['materials.html','محاضرات عملي'],['theory-lectures.html','محاضرات نظري'],['practical.html','المعمل العملي'],['questions.html','بنوك الأسئلة'],['exams.html','الاختبارات']];
   const link=([href,label])=>{const [target,hash='']=href.split('#'),active=hash?file==='index.html'&&location.hash===('#'+hash):target===file&&!location.hash;return '<a href="'+href+'"'+(active?' class="active" aria-current="page"':'')+'>'+label+'</a>';};
   header.innerHTML='<div class="container navbar"><a aria-label="Techno Minds" class="logo" href="index.html"><img src="assets/technominds-logo.webp" width="40" height="40" alt=""><span>TECHNO <b>MINDS</b><small>Programming &amp; AI</small></span></a><nav aria-label="روابط الموقع" class="navlinks">'+links.map(link).join('')+(!portal?'<details class="tm-header-more"><summary aria-label="المزيد: المحاضرات والاختبارات وولي الأمر">المزيد</summary><div>'+secondary.map(link).join('')+'</div></details>':'')+'</nav><div class="header-actions"><button aria-label="تغيير الوضع" class="theme-toggle" id="themeToggle" type="button"></button>'+(!portal?'<a class="btn primary tm-header-login" href="student.html" aria-label="دخول بوابة الطالب"><span data-icon="user" aria-hidden="true"></span> دخول الطالب</a><a class="btn gold tm-header-booking" href="index.html#booking"><span data-icon="calendar" aria-hidden="true"></span> احجز الآن</a>':'')+'</div></div>';
@@ -1640,7 +1640,64 @@ function setupReviews(){
   });
 }
 function setupStarInputs(){document.querySelectorAll('[data-star-input]').forEach(w=>{const input=w.querySelector('input'); const label=w.querySelector('span'); const buttons=[...w.querySelectorAll('button')]; const paint=n=>{buttons.forEach(b=>b.classList.toggle('active',Number(b.dataset.rate)<=n)); if(label) label.textContent=n+' نجوم';}; buttons.forEach(b=>b.onclick=()=>{input.value=b.dataset.rate; paint(Number(b.dataset.rate));}); paint(Number(input?.value||5));});}
-function renderReviews(){const box=document.getElementById('reviewsList');if(!box||box.closest('details[data-public-workflow]')&&!box.closest('details[data-public-workflow]').open)return;const rows=(appData.reviews||[]).filter(r=>r.approved!==false).slice(-8).reverse();box.innerHTML=rows.length?rows.map(r=>{const name=String(r.name||'طالب').trim(),initials=name.split(/\s+/).slice(0,2).map(part=>part[0]||'').join('');return `<article class="review-display-card"><header><span class="review-avatar">${esc(initials||'ط')}</span><div><h3>${esc(name)}</h3><small>${esc(r.role||'طالب')}</small></div><div class="review-stars">${'★'.repeat(Number(r.rating||5))}</div></header><p>${esc(r.text||'')}</p><footer><span data-icon="user-check"></span> تقييم تم اعتماده</footer></article>`;}).join(''):`<div class="empty-state compact-empty-v29"><span class="iconbox" data-icon="star"></span><h3>لا توجد تقييمات منشورة بعد</h3><p>التقييمات الجديدة تظهر بعد مراجعة المدرس.</p></div>`;hydrateIcons();}
+function reviewCardHTML(review){
+  const name=String(review.name||'طالب').trim()||'طالب';
+  const initials=name.split(/\s+/).slice(0,2).map(part=>part[0]).join('');
+  const rating=Math.min(5,Math.max(1,Math.round(Number(review.rating)||5)));
+  return `<article class="review-display-card"><header><span class="review-avatar">${esc(initials)}</span><div><h3>${esc(name)}</h3><small>${esc(review.role||'طالب')}</small></div><div class="review-stars">${'★'.repeat(rating)}</div></header><p>${esc(review.text||'')}</p><footer><span data-icon="user-check"></span> تقييم تم اعتماده</footer></article>`;
+}
+const emptyReviewsHTML='<div class="empty-state compact-empty-v29"><span class="iconbox" data-icon="star"></span><h3>لا توجد تقييمات منشورة بعد</h3><p>التقييمات الجديدة تظهر بعد مراجعة المدرس.</p></div>';
+function renderReviews(){
+  const box=document.getElementById('reviewsList');
+  if(!box||document.getElementById('reviewsPageMore'))return;
+  const workflow=box.closest('details[data-public-workflow]');
+  if(workflow&&!workflow.open)return;
+  const rows=(appData.reviews||[]).filter(review=>review.approved===true).slice(-8).reverse();
+  box.innerHTML=rows.length?rows.map(reviewCardHTML).join(''):emptyReviewsHTML;
+  hydrateIcons(box);
+}
+function setupReviewsPage(){
+  const button=document.getElementById('reviewsPageMore');
+  if(!button)return;
+  const box=document.getElementById('reviewsList'),status=document.getElementById('reviewsPageStatus');
+  const seen=new Set();
+  let cursor=null;
+  async function loadPage(focusNew=false){
+    button.disabled=true;
+    box.setAttribute('aria-busy','true');
+    status.textContent='جارٍ تحميل التقييمات…';
+    try{
+      const {rows,nextCursor}=await window.MFCloud.getApprovedReviewsPage(cursor);
+      const firstNew=box.children.length;
+      const newRows=rows.filter(row=>{
+        if(row.approved!==true||seen.has(row.id))return false;
+        seen.add(row.id);
+        return true;
+      });
+      if(newRows.length)box.insertAdjacentHTML('beforeend',newRows.map(reviewCardHTML).join(''));
+      else if(!seen.size)box.innerHTML=emptyReviewsHTML;
+      cursor=nextCursor;
+      button.hidden=!cursor;
+      button.textContent='عرض المزيد من التقييمات';
+      status.textContent=seen.size?`التقييمات المعروضة: ${seen.size}`:'';
+      hydrateIcons(box);
+      if(focusNew&&newRows.length){
+        const first=box.children[firstNew];
+        first.tabIndex=-1;
+        first.focus();
+      }
+    }catch(_){
+      status.textContent='تعذر تحميل التقييمات. حاول مرة أخرى.';
+      button.hidden=false;
+      button.textContent='إعادة المحاولة';
+    }finally{
+      box.removeAttribute('aria-busy');
+      button.disabled=false;
+    }
+  }
+  button.addEventListener('click',()=>loadPage(true));
+  loadPage();
+}
 function attachmentHtml(item){if(item.fileData||item.fileUrl){const url=attachmentUrl(item.fileData||item.fileUrl);if(!url)return ''; if(String(item.fileType||item.type||'').includes('image')||/\.(png|jpe?g|webp|gif)$/i.test(url)) return `<img class="attach-preview" src="${esc(url)}" alt="${esc(item.title||'ملف')}">`; return `<a class="btn ghost" target="_blank" rel="noreferrer" href="${esc(url)}"><span data-icon="external-link"></span> فتح الملف</a>`;} return '';}
 var currentStudentResources=null;
 function lessonQuestionBanks(lecture){
@@ -1944,7 +2001,7 @@ function setupActiveNavigation(){
       const url=new URL(a.getAttribute('href')||'',location.href);
       const linkFile=url.pathname.split('/').pop()||'index.html';
       const sameFile=linkFile===currentFile;
-      const alias={'learning-path.html':'#tracks','reviews.html':'#ratings'}[currentFile];
+      const alias=currentFile==='learning-path.html'?'#tracks':null;
       const active=url.origin===location.origin&&((sameFile&&(url.hash?url.hash===currentHash:!currentHash))||(!currentHash&&linkFile==='index.html'&&alias===url.hash));
       a.classList.toggle('active',active);
       if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');
@@ -2039,6 +2096,7 @@ function init(){
   if(document.getElementById('examCodeForm'))setupExamsPage();
   if(document.getElementById('studentResourceCodeForm'))setupStudentResourcesPage();
   if(document.getElementById('reviewForm'))setupReviews();
+  setupReviewsPage();
   if(document.getElementById('teacherWhatsapp'))setupContact();
   if(document.getElementById('leaderboardGrade'))setupLeaderboardGradePicker();
   if(document.getElementById('liveCounts'))renderHomeCounts();
