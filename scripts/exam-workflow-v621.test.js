@@ -31,6 +31,48 @@ test('student correction privacy and admin attendance filters are present', () =
   assert.match(workflow, /editLiveExam/);
 });
 
+test('a submitted exam opens its review with wrong answers first and keeps unreleased solutions private', () => {
+  const {JSDOM}=require('jsdom');
+  const dom=new JSDOM('<main id="examStudentResult"></main>',{runScripts:'outside-only'});
+  try{
+    const {window}=dom,document=window.document;
+    const app=read('assets/app.js');
+    const source=app.slice(app.indexOf('var currentExamStudent=null;'),app.indexOf('function setupExamsPage()'));
+    window.HTMLElement.prototype.scrollIntoView=function(){};
+    window.normalizedStudent=student=>student;
+    window.TMResults={isExamGradePending:()=>false};
+    window.formatPortalDate=value=>value;
+    window.scoreClass=()=> 'good';
+    window.hydrateIcons=()=>{};
+    window.esc=value=>String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+    window.eval(source);
+    const attempt={id:'new',examTitle:'اختبار اختياري',submittedAt:'2026-11-16T12:00:00Z',score:1,maxScore:2,review:[
+      {question:'السؤال الأول',answer:'اختيار سليم',correct:true,awardedMark:1},
+      {question:'السؤال الثاني <img src=x>',answer:'الاختيار الخطأ',correct:false,awardedMark:0,correctAnswer:'نموذج محفوظ'},
+      {question:'سؤال مقالي',answer:'',correct:null,awardedMark:null}
+    ]};
+    const older={...attempt,id:'older',examTitle:'اختبار سابق',submittedAt:'2026-11-15T12:00:00Z',answersRevealed:true};
+    window.renderExamPortal({name:'طالب',studentCode:'123456',examAttempts:[older,attempt]},[],'new');
+    const [newCard,oldCard]=document.querySelectorAll('.exam-result-card');
+    const review=newCard.querySelector('details');
+    assert.equal(review.open,true);
+    assert.equal(document.activeElement,newCard);
+    assert.equal(oldCard.querySelector('details').open,false);
+    const [first]=review.querySelectorAll('.exam-review-item');
+    assert(first.classList.contains('wrong'));
+    assert.match(first.textContent,/السؤال 2.*السؤال الثاني/);
+    assert.match(first.textContent,/الاختيار الخطأ/);
+    assert.match(first.textContent,/0 من 1/);
+    assert.equal(first.querySelector('img'),null);
+    assert.match(review.textContent,/بانتظار التصحيح/);
+    assert.doesNotMatch(review.textContent,/نموذج محفوظ/);
+    assert.match(oldCard.textContent,/نموذج محفوظ/);
+
+    window.renderExamPortal({name:'طالب',studentCode:'123456',examAttempts:[older,attempt]},[]);
+    assert.match(document.querySelector('.exam-result-card summary').textContent,/1 إجابة غير صحيحة/);
+  }finally{dom.window.close();}
+});
+
 test('homework supports the same four answer modes', () => {
   const app = read('assets/app.js');
   const workflow = read('assets/v60-admin-workflow.js');
