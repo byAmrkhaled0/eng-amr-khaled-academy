@@ -49,10 +49,10 @@
 
   function installCleanScrollTop(){
     if(document.getElementById('v56ScrollTop'))return;
-    document.body.insertAdjacentHTML('beforeend','<button id="v56ScrollTop" class="v56-scroll-top" type="button" aria-label="الرجوع لأول الصفحة"><span aria-hidden="true">↑</span></button>');
+    document.body.insertAdjacentHTML('beforeend','<button id="v56ScrollTop" class="v56-scroll-top" type="button" aria-label="الرجوع لأول الصفحة"><svg aria-hidden="true" viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button>');
     const button=document.getElementById('v56ScrollTop');
     const update=()=>{const student=document.body.dataset.account==='student',page=document.scrollingElement;button.classList.toggle('show',student?window.scrollY>80&&page.scrollHeight-window.innerHeight-window.scrollY<=160:window.scrollY>320);};
-    button.addEventListener('click',()=>window.scrollTo({top:0,behavior:'smooth'}));
+    button.addEventListener('click',()=>window.scrollTo({top:0,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}));
     window.addEventListener('scroll',update,{passive:true});update();window.__tmPlaceMobileTools?.();
   }
 

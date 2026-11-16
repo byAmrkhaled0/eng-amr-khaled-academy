@@ -473,10 +473,14 @@ function updateAdminBookingBadge(){
   if(button)button.classList.toggle('has-alerts',count>0);
 }
 let adminRenderVersion=0;
-window.goAdminSection=function(id){
+let adminSectionAction=null;
+let adminSectionNavigationPending=false;
+window.goAdminSection=function(id,onReady){
   id=adminLegacySectionAliases[id]||id;
   if(window.__adminOfflineMode&&id!=='attendance')return aToast('المتاح دون اتصال هو الحضور المحضّر فقط.');
   if(!adminSections.some(([sectionId])=>sectionId===id))return;
+  adminSectionAction=typeof onReady==='function'?{section:id,run:onReady}:null;
+  adminSectionNavigationPending=true;
   if(currentSection==='payments'&&id!=='payments')window.stopMonthlyPaymentListeners?.();
   if(id==='attendance'&&currentSection!=='attendance'){attendanceDate=isoDateAdmin();attendanceCloudDate='';attendanceCloudError=null;}
   currentSection=id;
@@ -488,6 +492,7 @@ window.goAdminSection=function(id){
   if(box)box.setAttribute('aria-busy','true');
   requestAnimationFrame(()=>{
     if(version!==adminRenderVersion)return;
+    adminSectionNavigationPending=false;
     renderSection();
     document.getElementById('adminContent')?.removeAttribute('aria-busy');
   });
@@ -594,7 +599,12 @@ function renderAdmin(){
 window.enableBookingNotifications=async function(){if(!('Notification' in window))return aToast('المتصفح لا يدعم إشعارات الهاتف');if(!confirm('سيطلب المتصفح إذنًا لإظهار تنبيه عند وصول حجز جديد، حتى لو كانت اللوحة مغلقة. متابعة؟'))return;const permission=await Notification.requestPermission();if(permission!=='granted')return aToast('لم يتم منح إذن الإشعارات. يمكنك تغييره من إعدادات الموقع');localStorage.setItem('mf-booking-notifications','1');startBookingNotifications();try{await window.MFCloud?.registerTeacherPushToken?.();aToast('تم تفعيل تنبيهات الحجز في الخلفية');}catch(error){const raw=`${error?.code||''} ${error?.message||''}`;aToast(/VAPID_KEY_REQUIRED/.test(raw)?'يلزم إضافة مفتاح Web Push العام في firebase-config.js أولًا':'التنبيهات داخل اللوحة تعمل، وتعذر تفعيل Push في الخلفية');}};
 function startBookingNotifications(){if(bookingNotificationUnsubscribe||!window.MFCloud?.subscribeToBookings)return;bookingNotificationUnsubscribe=adminLiveSubscription(callback=>window.MFCloud.subscribeToBookings(callback),(rows,changes)=>{adminData.bookings=rows.filter(row=>{const code=String(row.code||row.id||'');return !bookingActionPending.has(code)&&!acceptedBookingCodes.has(code);});saveData(adminData);updateAdminBookingBadge();window.refreshAdminAttentionFromBookings?.();if(bookingListenerReady){changes.filter(change=>change.type==='added').forEach(change=>{const b=change.doc.data();const code=String(b.code||change.doc.id||'');if(bookingActionPending.has(code)||acceptedBookingCodes.has(code))return;aToast(`حجز جديد: ${b.name||b.studentName||'طالب جديد'}`);if('Notification' in window&&Notification.permission==='granted'&&localStorage.getItem('mf-booking-notifications')==='1'){const n=new Notification('حجز طالب جديد',{body:`${b.name||b.studentName||''} · ${b.grade||''} · ${b.group||''}`,icon:'assets/technominds-logo.png',tag:`booking-${code}`});n.onclick=()=>{window.focus();goAdminSection('bookings');};}});}bookingListenerReady=true;if(currentSection==='bookings'&&!bookingActionPending.size)renderBookings();});}
 
-function adminCanRefreshLiveSection(){const active=document.activeElement;return !(active instanceof HTMLElement&&active.closest('form,.admin-action-modal,.issued-codes-modal'));}
+function adminCanRefreshLiveSection(){
+  if(adminSectionNavigationPending||adminSectionAction?.section===currentSection)return false;
+  if(document.querySelector('#examCreatorPanel:not([hidden]),#assignmentFormV6061:not([hidden]),form[data-draft-dirty="true"]'))return false;
+  const active=document.activeElement;
+  return !(active instanceof HTMLElement&&active.closest('form,.admin-action-modal,.issued-codes-modal'));
+}
 function stopAdminSectionLiveData(section){
   if(section!=='studentRequests'&&adminTransferRequestsUnsubscribe){adminTransferRequestsUnsubscribe();adminTransferRequestsUnsubscribe=null;}
   if(section!=='assignments'&&adminHomeworkSubmissionsUnsubscribe){adminHomeworkSubmissionsUnsubscribe();adminHomeworkSubmissionsUnsubscribe=null;}
@@ -725,19 +735,39 @@ window.adminLogout=async function(){
 window.forceFirestoreSync=async function(){const button=document.getElementById('adminSaveButton'),label=button?.querySelector('.admin-save-label');if(button?.disabled)return;try{if(!window.MFCloud?.saveSiteData)throw new Error('Sync service unavailable');if(button)button.disabled=true;if(label)label.textContent='جارٍ الحفظ…';await window.MFCloud.saveSiteData(adminData);saveData(adminData);if(label)label.textContent='تم الحفظ';aToast('تم حفظ جميع التغييرات');setTimeout(()=>{if(label)label.textContent='حفظ التغييرات';},1600);}catch(error){if(label)label.textContent='إعادة المحاولة';aToast(adminActionErrorMessage(error,'تعذر حفظ التغييرات.'));}finally{if(button)button.disabled=false;}};
 
 const adminPaymentPeriods={key:'',statuses:new Map(),rows:new Map(),pending:null,updatedAt:0};
+let overviewPaymentLoadQueued=false;
+function adminPaymentPeriodKey(context=adminWorkspaceContext()){
+  return `${context.academicYear}|${context.month}`;
+}
 function adminPaymentStatus(student){
   const context=adminWorkspaceContext(),key=`${context.academicYear}|${context.month}`;
   return adminPaymentPeriods.key===key?adminPaymentPeriods.statuses.get(stCode(student))||'unpaid':null;
 }
+function refreshOverviewPaymentSummary(){
+  if(currentSection!=='overview')return;
+  const root=document.getElementById('adminContent');
+  const active=document.activeElement;
+  if(root?.contains(active)){
+    active.addEventListener('blur',()=>requestAnimationFrame(refreshOverviewPaymentSummary),{once:true});
+    return;
+  }
+  renderOverview();
+}
 async function loadAdminPaymentStatuses(){
-  const context=adminWorkspaceContext(),key=`${context.academicYear}|${context.month}`;
+  if(window.__adminOfflineMode||!window.MFCloud?.getPaymentDashboard)return;
+  const context=adminWorkspaceContext(),key=adminPaymentPeriodKey(context);
+  const uid=window.MFCloud?.auth?.currentUser?.uid;
   if(adminPaymentPeriods.key===key&&Date.now()-adminPaymentPeriods.updatedAt<15000)return;
-  if(adminPaymentPeriods.pending)return adminPaymentPeriods.pending;
+  if(adminPaymentPeriods.pending?.key===key&&adminPaymentPeriods.pending.uid===uid)return adminPaymentPeriods.pending.promise;
   adminPaymentPeriods.key='';
-  adminPaymentPeriods.pending=(async()=>{
+  const request={key,uid};
+  const isCurrent=()=>adminPaymentPeriods.pending===request&&Boolean(window.document)&&window.MFCloud?.auth?.currentUser?.uid===uid&&adminPaymentPeriodKey()===key;
+  adminPaymentPeriods.pending=request;
+  request.promise=(async()=>{
     const totals=new Map();let cursor=null;
     do {
       const result=await window.MFCloud.getPaymentDashboard({academicYear:context.academicYear,month:context.month,grade:'all',status:'all',cursor});
+      if(!isCurrent())return;
       for(const row of result.rows||[]){
         const code=row.student?.studentCode;
         if(code){const value=totals.get(code)||{student:row.student,month:row.month,academicYear:row.academicYear,expected:0,paid:0,priceConfigured:row.priceConfigured};value.expected+=Number(row.expected||0);value.paid+=Number(row.paid||0);value.remaining=Math.max(0,value.expected-value.paid);totals.set(code,value);}
@@ -746,12 +776,22 @@ async function loadAdminPaymentStatuses(){
     }while(cursor);
     adminPaymentPeriods.key=key;adminPaymentPeriods.rows=totals;adminPaymentPeriods.statuses=new Map([...totals].map(([code,value])=>[code,value.paid<=0?'unpaid':value.expected>value.paid?'partial':'paid']));adminPaymentPeriods.updatedAt=Date.now();
     if(currentSection==='students'&&document.getElementById('studentsTableBox'))window.refreshStudentsTable();
-    if(currentSection==='overview')renderOverview();
-  })().catch(()=>{adminPaymentPeriods.key='';}).finally(()=>{adminPaymentPeriods.pending=null;});
-  return adminPaymentPeriods.pending;
+    if(currentSection==='overview')refreshOverviewPaymentSummary();
+  })().catch(()=>{if(isCurrent())adminPaymentPeriods.key='';}).finally(()=>{if(adminPaymentPeriods.pending===request)adminPaymentPeriods.pending=null;});
+  return request.promise;
 }
-function stats(){fresh();if(adminPaymentPeriods.key!==`${adminWorkspaceContext().academicYear}|${adminWorkspaceContext().month}`)loadAdminPaymentStatuses(); const today=isoDateAdmin(); const att=(adminData.students||[]).filter(s=>(s.attendance||[]).some(a=>String(a.date)===today&&a.status==='present')).length; const bookings=adminData.bookings.filter(b=>!String(b.status||'').includes('تم القبول')).length; return {students:adminData.students.length,bookings,unpaid:adminPaymentPeriods.key===`${adminWorkspaceContext().academicYear}|${adminWorkspaceContext().month}`?(adminData.students||[]).filter(s=>s.active!==false&&adminPaymentStatus(s)!=='paid').length:'—',att};}
+function queueOverviewPaymentLoad(){
+  if(overviewPaymentLoadQueued||adminPaymentPeriods.key===adminPaymentPeriodKey()||window.__adminOfflineMode)return;
+  overviewPaymentLoadQueued=true;
+  const uid=window.MFCloud?.auth?.currentUser?.uid;
+  requestAnimationFrame(()=>setTimeout(()=>{
+    overviewPaymentLoadQueued=false;
+    if(currentSection==='overview'&&window.document?.getElementById('adminContent')&&window.MFCloud?.auth?.currentUser?.uid===uid&&adminPaymentPeriods.key!==adminPaymentPeriodKey())loadAdminPaymentStatuses();
+  },0));
+}
+function stats(){fresh();const today=isoDateAdmin(); const att=(adminData.students||[]).filter(s=>(s.attendance||[]).some(a=>String(a.date)===today&&a.status==='present')).length; const bookings=adminData.bookings.filter(b=>!String(b.status||'').includes('تم القبول')).length; return {students:adminData.students.length,bookings,unpaid:adminPaymentPeriods.key===adminPaymentPeriodKey()?(adminData.students||[]).filter(s=>s.active!==false&&adminPaymentPeriods.statuses.get(stCode(s))!=='paid').length:'—',att};}
 function renderOverview(){
+  queueOverviewPaymentLoad();
   const s=stats(),pendingExam=(adminData.examAttempts||[]).filter(row=>window.TMResults.isExamGradePending(row)).length,pendingTransfers=(adminData.studentTransferRequests||[]).filter(row=>!row.status||row.status==='pending').length;
   const activeGroups=(adminData.groups||[]).filter(group=>group.active!==false).length,urgent=s.bookings+pendingExam+pendingTransfers;
   const today=new Intl.DateTimeFormat('ar-EG',{weekday:'long',day:'numeric',month:'long'}).format(new Date());
@@ -1491,7 +1531,16 @@ function renderSection(){
       if(currentSection!=='students')return;
     }
   }
-  ({overview:renderOverview,classroom:()=>window.renderClassroom?.(),operations:()=>window.renderClassroom?.(),students:renderStudents,motivation:renderMotivationAdmin,bookings:renderBookings,schedules:renderSchedules,attendance:renderAttendance,warnings:renderWarnings,studentRequests:renderStudentRequests,assignments:renderAssignments,payments:renderPayments,exams:renderExams,questionBanks:()=>window.renderQuestionBanksAdmin?.(),materials:renderMaterials,theoryLectures:()=>window.renderTheoryLectures?.(),curriculum:()=>window.renderCurriculumAdmin?.(),reviews:renderReviewsAdmin,backup:renderBackup,settings:renderSettings}[currentSection]||renderOverview)();window.TMAccountAdmin?.mount(currentSection);if(currentSection==='students')bindAdminGradeGroupPicker();}
+  ({overview:renderOverview,classroom:()=>window.renderClassroom?.(),operations:()=>window.renderClassroom?.(),students:renderStudents,motivation:renderMotivationAdmin,bookings:renderBookings,schedules:renderSchedules,attendance:renderAttendance,warnings:renderWarnings,studentRequests:renderStudentRequests,assignments:renderAssignments,payments:renderPayments,exams:renderExams,questionBanks:()=>window.renderQuestionBanksAdmin?.(),materials:renderMaterials,theoryLectures:()=>window.renderTheoryLectures?.(),curriculum:()=>window.renderCurriculumAdmin?.(),reviews:renderReviewsAdmin,backup:renderBackup,settings:renderSettings}[currentSection]||renderOverview)();window.TMAccountAdmin?.mount(currentSection);if(currentSection==='students')bindAdminGradeGroupPicker();
+  if(!adminSectionNavigationPending&&adminSectionAction?.section===currentSection){
+    const action=adminSectionAction;
+    queueMicrotask(()=>{
+      if(adminSectionAction!==action||currentSection!==action.section)return;
+      adminSectionAction=null;
+      action.run();
+    });
+  }
+}
 function exportCSV(name, rows){const csv=rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'})); a.download=name; a.click();}
 window.exportBookingsCSV=function(){exportCSV('bookings.csv',[['code','name','grade','month','group','parentPhone','status'],...adminData.bookings.map(b=>[b.code,b.name,b.grade,b.month,b.group,b.parentPhone,b.status])]);};
 
@@ -1501,6 +1550,13 @@ window.__tmAdminBootstrapStart=async function(profile,preparedShell){if(window._
   try{await reloadFromCloud(preparedShell);if(window.MFCloud?.auth?.currentUser?.uid!==profile.uid)throw new Error('انتهت جلسة الإدارة قبل فتح اللوحة.');}
   catch(error){document.getElementById('adminContent').textContent='تعذر تحميل بيانات الإدارة. حدّث الصفحة وحاول مرة أخرى.';throw error;}
   finally{window.__tmAdminHydrating=false;}
-  renderSection();syncAdminChrome();startBookingNotifications();startAdminLiveData();
-  window.refreshAdminAttentionAlerts?.();mergeOfflineAttendanceQueue().then(()=>renderOfflineAttendanceStatus()).catch(()=>renderOfflineAttendanceStatus());if(navigator.onLine!==false)syncOfflineAttendanceNow(true);};
+  renderSection();syncAdminChrome();
+  // Give the browser a paint before running listeners and offline maintenance.
+  requestAnimationFrame(()=>setTimeout(()=>{
+    if(window.MFCloud?.auth?.currentUser?.uid!==profile.uid||currentStaff?.uid!==profile.uid)return;
+    startBookingNotifications();startAdminLiveData();window.refreshAdminAttentionAlerts?.();
+    if(navigator.onLine!==false&&window.OfflineAttendance&&window.MFCloud?.syncOfflineAttendance)syncOfflineAttendanceNow(true);
+    else mergeOfflineAttendanceQueue().then(()=>renderOfflineAttendanceStatus()).catch(()=>renderOfflineAttendanceStatus());
+  },0));
+};
 document.addEventListener('DOMContentLoaded',initAdmin);

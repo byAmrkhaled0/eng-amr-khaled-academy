@@ -4,6 +4,10 @@
   const legacyEditStudent=window.editStudent;
   let operationsData=null,operationsLoadedAt=0,activeSession=null;
   let attentionData=null,attentionLoadedAt=0,attentionContextKey='',attentionReturnFocus=null;
+  let attentionRequest=null;
+  function attentionKey(context=adminWorkspaceContext()){
+    return `${window.MFCloud?.auth?.currentUser?.uid||''}|${context.academicYear}|${context.month}`;
+  }
   const today=()=>{const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).reduce((out,part)=>({...out,[part.type]:part.value}),{});return `${parts.year}-${parts.month}-${parts.day}`;};
   const loading=text=>`<div class="portal-loading"><span></span><b>${esc(text)}</b></div>`;
   const empty=text=>`<div class="operations-empty"><span data-icon="clipboard"></span><p>${esc(text)}</p></div>`;
@@ -47,16 +51,44 @@
     else if(attentionReturnFocus?.isConnected)attentionReturnFocus.focus({preventScroll:true});
   };
   window.refreshAdminAttentionFromBookings=function(){
-    const items=attentionItems(attentionData||[]);
+    const items=attentionItems(attentionContextKey===attentionKey()?attentionData||[]:[]);
     updateAttentionBadges(items);
     if(!document.getElementById('adminAttentionPanel')?.hidden)renderAttentionPanel(items);
   };
   window.refreshAdminAttentionAlerts=async function(force=false){
-    const context=adminWorkspaceContext(),contextKey=`${context.academicYear}|${context.month}`;
+    const context=adminWorkspaceContext(),contextKey=attentionKey(context);
     if(!force&&attentionData&&attentionContextKey===contextKey&&Date.now()-attentionLoadedAt<60000){const items=attentionItems(attentionData);updateAttentionBadges(items);renderAttentionPanel(items);return items;}
-    const body=document.getElementById('adminAttentionPanelBody');if(body&&!document.getElementById('adminAttentionPanel')?.hidden)body.innerHTML=loading('جارٍ تحديث تنبيهات الطلاب…');
-    try{attentionData=await window.MFCloud.getMotivationLeaderboardAdmin({academicYear:context.academicYear,month:context.month,alertsOnly:true});attentionLoadedAt=Date.now();attentionContextKey=contextKey;const items=attentionItems(attentionData);updateAttentionBadges(items);renderAttentionPanel(items);return items;}
-    catch(error){const items=attentionItems(attentionData||[]);updateAttentionBadges(items);if(items.length)renderAttentionPanel(items);else if(body)body.innerHTML=empty(adminActionErrorMessage(error,'تعذر تحميل التنبيهات الآن.'));return items;}
+    const body=document.getElementById('adminAttentionPanelBody');
+    if(body&&!document.getElementById('adminAttentionPanel')?.hidden)body.innerHTML=loading('جارٍ تحديث تنبيهات الطلاب…');
+    if(attentionRequest?.key===contextKey)return attentionRequest.promise;
+
+    const request={key:contextKey};
+    const isCurrent=()=>attentionRequest===request&&attentionKey()===contextKey;
+    attentionRequest=request;
+    request.promise=(async()=>{
+      try {
+        const rows=await window.MFCloud.getMotivationLeaderboardAdmin({academicYear:context.academicYear,month:context.month,alertsOnly:true});
+        if(!isCurrent())return [];
+        attentionData=rows;
+        attentionLoadedAt=Date.now();
+        attentionContextKey=contextKey;
+        const items=attentionItems(rows);
+        updateAttentionBadges(items);
+        renderAttentionPanel(items);
+        return items;
+      } catch(error) {
+        if(!isCurrent())return [];
+        const items=attentionItems(attentionContextKey===contextKey?attentionData||[]:[]);
+        updateAttentionBadges(items);
+        if(items.length)renderAttentionPanel(items);
+        else {
+          const currentBody=document.getElementById('adminAttentionPanelBody');
+          if(currentBody)currentBody.innerHTML=empty(adminActionErrorMessage(error,'تعذر تحميل التنبيهات الآن.'));
+        }
+        return items;
+      }
+    })().finally(()=>{if(attentionRequest===request)attentionRequest=null;});
+    return request.promise;
   };
 
   function kpis(data){return `<div class="operations-kpis"><article><b>${data.students?.length||0}</b><small>طالب نشط</small></article><article class="good"><b>${data.attendanceKnown===false?'—':data.attendance?.length||0}</b><small>حضور مسجل اليوم</small></article><article class="warn"><b>${data.corrections?.total||0}</b><small>ينتظر التصحيح</small></article><article class="danger"><b>${data.alerts?.pendingBookings||0}</b><small>طلبات تسجيل</small></article></div>`;}

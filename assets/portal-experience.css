@@ -507,3 +507,24 @@ body.student-menu-open{overflow:hidden}
 .tm-portal .student-task-copy{min-width:0;flex:1;display:grid;gap:4px}
 .tm-portal .student-task-copy b{font-size:.88rem;overflow-wrap:anywhere}
 .tm-portal .student-task-label{flex:none;color:var(--primary);font-size:.73rem;font-weight:700}
+
+@media(max-width:700px){
+ .tm-portal .mobile-bottom .tm-public-more-list{grid-template-columns:1fr;width:min(248px,calc(100vw - 24px));min-width:0;gap:4px;padding:8px;max-height:calc(100dvh - 110px);border-radius:12px;overscroll-behavior:contain}
+ .tm-portal .mobile-bottom .tm-public-more-list>a,
+ .tm-portal :is(.tm-public-more-list,.tm-nav-more-list) #studentHelpButton.tm-menu-tool{
+  display:grid!important;grid-template-columns:22px minmax(0,1fr);grid-template-rows:auto;align-items:center!important;justify-items:start!important;gap:8px!important;
+  width:100%!important;min-width:0!important;height:auto!important;min-height:44px!important;padding:8px 10px!important;border-radius:8px;
+  color:var(--text)!important;text-align:start;font-size:.78rem;font-weight:600;line-height:1.5;
+ }
+ .tm-portal :is(.tm-public-more-list,.tm-nav-more-list) #studentHelpButton.tm-menu-tool::before,
+ .tm-portal :is(.tm-public-more-list,.tm-nav-more-list) #studentHelpButton.tm-menu-tool::after{content:none!important;display:none!important}
+ .tm-portal :is(.tm-public-more-list,.tm-nav-more-list) #studentHelpButton.tm-menu-tool>.tm-public-tool-label{
+  display:block!important;position:static!important;grid-column:2;grid-row:1;width:auto!important;min-width:0;height:auto!important;white-space:normal;
+  transform:none!important;font-family:inherit!important;font-size:.78rem!important;font-weight:600;line-height:1.5!important;overflow-wrap:anywhere;
+ }
+ .tm-portal :is(.tm-public-more-list,.tm-nav-more-list) #studentHelpButton.tm-menu-tool>.tm-robot-icon{
+  display:grid!important;place-items:center;position:static!important;grid-column:1;grid-row:1;width:22px!important;min-width:22px!important;height:22px!important;transform:none!important;font-size:1.2rem!important;line-height:1!important;
+ }
+ .tm-portal :is(.tm-public-more-list,.tm-nav-more-list) #studentHelpButton.tm-menu-tool .tm-robot-icon svg{width:20px!important;height:20px!important}
+ .tm-portal :is(.tm-public-more-list,.tm-nav-more-list) #studentHelpButton.tm-menu-tool .tm-robot-pulse{display:none!important}
+}

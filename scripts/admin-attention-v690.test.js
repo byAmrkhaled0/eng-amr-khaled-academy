@@ -4,6 +4,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
+const vm=require('node:vm');
 const root=path.resolve(__dirname,'..');
 const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 
@@ -18,6 +19,37 @@ test('top attention centre covers the three requested student risks',()=>{
   assert.match(ui,/renderActionAttrs\(type==='booking'\?'goAdminSection':'editStudent'/);
   assert.match(css,/\.admin-attention-panel-v69/);
   assert.match(css,/html\[data-theme="dark"\] \.admin-attention-button-v69\.has-alerts/);
+});
+
+test('attention centre shares requests and ignores a late response for another period',async()=>{
+  let month='أكتوبر';
+  const requests=[];
+  const panelBody={innerHTML:''};
+  const window={MFCloud:{getMotivationLeaderboardAdmin:({month})=>new Promise(resolve=>requests.push({month,resolve}))}};
+  vm.runInNewContext(read('assets/v64-admin-operations.js'),{
+    window,
+    document:{
+      addEventListener(){},
+      getElementById(id){return id==='adminAttentionPanelBody'?panelBody:null;}
+    },
+    adminWorkspaceContext:()=>({academicYear:'2026/2027',month}),
+    pendingBookings:()=>[],
+    renderActionAttrs:()=>'',
+    hydrateIcons(){}
+  });
+
+  const october=window.refreshAdminAttentionAlerts();
+  const repeated=window.refreshAdminAttentionAlerts(true);
+  assert.deepEqual(requests.map(request=>request.month),['أكتوبر']);
+  month='نوفمبر';
+  const november=window.refreshAdminAttentionAlerts();
+  assert.deepEqual(requests.map(request=>request.month),['أكتوبر','نوفمبر']);
+  requests[1].resolve([{studentName:'طالب نوفمبر',missingHomeworkCount:1}]);
+  assert.equal((await november)[0].studentName,'طالب نوفمبر');
+  requests[0].resolve([{studentName:'طالب أكتوبر',missingHomeworkCount:1}]);
+  assert.equal((await october).length,0);
+  assert.equal((await repeated).length,0);
+  assert.match(panelBody.innerHTML,/طالب نوفمبر/);
 });
 
 test('student file exposes one chronological activity log without removing detail tabs',()=>{

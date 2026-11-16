@@ -29,6 +29,16 @@
         assetPromises.set(src,promise);return promise;
       };
       const forSection=section=>assets.filter(asset=>(asset.dataset?.adminSections||'').split(/\s+/).includes(section));
+      // Warm the initial section while the shared shell loads. The router still
+      // executes its scripts only after the shell is ready and only on demand.
+      if(navigator.onLine!==false){
+        const initialSection=new URLSearchParams(location.search).get('section')||'overview';
+        for(const asset of forSection(initialSection)){
+          const preload=document.createElement('link');
+          preload.rel='preload';preload.as='script';preload.href=asset.src;
+          document.head.appendChild(preload);
+        }
+      }
       window.__tmAdminSectionAssetsReady=section=>forSection(section).every(asset=>loaded.has(asset.src));
       window.__tmLoadAdminSectionAssets=section=>Promise.all(forSection(section).map(loadScript)).then(()=>{window.__tmAdminInstallRenderEnhancers?.();});
       // CSS and the ordered shared shell scripts download in parallel. No section

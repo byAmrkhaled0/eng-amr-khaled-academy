@@ -17,12 +17,14 @@ test('offline preparation uses inclusive Cairo calendar boundaries, including bo
   assert.equal(attendanceDayDecision('الثلاثاء والجمعة','2026-09-23').allowed,false);
 });
 
-test('all admin bundle requests start before any load finishes, while retaining ordered classic execution',async()=>{
+test('shared admin bundles download in parallel and the initial section only preloads',async()=>{
   const source=read('assets/admin-entry.js'),start=source.indexOf('  const loadBundles='),end=source.indexOf('  const openWorkspace=',start);
-  const appended=[],originals=Array.from({length:15},(_,i)=>({src:`bundle-${i}.js`,getAttribute:()=>`bundle-${i}.js`}));
-  const context={window:{},bundle:{content:{querySelectorAll:()=>originals}},bundlePromise:null,Event:class{},document:{createElement:()=>({}),body:{appendChild:s=>appended.push(s)},dispatchEvent:()=>{}}};
+  const appended=[],preloads=[],originals=Array.from({length:15},(_,i)=>({src:`bundle-${i}.js`,getAttribute:()=>`bundle-${i}.js`}));
+  const sectionAsset={src:'overview.js',dataset:{adminSections:'overview payments'}};
+  const context={window:{},bundle:{content:{querySelectorAll:()=>[...originals,sectionAsset]}},bundlePromise:null,Event:class{},navigator:{onLine:true},location:{search:''},URLSearchParams,document:{createElement:()=>({}),head:{appendChild:link=>preloads.push(link)},body:{appendChild:s=>appended.push(s)},dispatchEvent:()=>{}}};
   vm.createContext(context);vm.runInContext(source.slice(start,end)+'\nthis.load=loadBundles;',context);
   const pending=context.load();assert.equal(appended.length,15);
+  assert.deepEqual(preloads,[{rel:'preload',as:'script',href:'overview.js'}]);
   assert.deepEqual(appended.map(s=>s.src),originals.map(s=>s.src));assert.ok(appended.every(s=>s.async===false));
   assert.equal(context.load(),pending);for(const s of appended)s.onload();await pending;
 });

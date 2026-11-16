@@ -13,9 +13,12 @@
   boot=(async()=>{
    const urls=[...template.content.querySelectorAll('script[src]')].map(n=>n.getAttribute('src'));
    const app=urls.find(src=>src.includes('firebase-app-compat'));
-   if(typeof window.firebase==='undefined')await script(app);
-   await Promise.all(urls.filter(src=>/firebase-(auth|firestore|functions)-compat/.test(src)).filter(src=>{const name=src.match(/firebase-(\w+)-compat/)[1];return typeof window.firebase?.[name]!=='function';}).map(script));
-   if(!window.MF_FIREBASE_CONFIG)await script(urls.find(src=>src.startsWith('assets/firebase-config.js')));
+   const sdkReady=(async()=>{
+    if(typeof window.firebase==='undefined')await script(app);
+    await Promise.all(urls.filter(src=>/firebase-(auth|firestore|functions)-compat/.test(src)).filter(src=>{const name=src.match(/firebase-(\w+)-compat/)[1];return typeof window.firebase?.[name]!=='function';}).map(script));
+   })();
+   const configReady=window.MF_FIREBASE_CONFIG?Promise.resolve():script(urls.find(src=>src.startsWith('assets/firebase-config.js')));
+   await Promise.all([sdkReady,configReady]);
    await script(urls.find(src=>src.startsWith('assets/firebase-sync.js')));
    if(!window.MFCloud?.ready)throw new Error(window.MF_FIREBASE_CONFIG?.localOffline?'المعاينة المحلية غير متصلة بخدمات البيانات. شغّل وضع المحاكيات المحلي المرفق.':'خدمة الحساب غير متاحة حاليًا. حاول مرة أخرى.');
   })().catch(error=>{boot=null;throw error;});
