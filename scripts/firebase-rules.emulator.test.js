@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@firebase/rules-unit-testing');
-const { collection, doc, getDoc, getDocs, setDoc, updateDoc, Timestamp } = require('firebase/firestore');
+const { collection, doc, getDoc, getDocs, setDoc, updateDoc, Timestamp, query, where, orderBy, documentId, limit, startAfter, writeBatch } = require('firebase/firestore');
 const { ref, uploadBytes, getBytes, updateMetadata } = require('firebase/storage');
 
 const root = path.resolve(__dirname, '..');
@@ -31,6 +31,29 @@ test.before(async () => {
 });
 
 test.after(async()=>{if(env)await env.cleanup();});
+
+test('anonymous reviews cover every approved page and reject pending reviews',async()=>{
+  const approvedIds=Array.from({length:105},(_,i)=>'paging-'+String(i).padStart(3,'0'));
+  await env.withSecurityRulesDisabled(async context=>{
+    const db=context.firestore(),batch=writeBatch(db);
+    approvedIds.forEach(id=>batch.set(doc(db,'reviews',id),{approved:true,text:'Approved'}));
+    batch.set(doc(db,'reviews','paging-050-pending'),{approved:false,text:'Pending'});
+    await batch.commit();
+  });
+  const db=env.unauthenticatedContext().firestore(),reviews=collection(db,'reviews');
+  const gathered=[];
+  let cursor=null;
+  do {
+    const clauses=[where('approved','==',true),orderBy(documentId()),limit(13)];
+    if(cursor)clauses.push(startAfter(cursor));
+    const snapshot=await assertSucceeds(getDocs(query(reviews,...clauses)));
+    const page=snapshot.docs.slice(0,12);
+    gathered.push(...page.map(item=>item.id));
+    cursor=snapshot.size>12?page.at(-1).id:null;
+  } while(cursor);
+  assert.deepEqual(gathered,approvedIds);
+  await assertFails(getDoc(doc(reviews,'paging-050-pending')));
+});
 const adminDb=()=>env.authenticatedContext('admin-uid',{admin:true,email_verified:true,email:'admin@example.com'}).firestore();
 
 test('raw timetable documents are private even when their IDs are public',async()=>{

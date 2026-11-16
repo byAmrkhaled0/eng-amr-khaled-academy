@@ -513,17 +513,28 @@
     }
     async function getSettings(){const snap=await platformSettingsDoc.get().catch(()=>null);return snap?.exists?snap.data():{};}
     async function getApprovedReviews(){const snap=await db.collection('reviews').where('approved','==',true).limit(100).get();return snap.docs.map(doc=>({id:doc.id,...doc.data()}));}
+    async function getApprovedReviewsPage(cursor=null){
+      const pageSize=12;
+      let query=db.collection('reviews').where('approved','==',true).orderBy(firebase.firestore.FieldPath.documentId()).limit(pageSize+1);
+      if(cursor)query=query.startAfter(cursor);
+      const snapshot=await query.get({source:'server'});
+      const page=snapshot.docs.slice(0,pageSize);
+      const rows=page.map(doc=>{
+        const {name,role,rating,text}=doc.data();
+        return {id:doc.id,name,role,rating,text,approved:true};
+      });
+      return {rows,nextCursor:snapshot.docs.length>pageSize?page.at(-1).id:null};
+    }
 
     async function loadPublicCollections(){
       const page=(globalThis.location?.pathname?.split('/').pop()||'index.html').toLowerCase();
       const home=page===''||page==='index.html';
-      const reviewsPage=page==='reviews.html';
       // Mobile visitors should not download every public collection on every
       // page. The booking page needs schedules and reviews; resource pages
       // fetch their own content; portals use secure callable responses.
       const [materials,questions,reviews,groups,assignments,settings]=await Promise.all([
         [],[],
-        (home||reviewsPage)?getApprovedReviews().catch(()=>[]):[],home&&calls.getPublicBookingSchedules?calls.getPublicBookingSchedules({}).then(response=>response.schedules).catch(()=>[]):[],
+        home?getApprovedReviews().catch(()=>[]):[],home&&calls.getPublicBookingSchedules?calls.getPublicBookingSchedules({}).then(response=>response.schedules).catch(()=>[]):[],
         [],getSettings().catch(()=>({}))
       ]);
       return {students:[],bookings:[],materials,questions,exams:[],reviews,groups,assignments,examAttempts:[],grades:[],settings};
@@ -886,6 +897,7 @@
         if(!calls.getBookingStatus)throw new Error('Secure booking status service is unavailable');
         return calls.getBookingStatus({code:normalized});
       },
+      getApprovedReviewsPage,
       saveReview:async review=>{if(!calls.createReview)throw new Error('Secure review function is unavailable');return calls.createReview(review);},
       recordClassProgress:async record=>{
         if(!calls.recordClassProgress)throw new Error('Secure class progress service is unavailable');
