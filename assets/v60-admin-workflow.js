@@ -10,7 +10,7 @@
   const selectedScheduleId=form=>String(form?.elements?.group?.selectedOptions?.[0]?.dataset?.scheduleId||'').trim();
   const homeworkWorkspaceReports=new Map();
   const homeworkWorkspacePending=new Set();
-  let homeworkArchiveLoaded=false,homeworkArchiveLoading=false;
+  let homeworkArchiveLoaded=false,homeworkArchiveLoading=false,homeworkArchiveRefreshPending=false;
   const ADMIN_BUILDER_DRAFT_PREFIX='tm-admin-builder-draft-v1:';
   const adminBuilderDraftKey=kind=>`${ADMIN_BUILDER_DRAFT_PREFIX}${kind}`;
   const builderQuestionRows=(form,kind)=>[...form.querySelectorAll(kind==='exam'?'[data-exam-question]':'[data-homework-question]')].map(card=>kind==='exam'?{
@@ -93,7 +93,12 @@
   async function ensureHomeworkArchiveLoaded(){
     if(homeworkArchiveLoaded||homeworkArchiveLoading||!window.MFCloud?.getHomeworkAdminWorkspace)return;
     homeworkArchiveLoading=true;
-    try{const rows=await window.MFCloud.getHomeworkAdminWorkspace({});const existing=new Map((adminData.assignments||[]).map(row=>[String(row.id),row]));(Array.isArray(rows)?rows:[]).forEach(row=>existing.set(String(row.id),{...(existing.get(String(row.id))||{}),...row}));adminData.assignments=[...existing.values()];homeworkArchiveLoaded=true;saveData(adminData);if(document.getElementById('homeworkAttendanceAssignment'))window.renderAssignments?.();}
+    try{const rows=await window.MFCloud.getHomeworkAdminWorkspace({});const existing=new Map((adminData.assignments||[]).map(row=>[String(row.id),row]));(Array.isArray(rows)?rows:[]).forEach(row=>existing.set(String(row.id),{...(existing.get(String(row.id))||{}),...row}));adminData.assignments=[...existing.values()];homeworkArchiveLoaded=true;saveData(adminData);
+      if(document.getElementById('homeworkAttendanceAssignment')){
+        if(adminCanRefreshLiveSection())window.renderAssignments?.();
+        else homeworkArchiveRefreshPending=true;
+      }
+    }
     catch(error){console.warn('homework-archive-load-failed',error);}
     finally{homeworkArchiveLoading=false;}
   }
@@ -432,7 +437,14 @@
   }
   window.startNewHomeworkAssignment=function(){const form=document.getElementById('assignmentFormV6061');if(!form)return;setHomeworkBuilderMode(form);form.hidden=false;form.scrollIntoView({behavior:'smooth',block:'start'});};
   window.editHomeworkAssignment=function(id){const assignment=(adminData.assignments||[]).find(row=>String(row.id)===String(id));if(!assignment||assignment.archived===true)return aToast('لا يمكن تعديل واجب مؤرشف');const form=document.getElementById('assignmentFormV6061');if(!form)return aToast('تعذر فتح نموذج تعديل الواجب');setHomeworkBuilderMode(form,assignment);form.hidden=false;form.scrollIntoView({behavior:'smooth',block:'start'});hydrateIcons();};
-  window.toggleHomeworkCreator=function(force){const form=document.getElementById('assignmentFormV6061');if(!form)return;if(form.hidden)setHomeworkBuilderMode(form);form.hidden=typeof force==='boolean'?!force:!form.hidden;if(!form.hidden)form.scrollIntoView({behavior:'smooth',block:'start'});};
+  window.toggleHomeworkCreator=function(force){
+    const form=document.getElementById('assignmentFormV6061');
+    if(!form)return;
+    if(form.hidden)setHomeworkBuilderMode(form);
+    form.hidden=typeof force==='boolean'?!force:!form.hidden;
+    if(!form.hidden)form.scrollIntoView({behavior:'smooth',block:'start'});
+    else if(homeworkArchiveRefreshPending)window.renderAssignments?.();
+  };
   window.openHomeworkAdminFile=function(id){sessionStorage.setItem('tm-admin-current-homework',String(id||''));const select=document.getElementById('homeworkAttendanceAssignment');if(select)select.value=String(id||'');renderHomeworkAttendanceRows();document.getElementById('homeworkAttendanceRows')?.scrollIntoView({behavior:'smooth',block:'start'});};
   function renderHomeworkAttendanceRows(){
     const assignmentId=document.getElementById('homeworkAttendanceAssignment')?.value||'',grade=document.getElementById('homeworkAttendanceGrade')?.value||'',group=document.getElementById('homeworkAttendanceGroup')?.value||'',box=document.getElementById('homeworkAttendanceRows');
@@ -555,7 +567,7 @@
     new MutationObserver(enhance).observe(box,{childList:true,subtree:true});enhance();
   }
   function removePracticalLecturesFromHomework(){document.getElementById('materialFormV6061')?.remove();document.querySelectorAll('.admin-content-lists > section').forEach(section=>{if((section.querySelector('h3')?.textContent||'').includes('محاضرات العملي'))section.remove();});}
-  const install=()=>{window.renderExams=renderExamsV6061;window.renderMaterials=renderLecturesV623;window.renderTheoryLectures=renderTheoryLecturesV640;window.renderAssignments=()=>{ensureHomeworkArchiveLoaded();renderAssignmentsV622();removePracticalLecturesFromHomework();compactHomeworkWorkspace();installHomeworkFileControls();};};
+  const install=()=>{window.renderExams=renderExamsV6061;window.renderMaterials=renderLecturesV623;window.renderTheoryLectures=renderTheoryLecturesV640;window.renderAssignments=()=>{homeworkArchiveRefreshPending=false;ensureHomeworkArchiveLoaded();renderAssignmentsV622();removePracticalLecturesFromHomework();compactHomeworkWorkspace();installHomeworkFileControls();};};
   install();
   document.addEventListener('DOMContentLoaded',()=>{install();setTimeout(install,0);});
 })();

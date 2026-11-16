@@ -683,7 +683,7 @@ html[data-theme="dark"] .admin-page-v37 .admin-section input:not([type="checkbox
 /* Tablet and phone */
 @media(max-width:1180px){.admin-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:980px){
-  body.admin-dashboard-active{padding:0!important}.admin-mobile-home{display:grid;place-items:center;width:42px!important;height:42px!important;border:1px solid rgba(213,170,78,.24)!important;border-radius:12px!important;background:rgba(213,170,78,.1)!important;color:#e8c979!important}.admin-heading-cluster{display:none}.admin-overview-layout{grid-template-columns:1fr}.admin-pulse-panel{order:-1}
+  body.admin-dashboard-active{padding:0!important}.admin-mobile-home{display:grid;place-items:center;width:44px!important;height:44px!important;border:1px solid rgba(213,170,78,.24)!important;border-radius:12px!important;background:rgba(213,170,78,.1)!important;color:#e8c979!important}.admin-heading-cluster{display:none}.admin-overview-layout{grid-template-columns:1fr}.admin-pulse-panel{order:-1}
 }
 @media(max-width:650px){
   .admin-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.admin-metric-card{grid-template-columns:35px minmax(0,1fr);min-height:92px;padding:10px;gap:8px}.admin-metric-icon{width:35px;height:35px}.admin-metric-icon svg{width:17px;height:17px}.admin-metric-copy b{font-size:1.35rem}.admin-metric-copy em,.admin-metric-arrow{display:none}

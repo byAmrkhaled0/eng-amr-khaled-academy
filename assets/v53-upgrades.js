@@ -191,10 +191,41 @@
       if(typeof hydrateIcons==='function')hydrateIcons();
     };
 
+    const renderOverviewActions=renderOverview;
+    renderOverview=function(){
+      renderOverviewActions();
+      const actions={
+        students:()=>{
+          const form=document.getElementById('addStudentForm');
+          if(!form)return;
+          const panel=form.closest('details');
+          if(panel)panel.open=true;
+          if(form.parentElement.hidden){
+            const trigger=document.querySelector('[data-student-tool="add"]')||document.querySelector('button[onclick*="addStudentForm"]');
+            trigger?.click();
+          }
+          form.elements.namedItem('name')?.focus();
+        },
+        exams:()=>{
+          window.toggleExamCreator?.(true);
+          document.querySelector('#examFormV6061 [name="title"]')?.focus({preventScroll:true});
+        },
+        assignments:()=>{
+          window.toggleHomeworkCreator?.(true);
+          document.querySelector('#assignmentFormV6061 [name="title"]')?.focus({preventScroll:true});
+        },
+        payments:()=>document.getElementById('paymentSearch')?.focus()
+      };
+      for(const [section,action] of Object.entries(actions)){
+        const button=document.querySelector(`.reference-six-actions button[onclick="goAdminSection('${section}')"]`);
+        if(button)button.onclick=()=>window.goAdminSection(section,action);
+      }
+    };
+
     const goAdminSectionV52=window.goAdminSection;
-    window.goAdminSection=function(id){
+    window.goAdminSection=function(id,onReady){
       if(!allowedSections().has(id)){aToast('هذا القسم متاح للمدرس أو المدير فقط');return;}
-      goAdminSectionV52(id);
+      goAdminSectionV52(id,onReady);
     };
 
     const contentV52=content;
@@ -517,10 +548,17 @@
   compactNavigation(document.querySelector('#studentResult .student-tabbar'),()=>true,'المزيد');
   compactNavigation(document.querySelector('#parentResult .parent-tabbar'),el=>['overview','attendance','report'].includes(el.dataset.parentSection),'المزيد');
   const compact=window.matchMedia('(max-width:700px)').matches,target=document.querySelector('#parentResult .tm-nav-more-list')||document.querySelector('.tm-public-more-list');
-  for(const id of ['studentHelpButton','v56ScrollTop','accountAccessButton']){
+  for(const id of ['studentHelpButton','accountAccessButton']){
    let state=mobileTools.get(id);const button=document.getElementById(id)||state?.button;if(!button)continue;
    if(state&&state.button!==button){state.marker.remove();mobileTools.delete(id);state=null;}
-   if(id!=='accountAccessButton'){let label=button.querySelector(':scope>.tm-public-tool-label');if(compact&&target?.matches('.tm-public-more-list')){if(!label){label=document.createElement('span');label.className='tm-public-tool-label';label.setAttribute('aria-hidden','true');button.append(label);}label.textContent=button.title||button.getAttribute('aria-label')||'';}else label?.remove();}
+   if(id!=='accountAccessButton'){
+    let label=button.querySelector(':scope>.tm-public-tool-label');
+    if(compact&&target&&document.body.dataset.account!=='student'){
+     if(!label){label=document.createElement('span');label.className='tm-public-tool-label';label.setAttribute('aria-hidden','true');button.append(label);}
+     const title='مساعد Techno Minds';
+     if(label.textContent!==title)label.textContent=title;
+    }else label?.remove();
+   }
    if(document.body.dataset.account==='student'){if(state){state.marker.replaceWith(button);button.classList.remove('tm-menu-tool');mobileTools.delete(id);}continue;}
    if(compact&&target){if(!state){const marker=document.createComment('mobile tool home');button.before(marker);state={button,marker};mobileTools.set(id,state);}if(button.parentElement!==target)target.append(button);button.classList.add('tm-menu-tool');if(!button.__tmMenuCloseBound){button.addEventListener('click',()=>{const menu=button.closest('details');if(menu)menu.open=false;});button.__tmMenuCloseBound=true;}}
    else if(state){state.marker.replaceWith(button);button.classList.remove('tm-menu-tool');mobileTools.delete(id);}
